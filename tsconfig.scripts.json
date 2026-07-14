@@ -1,0 +1,12 @@
+{
+  // Node-runtime scripts (CLI wrappers around engine-pure cores). Run via
+  // `npx vite-node scripts/<name>-cli.ts -- ...`; checked here with node
+  // types so process/fs usage is typed without leaking node globals into
+  // the client/engine configs.
+  "extends": "./tsconfig.json",
+  "include": ["scripts/**/*"],
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["node"]
+  }
+}

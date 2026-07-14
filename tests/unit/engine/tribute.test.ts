@@ -33,7 +33,7 @@ function ok<T extends { ok: boolean }>(result: T): Extract<T, { ok: true }> {
 
 function errCode<T extends { ok: boolean }>(result: T): string {
   expect(result.ok).toBe(false);
-  return (result as { ok: false; error: { code: string } }).error.code;
+  return (result as unknown as { ok: false; error: { code: string } }).error.code;
 }
 
 function tributeOf(setup: ReturnType<typeof setupTribute>): TributeState {

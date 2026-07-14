@@ -9,7 +9,7 @@
     "build": "vite build",
     "dev:client": "vite",
     "cf:dev": "wrangler dev",
-    "typecheck": "tsc --noEmit -p tsconfig.engine.json && tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.client.json",
+    "typecheck": "tsc --noEmit -p tsconfig.engine.json && tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.client.json && tsc --noEmit -p tsconfig.scripts.json",
     "test": "vitest run",
     "deploy": "wrangler deploy"
   },
@@ -19,9 +19,11 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260708.1",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-v8": "^3.2.7",
     "typescript": "^5.7.3",
     "vite": "^6.0.11",
     "vitest": "^3.0.5",
