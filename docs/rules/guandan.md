@@ -278,6 +278,10 @@ Removed in v1.2: `doubleTributeTieLead` (the lead rule is unanimous and derivabl
 
 Remaining **UNCERTAIN** defaults (`turnDirection`, `equalTributeAssignment` — a documented three-way source conflict, `fullHouseJokerPair`, `fiveOfKindAsFullHouse`, A-level attempt details, `tributeLevelBasis`, the reveal-mandate wording in §7.6) all have keys in this table, so a wrong default is a config change, not an engine change. Everything not tagged VARIANT/UNCERTAIN is **CORE** and may be hard-coded.
 
+### Implementation status (M1 gate, owner-resolved 2026-07-14: keep all three guarded)
+
+Three non-default values are **guarded — not implemented**: the engine rejects them loudly at `init` with `config.notImplemented` (tested), rather than being silently wrong. Owner reasoning, recorded per decision: (1) `tributeLevelBasis='previousLevel'` — a hair-split variant no source pins; owner plays `upcomingLevel`; zero-payoff scope (Codex+Grok convergent audit finding). (2) `levelTrack='shared'` **combined with** `aFailConsequence='demote'` — shared-ladder demotion semantics are genuinely undefined by any source; defining them for a combination nobody wants is scope without payoff (Grok audit finding; each value works alone). (3) `equalTributeAssignment='winnersChoose'` — pagat's Western variant needing an extra decision action + UI; not the owner's rule lineage. Any of the three can be promoted later behind its existing key without engine redesign. Related logged ambiguity (left as-is, both keys non-default): `aceFinishDemotes` × `suspendPlayOpponentLevel` on the same hand — spec silent; engine applies the ace demote after suspension.
+
 ---
 
 ### Sources
