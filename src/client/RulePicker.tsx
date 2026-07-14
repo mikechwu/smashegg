@@ -2,13 +2,15 @@
 // RuleVariant keys over the opaque setConfig transport"). Mounts into
 // Lobby's `data-slot="config-panel"` slot.
 //
-// Scope is deliberately narrow: exactly 5 house-rules-sensitive keys, each
-// with owner-picked defaults pre-selected (JIANGSU_OFFICIAL_ONLINE). Every
-// other RuleVariant key — including the guarded ones (`equalTributeAssignment
-// ='winnersChoose'`, `tributeLevelBasis='previousLevel'`, `levelTrack=
-// 'shared'` combined with `aFailConsequence='demote'`) — is NEVER offered
-// here; assembleConfig always spreads picks over the untouched owner
-// defaults (tested in tests/unit/client/rule-picker.test.ts).
+// Scope is deliberately narrow: exactly 6 house-rules-sensitive keys, each
+// with owner-picked defaults pre-selected (JIANGSU_OFFICIAL_ONLINE, plus
+// the one PRODUCT default: firstLeadMethod='drawCard', see
+// CURATED_DEFAULT_PICKS). Every other RuleVariant key/value — including the
+// guarded ones (`equalTributeAssignment='winnersChoose'`, `tributeLevelBasis
+// ='previousLevel'`, `levelTrack='shared'` combined with `aFailConsequence=
+// 'demote'`, and `firstLeadMethod='fixedSeat'`) — is NEVER offered here;
+// assembleConfig always spreads picks over the untouched owner defaults
+// (tested in tests/unit/client/rule-picker.test.ts).
 //
 // The room layer treats `config` as opaque (PLAN §4): this component reads
 // an `unknown` room.config defensively (picksFromConfig), so a config
@@ -19,12 +21,14 @@ import type { RuleVariant } from '../engine/guandan/config';
 import { JIANGSU_OFFICIAL_ONLINE } from '../engine/guandan/config';
 import { t, type TranslationKey } from './i18n';
 
+export type FirstLeadMethodPick = 'drawCard' | 'random';
 export type AFailConsequencePick = 'suspendPlayOpponentLevel' | 'demote' | 'none';
 export type ReturnTributeMaxRankPick = 10 | null;
 export type CardCountVisibilityPick = 'always' | 'onRequestLE10';
 
-/** Exactly the 5 curated keys — the only ones this picker ever offers. */
+/** Exactly the 6 curated keys — the only ones this picker ever offers. */
 export interface RulePickerPicks {
+  firstLeadMethod: FirstLeadMethodPick;
   aFailConsequence: AFailConsequencePick;
   overshootWinsGame: boolean;
   returnTributeMaxRank: ReturnTributeMaxRankPick;
@@ -34,8 +38,14 @@ export interface RulePickerPicks {
 
 /** Owner defaults (pre-selected in the UI), read straight off the profile
  *  so this file never re-states a value docs/rules/guandan.md already
- *  pins — a profile change moves the picker's default automatically. */
+ *  pins — a profile change moves the picker's default automatically.
+ *  ONE deliberate exception: firstLeadMethod defaults to 'drawCard' — the
+ *  PRODUCT default for created rooms (the 翻牌定先 opening ceremony must be
+ *  visible by default); the engine-spec default stays 'random'. HomePage
+ *  creates rooms with assembleConfig(CURATED_DEFAULT_PICKS), so what the
+ *  picker displays is exactly what a fresh room carries. */
 export const CURATED_DEFAULT_PICKS: RulePickerPicks = {
+  firstLeadMethod: 'drawCard',
   aFailConsequence: JIANGSU_OFFICIAL_ONLINE.aFailConsequence,
   overshootWinsGame: JIANGSU_OFFICIAL_ONLINE.overshootWinsGame,
   returnTributeMaxRank: JIANGSU_OFFICIAL_ONLINE.returnTributeMaxRank,
@@ -45,9 +55,13 @@ export const CURATED_DEFAULT_PICKS: RulePickerPicks = {
 
 /** The pure config-assembly function (unit-tested): untouched keys always
  *  keep the owner's JIANGSU_OFFICIAL_ONLINE values; picks only ever override
- *  the 5 curated keys. */
+ *  the 6 curated keys. */
 export function assembleConfig(picks: RulePickerPicks): RuleVariant {
   return { ...JIANGSU_OFFICIAL_ONLINE, ...picks };
+}
+
+function isFirstLeadMethodPick(value: unknown): value is FirstLeadMethodPick {
+  return value === 'drawCard' || value === 'random';
 }
 
 function isAFailConsequencePick(value: unknown): value is AFailConsequencePick {
@@ -62,7 +76,7 @@ function isCardCountVisibilityPick(value: unknown): value is CardCountVisibility
   return value === 'always' || value === 'onRequestLE10';
 }
 
-/** Reads the 5 curated fields off an opaque room.config, falling back to
+/** Reads the 6 curated fields off an opaque room.config, falling back to
  *  the curated defaults per-field when the value is missing or outside the
  *  curated set (e.g. a config written under a non-curated value, or by a
  *  future client version) — never throws on untrusted shape. */
@@ -70,6 +84,9 @@ export function picksFromConfig(config: unknown): RulePickerPicks {
   if (typeof config !== 'object' || config === null) return CURATED_DEFAULT_PICKS;
   const c = config as Record<string, unknown>;
   return {
+    firstLeadMethod: isFirstLeadMethodPick(c.firstLeadMethod)
+      ? c.firstLeadMethod
+      : CURATED_DEFAULT_PICKS.firstLeadMethod,
     aFailConsequence: isAFailConsequencePick(c.aFailConsequence)
       ? c.aFailConsequence
       : CURATED_DEFAULT_PICKS.aFailConsequence,
@@ -93,8 +110,24 @@ export function picksFromConfig(config: unknown): RulePickerPicks {
 interface Option<T> {
   value: T;
   label: TranslationKey;
+  /** One explanation line, shown beneath the group while this option is the
+   *  selected one. Groups whose options need no explanation (BOOL_OPTIONS)
+   *  point hint at the label, which suppresses the line. */
   hint: TranslationKey;
 }
+
+const FIRST_LEAD_OPTIONS = [
+  {
+    value: 'drawCard',
+    label: 'lobby.rules.firstLeadMethod.drawCard.label',
+    hint: 'lobby.rules.firstLeadMethod.drawCard.hint',
+  },
+  {
+    value: 'random',
+    label: 'lobby.rules.firstLeadMethod.random.label',
+    hint: 'lobby.rules.firstLeadMethod.random.hint',
+  },
+] as const satisfies readonly Option<FirstLeadMethodPick>[];
 
 const A_FAIL_OPTIONS = [
   {
@@ -168,6 +201,15 @@ export function RulePicker({ config, disabled, onChange }: RulePickerProps) {
       <style>{RULE_PICKER_CSS}</style>
 
       <SegmentedGroup
+        legendKey="lobby.rules.firstLeadMethod.label"
+        hintKey="lobby.rules.firstLeadMethod.hint"
+        options={FIRST_LEAD_OPTIONS}
+        value={picks.firstLeadMethod}
+        disabled={disabled}
+        onSelect={(value) => set('firstLeadMethod', value)}
+      />
+
+      <SegmentedGroup
         legendKey="lobby.rules.aFailConsequence.label"
         hintKey="lobby.rules.aFailConsequence.hint"
         options={A_FAIL_OPTIONS}
@@ -233,6 +275,7 @@ function SegmentedGroup<T>({
   onSelect,
 }: SegmentedGroupProps<T>) {
   const legend = t(legendKey);
+  const selected = options.find((option) => option.value === value);
   return (
     <fieldset className="rule-picker__group" disabled={disabled}>
       <legend className="rule-picker__label">{legend}</legend>
@@ -253,6 +296,9 @@ function SegmentedGroup<T>({
           </button>
         ))}
       </div>
+      {selected !== undefined && selected.hint !== selected.label && (
+        <p className="rule-picker__hint rule-picker__hint--option">{t(selected.hint)}</p>
+      )}
     </fieldset>
   );
 }
@@ -293,6 +339,9 @@ const RULE_PICKER_CSS = `
   font-size: 0.8rem;
   line-height: 1.4;
   color: rgba(245, 239, 227, 0.72);
+}
+.rule-picker__hint--option {
+  margin: 0.4rem 0 0;
 }
 .rule-picker__segmented {
   display: flex;

@@ -1,0 +1,406 @@
+/* App-shell design system (M3 visual-iteration round 1). The non-table
+ * screens (home / lobby / room chrome) share the table's normative palette;
+ * table.css re-declares the same tokens on .gd-table and keeps its own
+ * full-bleed layout. The app deliberately commits to its lacquer look in
+ * both browser themes (a card room has one felt).
+ * Quality floor: focus-visible everywhere, no horizontal scroll at 375px,
+ * reduced-motion respected. Goldleaf stays RESERVED for the table's level
+ * rail / jiefeng / victory — never used in the shell. */
+
+:root {
+  --lacquer: #2b1a18;
+  --rosewood: #4a2c27;
+  --ivory: #f5efe3;
+  --cinnabar: #c3392b;
+  --ink: #1f2430;
+  --goldleaf: #c9a227;
+
+  --font-ui: -apple-system, 'PingFang TC', 'Hiragino Sans TC', 'Noto Sans TC',
+    'Microsoft JhengHei', sans-serif;
+  --font-card: 'Songti TC', 'Noto Serif TC', Georgia, serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html {
+  background: var(--lacquer);
+}
+body {
+  margin: 0;
+  background: var(--lacquer);
+  color: var(--ivory);
+  font-family: var(--font-ui);
+  line-height: 1.5;
+}
+button {
+  font-family: inherit;
+}
+a {
+  color: inherit;
+}
+:focus-visible {
+  outline: 2px solid var(--ivory);
+  outline-offset: 2px;
+}
+
+/* --- shell ------------------------------------------------------------- */
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+.app-header {
+  width: 100%;
+  max-width: 45rem; /* ~720px column, shared with .app-main */
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 0.875rem 1rem 0.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.app-wordmark {
+  margin: 0;
+  font-family: var(--font-card);
+  font-size: 1.375rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+.app-wordmark a {
+  color: var(--ivory);
+  text-decoration: none; /* quiet ivory wordmark, not a blue link */
+}
+.app-locale {
+  display: flex;
+  gap: 0.25rem;
+  flex: none;
+}
+.app-locale button {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  color: var(--ivory);
+  opacity: 0.6;
+  font-size: 0.75rem;
+  padding: 0.2rem 0.6rem;
+  cursor: pointer;
+}
+.app-locale button:hover:not(:disabled) {
+  opacity: 0.9;
+}
+.app-locale button:disabled {
+  /* the ACTIVE locale */
+  opacity: 1;
+  border-color: rgba(245, 239, 227, 0.4);
+  cursor: default;
+}
+
+/* --- page column --------------------------------------------------------- */
+.app-main {
+  width: 100%;
+  max-width: 45rem;
+  margin: 0 auto;
+  box-sizing: border-box;
+  padding: 0.5rem 1rem 3rem;
+}
+.app-main--wide {
+  max-width: 72rem; /* the table screen widens; the table itself is full-bleed */
+}
+
+.app-alert {
+  background: color-mix(in srgb, var(--cinnabar) 26%, var(--lacquer));
+  border-left: 3px solid var(--cinnabar);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+  margin: 0.75rem 0;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.app-alert > p {
+  margin: 0;
+}
+.app-alert__detail {
+  margin-top: 0.25rem !important;
+  opacity: 0.8;
+  font-size: 0.8125rem;
+}
+.app-quiet {
+  opacity: 0.75;
+  font-size: 0.875rem;
+}
+
+/* --- primary action -------------------------------------------------------- */
+.btn-primary {
+  background: var(--cinnabar);
+  color: var(--ivory);
+  border: none;
+  border-radius: 10px;
+  padding: 0.875rem 2rem;
+  font-size: 1.0625rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--cinnabar) 88%, var(--ivory));
+}
+.btn-primary:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* --- home -------------------------------------------------------------------- */
+.home-hero {
+  text-align: center;
+  padding: 2.25rem 0 2rem;
+}
+.home-tagline {
+  margin: 0 0 1.75rem;
+  opacity: 0.85;
+}
+.home-hero h2 {
+  margin: 0 0 1rem;
+  font-family: var(--font-card);
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+.home-create {
+  width: 100%;
+  max-width: 20rem;
+}
+.home-join {
+  background: color-mix(in srgb, var(--rosewood) 55%, var(--lacquer));
+  border-radius: 10px;
+  padding: 1rem 1.125rem 1.125rem;
+}
+.home-join h2 {
+  margin: 0 0 0.625rem;
+  font-size: 1rem;
+  font-weight: 600;
+  opacity: 0.9;
+}
+.home-join form {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.home-join label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.8125rem;
+  opacity: 0.9;
+}
+.home-join input {
+  background: var(--lacquer);
+  border: 1px solid rgba(245, 239, 227, 0.35);
+  border-radius: 8px;
+  color: var(--ivory);
+  font-family: var(--font-mono);
+  font-size: 1.125rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  padding: 0.5rem 0.625rem;
+  width: 9.5em;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.home-join button {
+  background: var(--rosewood);
+  color: var(--ivory);
+  border: 1px solid rgba(245, 239, 227, 0.25);
+  border-radius: 8px;
+  padding: 0.55rem 1.125rem;
+  font-size: 0.9375rem;
+  cursor: pointer;
+}
+.home-join button:hover {
+  background: color-mix(in srgb, var(--rosewood) 82%, var(--ivory));
+}
+
+/* --- lobby --------------------------------------------------------------------- */
+.lobby-heading {
+  margin: 0.75rem 0 0.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  opacity: 0.75;
+}
+.lobby-code {
+  background: var(--rosewood);
+  border-radius: 12px;
+  padding: 1rem 1.125rem 0.5rem;
+  text-align: center;
+  margin-bottom: 1rem;
+}
+.lobby-code__label {
+  display: block;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  opacity: 0.7;
+}
+.lobby-code__row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.875rem;
+  flex-wrap: wrap;
+  margin-top: 0.25rem;
+}
+.lobby-code__value {
+  font-family: var(--font-card);
+  font-size: clamp(2rem, 9vw, 2.75rem);
+  letter-spacing: 0.18em;
+  font-weight: 600;
+}
+.lobby-code__copy {
+  background: none;
+  border: 1px solid rgba(245, 239, 227, 0.35);
+  color: var(--ivory);
+  border-radius: 999px;
+  padding: 0.3rem 0.875rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+.lobby-code__copy:hover {
+  background: rgba(245, 239, 227, 0.1);
+}
+.lobby-code__status {
+  margin: 0.375rem 0 0;
+  min-height: 1.25em; /* reserved line: no layout jump when the toast shows */
+  font-size: 0.8125rem;
+  opacity: 0.85;
+}
+
+.lobby-seats {
+  list-style: none;
+  margin: 0 0 1rem;
+  padding: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
+}
+.lobby-seat {
+  background: var(--rosewood);
+  border-radius: 10px;
+  border: 1px solid transparent;
+  padding: 0.625rem 0.75rem 0.75rem;
+  min-height: 4.75rem;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+.lobby-seat--empty {
+  background: transparent;
+  border: 1px dashed rgba(245, 239, 227, 0.35);
+}
+.lobby-seat__label {
+  font-size: 0.75rem;
+  opacity: 0.65;
+}
+.lobby-seat__row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.lobby-seat__dot {
+  width: 0.5625rem;
+  height: 0.5625rem;
+  border-radius: 50%;
+  flex: none;
+}
+.lobby-seat__dot--on {
+  background: #7fa96b;
+}
+.lobby-seat__dot--off {
+  background: var(--ink);
+  box-shadow: inset 0 0 0 1px rgba(245, 239, 227, 0.4);
+}
+.lobby-seat__name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.lobby-seat__you {
+  background: var(--ivory);
+  color: var(--ink);
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  padding: 0 0.3125rem;
+}
+.lobby-seat__empty {
+  opacity: 0.55;
+  font-size: 0.875rem;
+}
+
+.lobby-claim {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.lobby-claim label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  font-size: 0.75rem;
+  opacity: 0.9;
+}
+.lobby-claim input {
+  background: var(--lacquer);
+  border: 1px solid rgba(245, 239, 227, 0.35);
+  border-radius: 8px;
+  color: var(--ivory);
+  font-family: inherit;
+  font-size: 0.9375rem;
+  padding: 0.4rem 0.5rem;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+.lobby-claim button {
+  align-self: flex-start;
+  background: var(--cinnabar);
+  color: var(--ivory);
+  border: none;
+  border-radius: 8px;
+  padding: 0.4rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lobby-claim button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.lobby-start {
+  display: block;
+  width: 100%;
+  margin: 0 0 0.375rem;
+}
+.lobby-start__reason {
+  margin: 0 0 1rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  opacity: 0.75;
+}
+.lobby-config {
+  margin-top: 1.25rem;
+}
+.lobby-config h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+/* --- reduced motion (quality floor) --------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}

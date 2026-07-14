@@ -1,13 +1,16 @@
-// Lobby screen (M3 shell, PLAN.md §4 lobby phase): claimed-seat roster,
-// claim button (repeatable — one client may claim MULTIPLE seats, up to all
-// of them, for self-play), the config-panel placeholder slot the rule-picker
-// task will fill, and the start button (any seated player, once every seat
-// is claimed).
+// Lobby screen (M3 shell, PLAN.md §4 lobby phase). Layout (visual-iteration
+// round 1): the room code is the page's hero — a large serif code chip with
+// a copy-link button — followed by four rosewood seat plates (the nickname +
+// claim flow lives inside the FIRST empty plate; claiming stays repeatable,
+// one client may claim multiple seats for self-play), the big cinnabar
+// start button (any seated player, once every seat is claimed, with a
+// localized disabled-reason line), and the rule-picker panel beneath.
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { RoomInfo } from '../shared/protocol';
 import type { RoomSnapshot, RoomStore } from './room/store';
 import { RulePicker } from './RulePicker';
+import { roomHash } from './router';
 import { t } from './i18n';
 
 export interface LobbyProps {
@@ -15,9 +18,18 @@ export interface LobbyProps {
   store: RoomStore;
 }
 
+type CopyState = 'idle' | 'copied' | 'failed';
+
 export function Lobby({ snapshot, store }: LobbyProps) {
   const [name, setName] = useState('');
+  const [copyState, setCopyState] = useState<CopyState>('idle');
   const room = snapshot.room as RoomInfo; // RoomPage only renders Lobby with a room
+
+  useEffect(() => {
+    if (copyState === 'idle') return;
+    const timer = setTimeout(() => setCopyState('idle'), 2500);
+    return () => clearTimeout(timer);
+  }, [copyState]);
 
   const freeSeats = room.seats.filter((s) => !s.claimed).length;
   const allClaimed = freeSeats === 0;
@@ -26,46 +38,124 @@ export function Lobby({ snapshot, store }: LobbyProps) {
   // Start rule (PLAN §4): any seated player may start once all seats are
   // claimed. The server re-validates; this only gates the button.
   const canStart = snapshot.connected && holdsSeat && allClaimed;
+  const firstEmptySeat = room.seats.find((s) => !s.claimed)?.seat ?? null;
+
+  const startReason = !allClaimed
+    ? t('lobby.waitingForSeats', { count: freeSeats })
+    : !holdsSeat
+      ? t('lobby.startNeedSeat')
+      : !snapshot.connected
+        ? t('room.statusDisconnected')
+        : null;
+
+  const copyLink = async () => {
+    const url = `${location.origin}${location.pathname}${roomHash(store.code)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopyState('copied');
+    } catch {
+      // clipboard unavailable (insecure context / permission denied)
+      setCopyState('failed');
+    }
+  };
 
   return (
-    <section>
-      <h2>{t('lobby.heading')}</h2>
+    <section className="lobby">
+      <h2 className="lobby-heading">{t('lobby.heading')}</h2>
 
-      <ul>
+      <div className="lobby-code">
+        <span className="lobby-code__label">{t('lobby.roomCode')}</span>
+        <div className="lobby-code__row">
+          <strong className="lobby-code__value">{store.code}</strong>
+          <button
+            type="button"
+            className="lobby-code__copy"
+            onClick={() => {
+              void copyLink();
+            }}
+          >
+            {t('lobby.copyLink')}
+          </button>
+        </div>
+        {/* Persistent live region: the copied-toast swaps into a reserved
+            line, so announcing works and the chip never jumps. */}
+        <p className="lobby-code__status" role="status">
+          {copyState === 'copied'
+            ? t('lobby.copied')
+            : copyState === 'failed'
+              ? t('lobby.copyFailed')
+              : ' '}
+        </p>
+      </div>
+
+      <ul className="lobby-seats">
         {room.seats.map((seat) => (
-          <li key={seat.seat}>
-            {t('lobby.seatLabel', { seat: seat.seat + 1 })}
-            {': '}
-            {seat.claimed ? (seat.name ?? '') : t('lobby.seatEmpty')}
-            {seat.claimed && snapshot.seats.has(seat.seat) && <> {t('lobby.seatYou')}</>}
-            {seat.claimed && (
-              <> — {seat.connected ? t('lobby.seatConnected') : t('lobby.seatDisconnected')}</>
+          <li
+            key={seat.seat}
+            className={seat.claimed ? 'lobby-seat' : 'lobby-seat lobby-seat--empty'}
+          >
+            <span className="lobby-seat__label">
+              {t('lobby.seatLabel', { seat: seat.seat + 1 })}
+            </span>
+            {seat.claimed ? (
+              <span className="lobby-seat__row">
+                <span
+                  className={
+                    seat.connected
+                      ? 'lobby-seat__dot lobby-seat__dot--on'
+                      : 'lobby-seat__dot lobby-seat__dot--off'
+                  }
+                  role="img"
+                  aria-label={
+                    seat.connected ? t('lobby.seatConnected') : t('lobby.seatDisconnected')
+                  }
+                />
+                <span className="lobby-seat__name">{seat.name ?? ''}</span>
+                {snapshot.seats.has(seat.seat) && (
+                  <span className="lobby-seat__you">{t('lobby.seatYou')}</span>
+                )}
+              </span>
+            ) : seat.seat === firstEmptySeat ? (
+              // The claim flow lives inside the first empty plate; it
+              // disappears entirely once every seat is claimed.
+              <form
+                className="lobby-claim"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!canClaim) return;
+                  store.claim(name.trim());
+                }}
+              >
+                <label>
+                  {t('lobby.nameLabel')}
+                  <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder={t('lobby.namePlaceholder')}
+                    maxLength={32}
+                  />
+                </label>
+                <button type="submit" disabled={!canClaim}>
+                  {t('lobby.claimButton')}
+                </button>
+              </form>
+            ) : (
+              <span className="lobby-seat__empty">{t('lobby.seatEmpty')}</span>
             )}
           </li>
         ))}
       </ul>
 
-      <form
-        onSubmit={(e) => {
-          e.preventDefault();
-          if (!canClaim) return;
-          store.claim(name.trim());
-        }}
+      <button
+        type="button"
+        className="btn-primary lobby-start"
+        disabled={!canStart}
+        onClick={() => store.start()}
       >
-        <label>
-          {t('lobby.nameLabel')}{' '}
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder={t('lobby.namePlaceholder')}
-            maxLength={32}
-          />
-        </label>
-        <button type="submit" disabled={!canClaim}>
-          {t('lobby.claimButton')}
-        </button>
-      </form>
+        {t('lobby.startButton')}
+      </button>
+      {startReason !== null && <p className="lobby-start__reason">{startReason}</p>}
 
       {/* Config-panel slot: the curated Guandan rule-picker (a subset of the
           25 RuleVariant keys over the opaque setConfig transport, PLAN
@@ -73,7 +163,7 @@ export function Lobby({ snapshot, store }: LobbyProps) {
           configChanged (RulePicker is fully controlled by room.config), and
           the panel disables itself once the match config is frozen
           (room.status !== 'lobby'). */}
-      <section data-slot="config-panel">
+      <section className="lobby-config" data-slot="config-panel">
         <h3>{t('lobby.configHeading')}</h3>
         <RulePicker
           config={room.config}
@@ -81,11 +171,6 @@ export function Lobby({ snapshot, store }: LobbyProps) {
           onChange={(config) => store.setConfig(config)}
         />
       </section>
-
-      <button type="button" disabled={!canStart} onClick={() => store.start()}>
-        {t('lobby.startButton')}
-      </button>
-      {!allClaimed && <p>{t('lobby.waitingForSeats', { count: freeSeats })}</p>}
     </section>
   );
 }

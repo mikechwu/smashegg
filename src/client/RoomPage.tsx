@@ -47,27 +47,59 @@ export function RoomPage({ code }: RoomPageProps) {
     return () => connection.close();
   }, [check, store]);
 
-  if (check === 'checking') return <main>{<p>{t('room.loading')}</p>}</main>;
+  if (check === 'checking') {
+    return (
+      <main className="app-main">
+        <p className="app-quiet">{t('room.loading')}</p>
+      </main>
+    );
+  }
   if (check === 'notFound' || check === 'error') {
     return (
-      <main>
-        <p role="alert">{check === 'notFound' ? t('room.notFound') : t('room.loadFailed')}</p>
+      <main className="app-main">
+        <p className="app-alert" role="alert">
+          {check === 'notFound' ? t('room.notFound') : t('room.loadFailed')}
+        </p>
         <a href="#/">{t('room.backHome')}</a>
       </main>
     );
   }
 
   const lastRejection = snapshot.rejections[snapshot.rejections.length - 1];
+  // Rejection params (e.g. the thrown message on room.startFailed) surface
+  // as secondary text — the label stays localized; the raw values pass
+  // through so the player sees WHY, not just an opaque code.
+  const rejectionDetail =
+    lastRejection?.error.params !== undefined
+      ? Object.values(lastRejection.error.params)
+          .filter((v): v is string | number => typeof v === 'string' || typeof v === 'number')
+          .map(String)
+          .join(' · ')
+      : '';
+
+  // Lobby (and pre-welcome) keeps the narrow reading column; the table gets
+  // the wide column and keeps its own full-bleed internal layout.
+  const inLobby = snapshot.room === null || snapshot.room.status === 'lobby';
 
   return (
-    <main>
-      <h2>{t('room.codeLabel', { code })}</h2>
-      <p>{snapshot.connected ? t('room.statusConnected') : t('room.statusDisconnected')}</p>
+    <main className={inLobby ? 'app-main' : 'app-main app-main--wide'}>
+      {!snapshot.connected && (
+        <p className="app-alert" role="status">
+          {t('room.statusDisconnected')}
+        </p>
+      )}
       {lastRejection !== undefined && (
-        <p role="alert">{t('room.rejected', { code: lastRejection.error.code })}</p>
+        <div className="app-alert" role="alert">
+          <p>{t('room.rejected', { code: lastRejection.error.code })}</p>
+          {rejectionDetail !== '' && (
+            <p className="app-alert__detail">
+              {t('room.rejectedDetail', { detail: rejectionDetail })}
+            </p>
+          )}
+        </div>
       )}
       {snapshot.room === null ? (
-        <p>{t('room.connecting')}</p>
+        <p className="app-quiet">{t('room.connecting')}</p>
       ) : snapshot.room.status === 'lobby' ? (
         <Lobby snapshot={snapshot} store={store} />
       ) : (
