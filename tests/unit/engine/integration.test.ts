@@ -108,4 +108,20 @@ describe('GuandanGame integration (seeded bot playouts)', () => {
     const config: RuleVariant = { ...JIANGSU_OFFICIAL_ONLINE, levelTrack: 'shared', aFailConsequence: 'demote' };
     expect(() => GuandanGame.init(config, 4, 'x')).toThrow(/notImplemented/);
   });
+
+  it('rejects a partial config at init instead of silently defaulting (Grok M3 audit F1)', () => {
+    // A missing turnDirection previously fell into the clockwise branch of
+    // nextSeat silently — strict validation makes partial configs loud.
+    expect(() => GuandanGame.init({} as RuleVariant, 4, 'x')).toThrow(/config\.invalid: turnDirection/);
+    const missingOne = { ...JIANGSU_OFFICIAL_ONLINE } as Record<string, unknown>;
+    delete missingOne['jiefengRecipient'];
+    expect(() => GuandanGame.init(missingOne as unknown as RuleVariant, 4, 'x')).toThrow(
+      /config\.invalid: jiefengRecipient/,
+    );
+  });
+
+  it('rejects unknown config keys at init (typos can never silently no-op)', () => {
+    const typod = { ...JIANGSU_OFFICIAL_ONLINE, jokrBombSupreme: true } as unknown as RuleVariant;
+    expect(() => GuandanGame.init(typod, 4, 'x')).toThrow(/config\.unknownKey: jokrBombSupreme/);
+  });
 });

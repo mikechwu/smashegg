@@ -1,7 +1,8 @@
 // RulePicker config-assembly tests (M3): pure-function coverage only — no
 // React rendering. Per the task brief: untouched RuleVariant keys must keep
 // the owner's JIANGSU_OFFICIAL_ONLINE defaults, and the guarded values
-// (winnersChoose, previousLevel, shared+demote, fixedSeat) must never be
+// (winnersChoose, previousLevel, shared+demote — engine-guarded; plus
+// fixedSeat, implemented but uncurated) must never be
 // reachable through this curated surface. assembleConfig(CURATED_DEFAULT_
 // PICKS) is also the create-room config HomePage sends, so it is pinned
 // here: owner profile + the drawCard PRODUCT default.
@@ -122,7 +123,8 @@ describe('picksFromConfig', () => {
     expect(picksFromConfig(config).cardCountVisibility).toBe(
       CURATED_DEFAULT_PICKS.cardCountVisibility,
     );
-    // 'fixedSeat' is a real RuleVariant value but guarded here: it degrades
+    // 'fixedSeat' is a real, IMPLEMENTED RuleVariant value (engine accepts
+    // it; Grok M3 audit F2) that is merely not curated: display degrades
     // to the drawCard default.
     const fixedSeat = { ...JIANGSU_OFFICIAL_ONLINE, firstLeadMethod: 'fixedSeat' };
     expect(picksFromConfig(fixedSeat).firstLeadMethod).toBe('drawCard');

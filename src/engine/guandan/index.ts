@@ -8,7 +8,7 @@
 import type { ApplyResult, GameDefinition, GameResult, RuleError, Seat } from '../core/game';
 import { nextInt, seedPrng, shuffle, type PrngState } from '../core/prng';
 import { buildDeck, naturalValue, rankOf, RANKS, sortCards, type Card, type Rank } from './cards';
-import { JIANGSU_OFFICIAL_ONLINE, type RuleVariant } from './config';
+import { JIANGSU_OFFICIAL_ONLINE, validateRuleVariant, type RuleVariant } from './config';
 import { beats, inferDecl, validatePlay } from './combos';
 import { defaultPlayAction, legalActionsFor } from './generate';
 import {
@@ -345,6 +345,10 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
 
   init(config, seats, seed) {
     if (seats !== 4) throw new Error(`guandan requires exactly 4 seats, got ${seats}`);
+    // Grok M3 audit F1: the room passes config through opaquely, so a
+    // partial/foreign object lands here as-is. Validate every key loudly
+    // (→ room.startFailed, lobby retained) — never guess at defaults.
+    config = validateRuleVariant(config);
     if (config.equalTributeAssignment === 'winnersChoose') {
       // Documented M1 limitation (STATUS): needs an extra decision action.
       // Failing at init beats failing mid-match.

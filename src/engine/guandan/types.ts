@@ -24,7 +24,11 @@ export function partnerOf(seat: Seat): Seat {
 }
 
 export function nextSeat(seat: Seat, config: RuleVariant): Seat {
-  return config.turnDirection === 'counterclockwise' ? (seat + 1) % 4 : (seat + 3) % 4;
+  // Explicitly test for 'clockwise' so the spec default (counterclockwise)
+  // is also the STRUCTURAL fallback — a malformed turnDirection can never
+  // silently invert rotation (Grok M3 audit F1; init validation is the
+  // primary guard, this is defense in depth).
+  return config.turnDirection === 'clockwise' ? (seat + 3) % 4 : (seat + 1) % 4;
 }
 
 // ---------------------------------------------------------------------------
@@ -206,9 +210,10 @@ export type GuandanEvent =
        *  - flips: every counting card flipped, in order, INCLUDING joker
        *    flips — all but the last were re-flips (jokers and the
        *    current-level rank have no countable natural position);
-       *  - firstDrawer: counting the last flip's rank COUNTERCLOCKWISE
-       *    with the cutter as position 1 (A=self, 2=next CCW, 3=partner,
-       *    4=remaining; ranks wrap mod 4 — seatOffset=(rank-1)%4);
+       *  - firstDrawer: counting the last flip's rank IN TURN DIRECTION
+       *    (counterclockwise by default, per turnDirection) with the cutter
+       *    as position 1 (A=self, 2=下家, 3=partner, 4=remaining; ranks
+       *    wrap mod 4 — seatOffset=(rank-1)%4);
        *  - markerSeat: the seat that draws the face-up marker card = the
        *    hand's leader. Distribution over seats is uniform (same as
        *    'random' — the ceremony is flavor, not a fairness change). */

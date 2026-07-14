@@ -8,7 +8,8 @@
 // CURATED_DEFAULT_PICKS). Every other RuleVariant key/value — including the
 // guarded ones (`equalTributeAssignment='winnersChoose'`, `tributeLevelBasis
 // ='previousLevel'`, `levelTrack='shared'` combined with `aFailConsequence=
-// 'demote'`, and `firstLeadMethod='fixedSeat'`) — is NEVER offered here;
+// 'demote'` are engine-guarded; `firstLeadMethod='fixedSeat'` is a real
+// implemented variant merely not curated) — is NEVER offered here;
 // assembleConfig always spreads picks over the untouched owner defaults
 // (tested in tests/unit/client/rule-picker.test.ts).
 //

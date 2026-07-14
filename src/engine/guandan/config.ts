@@ -82,3 +82,68 @@ export function demoteTarget(config: RuleVariant, current: Rank): Rank {
       return current;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Strict config validation (Grok M3 audit, F1): the room layer passes config
+// through OPAQUELY (PLAN §4), so a partial/foreign object reaches init as-is
+// — and an absent turnDirection would otherwise silently flip rotation to
+// clockwise via nextSeat's ternary. The engine therefore validates EVERY key
+// against its allowed values and throws loudly (surfacing as room.startFailed,
+// room stays in lobby) instead of ever guessing. No default-merging: a
+// partial config is a client bug we want visible, not papered over.
+// ---------------------------------------------------------------------------
+
+const RULE_VALUE_SPACES: { [K in keyof RuleVariant]: readonly RuleVariant[K][] | 'boolean' | 'intOrNull' } = {
+  turnDirection: ['counterclockwise', 'clockwise'],
+  firstLeadMethod: ['random', 'drawCard', 'fixedSeat'],
+  levelTrack: ['perTeam', 'shared'],
+  overshootWinsGame: 'boolean',
+  aWinPartnerNotLast: 'boolean',
+  aMaxAttempts: 'intOrNull',
+  aFailConsequence: ['suspendPlayOpponentLevel', 'demote', 'none'],
+  aFailDemoteTo: ['level2', 'stayAtA', 'levelJ'],
+  aAttemptCounterReset: ['fresh', 'cumulative'],
+  aceFinishDemotes: 'boolean',
+  aAttemptOnlyAsDeclarer: 'boolean',
+  returnTributeMaxRank: [10, null],
+  returnNoLowCardPolicy: ['lowestByLevelValue', 'anyCard'],
+  tributeLevelBasis: ['upcomingLevel', 'previousLevel'],
+  equalTributeAssignment: ['seatOrder', 'random', 'winnersChoose'],
+  antiTributeMode: ['auto', 'optional'],
+  tributeVisibility: ['public', 'returnHidden'],
+  cardCountVisibility: ['always', 'onRequestLE10', 'onRequestLE6'],
+  jokerBombSupreme: 'boolean',
+  wildStraightFlushIsBomb: 'boolean',
+  allowUnderDeclareStraightFlush: 'boolean',
+  fiveOfKindAsFullHouse: 'boolean',
+  fullHouseJokerPair: 'boolean',
+  allowWildUnderDeclare: 'boolean',
+  jiefengRecipient: ['partner', 'nextPlayer'],
+};
+
+/** Validate an opaque config object into a RuleVariant, throwing
+ *  `config.invalid: <key>` on the first missing or out-of-range key.
+ *  Unknown extra keys are rejected too (`config.unknownKey: <key>`) so a
+ *  typo'd key can never silently no-op. */
+export function validateRuleVariant(raw: unknown): RuleVariant {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) {
+    throw new Error('config.invalid: <root>');
+  }
+  const obj = raw as Record<string, unknown>;
+  for (const key of Object.keys(obj)) {
+    if (!(key in RULE_VALUE_SPACES)) throw new Error(`config.unknownKey: ${key}`);
+  }
+  for (const [key, space] of Object.entries(RULE_VALUE_SPACES)) {
+    const value = obj[key];
+    if (space === 'boolean') {
+      if (typeof value !== 'boolean') throw new Error(`config.invalid: ${key}`);
+    } else if (space === 'intOrNull') {
+      if (value !== null && (typeof value !== 'number' || !Number.isInteger(value) || value < 1)) {
+        throw new Error(`config.invalid: ${key}`);
+      }
+    } else if (!(space as readonly unknown[]).includes(value)) {
+      throw new Error(`config.invalid: ${key}`);
+    }
+  }
+  return obj as unknown as RuleVariant;
+}
