@@ -1,0 +1,7 @@
+# Copy this file to .dev.vars (gitignored) and fill in real values for
+# local `wrangler dev` runs. Never commit .dev.vars itself.
+
+# Gates the future GET /api/debug/rooms/:code/dump route (PLAN.md §6): the
+# route is always on under `wrangler dev`, but in production it 404s
+# unless this secret is configured AND presented by the caller.
+DEBUG_DUMP_TOKEN=dev-only-example

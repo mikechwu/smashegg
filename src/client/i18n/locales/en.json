@@ -1,0 +1,13 @@
+{
+  "app.title": "smashegg",
+  "app.tagline": "Online Guandan matches, playable straight from your browser.",
+  "hello.heading": "Connectivity check",
+  "hello.button": "Call hello endpoint",
+  "hello.count": "Call count: {count}",
+  "hello.alarmPending": "Alarm timer running, waiting to fire...",
+  "hello.alarmFired": "Alarm fired, took {seconds} seconds",
+  "hello.error": "Request failed. Please try again.",
+  "locale.label": "Language",
+  "locale.zhHant": "繁體中文",
+  "locale.en": "English"
+}

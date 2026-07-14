@@ -1,0 +1,24 @@
+# Research Methodology
+
+Conventions for platform-docs and game-rules research in this repo. Adapted from the research discipline of an internal quantitative-research project (the full extraction with file-level provenance lives in local notes, not in this repo); its trading-domain machinery was consciously not adopted (list at the end).
+
+## Adopted practices
+
+1. **Research over memory.** Every claim about a Cloudflare API behavior, a library, or a Guandan rule cites a primary source (URL) with a fetch date — never model memory alone. Time-sensitive claims (pricing, limits, package versions) are the least trustworthy from memory and the first to re-verify.
+2. **Multi-source corroboration for ambiguous rules.** A disputed rule needs ≥2 independent sources before it is treated as settled; low-trust sources (unofficial wikis, AI-generated summaries, garbled platform help pages) are explicitly flagged and discarded as uncorroborated. Where sources genuinely conflict, the conflict itself is the finding — documented per source and turned into a RuleVariant config key, not silently resolved.
+3. **Per-claim verification tags.** VERIFIED (primary source read) / UNCERTAIN (couldn't confirm) / inference (stated as such) — per claim, not per document. Confidence is graded claim-by-claim.
+4. **Null results are first-class, headlined outcomes.** "No source documents X" or "the official text is silent on Y" are findings, recorded in STATUS.md with the same prominence as positive results — and with a diagnosis of *why* the result is null (not indexed? genuinely unspecified? contradictory?). A null accepted without that diagnosis is a bug suspect, not a finding.
+5. **Question-first research passes.** Before researching an ambiguous point, write the question, the sources to check, and what evidence would count as "resolved" vs "still ambiguous" — then look. (Implemented as structured research-agent prompts with per-question deliverable formats; prevents motivated source selection.)
+6. **Anchoring-free cross-checks.** A verification pass (second model, second researcher) receives the artifact and the question — never the first pass's conclusion. Cross-model lineage diversity (Codex / Gemini / Grok vs Claude-family) is used for load-bearing checks; same-family self-review alone is never sufficient for one.
+7. **Audit coverage is documented, not just findings.** Review reports list "checked, no finding" sections alongside defects, so the absence of a finding is distinguishable from the absence of a check.
+8. **Named gates with pre-declared acceptance criteria.** Empirical unknowns become named gate checks (G-COMPOSE, G-ALARM, G-WSMETER in PLAN.md §9) with pass conditions written before the experiment runs.
+9. **Dated, supersession-marked research docs.** Research files are dated and corrections are appended with explicit "superseded by" markers (e.g. the partysocket version note in cloudflare-facts.md §9) rather than silently rewritten — later readers can see what was known when.
+10. **Self-correction logging.** When an earlier framing turns out wrong (including our own review findings against our own docs), the correction is logged in STATUS.md as a process entry, not silently patched.
+
+## Tool ladder (current)
+
+Web research runs on the built-in WebSearch/WebFetch tools, `curl` via shell for direct page/PDF fetches, and `gh api` for GitHub content. **Firecrawl is disabled as of 2026-07-13 (credit limit reached — owner instruction); state this in every research-agent prompt.** Escalate to costlier tooling only on demonstrated failure of a cheaper rung, and log the failure.
+
+## Consciously NOT adopted (trading-domain-specific)
+
+Backtesting engine conventions; walk-forward / purged & embargoed K-fold / CPCV cross-validation; DSR/PBO multiple-testing corrections; market-data hygiene (survivorship bias, adjustment factors, vendor feed semantics); conformal prediction gating; R-multiple/expectancy/SQN reporting; cost/slippage modeling. These guard against temporal leakage and P&L-metric overfitting, which have no analogue in platform-docs/rules research. The *general* principles behind two of them do transfer and are covered above: "distrust reused code, verify before reuse" (→ practice 1) and "count every trial including failures" (→ practice 4).

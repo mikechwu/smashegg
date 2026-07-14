@@ -1,0 +1,12 @@
+{
+  // React SPA + shared wire-protocol types, plus Vitest unit tests (which
+  // exercise client and shared code in a DOM-shaped environment).
+  "extends": "./tsconfig.json",
+  "include": ["src/client/**/*", "src/shared/**/*", "tests/unit/**/*"],
+  "compilerOptions": {
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["vite/client"],
+    "resolveJsonModule": true
+  }
+}

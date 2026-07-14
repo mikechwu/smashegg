@@ -1,0 +1,57 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy
+  # Let an in-flight deploy finish rather than cancelling it on a newer push.
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npx vitest run
+
+      - run: npm run build
+
+      - name: Verify build output
+        # Per-file checks so a future route/asset addition churns this guard
+        # instead of silently passing an aggregate count that stops meaning anything.
+        run: |
+          test -f dist/client/index.html
+          test -d dist/client/assets
+
+      - uses: cloudflare/wrangler-action@v3
+        with:
+          wranglerVersion: '4'
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy
+
+      - name: Post-deploy smoke check
+        # Set the vars.WORKER_URL repo variable after the first manual deploy
+        # reveals the workers.dev URL; skip smoke test until then.
+        if: vars.WORKER_URL != ''
+        run: |
+          sleep 10
+          curl --fail "$WORKER_URL/api/health"
+        env:
+          WORKER_URL: ${{ vars.WORKER_URL }}

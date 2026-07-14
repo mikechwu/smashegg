@@ -1,0 +1,40 @@
+{
+  // Single Worker: static client assets + the `fetch` entry handler + the
+  // GameRoom Durable Object, all deployed together (PLAN.md §1.1/§1.2).
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "smashegg",
+  "main": "src/server/index.ts",
+  "compatibility_date": "2026-07-13",
+
+  // Assets are matched first against the request path; anything that does
+  // not match a static file (notably /api/*) falls through to the Worker's
+  // `fetch` handler in src/server/index.ts. "single-page-application"
+  // fallback serves index.html for unmatched client routes so the React
+  // router (client-side) can take over.
+  "assets": {
+    "directory": "dist/client",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  },
+
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "GAME_ROOM",
+        "class_name": "GameRoom"
+      }
+    ]
+  },
+
+  // Declares GameRoom as a NEW Durable Object class backed by the free-plan
+  // SQLite storage backend (as opposed to the legacy key-value backend).
+  // Every future schema-affecting change to GameRoom gets its own tagged
+  // migration appended after "v1" — never edit this entry in place once
+  // deployed.
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["GameRoom"]
+    }
+  ]
+}

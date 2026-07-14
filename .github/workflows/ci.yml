@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run typecheck
+
+      - run: npx vitest run
+
+      - run: npm run build
+
+      - name: Verify build output
+        # Per-file checks so a future route/asset addition churns this guard
+        # instead of silently passing an aggregate count that stops meaning anything.
+        run: |
+          test -f dist/client/index.html
+          test -d dist/client/assets

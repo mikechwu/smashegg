@@ -1,0 +1,13 @@
+{
+  "app.title": "smashegg",
+  "app.tagline": "掼蛋線上對戰,在瀏覽器裡即開即玩。",
+  "hello.heading": "連線測試",
+  "hello.button": "呼叫 Hello 端點",
+  "hello.count": "呼叫次數:{count}",
+  "hello.alarmPending": "鬧鐘計時中,等待觸發...",
+  "hello.alarmFired": "鬧鐘已觸發,耗時 {seconds} 秒",
+  "hello.error": "呼叫失敗,請稍後再試。",
+  "locale.label": "語言",
+  "locale.zhHant": "繁體中文",
+  "locale.en": "English"
+}

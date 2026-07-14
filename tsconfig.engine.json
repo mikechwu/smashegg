@@ -1,0 +1,14 @@
+{
+  // PURITY GUARD: the engine is game-agnostic, deterministic, and
+  // platform-free (PLAN.md §2/§3). "lib": ["ES2022"] with no ambient DOM
+  // lib and "types": [] with no @cloudflare/workers-types means there is
+  // no `fetch`, `WebSocket`, `localStorage`, or any other platform global
+  // in scope here at all — any accidental reference to one is a compile
+  // error, not a review comment.
+  "extends": "./tsconfig.json",
+  "include": ["src/engine/**/*"],
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": []
+  }
+}

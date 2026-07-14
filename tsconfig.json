@@ -1,0 +1,16 @@
+{
+  // Shared base compiler options only. No "include" here — each of
+  // tsconfig.engine.json / tsconfig.server.json / tsconfig.client.json
+  // extends this and declares its own scope (PLAN.md §2).
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true,
+    "verbatimModuleSyntax": true
+  }
+}

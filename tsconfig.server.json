@@ -1,0 +1,10 @@
+{
+  // Worker entry + GameRoom Durable Object, plus the shared wire-protocol
+  // and room types. Compiled against workers-types, no DOM (PLAN.md §2).
+  "extends": "./tsconfig.json",
+  "include": ["src/server/**/*", "src/shared/**/*"],
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": ["@cloudflare/workers-types"]
+  }
+}
