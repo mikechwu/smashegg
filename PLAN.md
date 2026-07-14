@@ -324,7 +324,9 @@ Auto-iteration loop within each milestone: implement → tests → self-review �
 
 Round-3 tracked item: the `aFailConsequence` level-selection module (suspend/resume, spec §1.5/§6.4) is engine work — lands in M1, must be complete and tested before the M3 gate. Not an M0 blocker. ✅ Landed in M1 with named lifecycle tests.
 
-M3 tracked items (owner, M2 kickoff): the Guandan lobby rule-picker UI (curated subset of the 25 keys over the M2 opaque-config transport); the offline draw-card first-lead ceremony as presentation only (engine emits seeded ceremony data under `firstLeadMethod='drawCard'`; outcome distributionally equal to `random` — animation lives in the UI).
+M3 tracked items (owner, M2 kickoff): the Guandan lobby rule-picker UI (curated subset of the 25 keys over the M2 opaque-config transport); the offline draw-card first-lead ceremony as presentation only (engine emits seeded ceremony data under `firstLeadMethod='drawCard'`; outcome distributionally equal to `random` — animation lives in the UI). ✅ Both landed in M3.
+
+M4 tracked items (M3-hardening kickoff): protocol-level **version-skew signal** — long-lived SPA sessions never refetch index.html, so a mid-session deploy strands the running bundle (verified: index.html itself revalidates correctly with max-age=0/must-revalidate; hashed assets ETag-revalidate); the server should advertise its build/protocol version so stale clients can prompt a reload on reconnect. Also: the M2-noted deadline-recompute-restarts-timers refinement.
 
 Named empirical gate checks (promoted from the risk register per round-2 feedback):
 - **G-COMPOSE** (M0): the deployed hello-world proves one Worker serves static assets *and* answers through a Durable Object in a single deploy.
