@@ -1,6 +1,6 @@
 # STATUS
 
-## Current phase: M0 (skeleton + CI/CD) — PLAN signed off
+## Current phase: M1 (rules engine) — M0 closed 2026-07-14
 
 **Last updated:** 2026-07-13
 
@@ -18,7 +18,10 @@
   - **Ops constraint (owner, 2026-07-13): Firecrawl disabled** (credit limit reached) — all research agents now use built-in WebSearch/WebFetch + curl + `gh`; recorded in METHODOLOGY.md's tool ladder.
   - **Live gates PASSED (2026-07-13, free tier):** first deploy succeeded — `https://smashegg.mikechwu-iams.workers.dev`. **G-COMPOSE ✅**: one deploy serves the zh-Hant SPA + Worker API + Durable Object (SQLite counter persisted). **G-ALARM ✅**: DO alarm armed at epoch-ms 1783991776736 and fired at 1783991791736 — exactly +15.000s — on the deployed free plan. API hardening verified live (unknown `/api/*` → JSON 404). Note: a freshly registered workers.dev subdomain returned Cloudflare `error 1042` for the first ~1 minute — plain propagation delay, recovered on retry; logged so nobody debugs it as a code bug later.
   - **GitHub live (2026-07-14):** repo `mikechwu/smashegg` (public, owner-created), both commits pushed. **CI workflow: green** on GitHub runners (typecheck ×3, unit tests, build, dist assertions). `CLOUDFLARE_ACCOUNT_ID` secret and `WORKER_URL` variable set via `gh`. **Deploy workflow: red, expected** — fails precisely at wrangler auth because `CLOUDFLARE_API_TOKEN` is not yet set (verified in the run log; nothing else is wrong).
-  - **The single remaining M0 item:** owner creates the CI API token (dash.cloudflare.com/profile/api-tokens → Workers-edit template → scope to the one account) and hands it over once → `gh secret set CLOUDFLARE_API_TOKEN` → re-run Deploy → green closes M0.
+  - **M0 CLOSED (2026-07-14).** CI API token `smashegg-ci` created in the dashboard via browser automation (Workers-edit template; Account Resources = the single account; Zone Resources = all zones of that account; a distinct name so the pre-existing similarly-templated token used elsewhere stays untouched). Token verified active against `/user/tokens/verify`, stored only as the `CLOUDFLARE_API_TOKEN` GitHub secret, then the Deploy workflow re-ran **green** (run 29298708261: typecheck → tests → build → dist assertions → `wrangler deploy` → post-deploy smoke against WORKER_URL). M0 exit gate fully satisfied: push-to-main auto-deploys the localized hello page; PLAN/STATUS/SETUP in repo; CI green; **G-COMPOSE ✅ G-ALARM ✅** on the deployed free tier.
+
+### Next: M1 — pure Guandan rules engine + deterministic replay harness
+Per PLAN §9: combination detection/comparison, the 逢人配 template-matching validator (spec §4.4), legal-move generation, tribute state machine, level/A-attempt logic incl. `aFailConsequence=suspendPlayOpponentLevel`, 25-key RuleVariant config, property tests for the six interface obligations, spec-§9 edge cases as named tests, `scripts/replay.ts`. Cross-model audit (Codex + Gemini) at the gate.
 
 ## Round 2 (2026-07-13) — owner feedback incorporated
 
@@ -62,8 +65,8 @@
 | Milestone | State |
 |---|---|
 | Research & PLAN | ✅ rev 2 drafted, awaiting sign-off |
-| M0 skeleton + CI/CD (G-COMPOSE, G-ALARM) | ⏸ not started |
-| M1 rules engine + replay harness | ⏸ not started |
+| M0 skeleton + CI/CD (G-COMPOSE, G-ALARM) | ✅ closed 2026-07-14 |
+| M1 rules engine + replay harness | ▶ next |
 | M2 generic GameRoom DO + dump/replay roundtrip (G-ALARM hibernated, G-WSMETER) | ⏸ not started |
 | M3 Guandan plugged in | ⏸ not started |
 | M4 reconnection | ⏸ not started |
