@@ -129,6 +129,52 @@ a {
   font-size: 0.875rem;
 }
 
+/* --- version-skew banner (M4) -------------------------------------------- */
+/* Shell-level sibling of .app-header, so it needs its own page-column
+ * constraint; inline actions, never a modal — the table stays playable. */
+.app-update {
+  box-sizing: border-box;
+  width: calc(100% - 2rem);
+  max-width: 45rem;
+  margin: 0.75rem auto 0;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+.app-update > p {
+  flex: 1 1 14rem;
+}
+.app-update__actions {
+  display: flex;
+  gap: 0.5rem;
+  flex: none;
+}
+.app-update__actions button {
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  padding: 0.3rem 0.9rem;
+  cursor: pointer;
+}
+.app-update__reload {
+  background: var(--cinnabar);
+  border: 1px solid transparent;
+  color: var(--ivory);
+  font-weight: 600;
+}
+.app-update__reload:hover {
+  background: color-mix(in srgb, var(--cinnabar) 88%, var(--ivory));
+}
+.app-update__later {
+  background: none;
+  border: 1px solid rgba(245, 239, 227, 0.35);
+  color: var(--ivory);
+  opacity: 0.8;
+}
+.app-update__later:hover {
+  opacity: 1;
+}
+
 /* --- primary action -------------------------------------------------------- */
 .btn-primary {
   background: var(--cinnabar);

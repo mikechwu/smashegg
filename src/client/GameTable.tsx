@@ -314,9 +314,15 @@ export function GameTable({ snapshot, store }: GameTableProps) {
 
   const viewerTeam = teamOf(activeSeat);
   const layout = seatLayout(activeSeat);
-  const dueBySeat = new Map(deadlines.map((d) => [d.seat, d.dueAt]));
+  const deadlineBySeat = new Map(deadlines.map((d) => [d.seat, d]));
   const ringSeats = new Set<Seat>(activeSeats(view));
   if (view.phase === 'antiTributeDecision') for (const d of deadlines) ringSeats.add(d.seat);
+
+  // The hand-1 draw ceremony plays INSIDE the planning window (room-timing.md
+  // §4 absorb decision); while its overlay is up the countdown is dimmed —
+  // client-only cosmetics, the DO's alarm remains the sole enforcer.
+  const ceremonyShowing =
+    derived.ceremony !== null && !ceremonyDone && view.handNo === 1 && view.matchWinner === null;
 
   const tributePhase = tributeKind(hints ?? []);
   const eligible = tributeEligibleCards(hints ?? []);
@@ -347,7 +353,9 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       cardCount={view.cardCounts[seat] ?? null}
       place={placeOf(view.finishOrder, seat)}
       active={ringSeats.has(seat)}
-      dueAt={dueBySeat.get(seat) ?? null}
+      dueAt={deadlineBySeat.get(seat)?.dueAt ?? null}
+      planning={deadlineBySeat.get(seat)?.timingClass === 'planning'}
+      dimTimer={ceremonyShowing}
       now={now}
       passed={derived.passed.includes(seat)}
       committed={inTributeCenter && committedSet.has(seat)}
@@ -423,6 +431,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
             <ActionBar
               hints={hints}
               phase={view.phase}
+              level={view.currentLevel}
               matches={matches}
               passAvailable={hints !== null && hints.some((h) => h.type === 'pass')}
               selectionCount={selected.size}
@@ -455,7 +464,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         </div>
       )}
 
-      {derived.ceremony !== null && !ceremonyDone && view.handNo === 1 && view.matchWinner === null && (
+      {ceremonyShowing && derived.ceremony !== null && (
         <CeremonyOverlay
           ceremony={derived.ceremony}
           nameFor={nameFor}

@@ -4,10 +4,13 @@
 // §1 is the canonical shape this follows).
 //
 // GAME-AGNOSTICISM (the M2 proof, PLAN §9): this file imports ONLY from
-// '../shared/protocol', '../shared/games', '../engine/core/*',
-// './room-helpers' (pure extractions of this file's own logic), './index'
-// (the Env type), and 'cloudflare:workers'. ZERO imports from
-// engine/guandan or engine/guess-number — compile-proven at the gate.
+// '../shared/protocol', '../shared/games', '../shared/timing',
+// '../engine/core/*', './room-helpers' (pure extractions of this file's
+// own logic), './index' (the Env type), and 'cloudflare:workers'. ZERO
+// imports from engine/guandan or engine/guess-number — compile-proven at
+// the gate. Timing follows the same discipline: the DO maps an OPAQUE
+// class label through room config and never learns what a Guandan hand
+// start is.
 //
 // HIBERNATION DISCIPLINE (PLAN §4): sockets are accepted with NO tags
 // (seats are unknown at upgrade time — a connection only acquires seats via
@@ -37,14 +40,18 @@ import type {
 } from '../shared/protocol';
 import {
   bytesToHex,
-  computeDeadlines,
   deltaCoversGap,
+  nextDeadlines,
   redactEventsFor,
+  resolveTimeoutMs,
+  resolveTimingClass,
   sha256Hex,
   timeoutActionId,
   timingSafeEqualStr,
   toWireDeadlines,
+  type DeadlineEntry,
 } from './room-helpers';
+import { DEFAULT_ROOM_TIMING, validateRoomTiming, type RoomTiming } from '../shared/timing';
 
 // Bare literal "ping" -> "pong" answered while hibernated, at zero cost
 // (PLAN.md §4). Matches exact literal strings only — clients ping OUTSIDE
@@ -78,6 +85,9 @@ interface RoomRow {
   /** The exact seed passed to game.init at start (PLAN §6 replay artifact);
    *  NULL until the room leaves the lobby. */
   seed: string | null;
+  /** RoomTiming as JSON (M4); NULL = legacy room — the deadline path falls
+   *  back to the game's actionTimeoutMs suggestion verbatim. */
+  timing_json: string | null;
   [column: string]: SqlStorageValue;
 }
 
@@ -118,6 +128,11 @@ interface ActionSeenRow {
 interface DeadlineRow {
   seat: number;
   due_at: number;
+  /** The decision-point budget deadline (room-timing.md §2); NULL ⇔ the row
+   *  exists only as a disconnect grace for an untimed actor. */
+  base_due_at: number | null;
+  /** TimingClass the row was armed under; NULL on pre-M4 backfilled rows. */
+  timing_class: string | null;
   [column: string]: SqlStorageValue;
 }
 
@@ -194,16 +209,21 @@ export class GameRoom extends DurableObject<Env> {
          status TEXT NOT NULL CHECK (status IN ('lobby','playing','finished')),
          code TEXT NOT NULL,
          created_at INTEGER NOT NULL,
-         seed TEXT  -- set at start: the exact seed passed to game.init (PLAN §6 replay)
+         seed TEXT,  -- set at start: the exact seed passed to game.init (PLAN §6 replay)
+         timing_json TEXT  -- RoomTiming (M4); NULL = legacy actionTimeoutMs behavior
        )`,
     );
-    // Migration for rooms created before the seed column existed: SQLite has
+    // Migrations for rooms created before newer columns existed: SQLite has
     // no ADD COLUMN IF NOT EXISTS, so probe the live schema first.
     const roomColumns = sql
       .exec<{ name: string; [c: string]: SqlStorageValue }>("SELECT name FROM pragma_table_info('room')")
       .toArray();
     if (!roomColumns.some((c) => c.name === 'seed')) {
       sql.exec('ALTER TABLE room ADD COLUMN seed TEXT');
+    }
+    if (!roomColumns.some((c) => c.name === 'timing_json')) {
+      // NULL for every pre-M4 room — those keep the actionTimeoutMs path.
+      sql.exec('ALTER TABLE room ADD COLUMN timing_json TEXT');
     }
     sql.exec(
       `CREATE TABLE IF NOT EXISTS seats (
@@ -247,9 +267,25 @@ export class GameRoom extends DurableObject<Env> {
     sql.exec(
       `CREATE TABLE IF NOT EXISTS deadlines (
          seat INTEGER PRIMARY KEY,
-         due_at INTEGER NOT NULL
+         due_at INTEGER NOT NULL,
+         base_due_at INTEGER,  -- decision-point budget; NULL = grace-only row
+         timing_class TEXT     -- TimingClass the row was armed under
        )`,
     );
+    const deadlineColumns = sql
+      .exec<{ name: string; [c: string]: SqlStorageValue }>(
+        "SELECT name FROM pragma_table_info('deadlines')",
+      )
+      .toArray();
+    if (!deadlineColumns.some((c) => c.name === 'base_due_at')) {
+      sql.exec('ALTER TABLE deadlines ADD COLUMN base_due_at INTEGER');
+      // One-time backfill: a live mid-deploy deadline restores at most to
+      // its already-clamped due — conservative, never extends.
+      sql.exec('UPDATE deadlines SET base_due_at = due_at WHERE base_due_at IS NULL');
+    }
+    if (!deadlineColumns.some((c) => c.name === 'timing_class')) {
+      sql.exec('ALTER TABLE deadlines ADD COLUMN timing_class TEXT');
+    }
     // M0 G-ALARM probe state — kept verbatim (PLAN §9).
     sql.exec(
       `CREATE TABLE IF NOT EXISTS hello_state (
@@ -267,7 +303,7 @@ export class GameRoom extends DurableObject<Env> {
 
   private readRoomRow(): RoomRow | null {
     const rows = this.ctx.storage.sql
-      .exec<RoomRow>('SELECT game_id, config_json, status, code, created_at, seed FROM room WHERE id = 1')
+      .exec<RoomRow>('SELECT game_id, config_json, status, code, created_at, seed, timing_json FROM room WHERE id = 1')
       .toArray();
     const row = rows[0] ?? null;
     if (row) this.roomCode = row.code;
@@ -321,6 +357,17 @@ export class GameRoom extends DurableObject<Env> {
     return JSON.parse(room.config_json);
   }
 
+  /** null = legacy room (or an unparseable column, which no write path can
+   *  produce — both degrade to the pre-M4 actionTimeoutMs behavior). */
+  private parseTiming(room: RoomRow): RoomTiming | null {
+    if (room.timing_json === null) return null;
+    try {
+      return validateRoomTiming(JSON.parse(room.timing_json));
+    } catch {
+      return null;
+    }
+  }
+
   private readState(): unknown {
     const row = this.readSnapshotRow();
     return row.state_json === null ? null : JSON.parse(row.state_json);
@@ -372,7 +419,7 @@ export class GameRoom extends DurableObject<Env> {
 
   private readDeadlineRows(): DeadlineRow[] {
     return this.ctx.storage.sql
-      .exec<DeadlineRow>('SELECT seat, due_at FROM deadlines ORDER BY seat')
+      .exec<DeadlineRow>('SELECT seat, due_at, base_due_at, timing_class FROM deadlines ORDER BY seat')
       .toArray();
   }
 
@@ -403,6 +450,7 @@ export class GameRoom extends DurableObject<Env> {
       status: room.status,
       config: this.parseConfig(room),
       seats,
+      timing: this.parseTiming(room),
       seq: this.currentSeq(),
     };
   }
@@ -449,9 +497,9 @@ export class GameRoom extends DurableObject<Env> {
     if (this.readRoomRow() !== null) {
       return Response.json({ error: 'room.exists' }, { status: 409 });
     }
-    let body: { gameId?: unknown; config?: unknown };
+    let body: { gameId?: unknown; config?: unknown; timing?: unknown };
     try {
-      body = (await request.json()) as { gameId?: unknown; config?: unknown };
+      body = (await request.json()) as { gameId?: unknown; config?: unknown; timing?: unknown };
     } catch {
       return Response.json({ error: 'request.invalidJson' }, { status: 400 });
     }
@@ -459,13 +507,23 @@ export class GameRoom extends DurableObject<Env> {
     if (typeof gameId !== 'string' || getGame(gameId) === null) {
       return Response.json({ error: 'game.unknown' }, { status: 400 });
     }
+    // Timing is the room layer's OWN data (unlike the opaque game config),
+    // so it is validated eagerly; absent = the standard preset, which keeps
+    // old clients that never send the field on sensible defaults.
+    let timing: RoomTiming;
+    try {
+      timing = body.timing == null ? DEFAULT_ROOM_TIMING : validateRoomTiming(body.timing);
+    } catch {
+      return Response.json({ error: 'timing.invalid' }, { status: 400 });
+    }
     this.ctx.storage.sql.exec(
-      'INSERT INTO room (id, game_id, config_json, status, code, created_at) VALUES (1, ?, ?, ?, ?, ?)',
+      'INSERT INTO room (id, game_id, config_json, status, code, created_at, timing_json) VALUES (1, ?, ?, ?, ?, ?, ?)',
       gameId,
       JSON.stringify(body.config ?? null),
       'lobby',
       code,
       Date.now(),
+      JSON.stringify(timing),
     );
     this.ctx.storage.sql.exec(
       'INSERT INTO snapshot (id, seq, state_json) VALUES (1, 0, NULL)',
@@ -547,6 +605,7 @@ export class GameRoom extends DurableObject<Env> {
         config: this.parseConfig(room),
         status: room.status,
         code: room.code,
+        timing: this.parseTiming(room),
       },
       seats: this.readSeatRows().map((r) => ({ seat: r.seat, name: r.name, tokenHash: r.token_hash })),
       snapshot: { seq: snapshot.seq, state: snapshot.state_json === null ? null : JSON.parse(snapshot.state_json) },
@@ -558,7 +617,12 @@ export class GameRoom extends DurableObject<Env> {
         action: JSON.parse(r.action_json) as unknown,
       })),
       actionsSeen: seen.map((r) => ({ actionId: r.action_id, resultSeq: r.result_seq, at: r.at })),
-      deadlines: deadlineRows.map((r) => ({ seat: r.seat, dueAt: r.due_at })),
+      deadlines: deadlineRows.map((r) => ({
+        seat: r.seat,
+        dueAt: r.due_at,
+        baseDueAt: r.base_due_at,
+        timingClass: r.timing_class,
+      })),
     });
   }
 
@@ -604,6 +668,8 @@ export class GameRoom extends DurableObject<Env> {
         return this.handleClaimSeat(ws, room, msg);
       case 'setConfig':
         return this.handleSetConfig(ws, room, msg);
+      case 'setTiming':
+        return this.handleSetTiming(ws, room, msg);
       case 'start':
         return this.handleStart(ws, room);
       case 'action':
@@ -659,6 +725,24 @@ export class GameRoom extends DurableObject<Env> {
 
     const seq = this.currentSeq();
     const sortedSeats = [...seats].sort((a, b) => a - b);
+
+    // Connectivity delta for this hello, in BOTH directions. Grok M2 audit
+    // (F1): a hello can also DROP seats (fewer/empty tokens, or takeover
+    // moving them here from another socket) — those must broadcast
+    // disconnected-presence and re-enter the disconnect-grace clamp, or a
+    // client could "soft-disconnect" past the timers.
+    const connectedAfter = this.connectedSeats();
+    const newlyConnected = sortedSeats.filter((s) => !connectedBefore.has(s));
+    const newlyDisconnected = [...connectedBefore].filter((s) => !connectedAfter.has(s));
+
+    // Reconcile deadlines BEFORE the welcome/resync sends, so they carry
+    // the restored (base) deadlines rather than stale disconnect-clamped
+    // ones. Presence may only clamp/restore — never re-arm (room-timing.md
+    // §2); the synchronous SQL lands before currentWireDeadlines() below.
+    if ((newlyConnected.length > 0 || newlyDisconnected.length > 0) && room.status === 'playing') {
+      await this.reconcileDeadlines(new Set([...newlyConnected, ...newlyDisconnected]));
+    }
+
     const currentDeadlines = this.currentWireDeadlines();
     this.send(ws, {
       v: 1,
@@ -667,6 +751,9 @@ export class GameRoom extends DurableObject<Env> {
       seats: sortedSeats,
       room: this.buildRoomInfo(room),
       deadlines: currentDeadlines,
+      // Version-skew signal (M4): game-agnostic deploy config, same
+      // pattern as the ENVIRONMENT read — never game data.
+      build: this.env.BUILD_VERSION ?? 'dev',
     });
 
     // Per-held-seat resync once a game exists ('playing', and 'finished' so
@@ -710,24 +797,13 @@ export class GameRoom extends DurableObject<Env> {
       }
     }
 
-    // Presence for seats whose connectivity CHANGED in either direction.
-    // Grok M2 audit (F1): a hello can also DROP seats (fewer/empty tokens,
-    // or takeover moving them here from another socket) — those must
-    // broadcast disconnected-presence and re-enter the disconnect-grace
-    // deadline clamp, or a client could "soft-disconnect" past the timers.
-    const connectedAfter = this.connectedSeats();
-    const newlyConnected = sortedSeats.filter((s) => !connectedBefore.has(s));
-    const newlyDisconnected = [...connectedBefore].filter((s) => !connectedAfter.has(s));
+    // Presence broadcasts for the connectivity delta computed above (the
+    // deadline reconcile already ran, before the welcome).
     for (const s of newlyConnected) {
       this.broadcast({ v: 1, type: 'presence', seq, seat: s, connected: true });
     }
     for (const s of newlyDisconnected) {
       this.broadcast({ v: 1, type: 'presence', seq, seat: s, connected: false });
-    }
-    if ((newlyConnected.length > 0 || newlyDisconnected.length > 0) && room.status === 'playing') {
-      // Connectivity changes re-derive the PLAN §4 deadline rule (note:
-      // this restarts the phase timer — tracked for M4 refinement).
-      await this.recomputeDeadlinesAndAlarm();
     }
   }
 
@@ -849,6 +925,56 @@ export class GameRoom extends DurableObject<Env> {
     });
   }
 
+  /** Same authority rule as setConfig (lobby only, any seated player), but
+   *  timing is the room layer's OWN data — validated eagerly, and the new
+   *  value rides the existing roomChanged broadcast (RoomInfo.timing). */
+  private handleSetTiming(
+    ws: WebSocket,
+    room: RoomRow,
+    msg: Extract<ClientMessage, { type: 'setTiming' }>,
+  ): void {
+    const held = this.heldSeats(ws);
+    const reject = (error: WireError): void => {
+      this.sendRejected(ws, error);
+      logMutation({
+        room: room.code,
+        seq: this.currentSeq(),
+        actionId: null,
+        seat: held.size > 0 ? Math.min(...held) : null,
+        actionType: 'setTiming',
+        outcome: 'rejected',
+        error: error.code,
+      });
+    };
+
+    if (room.status !== 'lobby') return reject(wireError('room.notLobby'));
+    if (held.size === 0) return reject(wireError('room.notSeated'));
+
+    let timing: RoomTiming;
+    try {
+      timing = validateRoomTiming(msg.timing);
+    } catch {
+      return reject(wireError('timing.invalid'));
+    }
+
+    this.ctx.storage.sql.exec('UPDATE room SET timing_json = ? WHERE id = 1', JSON.stringify(timing));
+    const seq = this.bumpSeq();
+    const bySeat = Math.min(...held);
+    // Re-read so the broadcast RoomInfo carries the just-written timing (the
+    // in-memory `room` row predates the UPDATE).
+    const updated = this.readRoomRow();
+    if (updated) this.broadcast({ v: 1, type: 'roomChanged', seq, room: this.buildRoomInfo(updated) });
+
+    logMutation({
+      room: room.code,
+      seq,
+      actionId: null,
+      seat: bySeat,
+      actionType: 'setTiming',
+      outcome: 'applied',
+    });
+  }
+
   private async handleStart(ws: WebSocket, room: RoomRow): Promise<void> {
     const held = this.heldSeats(ws);
     const bySeat = held.size > 0 ? Math.min(...held) : null;
@@ -909,7 +1035,7 @@ export class GameRoom extends DurableObject<Env> {
     // Recompute deadlines BEFORE fanning out events (PLAN §5 deadlines
     // field): the event broadcast must reflect the just-started match's
     // fresh deadlines, not the pre-start (empty) table.
-    await this.recomputeDeadlinesAndAlarm();
+    await this.recomputeDeadlines('decision');
     this.fanOutEvents(game, config, seq, init.events, init.state, this.currentWireDeadlines());
 
     logMutation({
@@ -1101,13 +1227,12 @@ export class GameRoom extends DurableObject<Env> {
 
     // Deadlines recomputed after EVERY state change (PLAN §4); fire-and-
     // forget is fine for the async alarm-scheduling tail — the delete+insert
-    // SQL statements inside recomputeDeadlinesAndAlarm run synchronously
-    // (only `await scheduleAlarm()` is async), so the `deadlines` table
-    // already reflects the new state by the time currentWireDeadlines()
-    // reads it immediately below, BEFORE fanning out the 'event' broadcast
-    // (PLAN §5 deadlines field: populated from the table after
-    // recomputation).
-    void this.recomputeDeadlinesAndAlarm();
+    // SQL statements inside recomputeDeadlines run synchronously (only
+    // `await scheduleAlarm()` is async), so the `deadlines` table already
+    // reflects the new state by the time currentWireDeadlines() reads it
+    // immediately below, BEFORE fanning out the 'event' broadcast (PLAN §5
+    // deadlines field: populated from the table after recomputation).
+    void this.recomputeDeadlines('decision');
     this.fanOutEvents(game, config, newSeq, applied.events, applied.state, this.currentWireDeadlines());
 
     logMutation({
@@ -1153,28 +1278,75 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   // -------------------------------------------------------------------------
-  // Deadlines + alarm (PLAN §4, verbatim rule — math in room-helpers)
+  // Deadlines + alarm (PLAN §4 rule + room-timing.md §2 semantics — all row
+  // math in room-helpers nextDeadlines). Two entry points over one pure
+  // function: a DECISION recompute (state changed — the only path that may
+  // re-arm a clock) and a PRESENCE reconcile (connectivity flipped — may
+  // only clamp toward the grace or restore toward base, and touches only
+  // the changed seats).
   // -------------------------------------------------------------------------
 
-  private async recomputeDeadlinesAndAlarm(): Promise<void> {
-    this.ctx.storage.sql.exec('DELETE FROM deadlines');
-    const room = this.readRoomRow();
-    if (room && room.status === 'playing') {
-      const game = this.gameFor(room);
-      const state = this.readState();
-      if (!game.isTerminal(state)) {
-        const rows = computeDeadlines(
-          game.expectedActors(state),
-          game.actionTimeoutMs(state),
-          this.connectedSeats(),
-          Date.now(),
-        );
-        for (const { seat, dueAt } of rows) {
-          this.ctx.storage.sql.exec('INSERT INTO deadlines (seat, due_at) VALUES (?, ?)', seat, dueAt);
-        }
-      }
-    }
+  /** Call sites: handleStart + applyGameAction (every state change). */
+  private async recomputeDeadlines(reason: 'decision'): Promise<void> {
+    this.applyNextDeadlines(reason, undefined);
     await this.scheduleAlarm();
+  }
+
+  /** Call sites: handleHelloMsg presence delta + handleSocketGone. */
+  private async reconcileDeadlines(changedSeats: ReadonlySet<Seat>): Promise<void> {
+    this.applyNextDeadlines('presence', changedSeats);
+    await this.scheduleAlarm();
+  }
+
+  /** SYNCHRONOUS on purpose: the applyGameAction call site is fire-and-
+   *  forget and fanOutEvents reads the deadlines table immediately after,
+   *  so every SQL statement here must land before the first await (the
+   *  callers' `await scheduleAlarm()` is the only async tail). */
+  private applyNextDeadlines(
+    reason: 'decision' | 'presence',
+    changedSeats: ReadonlySet<Seat> | undefined,
+  ): void {
+    const sql = this.ctx.storage.sql;
+    const room = this.readRoomRow();
+    if (!room || room.status !== 'playing') {
+      sql.exec('DELETE FROM deadlines');
+      return;
+    }
+    const game = this.gameFor(room);
+    const state = this.readState();
+    if (game.isTerminal(state)) {
+      sql.exec('DELETE FROM deadlines');
+      return;
+    }
+    const prev: DeadlineEntry[] = this.readDeadlineRows().map((r) => ({
+      seat: r.seat,
+      baseDueAt: r.base_due_at,
+      dueAt: r.due_at,
+      timingClass:
+        r.timing_class === 'turn' || r.timing_class === 'planning' ? r.timing_class : null,
+    }));
+    const rows = nextDeadlines({
+      prev,
+      expectedActors: game.expectedActors(state),
+      timeoutMs: resolveTimeoutMs(game, state, this.parseTiming(room)),
+      timingClass: resolveTimingClass(game, state),
+      connectedSeats: this.connectedSeats(),
+      now: Date.now(),
+      reason,
+      changedSeats,
+    });
+    // Replace wholesale — the pure function already returned untouched rows
+    // verbatim, so the table contents equal its output either way.
+    sql.exec('DELETE FROM deadlines');
+    for (const row of rows) {
+      sql.exec(
+        'INSERT INTO deadlines (seat, due_at, base_due_at, timing_class) VALUES (?, ?, ?, ?)',
+        row.seat,
+        row.dueAt,
+        row.baseDueAt,
+        row.timingClass,
+      );
+    }
   }
 
   /** One alarm slot per DO: schedule the earliest of (a) the soonest seat
@@ -1230,7 +1402,7 @@ export class GameRoom extends DurableObject<Env> {
       if (!room || room.status !== 'playing') break;
       const due = this.ctx.storage.sql
         .exec<DeadlineRow>(
-          'SELECT seat, due_at FROM deadlines WHERE due_at <= ? ORDER BY due_at, seat LIMIT 1',
+          'SELECT seat, due_at, base_due_at, timing_class FROM deadlines WHERE due_at <= ? ORDER BY due_at, seat LIMIT 1',
           Date.now(),
         )
         .toArray()[0];
@@ -1309,9 +1481,9 @@ export class GameRoom extends DurableObject<Env> {
     const room = this.readRoomRow();
     if (room && room.status === 'playing') {
       // Newly-disconnected expected actors pick up the disconnect-grace
-      // clamp (PLAN §4 deadline rule; note: fresh recompute restarts the
-      // phase timer for everyone).
-      await this.recomputeDeadlinesAndAlarm();
+      // clamp (PLAN §4 rule); other seats' rows are untouched (room-
+      // timing.md §2 presence semantics).
+      await this.reconcileDeadlines(new Set(gone));
     }
   }
 

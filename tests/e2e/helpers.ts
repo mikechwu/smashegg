@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import type { Seat } from '../../src/engine/core/game';
 import type { GNView } from '../../src/engine/guess-number';
 import type { ClientMessage, RoomInfo, ServerMessage } from '../../src/shared/protocol';
+import type { RoomTiming } from '../../src/shared/timing';
 
 const REPO_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const WRANGLER_BIN = path.join(REPO_ROOT, 'node_modules', '.bin', 'wrangler');
@@ -107,7 +108,9 @@ async function killProcessTree(child: ChildProcess): Promise<void> {
  * dump route (PLAN §6) is open both locally and in CI (which has no
  * .dev.vars file).
  */
-export async function startServer(opts: { persistDir?: string } = {}): Promise<DevServer> {
+export async function startServer(
+  opts: { persistDir?: string; buildVersion?: string } = {},
+): Promise<DevServer> {
   const persistDir = opts.persistDir ?? makePersistDir();
   const port = await getFreePort();
   // Each instance needs its own inspector port too, or a second concurrent
@@ -123,6 +126,9 @@ export async function startServer(opts: { persistDir?: string } = {}): Promise<D
       '--inspector-port', String(inspectorPort),
       '--persist-to', persistDir,
       '--var', 'ENVIRONMENT:dev',
+      // Same --var pattern as ENVIRONMENT: version-skew tests pin an exact
+      // server build string; omitted = the 'dev' sentinel (skew-silent).
+      ...(opts.buildVersion !== undefined ? ['--var', `BUILD_VERSION:${opts.buildVersion}`] : []),
     ],
     {
       cwd: REPO_ROOT,
@@ -198,12 +204,18 @@ export async function stopAllServers(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /** Create a room for any registered game — the same POST /api/rooms call
- *  HomePage.handleCreate makes (body: { gameId, config }). */
-export async function createRoomFor(server: DevServer, gameId: string, config: unknown): Promise<string> {
+ *  HomePage.handleCreate makes (body: { gameId, config, timing? }). Omitted
+ *  timing = the server-side default (the 'standard' preset, M4). */
+export async function createRoomFor(
+  server: DevServer,
+  gameId: string,
+  config: unknown,
+  timing?: unknown,
+): Promise<string> {
   const res = await fetch(`${server.url}/api/rooms`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ gameId, config }),
+    body: JSON.stringify(timing === undefined ? { gameId, config } : { gameId, config, timing }),
   });
   if (res.status !== 201) throw new Error(`createRoomFor failed: ${res.status} ${await res.text()}`);
   const body = (await res.json()) as { code: string };
@@ -338,6 +350,10 @@ export class WsClient {
 
   setConfig(config: unknown): void {
     this.sendMsg({ v: 1, type: 'setConfig', config });
+  }
+
+  setTiming(timing: RoomTiming): void {
+    this.sendMsg({ v: 1, type: 'setTiming', timing });
   }
 
   start(): void {

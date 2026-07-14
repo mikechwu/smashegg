@@ -79,9 +79,12 @@ import {
   asRuleVariant,
   declSignature,
   matchSelection,
+  resolveComboFaces,
   sameMultiset,
+  wildSubstitutions,
 } from '../../src/client/table/helpers';
 import { DEFAULT_GAME_ID } from '../../src/client/config';
+import { DEFAULT_ROOM_TIMING } from '../../src/shared/timing';
 // The UI's own config assembly — RulePicker.tsx sits outside
 // tsconfig.scripts.json's jsx-less program (TS6142), but vitest transforms
 // it fine, so the suite runs the REAL HomePage construction, not a replica.
@@ -403,6 +406,21 @@ function assertTwoReadingsAndChoose(
   expect(matches[0]!.decl.keyRank).toBe(scenario.pairRanks[1]);
   // Leading: both readings must be offered as playable by the hints.
   expect(matches.every((m) => m.playable)).toBe(true);
+  // M4 item A: the chooser's card-face derivation consumes these REAL
+  // matches without error (wild-chooser-ux.md §7.2 — the exhaustive sweep
+  // lives in tests/unit/client/chooser-faces.test.ts). {a,a,b,b,W}: the
+  // one wild always completes the TRIPLE of the declared full house.
+  for (const m of matches) {
+    const subs = wildSubstitutions(m.cards, m.decl, scenario.level);
+    expect(subs).toHaveLength(1);
+    expect(subs[0]!.asSelf).toBe(false);
+    expect(subs[0]!.becomesSuit).toBeNull();
+    expect(subs[0]!.becomesRank).toBe(m.decl.keyRank);
+    const faces = resolveComboFaces(m.cards, m.decl, scenario.level);
+    expect(faces).toHaveLength(m.decl.size);
+    expect(faces.filter((f) => f.viaWild)).toHaveLength(1);
+    expect(sameMultiset(faces.map((f) => f.card), m.cards)).toBe(true);
+  }
   // Deliberately pick the WEAKER reading — proving the transported decl is
   // the CHOSen one, not the strongest/default interpretation.
   const chosen = matches.find((m) => m.decl.keyRank === scenario.pairRanks[0])!;
@@ -445,6 +463,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
         body: JSON.stringify({
           gameId: DEFAULT_GAME_ID,
           config: assembleUiConfig(curatedDefaultPicks),
+          timing: DEFAULT_ROOM_TIMING,
         }),
       });
       expect(res.status).toBe(201); // HomePage treats !== 201 as failure

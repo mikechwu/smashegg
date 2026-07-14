@@ -5,6 +5,17 @@
 
 export type Seat = number;                 // 0-based seat index
 
+/** Platform timing-class vocabulary. The room layer — never the engine —
+ *  maps a class to a wall-clock budget (RoomTiming in shared/timing.ts).
+ *  'turn'     — an ordinary decision point (the default).
+ *  'planning' — the FIRST decision point over newly revealed information
+ *               (e.g. the opening lead of a freshly dealt hand); the room
+ *               may grant a longer, room-configured window.
+ *  Closed union on purpose: classes are PLATFORM vocabulary (each needs a
+ *  picker label, i18n strings, and a RoomTiming field), so adding one is a
+ *  deliberate cross-layer act, not something a game invents ad hoc. */
+export type TimingClass = 'turn' | 'planning';
+
 /** Semantic error — a key + params. UI localizes; engine never emits prose. */
 export interface RuleError { code: string; params?: Record<string, unknown> }
 
@@ -70,6 +81,15 @@ export interface GameDefinition<S, A, E, V, C> {
    *  null = untimed phase (connected seats only — see §4 deadline rule).
    *  The room layer may clamp/override via room config. */
   actionTimeoutMs(state: S): number | null;
+
+  /** OPTIONAL semantic timing class of the current DECISION POINT — a pure
+   *  function of state alone, exactly like actionTimeoutMs. Per decision
+   *  point, not per seat: all concurrent expected actors share one class,
+   *  mirroring how actionTimeoutMs applies one budget to every actor.
+   *  Omitted ⇒ every state is 'turn' (the safe default — a game with no
+   *  planning moment never implements this). The engine never sees
+   *  milliseconds; the room maps class → ms via its RoomTiming config. */
+  timingClass?(state: S): TimingClass;
 
   isTerminal(state: S): boolean;
 

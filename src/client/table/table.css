@@ -258,6 +258,18 @@
   text-align: center;
   padding: 0 0.25rem;
 }
+/* Planning-window countdown label (M4 WireDeadline.timingClass). */
+.gd-plate__timerNote {
+  font-size: 0.7rem;
+  color: rgba(245, 239, 227, 0.72);
+  white-space: nowrap;
+}
+/* Ceremony overlay up: the planning window absorbs the ceremony
+ * (room-timing.md §4), so the clock quietly runs de-emphasized. */
+.gd-plate__timer--dim,
+.gd-plate__timerNote--dim {
+  opacity: 0.35;
+}
 
 /* --- trick well ----------------------------------------------------------- */
 .gd-center {
@@ -393,6 +405,18 @@
 .gd-card--trick {
   --gd-cardw: 2.25rem;
 }
+/* Mini: the decl chooser's chips and result rows. 2rem = 32px is the
+ * number the chooser's 390px-fit arithmetic depends on (wild-chooser-ux.md
+ * §3.1) — pinned by the CSS-token ratchet test (chooser-faces.test.ts). */
+.gd-card--mini {
+  --gd-cardw: 2rem;
+}
+/* Ghost face: the identity a wild plays as. Suit-blind targets carry no
+ * suit glyph and default to ink; the suit classes below still win when the
+ * straight flush pins a suit. */
+.gd-card--ghost {
+  color: var(--ink);
+}
 .gd-card--red {
   color: var(--cinnabar);
 }
@@ -451,6 +475,12 @@
   font-size: calc(var(--gd-cardw) * 0.28);
   font-weight: 600;
   line-height: 1;
+}
+/* At mini size the designed 0.28 ratio lands at 9.0px — under the 10px
+ * legibility floor — so mini alone bumps to 0.32 (10.2px); ratio pinned by
+ * the CSS-token ratchet test. */
+.gd-card--mini .gd-card__wildGlyph {
+  font-size: calc(var(--gd-cardw) * 0.32);
 }
 
 /* --- hand fan ----------------------------------------------------------------- */
@@ -588,6 +618,11 @@
   font-size: 0.75rem;
   opacity: 0.75;
 }
+/* Card-face decl chooser (wild-chooser-ux.md §2–§3): the outer width cap
+   and the mini card/gap tokens below are the inputs of the PROVED 390px
+   fit — worst row (6 mini faces) 202px + 22px chrome ≤ the 342px budget —
+   re-proved from this stylesheet's text by the CSS-token ratchet test in
+   tests/unit/client/chooser-faces.test.ts. */
 .gd-chooser {
   position: absolute;
   bottom: calc(100% + 0.5rem);
@@ -602,11 +637,68 @@
   gap: 0.375rem;
   z-index: 5;
   min-width: 11rem;
+  width: max-content;
+  max-width: min(22rem, calc(100vw - 3rem));
+  max-height: min(70vh, 30rem);
 }
 .gd-chooser__title {
   margin: 0;
   font-size: 0.8125rem;
   opacity: 0.85;
+}
+/* Only the options scroll (beyond ~3, non-default configs) — title and
+   Cancel stay outside the scroll region so Cancel is always reachable. */
+.gd-chooser__options {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  overflow-y: auto;
+  min-height: 0;
+}
+.gd-chooser .gd-chooser__option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  background: var(--rosewood);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 0.375rem 0.5rem;
+  text-align: left;
+}
+/* Quiet top-option (strongest reading) affordance; NOT goldleaf — that
+   stays reserved for the rail/jiefeng/victory. */
+.gd-chooser .gd-chooser__option:first-of-type {
+  border-color: color-mix(in srgb, var(--ivory) 35%, transparent);
+}
+.gd-chooser__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.gd-chooser__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+.gd-chooser__arrow {
+  font-size: 1rem;
+  opacity: 0.9;
+}
+.gd-chooser__mult {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+/* The type label — demoted to the secondary cue (the faces carry the
+   meaning); still the whole story for wild-free ambiguity (no chips). */
+.gd-chooser__label {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
+.gd-chooser__result {
+  display: flex;
+  gap: 0.125rem;
 }
 /* Unplayable readings stay listed (spec v1.4 disambiguation: the chooser
    shows the FULL offered set; the server stays the arbiter) but read as

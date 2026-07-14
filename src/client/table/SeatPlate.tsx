@@ -19,6 +19,13 @@ export interface SeatPlateProps {
   active: boolean;
   /** Server-clock deadline (epoch ms) or null; `now` drives the countdown. */
   dueAt: number | null;
+  /** True when the deadline was armed as a 'planning' window (M4
+   *  WireDeadline.timingClass) — a small label distinguishes it from an
+   *  ordinary turn countdown. */
+  planning: boolean;
+  /** De-emphasize the countdown (e.g. while the ceremony overlay is up —
+   *  the window absorbs the ceremony, room-timing.md §4). Cosmetic only. */
+  dimTimer: boolean;
   now: number;
   /** Passed in the current trick. */
   passed: boolean;
@@ -27,8 +34,20 @@ export interface SeatPlateProps {
 }
 
 export function SeatPlate(props: SeatPlateProps) {
-  const { name, connected, isViewer, cardCount, place, active, dueAt, now, passed, committed } =
-    props;
+  const {
+    name,
+    connected,
+    isViewer,
+    cardCount,
+    place,
+    active,
+    dueAt,
+    planning,
+    dimTimer,
+    now,
+    passed,
+    committed,
+  } = props;
   const classes = ['gd-plate'];
   if (active) classes.push('gd-plate--active');
   if (isViewer) classes.push('gd-plate--viewer');
@@ -59,8 +78,16 @@ export function SeatPlate(props: SeatPlateProps) {
         ))}
       {passed && <span className="gd-plate__pass">{t('game.action.pass')}</span>}
       {committed && <span className="gd-plate__pass">{t('game.tribute.committedChip')}</span>}
+      {seconds !== null && planning && (
+        <span className={dimTimer ? 'gd-plate__timerNote gd-plate__timerNote--dim' : 'gd-plate__timerNote'}>
+          {t('table.deadline.planning')}
+        </span>
+      )}
       {seconds !== null && (
-        <span className="gd-plate__timer" aria-label={t('game.turn.countdown', { seconds })}>
+        <span
+          className={dimTimer ? 'gd-plate__timer gd-plate__timer--dim' : 'gd-plate__timer'}
+          aria-label={t('game.turn.countdown', { seconds })}
+        >
           {seconds}
         </span>
       )}

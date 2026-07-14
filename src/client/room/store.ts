@@ -10,6 +10,8 @@
 
 import type { Seat } from '../../engine/core/game';
 import type { RoomInfo, ServerMessage, WireDeadline, WireError } from '../../shared/protocol';
+import type { RoomTiming } from '../../shared/timing';
+import { versionSignal } from '../version';
 
 /** The credential minted by our own seatClaimed copy (PLAN §4): holding it
  *  IS the authority over that seat. Never logged, persisted only to this
@@ -59,6 +61,7 @@ export interface RoomSnapshot {
 export interface RoomSender {
   claimSeat(name: string): void;
   setConfig(config: unknown): void;
+  setTiming(timing: RoomTiming): void;
   start(): void;
   act(seat: Seat, action: unknown): void;
 }
@@ -167,6 +170,13 @@ export class RoomStore {
     this.sender?.setConfig(config);
   }
 
+  /** Same authority rule as setConfig (lobby only, any seated player). The
+   *  new value comes back on the existing roomChanged broadcast (RoomInfo
+   *  carries timing), so no reducer case is needed. */
+  setTiming(timing: RoomTiming): void {
+    this.sender?.setTiming(timing);
+  }
+
   start(): void {
     this.sender?.start();
   }
@@ -186,6 +196,10 @@ export class RoomStore {
 
     switch (msg.type) {
       case 'welcome': {
+        // Version-skew signal (M4): the App-shell banner, not this store,
+        // owns the resulting UX — welcome is just where the server's build
+        // rides (every (re)connect).
+        versionSignal.reportServerBuild(msg.build);
         // welcome.seats is the server's word on which of our presented
         // tokens still resolve — prune credentials for seats it dropped
         // (e.g. the room was purged and recreated under the same code).

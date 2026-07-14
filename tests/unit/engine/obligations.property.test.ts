@@ -31,6 +31,12 @@
 //      types are bare camelCase keys, and no CJK appears in the JSON of any
 //      event or error.
 //
+// M4 timingClass pin (docs/research/room-timing.md §1): at every step the
+// class is deterministic, inside the closed union, and 'planning' holds
+// EXACTLY when an independently tracked "no play yet this hand" flag says
+// the hand's opening lead is pending — so a future variant that breaks the
+// Σ|hands|=108 derivation fails here loudly instead of misclassifying.
+//
 // Determinism note: the only randomness is src/engine/core/prng seeded with
 // the string literals below (engine PRNG via init(seed); bot policy via its
 // own seedPrng). Runs are bit-for-bit reproducible.
@@ -97,6 +103,30 @@ function applyNoThrow(state: GuandanState, seat: Seat, action: GuandanAction, la
   } catch (e) {
     throw new Error(`obligation 4: applyAction THREW instead of returning a RuleError (${label}): ${String(e)}`);
   }
+}
+
+/** M4 timingClass pin at one state. `noPlayYetThisHand` is tracked
+ *  INDEPENDENTLY of the engine's derivation (from handStarted/played
+ *  events), so this asserts the semantic meaning, not the implementation:
+ *  'planning' ⇔ the hand's opening lead is the pending decision. */
+function checkTimingClass(state: GuandanState, noPlayYetThisHand: boolean): void {
+  const cls = GuandanGame.timingClass!(state);
+  expect(['turn', 'planning'], 'timingClass stays inside the closed union').toContain(cls);
+  expect(GuandanGame.timingClass!(state), 'timingClass determinism').toBe(cls);
+  expect(
+    cls === 'planning',
+    `timingClass ⇔ opening lead (phase ${state.phase}, noPlayYet ${noPlayYetThisHand})`,
+  ).toBe(state.phase === 'playing' && noPlayYetThisHand);
+}
+
+/** Event-driven "no play yet this hand" tracker (the independent flag). */
+function trackNoPlayYet(noPlayYet: boolean, events: readonly GuandanEvent[]): boolean {
+  let flag = noPlayYet;
+  for (const event of events) {
+    if (event.type === 'handStarted') flag = true;
+    else if (event.type === 'played') flag = false;
+  }
+  return flag;
 }
 
 /** Obligation 6 checks on a rejection. */
@@ -431,6 +461,13 @@ function playoutBody(
   for (const event of first.events) checkEvent(event, config);
   sampleState(state, config);
 
+  // M4: the independent "no play yet this hand" flag starts from the init
+  // events (hand 1's handStarted) and is checked at EVERY step below.
+  let noPlayYet = trackNoPlayYet(false, first.events);
+  let planningStatesSeen = 0;
+  checkTimingClass(state, noPlayYet);
+  if (GuandanGame.timingClass!(state) === 'planning') planningStatesSeen++;
+
   let bot: PrngState = seedPrng(`obligations-bot:${seed}`);
   let actions = 0;
   let handsCompleted = 0;
@@ -486,6 +523,11 @@ function playoutBody(
     log.push({ seat, action });
     for (const event of res.events) checkEvent(event, config);
     state = res.state;
+    noPlayYet = trackNoPlayYet(noPlayYet, res.events);
+    checkTimingClass(state, noPlayYet);
+    if (!GuandanGame.isTerminal(state) && GuandanGame.timingClass!(state) === 'planning') {
+      planningStatesSeen++;
+    }
     actions++;
     sinceSample = sampled ? 0 : sinceSample + 1;
     phasesSeen.add(state.phase);
@@ -497,6 +539,9 @@ function playoutBody(
   }
 
   expect(actions, 'playout must not stall out its action budget').toBeLessThan(opts.maxActions);
+  // M4 coverage floor: hand 1 always opens in the playing phase before any
+  // play, so every playout sees at least one 'planning' state.
+  expect(planningStatesSeen, 'at least one planning state per playout').toBeGreaterThan(0);
   return { phasesSeen, terminal: GuandanGame.isTerminal(state) };
 }
 

@@ -5,11 +5,12 @@
 // wordmark, corner locale control; each page renders its own centered
 // content column (.app-main), which the table screen widens.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { LOCALE_SELF_LABELS, SUPPORTED_LOCALES } from './config';
 import type { Locale } from './config';
 import { getLocale, setLocale, subscribe, t } from './i18n';
 import { useRoute } from './router';
+import { versionSignal } from './version';
 import { DebugPage } from './DebugPage';
 import { HomePage } from './HomePage';
 import { RoomPage } from './RoomPage';
@@ -19,6 +20,29 @@ function useLocale(): Locale {
   const [locale, setLocaleState] = useState<Locale>(getLocale());
   useEffect(() => subscribe(() => setLocaleState(getLocale())), []);
   return locale;
+}
+
+/** Version-skew banner (M4): shell-level so the staleness fact outlives any
+ *  one room, role="status" like the disconnected banner (informational, not
+ *  an error). Never a modal, never blocks input, and the ONLY reload is the
+ *  user clicking the button — the copy can promise the game survives it
+ *  because seat tokens + lastSeenSeq persist in localStorage. */
+function UpdateBanner() {
+  const available = useSyncExternalStore(versionSignal.subscribe, versionSignal.updateAvailable);
+  if (!available) return null;
+  return (
+    <div className="app-alert app-update" role="status">
+      <p>{t('app.updateAvailable')}</p>
+      <div className="app-update__actions">
+        <button type="button" className="app-update__reload" onClick={() => window.location.reload()}>
+          {t('app.updateReload')}
+        </button>
+        <button type="button" className="app-update__later" onClick={() => versionSignal.dismiss()}>
+          {t('app.updateLater')}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 export function App() {
@@ -49,6 +73,7 @@ export function App() {
           ))}
         </nav>
       </header>
+      <UpdateBanner />
       {route.page === 'home' && <HomePage />}
       {route.page === 'room' && <RoomPage key={route.code} code={route.code} />}
       {route.page === 'debug' && <DebugPage />}

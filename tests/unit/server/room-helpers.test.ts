@@ -6,18 +6,23 @@ import { describe, expect, it } from 'vitest';
 import type { Seat } from '../../../src/engine/core/game';
 import type { AnyGameDefinition } from '../../../src/shared/games';
 import { ROOM_CODE_RE } from '../../../src/shared/protocol';
+import { TIMING_PRESETS } from '../../../src/shared/timing';
 import {
   ACTION_TIMEOUT_MAX_MS,
   ACTION_TIMEOUT_MIN_MS,
   DISCONNECT_GRACE_MS,
   bytesToHex,
-  computeDeadlines,
   deltaCoversGap,
+  nextDeadlines,
   redactEventsFor,
+  resolveTimeoutMs,
+  resolveTimingClass,
   roomCodeFromBytes,
   sha256Hex,
   timeoutActionId,
   toWireDeadlines,
+  type DeadlineEntry,
+  type NextDeadlinesInput,
 } from '../../../src/server/room-helpers';
 
 describe('bytesToHex', () => {
@@ -77,60 +82,288 @@ describe('roomCodeFromBytes', () => {
   });
 });
 
-describe('computeDeadlines (PLAN §4 deadline rule)', () => {
+// ---------------------------------------------------------------------------
+// nextDeadlines — every row of the room-timing.md §2 decision table pinned
+// by name, then the invariants I1-I4. `arm` mirrors the DO's decision
+// recompute; `presence` mirrors its reconcile.
+// ---------------------------------------------------------------------------
+
+describe('nextDeadlines (room-timing.md §2 decision table)', () => {
   const NOW = 1_000_000;
+  const GRACE = NOW + DISCONNECT_GRACE_MS;
   const connected = (...seats: Seat[]): ReadonlySet<Seat> => new Set(seats);
+  const row = (
+    seat: Seat,
+    baseDueAt: number | null,
+    dueAt: number,
+    timingClass: DeadlineEntry['timingClass'] = 'turn',
+  ): DeadlineEntry => ({ seat, baseDueAt, dueAt, timingClass });
 
-  it('gives each connected expected actor now + timeout', () => {
-    expect(computeDeadlines([0, 2], 30_000, connected(0, 2), NOW)).toEqual([
-      { seat: 0, dueAt: NOW + 30_000 },
-      { seat: 2, dueAt: NOW + 30_000 },
+  function decision(input: Partial<NextDeadlinesInput> & Pick<NextDeadlinesInput, 'expectedActors'>): DeadlineEntry[] {
+    return nextDeadlines({
+      prev: [],
+      timeoutMs: 45_000,
+      timingClass: 'turn',
+      connectedSeats: connected(),
+      now: NOW,
+      reason: 'decision',
+      ...input,
+    });
+  }
+
+  function presence(input: Partial<NextDeadlinesInput> & Pick<NextDeadlinesInput, 'expectedActors' | 'changedSeats'>): DeadlineEntry[] {
+    return nextDeadlines({
+      prev: [],
+      timeoutMs: 45_000,
+      timingClass: 'turn',
+      connectedSeats: connected(),
+      now: NOW,
+      reason: 'presence',
+      ...input,
+    });
+  }
+
+  // --- reason = 'decision' -------------------------------------------------
+
+  it('decision / not an expected actor → delete row', () => {
+    expect(
+      decision({ prev: [row(1, NOW + 45_000, NOW + 45_000)], expectedActors: [2], connectedSeats: connected(2) }),
+    ).toEqual([row(2, NOW + 45_000, NOW + 45_000)]);
+  });
+
+  it('decision / actor, timed, row exists, connected → PRESERVE base; due = base', () => {
+    // Second tribute payer: their clock was armed earlier (base in the
+    // past relative to a fresh budget) and a co-actor's action must not
+    // refresh it.
+    const armed = row(1, NOW - 10_000 + 45_000, NOW - 10_000 + 45_000, 'planning');
+    expect(decision({ prev: [armed], expectedActors: [1], connectedSeats: connected(1) })).toEqual([armed]);
+  });
+
+  it('decision / actor, timed, row exists, disconnected → base preserved; due = min(prev due, grace)', () => {
+    const clampedDue = NOW - 30_000 + DISCONNECT_GRACE_MS; // grace anchored at an earlier disconnect
+    const armed = row(1, NOW + 100_000, clampedDue);
+    expect(decision({ prev: [armed], expectedActors: [1] })).toEqual([
+      row(1, NOW + 100_000, Math.min(clampedDue, GRACE)),
     ]);
   });
 
-  it('clamps the timeout to the 5s floor', () => {
-    expect(computeDeadlines([1], 1_000, connected(1), NOW)).toEqual([
-      { seat: 1, dueAt: NOW + ACTION_TIMEOUT_MIN_MS },
+  it('decision / actor, timed, no row, connected → insert base = budget = due', () => {
+    expect(decision({ expectedActors: [0], connectedSeats: connected(0), timingClass: 'planning', timeoutMs: 90_000 })).toEqual([
+      row(0, NOW + 90_000, NOW + 90_000, 'planning'),
     ]);
   });
 
-  it('clamps the timeout to the 120s ceiling', () => {
-    expect(computeDeadlines([1], 600_000, connected(1), NOW)).toEqual([
-      { seat: 1, dueAt: NOW + ACTION_TIMEOUT_MAX_MS },
+  it('decision / actor, timed, no row, disconnected → due = min(base, grace)', () => {
+    expect(decision({ expectedActors: [3], timeoutMs: 90_000 })).toEqual([
+      row(3, NOW + 90_000, GRACE),
+    ]);
+    // ...and the game budget wins when it beats the grace.
+    expect(decision({ expectedActors: [3], timeoutMs: 15_000 })).toEqual([
+      row(3, NOW + 15_000, NOW + 15_000),
     ]);
   });
 
-  it('caps a DISCONNECTED actor at now + 60s even with a longer timeout', () => {
-    expect(computeDeadlines([3], 90_000, connected(), NOW)).toEqual([
-      { seat: 3, dueAt: NOW + DISCONNECT_GRACE_MS },
+  it('decision / actor, untimed, connected → no row', () => {
+    expect(decision({ expectedActors: [0], timeoutMs: null, connectedSeats: connected(0) })).toEqual([]);
+  });
+
+  it('decision / actor, untimed, disconnected, no row → insert base = NULL, due = grace', () => {
+    expect(decision({ expectedActors: [0], timeoutMs: null })).toEqual([row(0, null, GRACE)]);
+  });
+
+  it('decision / actor, untimed, disconnected, grace row exists → kept VERBATIM (I4)', () => {
+    const anchored = row(0, null, NOW - 20_000 + DISCONNECT_GRACE_MS);
+    expect(decision({ prev: [anchored], expectedActors: [0], timeoutMs: null })).toEqual([anchored]);
+  });
+
+  it('decision clamps the budget to the [5s, 120s] bounds', () => {
+    expect(decision({ expectedActors: [1], connectedSeats: connected(1), timeoutMs: 1_000 })).toEqual([
+      row(1, NOW + ACTION_TIMEOUT_MIN_MS, NOW + ACTION_TIMEOUT_MIN_MS),
+    ]);
+    expect(decision({ expectedActors: [1], connectedSeats: connected(1), timeoutMs: 600_000 })).toEqual([
+      row(1, NOW + ACTION_TIMEOUT_MAX_MS, NOW + ACTION_TIMEOUT_MAX_MS),
     ]);
   });
 
-  it('keeps the shorter game timeout for a disconnected actor when it beats the grace', () => {
-    expect(computeDeadlines([3], 15_000, connected(), NOW)).toEqual([
-      { seat: 3, dueAt: NOW + 15_000 },
+  it('decision with no expected actors (terminal) → empty', () => {
+    expect(decision({ prev: [row(0, NOW, NOW)], expectedActors: [] })).toEqual([]);
+  });
+
+  // --- reason = 'presence' -------------------------------------------------
+
+  it('presence / disconnects, actor, row exists → due = min(due, grace); base unchanged', () => {
+    const armed = row(1, NOW + 100_000, NOW + 100_000);
+    expect(
+      presence({ prev: [armed], expectedActors: [1], changedSeats: connected(1) }),
+    ).toEqual([row(1, NOW + 100_000, GRACE)]);
+    // A due already inside the grace is NOT extended (min, not overwrite).
+    const short = row(1, NOW + 20_000, NOW + 20_000);
+    expect(
+      presence({ prev: [short], expectedActors: [1], changedSeats: connected(1) }),
+    ).toEqual([short]);
+  });
+
+  it('presence / disconnects, actor, no row (untimed) → insert base = NULL, due = grace', () => {
+    expect(presence({ expectedActors: [2], changedSeats: connected(2), timeoutMs: null })).toEqual([
+      row(2, null, GRACE),
     ]);
   });
 
-  it('null timeout: NO deadline for a connected actor (untimed phase)', () => {
-    expect(computeDeadlines([0], null, connected(0), NOW)).toEqual([]);
+  it('presence / reconnects, actor, base ≠ NULL → due = base (THE FIX: only the remainder comes back)', () => {
+    const clamped = row(1, NOW + 100_000, NOW - 5_000 + DISCONNECT_GRACE_MS);
+    expect(
+      presence({
+        prev: [clamped],
+        expectedActors: [1],
+        changedSeats: connected(1),
+        connectedSeats: connected(1),
+      }),
+    ).toEqual([row(1, NOW + 100_000, NOW + 100_000)]);
   });
 
-  it('null timeout: a DISCONNECTED actor STILL gets now + 60s (deadlock freedom)', () => {
-    expect(computeDeadlines([0], null, connected(), NOW)).toEqual([
-      { seat: 0, dueAt: NOW + DISCONNECT_GRACE_MS },
-    ]);
+  it('presence / reconnects, actor, base = NULL → delete row (untimed again)', () => {
+    expect(
+      presence({
+        prev: [row(1, null, GRACE)],
+        expectedActors: [1],
+        changedSeats: connected(1),
+        connectedSeats: connected(1),
+        timeoutMs: null,
+      }),
+    ).toEqual([]);
   });
 
-  it('mixes connected and disconnected actors independently', () => {
-    expect(computeDeadlines([0, 1], 90_000, connected(0), NOW)).toEqual([
-      { seat: 0, dueAt: NOW + 90_000 },
-      { seat: 1, dueAt: NOW + DISCONNECT_GRACE_MS },
-    ]);
+  it('presence / seat not an expected actor → no-op', () => {
+    const stale = row(3, NOW + 10_000, NOW + 10_000);
+    expect(
+      presence({ prev: [stale], expectedActors: [1], changedSeats: connected(3) }),
+    ).toEqual([stale]);
+    // A row-less non-actor stays row-less too.
+    expect(presence({ expectedActors: [1], changedSeats: connected(2) })).toEqual([]);
   });
 
-  it('returns nothing when there are no expected actors (terminal state)', () => {
-    expect(computeDeadlines([], 30_000, connected(0, 1), NOW)).toEqual([]);
+  // --- invariants I1-I4 ----------------------------------------------------
+
+  it('I1: due ≤ base whenever base ≠ NULL, across arm/disconnect/reconnect', () => {
+    let rows = decision({ expectedActors: [0, 2], connectedSeats: connected(0, 2), timeoutMs: 90_000 });
+    const assertI1 = (rs: DeadlineEntry[]): void => {
+      for (const r of rs) if (r.baseDueAt !== null) expect(r.dueAt).toBeLessThanOrEqual(r.baseDueAt);
+    };
+    assertI1(rows);
+    rows = nextDeadlines({
+      prev: rows, expectedActors: [0, 2], timeoutMs: 90_000, timingClass: 'turn',
+      connectedSeats: connected(2), now: NOW + 1_000, reason: 'presence', changedSeats: connected(0),
+    });
+    assertI1(rows);
+    rows = nextDeadlines({
+      prev: rows, expectedActors: [0, 2], timeoutMs: 90_000, timingClass: 'turn',
+      connectedSeats: connected(0, 2), now: NOW + 2_000, reason: 'presence', changedSeats: connected(0),
+    });
+    assertI1(rows);
+  });
+
+  it('I2: no presence sequence can increase due beyond its decision-time value', () => {
+    // 90s budget so the 60s grace ACTUALLY clamps on disconnect and the
+    // reconnect ACTUALLY restores — due may oscillate below base but the
+    // running max never exceeds the original armed due.
+    let rows = decision({ expectedActors: [0], connectedSeats: connected(0), timeoutMs: 90_000 });
+    const originalDue = rows[0]!.dueAt;
+    let maxDue = originalDue;
+    let sawClamp = false;
+    for (let step = 1; step <= 6; step++) {
+      const nowStep = NOW + step * 7_000;
+      const isConnected = step % 2 === 0;
+      rows = nextDeadlines({
+        prev: rows, expectedActors: [0], timeoutMs: 90_000, timingClass: 'turn',
+        connectedSeats: isConnected ? connected(0) : connected(), now: nowStep,
+        reason: 'presence', changedSeats: connected(0),
+      });
+      expect(rows).toHaveLength(1);
+      if (rows[0]!.dueAt < originalDue) sawClamp = true;
+      maxDue = Math.max(maxDue, rows[0]!.dueAt);
+    }
+    expect(sawClamp).toBe(true); // the cycle really exercised the clamp
+    expect(maxDue).toBe(originalDue);
+  });
+
+  it("I3: seat X's presence never changes seat Y's row (byte-identical)", () => {
+    // 90s budget so seat 1's disconnect grace actually clamps its due.
+    const before = decision({ expectedActors: [1, 3], connectedSeats: connected(1, 3), timeoutMs: 90_000 });
+    const after = nextDeadlines({
+      prev: before, expectedActors: [1, 3], timeoutMs: 90_000, timingClass: 'turn',
+      connectedSeats: connected(3), now: NOW + 5_000, reason: 'presence', changedSeats: connected(1),
+    });
+    expect(JSON.stringify(after.find((r) => r.seat === 3))).toBe(
+      JSON.stringify(before.find((r) => r.seat === 3)),
+    );
+    expect(after.find((r) => r.seat === 1)!.dueAt).toBe(NOW + 5_000 + DISCONNECT_GRACE_MS);
+  });
+
+  it("I4: a disconnected actor's grace is anchored at first disconnect and survives co-actor actions", () => {
+    // Double tribute: payers 1 and 3 armed, then 3 disconnects, then 1 pays
+    // (a decision recompute where 3 REMAINS an actor).
+    let rows = decision({ expectedActors: [1, 3], connectedSeats: connected(1, 3), timeoutMs: 45_000 });
+    rows = nextDeadlines({
+      prev: rows, expectedActors: [1, 3], timeoutMs: 45_000, timingClass: 'turn',
+      connectedSeats: connected(1), now: NOW + 10_000, reason: 'presence', changedSeats: connected(3),
+    });
+    const graceDue = rows.find((r) => r.seat === 3)!.dueAt;
+    expect(graceDue).toBe(NOW + 45_000); // base beat the grace here
+    const afterCoActor = nextDeadlines({
+      prev: rows, expectedActors: [3], timeoutMs: 45_000, timingClass: 'turn',
+      connectedSeats: connected(1), now: NOW + 20_000, reason: 'decision',
+    });
+    expect(afterCoActor).toHaveLength(1);
+    expect(afterCoActor[0]!.seat).toBe(3);
+    expect(afterCoActor[0]!.dueAt).toBe(graceDue);
+    expect(afterCoActor[0]!.baseDueAt).toBe(rows.find((r) => r.seat === 3)!.baseDueAt);
+  });
+
+  it('I4 (untimed flavor): a NULL-base grace row survives a co-actor decision verbatim', () => {
+    const anchored = row(3, null, NOW - 30_000 + DISCONNECT_GRACE_MS);
+    const after = nextDeadlines({
+      prev: [anchored, row(1, NOW + 40_000, NOW + 40_000)],
+      expectedActors: [3], timeoutMs: null, timingClass: 'turn',
+      connectedSeats: connected(1), now: NOW, reason: 'decision',
+    });
+    expect(after).toEqual([anchored]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveTimeoutMs / resolveTimingClass (room-timing.md §1 resolution order)
+// ---------------------------------------------------------------------------
+
+describe('resolveTimeoutMs / resolveTimingClass', () => {
+  const gameWith = (timeoutMs: number | null, cls?: 'turn' | 'planning'): AnyGameDefinition =>
+    ({
+      actionTimeoutMs: () => timeoutMs,
+      ...(cls !== undefined ? { timingClass: () => cls } : {}),
+    }) as unknown as AnyGameDefinition;
+
+  it('legacy room (timing null) → the engine suggestion verbatim, class ignored', () => {
+    expect(resolveTimeoutMs(gameWith(15_000, 'planning'), {}, null)).toBe(15_000);
+    expect(resolveTimeoutMs(gameWith(null, 'planning'), {}, null)).toBeNull();
+  });
+
+  it('engine-declared untimed state (actionTimeoutMs null) always wins over room timing', () => {
+    expect(resolveTimeoutMs(gameWith(null, 'turn'), {}, TIMING_PRESETS.standard)).toBeNull();
+    expect(resolveTimeoutMs(gameWith(null), {}, TIMING_PRESETS.fast)).toBeNull();
+  });
+
+  it('timed state maps the class through RoomTiming', () => {
+    expect(resolveTimeoutMs(gameWith(30_000, 'turn'), {}, TIMING_PRESETS.standard)).toBe(45_000);
+    expect(resolveTimeoutMs(gameWith(30_000, 'planning'), {}, TIMING_PRESETS.standard)).toBe(90_000);
+    expect(resolveTimeoutMs(gameWith(30_000, 'turn'), {}, TIMING_PRESETS.untimed)).toBeNull();
+  });
+
+  it("omitted timingClass method defaults to 'turn' (the guess-number path)", () => {
+    expect(resolveTimingClass(gameWith(15_000), {})).toBe('turn');
+    expect(resolveTimeoutMs(gameWith(15_000), {}, TIMING_PRESETS.fast)).toBe(20_000);
+  });
+
+  it('implemented timingClass is respected', () => {
+    expect(resolveTimingClass(gameWith(45_000, 'planning'), {})).toBe('planning');
   });
 });
 
@@ -191,6 +424,22 @@ describe('redactEventsFor', () => {
 describe('toWireDeadlines (PLAN §5 broadcast deadlines field)', () => {
   it('maps snake_case due_at rows to the camelCase wire shape', () => {
     expect(toWireDeadlines([{ seat: 1, due_at: 1_000 }])).toEqual([{ seat: 1, dueAt: 1_000 }]);
+  });
+
+  it('carries a valid timing_class through and omits NULL/unknown ones (pre-M4 rows)', () => {
+    expect(
+      toWireDeadlines([
+        { seat: 0, due_at: 1_000, timing_class: 'planning' },
+        { seat: 1, due_at: 2_000, timing_class: 'turn' },
+        { seat: 2, due_at: 3_000, timing_class: null },
+        { seat: 3, due_at: 4_000, timing_class: 'bogus' },
+      ]),
+    ).toEqual([
+      { seat: 0, dueAt: 1_000, timingClass: 'planning' },
+      { seat: 1, dueAt: 2_000, timingClass: 'turn' },
+      { seat: 2, dueAt: 3_000 },
+      { seat: 3, dueAt: 4_000 },
+    ]);
   });
 
   it('sorts by seat regardless of input order', () => {

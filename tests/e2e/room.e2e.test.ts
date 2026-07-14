@@ -390,7 +390,7 @@ describe('GameRoom e2e (M2 gate)', () => {
 
       // The pre-kill history is a prefix of the resumed state's history —
       // exact equality when nothing moved while we were away. (welcome.seq
-      // can exceed preKillSeq only if the 15s turn-timeout alarm auto-played
+      // can exceed preKillSeq only if the turn-timeout alarm auto-played
       // during the restart window; the prefix checks keep the test
       // deterministic either way, and the strict branch is the normal one.)
       expect(resumedView.guesses.slice(0, preKillViewA.guesses.length)).toEqual(preKillViewA.guesses);

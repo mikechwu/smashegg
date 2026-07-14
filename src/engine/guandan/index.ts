@@ -608,6 +608,29 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
     return TIMEOUT_MS[state.phase];
   },
 
+  timingClass(state) {
+    // 'planning' ⇔ the hand's opening lead: phase 'playing', no top play,
+    // and no card has LEFT any hand this deal. The deal produces 108 held
+    // cards and tribute/return/anti-tribute only MOVE cards between hands
+    // (tribute.ts moveCards; staged commits transfer nothing), so the total
+    // stays 108 until the first play — one predicate covers all three
+    // hand-opening paths (hand 1, tribute 'none'/'anti', post-return
+    // resolution) with no state-shape change. Every mid-hand trick lead
+    // follows at least one play, so the total is < 108 there. Fragility is
+    // pinned loudly: the obligations property test asserts 'planning' ⇔ an
+    // independently tracked "no play yet this hand" flag, so a future
+    // variant that removes cards from the deal fails a test, not silently.
+    // Tribute-family decisions class as 'turn' deliberately — they are
+    // forced choices from small eligible sets; the real planning moment is
+    // the opening lead over the FINAL post-exchange hand.
+    const t = state.trick;
+    const held =
+      state.hands[0].length + state.hands[1].length + state.hands[2].length + state.hands[3].length;
+    return state.phase === 'playing' && t !== null && t.top === null && held === 108
+      ? 'planning'
+      : 'turn';
+  },
+
   isTerminal(state) {
     return state.phase === 'matchEnd';
   },

@@ -31,6 +31,10 @@ jobs:
       - run: npx vitest run
 
       - run: npm run build
+        env:
+          # The SAME expression feeds the client bundle here and the Worker
+          # var below — build-version equality by construction.
+          BUILD_VERSION: ${{ github.sha }}
 
       - name: Verify build output
         # Per-file checks so a future route/asset addition churns this guard
@@ -45,13 +49,22 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           command: deploy
+          # wrangler-action appends `--var BUILD_VERSION:<value>` to deploy
+          # commands, reading the value from this step's env.
+          vars: BUILD_VERSION
+        env:
+          BUILD_VERSION: ${{ github.sha }}
 
       - name: Post-deploy smoke check
         # Set the vars.WORKER_URL repo variable after the first manual deploy
         # reveals the workers.dev URL; skip smoke test until then.
         if: vars.WORKER_URL != ''
+        # Beyond liveness, assert the deployed Worker actually serves THIS
+        # commit's build — every deploy self-verifies the version signal.
         run: |
           sleep 10
-          curl --fail "$WORKER_URL/api/health"
+          body=$(curl --fail "$WORKER_URL/api/health")
+          echo "$body"
+          test "$(echo "$body" | jq -r .build)" = "$GITHUB_SHA"
         env:
           WORKER_URL: ${{ vars.WORKER_URL }}

@@ -1,20 +1,23 @@
 // CardFace — ivory face, rosewood border, serif corner index (design
-// system). Sizes: 'hand' (large, the fan) / 'trick' (medium, the well).
+// system). Sizes: 'hand' (large, the fan) / 'trick' (medium, the well) /
+// 'mini' (the decl chooser's chips and result rows).
 // The current-level HEART wild carries a solid cinnabar corner triangle
 // with a 配 glyph at the BOTTOM-LEFT — the fan overlaps each card's right
 // side, so only the left strip is reliably visible; the joker's vertical
 // name sits in that same strip (left-anchored, not centered) for the same
 // reason. 小王 is ink, 大王 cinnabar.
 
-import { isJoker, isWild, rankOf, suitOf, type Card, type Rank } from '../../engine/guandan/cards';
+import { isJoker, isWild, rankOf, suitOf, type Card, type Rank, type Suit } from '../../engine/guandan/cards';
 import { isRedSuit, rankText, suitGlyph } from './helpers';
 import { t } from '../i18n';
+
+export type CardFaceSize = 'hand' | 'trick' | 'mini';
 
 export interface CardFaceProps {
   card: Card;
   /** Current level — determines the wild ribbon. */
   level: Rank;
-  size: 'hand' | 'trick';
+  size: CardFaceSize;
 }
 
 /** Localized accessible name of a card (buttons wrapping a CardFace use
@@ -53,6 +56,33 @@ export function CardFace({ card, level, size }: CardFaceProps) {
           <span className="gd-card__wildGlyph">{t('game.card.wildBadge')}</span>
         </span>
       )}
+    </span>
+  );
+}
+
+export interface GhostFaceProps {
+  rank: Rank;
+  /** null ⇒ suit-blind target: rank only, no suit glyph, ink-colored —
+   *  the engine never picks a suit for it (wild-chooser-ux.md §2.5). */
+  suit: Suit | null;
+  size: CardFaceSize;
+}
+
+/** The identity a wild plays as (the chooser's substituted faces). Always
+ *  carries the same cinnabar 配 corner marker the wild's own face uses —
+ *  one convention, one meaning: the wild is at work on this card (§2.3). */
+export function GhostFace({ rank, suit, size }: GhostFaceProps) {
+  const classes = ['gd-card', `gd-card--${size}`, 'gd-card--ghost'];
+  if (suit !== null) classes.push(isRedSuit(suit) ? 'gd-card--red' : 'gd-card--black');
+  return (
+    <span className={classes.join(' ')} aria-hidden="true">
+      <span className="gd-card__index">
+        <span className="gd-card__rank">{rankText(rank)}</span>
+        {suit !== null && <span className="gd-card__suit">{suitGlyph(suit)}</span>}
+      </span>
+      <span className="gd-card__wild">
+        <span className="gd-card__wildGlyph">{t('game.card.wildBadge')}</span>
+      </span>
     </span>
   );
 }

@@ -6,7 +6,16 @@
 // classifyPlays, config.ts constants) — client-legal per PLAN.md §2's
 // dependency rule (same precedent as RulePicker.tsx).
 
-import { isJoker, isWild, rankOf, type Card, type Rank, type Suit } from '../../engine/guandan/cards';
+import {
+  isJoker,
+  isWild,
+  rankOf,
+  sortCards,
+  suitOf,
+  type Card,
+  type Rank,
+  type Suit,
+} from '../../engine/guandan/cards';
 import type { Seat } from '../../engine/core/game';
 import { classifyPlays, sequenceWindow } from '../../engine/guandan/combos';
 import { JIANGSU_OFFICIAL_ONLINE, type RuleVariant } from '../../engine/guandan/config';
@@ -137,6 +146,268 @@ export function matchSelection(
     decl,
     playable: hinted.has(formProjectionKey(decl)),
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Wild-chooser card-face derivation (M4 item A,
+// docs/research/wild-chooser-ux.md §1). The engine never materializes a
+// wild assignment (combos.ts validates by multiset inclusion), but a
+// validated decl pins its REQUIRED multiset exactly — ranks for suit-blind
+// types, (rank,suit) identities for straight flushes — and the deficit
+// between that multiset and the selection's naturals IS the wilds'
+// assignment. Render-only: the submitted action stays {cards, decl},
+// server-re-validated, so a derivation bug can never corrupt a play.
+// ---------------------------------------------------------------------------
+
+export interface WildSubstitution {
+  /** The physical wild card, e.g. '2H' at level 2. */
+  wild: Card;
+  becomesRank: Rank;
+  /** Present iff decl.type === 'straightFlush' — the suit is determined
+   *  there and only there (R1); suit-blind targets are rank-only (§2.5). */
+  becomesSuit: Suit | null;
+  /** true = the wild plays as itself (level-rank slot / R4a / the
+   *  full-house free pair) — no arrow chip rendered. */
+  asSelf: boolean;
+}
+
+export interface ResolvedFace {
+  /** Physical card occupying this slot ('2H' even when displayed as a 9). */
+  card: Card;
+  /** null only for jokers (they have no rank; the face renders the card). */
+  displayRank: Rank | null;
+  /** null ⇒ suit-blind ghost face (no suit glyph); set for naturals, SF
+   *  targets and wilds-as-themselves. */
+  displaySuit: Suit | null;
+  /** true ⇒ this slot is wild-backed (drives the 配 corner marker). */
+  viaWild: boolean;
+}
+
+/** The decl's required rank multiset in DISPLAY order (window ascending ×
+ *  copies; full house triple-then-pair; keyRank × size otherwise), or null
+ *  for the full-house free pair (R3: the pair rank never compares — the
+ *  wilds play as themselves). A full house's joker pair covers the pair
+ *  part, so only the triple's slots remain. Suit-blind types only — SF is
+ *  identity-based. PRE: validatePlay accepted (cards, decl). */
+function requiredRankSlots(
+  cards: readonly Card[],
+  decl: CanonicalForm,
+  level: Rank,
+): Rank[] | null {
+  switch (decl.type) {
+    case 'straight':
+    case 'tube':
+    case 'plate': {
+      const copies = decl.type === 'straight' ? 1 : decl.type === 'tube' ? 2 : 3;
+      const window = sequenceWindow(decl.keyRank, decl.size / copies) ?? [];
+      const slots: Rank[] = [];
+      for (const rank of window) {
+        for (let i = 0; i < copies; i++) slots.push(rank);
+      }
+      return slots;
+    }
+    case 'fullHouse': {
+      const triple: Rank[] = [decl.keyRank, decl.keyRank, decl.keyRank];
+      if (cards.some((c) => isJoker(c))) return triple;
+      let keyCount = 0;
+      let otherRank: Rank | null = null;
+      for (const card of cards) {
+        if (isWild(card, level)) continue;
+        const rank = rankOf(card)!;
+        if (rank === decl.keyRank) keyCount++;
+        else otherRank = rank;
+      }
+      if (otherRank !== null) return [...triple, otherRank, otherRank];
+      // All naturals are keyRank. >3 ⇒ the five-of-kind variant shape: the
+      // pair rank IS keyRank; exactly 3 ⇒ the wilds are the free pair.
+      if (keyCount > 3) return [...triple, decl.keyRank, decl.keyRank];
+      return null;
+    }
+    default:
+      // single / pair / triple / bomb: keyRank × size (joker-keyed forms
+      // never contain wilds, so callers return [] before reaching here).
+      return Array.from({ length: decl.size }, () => decl.keyRank);
+  }
+}
+
+/**
+ * Per-wild target of a validated (cards, decl) reading — required multiset
+ * minus naturals, each level-rank slot consumed as wild-plays-as-itself
+ * (mirroring the engine's §9.11 non-demotion arithmetic). Entries follow
+ * the required multiset's display order.
+ */
+export function wildSubstitutions(
+  cards: readonly Card[],
+  decl: CanonicalForm,
+  level: Rank,
+): WildSubstitution[] {
+  const wild = `${level}H` as Card;
+  const wildCount = cards.filter((c) => isWild(c, level)).length;
+  // Wilds never join a joker bomb (spec §3 row 10).
+  if (wildCount === 0 || decl.type === 'jokerBomb') return [];
+
+  if (decl.type === 'straightFlush') {
+    const suit = decl.suit!;
+    const window = sequenceWindow(decl.keyRank, decl.size) ?? [];
+    const naturalIds = new Set(cards.filter((c) => !isWild(c, level)));
+    return window
+      .filter((rank) => !naturalIds.has(`${rank}${suit}` as Card))
+      .map((rank) => ({
+        wild,
+        becomesRank: rank,
+        becomesSuit: suit,
+        // The (level,H) identity slot is the wild's own card (§9.11).
+        asSelf: suit === 'H' && rank === level,
+      }));
+  }
+
+  const slots = requiredRankSlots(cards, decl, level);
+  if (slots === null) {
+    // Full-house free pair: the wilds ARE a real pair of level hearts.
+    return Array.from({ length: wildCount }, () => ({
+      wild,
+      becomesRank: level,
+      becomesSuit: null,
+      asSelf: true,
+    }));
+  }
+  const counts = new Map<Rank, number>();
+  for (const card of cards) {
+    if (isWild(card, level) || isJoker(card)) continue;
+    const rank = rankOf(card)!;
+    counts.set(rank, (counts.get(rank) ?? 0) + 1);
+  }
+  const deficit: Rank[] = [];
+  for (const rank of slots) {
+    const left = counts.get(rank) ?? 0;
+    if (left > 0) counts.set(rank, left - 1);
+    else deficit.push(rank);
+  }
+  return deficit.map((rank) => ({
+    wild,
+    becomesRank: rank,
+    becomesSuit: null,
+    asSelf: rank === level,
+  }));
+}
+
+/** Header chips: non-asSelf substitutions collapsed by identical target —
+ *  the common two-wild case renders ONE chip with a ×2 badge (§2.4). */
+export interface SubstitutionChip {
+  wild: Card;
+  becomesRank: Rank;
+  becomesSuit: Suit | null;
+  count: number;
+}
+
+export function substitutionChips(subs: readonly WildSubstitution[]): SubstitutionChip[] {
+  const chips: SubstitutionChip[] = [];
+  for (const sub of subs) {
+    if (sub.asSelf) continue;
+    const existing = chips.find(
+      (c) => c.becomesRank === sub.becomesRank && c.becomesSuit === sub.becomesSuit,
+    );
+    if (existing !== undefined) existing.count++;
+    else chips.push({ wild: sub.wild, becomesRank: sub.becomesRank, becomesSuit: sub.becomesSuit, count: 1 });
+  }
+  return chips;
+}
+
+/**
+ * The post-substitution combo, one face per selected card (length ===
+ * decl.size): naturals as themselves, wilds at their assigned identity
+ * (wilds-as-themselves as the physical wild face). Display order pins
+ * (§1.4): sequence types ascending window order, fullHouse triple-then-
+ * pair, everything else in the engine's sortCards order.
+ */
+export function resolveComboFaces(
+  cards: readonly Card[],
+  decl: CanonicalForm,
+  level: Rank,
+): ResolvedFace[] {
+  const wildCard = `${level}H` as Card;
+  const naturalFace = (card: Card): ResolvedFace => ({
+    card,
+    displayRank: rankOf(card),
+    displaySuit: suitOf(card),
+    viaWild: false,
+  });
+  // A wild-backed slot at its own identity (level rank; suit-blind or the
+  // hearts SF slot) displays the physical wild face.
+  const wildFace = (rank: Rank, suit: Suit | null): ResolvedFace =>
+    rank === level && (suit === null || suit === 'H')
+      ? { card: wildCard, displayRank: level, displaySuit: 'H', viaWild: true }
+      : { card: wildCard, displayRank: rank, displaySuit: suit, viaWild: true };
+
+  switch (decl.type) {
+    case 'straightFlush': {
+      const suit = decl.suit!;
+      const window = sequenceWindow(decl.keyRank, decl.size) ?? [];
+      const naturalIds = new Set(cards.filter((c) => !isWild(c, level)));
+      return window.map((rank) => {
+        const id = `${rank}${suit}` as Card;
+        return naturalIds.has(id) ? naturalFace(id) : wildFace(rank, suit);
+      });
+    }
+    case 'straight':
+    case 'tube':
+    case 'plate': {
+      const copies = decl.type === 'straight' ? 1 : decl.type === 'tube' ? 2 : 3;
+      const window = sequenceWindow(decl.keyRank, decl.size / copies) ?? [];
+      const byRank = new Map<Rank, Card[]>();
+      for (const card of sortCards(cards, level)) {
+        if (isWild(card, level)) continue;
+        const rank = rankOf(card)!;
+        byRank.set(rank, [...(byRank.get(rank) ?? []), card]);
+      }
+      const faces: ResolvedFace[] = [];
+      for (const rank of window) {
+        const have = byRank.get(rank) ?? [];
+        for (let i = 0; i < copies; i++) {
+          faces.push(i < have.length ? naturalFace(have[i]!) : wildFace(rank, null));
+        }
+      }
+      return faces;
+    }
+    case 'fullHouse': {
+      const naturals = sortCards(
+        cards.filter((c) => !isWild(c, level) && !isJoker(c)),
+        level,
+      );
+      const jokers = cards.filter((c) => isJoker(c));
+      const wilds = cards.filter((c) => isWild(c, level));
+      const keyNaturals = naturals.filter((c) => rankOf(c) === decl.keyRank);
+      const otherNaturals = naturals.filter((c) => rankOf(c) !== decl.keyRank);
+      const faces: ResolvedFace[] = [];
+      // Triple: keyRank naturals (≤3), wilds fill the deficit.
+      const tripleNaturals = keyNaturals.slice(0, 3);
+      for (const card of tripleNaturals) faces.push(naturalFace(card));
+      for (let i = tripleNaturals.length; i < 3; i++) faces.push(wildFace(decl.keyRank, null));
+      // Pair: the jokers, or the other rank (wild-completed), or the
+      // surplus keyRank cards (five-of-kind variant), or the free wild
+      // pair (R3 — the wilds as themselves).
+      if (jokers.length === 2) {
+        for (const card of jokers) faces.push(naturalFace(card));
+      } else if (otherNaturals.length > 0) {
+        const pairRank = rankOf(otherNaturals[0]!)!;
+        for (const card of otherNaturals) faces.push(naturalFace(card));
+        for (let i = otherNaturals.length; i < 2; i++) faces.push(wildFace(pairRank, null));
+      } else if (keyNaturals.length > 3) {
+        const surplus = keyNaturals.slice(3);
+        for (const card of surplus) faces.push(naturalFace(card));
+        for (let i = surplus.length; i < 2; i++) faces.push(wildFace(decl.keyRank, null));
+      } else {
+        // Free pair — exactly the two wilds, both as themselves.
+        for (let i = 0; i < wilds.length; i++) faces.push(wildFace(level, null));
+      }
+      return faces;
+    }
+    default:
+      // single / pair / triple / bomb / jokerBomb: sortCards order.
+      return sortCards(cards, level).map((card) =>
+        isWild(card, level) ? wildFace(decl.keyRank, null) : naturalFace(card),
+      );
+  }
 }
 
 /** Whether a pass hint exists (spec §5.2: never when leading). */

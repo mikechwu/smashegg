@@ -10,6 +10,7 @@ import { useEffect, useState } from 'react';
 import type { RoomInfo } from '../shared/protocol';
 import type { RoomSnapshot, RoomStore } from './room/store';
 import { RulePicker } from './RulePicker';
+import { TimingPicker } from './TimingPicker';
 import { roomHash } from './router';
 import { t } from './i18n';
 
@@ -169,6 +170,18 @@ export function Lobby({ snapshot, store }: LobbyProps) {
           config={room.config}
           disabled={room.status !== 'lobby'}
           onChange={(config) => store.setConfig(config)}
+        />
+      </section>
+
+      {/* Timing-panel slot (M4): the four-preset timing picker over the
+          setTiming transport — same authority and freeze rules as the rule
+          picker (any seated player edits, live via roomChanged, frozen once
+          the match starts). Its legend is the panel heading. */}
+      <section className="lobby-config" data-slot="timing-panel">
+        <TimingPicker
+          timing={room.timing}
+          disabled={room.status !== 'lobby'}
+          onChange={(timing) => store.setTiming(timing)}
         />
       </section>
     </section>

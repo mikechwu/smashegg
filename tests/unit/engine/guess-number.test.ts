@@ -247,6 +247,14 @@ describe('GuessNumberGame', () => {
     expect(() => GuessNumberGame.init(SUDDEN_DEATH, 5, 's')).toThrow();
   });
 
+  it('omits timingClass — the intentional proof of the room-layer default path (M4)', () => {
+    // Every guess-number state is an ordinary 'turn'; the optional hook is
+    // deliberately NOT implemented, so the room layer's `?? 'turn'` default
+    // is exercised in production. This pin makes accidentally adding the
+    // method (and silently changing new-room budgets) a test failure.
+    expect(GuessNumberGame.timingClass).toBeUndefined();
+  });
+
   it('registry: "guess-number" resolves, unknown id returns null', () => {
     expect(getGame('guess-number')).toBe(GuessNumberGame);
     expect(GAME_REGISTRY['guess-number']).toBe(GuessNumberGame);

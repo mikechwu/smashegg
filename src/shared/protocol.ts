@@ -5,10 +5,14 @@
 // are the BARE string 'ping' (answered by the DO's auto-response while
 // hibernated), never JSON.
 
-import type { Seat } from '../engine/core/game';
+import type { Seat, TimingClass } from '../engine/core/game';
+import type { RoomTiming } from './timing';
 
 export interface HealthResponse {
   ok: true;
+  /** Running server build (git SHA injected at deploy; 'dev' locally) —
+   *  the out-of-band probe the post-deploy smoke check asserts on (M4). */
+  build?: string;
 }
 
 /** Kept from M0 as the permanent live G-ALARM probe (PLAN §9 gates). */
@@ -35,6 +39,9 @@ export interface RoomInfo {
   status: RoomStatus;
   config: unknown;
   seats: SeatInfo[];
+  /** Room timing config (M4); null = legacy room created before timing
+   *  existed — the DO falls back to the game's actionTimeoutMs suggestion. */
+  timing: RoomTiming | null;
   seq: number;
 }
 
@@ -53,6 +60,7 @@ export type ClientMessage =
     }
   | { v: 1; type: 'claimSeat'; name: string } // lobby only; mints that seat's token
   | { v: 1; type: 'setConfig'; config: unknown } // lobby only; any seated player
+  | { v: 1; type: 'setTiming'; timing: RoomTiming } // lobby only; any seated player
   | { v: 1; type: 'start' } // lobby only; any seated player, all seats claimed
   | {
       v: 1;
@@ -88,6 +96,10 @@ export interface WireError {
 export interface WireDeadline {
   seat: Seat;
   dueAt: number;
+  /** The timing class the deadline was armed under (M4), so the client can
+   *  label a planning countdown differently from an ordinary turn. Absent
+   *  on rows armed before the class column existed. */
+  timingClass?: TimingClass;
 }
 
 export type ServerMessage =
@@ -100,6 +112,13 @@ export type ServerMessage =
       /** Current per-seat deadlines (empty when none are outstanding, e.g.
        *  lobby/terminal). */
       deadlines?: WireDeadline[];
+      /** Server build identity (M4 version-skew signal): git SHA in
+       *  production, the 'dev' sentinel when none was injected. hello fires
+       *  on every (re)connect, so a stale client learns the server's build
+       *  exactly when reloading is safe. Distinct from `v` — the wire-schema
+       *  contract — a build mismatch is a soft freshness hint, never an
+       *  incompatibility. */
+      build?: string;
     }
   | { v: 1; type: 'roomChanged'; seq: number; room: RoomInfo } // claims/presence/lobby churn
   | {

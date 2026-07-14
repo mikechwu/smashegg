@@ -19,6 +19,7 @@
 import ReconnectingWebSocket from 'partysocket/ws';
 import type { Seat } from '../../engine/core/game';
 import type { ClientMessage, ServerMessage } from '../../shared/protocol';
+import type { RoomTiming } from '../../shared/timing';
 import type { RoomStore } from './store';
 
 /** Under the DO's idle limits with margin; the runtime answers 'ping' with
@@ -85,6 +86,10 @@ export class RoomConnection {
 
   setConfig(config: unknown): void {
     this.sendMsg({ v: 1, type: 'setConfig', config });
+  }
+
+  setTiming(timing: RoomTiming): void {
+    this.sendMsg({ v: 1, type: 'setTiming', timing });
   }
 
   start(): void {

@@ -9,6 +9,13 @@ import { fileURLToPath } from 'node:url';
 export default defineConfig({
   root: 'src/client',
   plugins: [react()],
+  // Build identity for the version-skew signal (M4): the deploy workflow
+  // injects the git SHA; a bare local build gets the 'dev' sentinel —
+  // deliberately NO git fallback here, so local `vite build` + `wrangler
+  // dev` agree on 'dev' and the client suppresses the skew check.
+  define: {
+    __BUILD_VERSION__: JSON.stringify(process.env.BUILD_VERSION ?? 'dev'),
+  },
   build: {
     outDir: fileURLToPath(new URL('./dist/client', import.meta.url)),
     emptyOutDir: true,

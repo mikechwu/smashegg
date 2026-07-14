@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import { ROOM_CODE_RE } from '../shared/protocol';
+import { DEFAULT_ROOM_TIMING } from '../shared/timing';
 import { DEFAULT_GAME_ID } from './config';
 import { t } from './i18n';
 import { navigate, roomHash } from './router';
@@ -25,13 +26,16 @@ export function HomePage() {
       // displays is exactly what the room carries from birth.
       // CURATED_DEFAULT_PICKS pins firstLeadMethod='drawCard' (the PRODUCT
       // default: created rooms show the 翻牌定先 opening ceremony); the
-      // engine-spec default stays 'random'.
+      // engine-spec default stays 'random'. Timing follows the same rule:
+      // DEFAULT_ROOM_TIMING is sent explicitly (the server would default it
+      // anyway) so the product default is client-visible like the config.
       const res = await fetch('/api/rooms', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           gameId: DEFAULT_GAME_ID,
           config: assembleConfig(CURATED_DEFAULT_PICKS),
+          timing: DEFAULT_ROOM_TIMING,
         }),
       });
       if (res.status !== 201) throw new Error('createRoom failed');

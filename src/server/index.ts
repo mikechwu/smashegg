@@ -20,6 +20,10 @@ export interface Env {
   /** Optional secret: when set, GET .../dump is allowed iff the request
    *  presents it in the 'x-debug-dump-token' header (PLAN.md §6). */
   DEBUG_DUMP_TOKEN?: string;
+  /** Build identity (M4 version-skew signal): the git SHA injected at
+   *  deploy time via `--var BUILD_VERSION:...`; absent under plain
+   *  `wrangler dev`, where every consumer falls back to 'dev'. */
+  BUILD_VERSION?: string;
 }
 
 // 6-char unambiguous room-code alphabet (no 0/O/1/I) — PLAN.md §8.
@@ -35,13 +39,14 @@ function generateRoomCode(): string {
   return roomCodeFromBytes(bytes);
 }
 
-/** POST /api/rooms {gameId, config} → {code}. Validates the gameId against
- *  the registry; config is OPAQUE game-defined data, forwarded untouched
- *  (PLAN.md §4 lobby phase). */
+/** POST /api/rooms {gameId, config, timing?} → {code}. Validates the gameId
+ *  against the registry; config is OPAQUE game-defined data, forwarded
+ *  untouched (PLAN.md §4 lobby phase); timing is forwarded as-is and
+ *  validated authoritatively in the DO (absent = the standard preset). */
 async function handleCreateRoom(request: Request, env: Env, origin: string): Promise<Response> {
-  let body: { gameId?: unknown; config?: unknown };
+  let body: { gameId?: unknown; config?: unknown; timing?: unknown };
   try {
-    body = (await request.json()) as { gameId?: unknown; config?: unknown };
+    body = (await request.json()) as { gameId?: unknown; config?: unknown; timing?: unknown };
   } catch {
     return Response.json({ error: "request.invalidJson" }, { status: 400 });
   }
@@ -57,7 +62,7 @@ async function handleCreateRoom(request: Request, env: Env, origin: string): Pro
       new Request(`${origin}/api/rooms/${code}/create`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ gameId, config: body.config ?? null }),
+        body: JSON.stringify({ gameId, config: body.config ?? null, timing: body.timing ?? null }),
       }),
     );
     if (res.status === 409) continue; // code collision — mint another
@@ -72,7 +77,7 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === "/api/health") {
-      const body: HealthResponse = { ok: true };
+      const body: HealthResponse = { ok: true, build: env.BUILD_VERSION ?? "dev" };
       return Response.json(body);
     }
 

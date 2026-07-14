@@ -31,6 +31,7 @@ function roomInfo(overrides: Partial<RoomInfo> = {}): RoomInfo {
     status: 'lobby',
     config: null,
     seats: [0, 1, 2, 3].map((seat) => ({ seat, name: null, claimed: false, connected: false })),
+    timing: null,
     seq: 0,
     ...overrides,
   };
@@ -121,6 +122,16 @@ describe('RoomStore reducer', () => {
     expect(snap.room?.gameId).toBe('guandan');
     expect(snap.room?.status).toBe('lobby');
     expect(snap.seq).toBe(5);
+  });
+
+  it('roomChanged replaces the room wholesale — timing included (setTiming rides roomChanged, no dedicated reducer case)', () => {
+    const store = new RoomStore(CODE, fakeStorage());
+    store.dispatch(welcome([], roomInfo()));
+    expect(store.getSnapshot().room?.timing).toBeNull();
+    const timing = { perTurnMs: 20_000, planningMs: 45_000 };
+    store.dispatch({ v: 1, type: 'roomChanged', seq: 2, room: roomInfo({ timing, seq: 2 }) });
+    expect(store.getSnapshot().room?.timing).toEqual(timing);
+    expect(store.getSnapshot().seq).toBe(2);
   });
 
   it('seatClaimed WITH token records the credential and marks the roster seat', () => {
@@ -316,11 +327,12 @@ describe('RoomStore persistence (PLAN §5 flow step 1)', () => {
 });
 
 describe('RoomStore actions delegate to the bound sender', () => {
-  it('claim/setConfig/start/act forward with their arguments', () => {
+  it('claim/setConfig/setTiming/start/act forward with their arguments', () => {
     const calls: unknown[][] = [];
     const sender: RoomSender = {
       claimSeat: (...a) => calls.push(['claimSeat', ...a]),
       setConfig: (...a) => calls.push(['setConfig', ...a]),
+      setTiming: (...a) => calls.push(['setTiming', ...a]),
       start: () => calls.push(['start']),
       act: (...a) => calls.push(['act', ...a]),
     };
@@ -328,11 +340,13 @@ describe('RoomStore actions delegate to the bound sender', () => {
     store.bindSender(sender);
     store.claim('mike');
     store.setConfig({ x: 1 });
+    store.setTiming({ perTurnMs: 20_000, planningMs: 45_000 });
     store.start();
     store.act(2, { type: 'pass' });
     expect(calls).toEqual([
       ['claimSeat', 'mike'],
       ['setConfig', { x: 1 }],
+      ['setTiming', { perTurnMs: 20_000, planningMs: 45_000 }],
       ['start'],
       ['act', 2, { type: 'pass' }],
     ]);
