@@ -6,7 +6,7 @@
 // content column (.app-main), which the table screen widens.
 
 import { useEffect, useState } from 'react';
-import { SUPPORTED_LOCALES } from './config';
+import { LOCALE_SELF_LABELS, SUPPORTED_LOCALES } from './config';
 import type { Locale } from './config';
 import { getLocale, setLocale, subscribe, t } from './i18n';
 import { useRoute } from './router';
@@ -44,9 +44,7 @@ export function App() {
               disabled={l === locale}
               onClick={() => setLocale(l)}
             >
-              {t(
-                l === 'zh-Hant' ? 'locale.zhHant' : l === 'zh-Hans' ? 'locale.zhHans' : 'locale.en',
-              )}
+              {LOCALE_SELF_LABELS[l]}
             </button>
           ))}
         </nav>

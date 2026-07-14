@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import zhHant from '../../src/client/i18n/locales/zh-Hant.json';
 import zhHans from '../../src/client/i18n/locales/zh-Hans.json';
 import en from '../../src/client/i18n/locales/en.json';
-import { DEFAULT_LOCALE, detectLocale } from '../../src/client/config';
+import {
+  DEFAULT_LOCALE,
+  LOCALE_SELF_LABELS,
+  SUPPORTED_LOCALES,
+  detectLocale,
+} from '../../src/client/config';
 import { t, setLocale, getLocale } from '../../src/client/i18n';
 
 // Recursively collect the sorted key set of a (possibly nested) object.
@@ -37,6 +42,23 @@ describe('i18n locale parity', () => {
 describe('i18n config', () => {
   it('DEFAULT_LOCALE is zh-Hant', () => {
     expect(DEFAULT_LOCALE).toBe('zh-Hant');
+  });
+
+  // m3h visual finding: the switcher showed 簡體中文 under zh-Hant because
+  // language names lived in the locale files as translations. Endonyms are
+  // constants — each option labels itself in its own script — so this pins
+  // the exact glyphs and that no locale file can reintroduce the drift.
+  it('locale switcher labels are endonyms, defined for every supported locale', () => {
+    expect(SUPPORTED_LOCALES.map((l) => LOCALE_SELF_LABELS[l])).toEqual([
+      '繁體中文',
+      '简体中文',
+      'English',
+    ]);
+    for (const locale of [zhHant, zhHans, en]) {
+      expect(Object.keys(locale).some((k) => k.startsWith('locale.zh') || k === 'locale.en')).toBe(
+        false,
+      );
+    }
   });
 });
 

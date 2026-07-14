@@ -18,6 +18,17 @@ export const DEFAULT_LOCALE: Locale = 'zh-Hant';
 
 export const SUPPORTED_LOCALES: readonly Locale[] = ['zh-Hant', 'zh-Hans', 'en'];
 
+/** Endonyms for the locale switcher. Each option labels itself in its OWN
+ * script regardless of the current UI locale (so a zh-Hans reader can find
+ * 简体中文 while the app shows zh-Hant), which is why these are constants
+ * here and NOT translation keys — putting them in the locale JSON files is
+ * what produced the 簡體中文-under-zh-Hant drift this replaces (m3h). */
+export const LOCALE_SELF_LABELS: Record<Locale, string> = {
+  'zh-Hant': '繁體中文',
+  'zh-Hans': '简体中文',
+  en: 'English',
+};
+
 // Ordered browser-tag → Locale mapping, most specific first. A tag matches
 // an entry when it equals the entry's tag or starts with it followed by
 // "-" (so "zh-Hant-TW" matches "zh-Hant", "zh-CN" matches exactly, etc).
