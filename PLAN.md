@@ -277,7 +277,7 @@ Versioned JSON envelope on the wire (`v:1`). Semantic keys only — the protocol
 
 1. Client persists `token` + `lastSeenSeq` (memory + localStorage — survives tab reload, not just socket drop).
 2. partysocket reconnects with backoff → `open` fires → client sends `hello{token, lastSeenSeq}`.
-3. DO authenticates token → seat; closes any stale socket for that seat; then:
+3. DO authenticates token(s) → seat(s); delivery for each seat moves to the newest socket presenting its token (soft takeover — the older socket stays open and keeps its other seats, per §4); then:
    - gap within retained `events` window → `resync{seq, view, events: redacted delta}` (UI can show what was missed);
    - gap too large / log trimmed → `resync{seq, view}` (snapshot only). Either way the `view` alone is sufficient to resume.
 4. Any action the client had in flight is re-submitted with its original `actionId`:

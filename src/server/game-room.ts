@@ -42,6 +42,7 @@ import {
   redactEventsFor,
   sha256Hex,
   timeoutActionId,
+  timingSafeEqualStr,
 } from './room-helpers';
 
 // Bare literal "ping" -> "pong" answered while hibernated, at zero cost
@@ -499,7 +500,11 @@ export class GameRoom extends DurableObject<Env> {
     const configuredToken = this.env.DEBUG_DUMP_TOKEN;
     const presented = request.headers.get('x-debug-dump-token');
     const allowed =
-      devMode || (configuredToken !== undefined && configuredToken !== '' && presented === configuredToken);
+      devMode ||
+      (configuredToken !== undefined &&
+        configuredToken !== '' &&
+        presented !== null &&
+        timingSafeEqualStr(presented, configuredToken));
     if (!allowed) return Response.json({ error: 'notFound' }, { status: 404 });
 
     const room = this.readRoomRow();
@@ -684,14 +689,23 @@ export class GameRoom extends DurableObject<Env> {
       }
     }
 
-    // Presence broadcast for newly-connected seats.
+    // Presence for seats whose connectivity CHANGED in either direction.
+    // Grok M2 audit (F1): a hello can also DROP seats (fewer/empty tokens,
+    // or takeover moving them here from another socket) — those must
+    // broadcast disconnected-presence and re-enter the disconnect-grace
+    // deadline clamp, or a client could "soft-disconnect" past the timers.
+    const connectedAfter = this.connectedSeats();
     const newlyConnected = sortedSeats.filter((s) => !connectedBefore.has(s));
+    const newlyDisconnected = [...connectedBefore].filter((s) => !connectedAfter.has(s));
     for (const s of newlyConnected) {
       this.broadcast({ v: 1, type: 'presence', seq, seat: s, connected: true });
     }
-    if (newlyConnected.length > 0 && room.status === 'playing') {
-      // Reconnection lifts the disconnect-grace clamp — recompute deadlines
-      // fresh under the PLAN §4 rule (note: this restarts the phase timer).
+    for (const s of newlyDisconnected) {
+      this.broadcast({ v: 1, type: 'presence', seq, seat: s, connected: false });
+    }
+    if ((newlyConnected.length > 0 || newlyDisconnected.length > 0) && room.status === 'playing') {
+      // Connectivity changes re-derive the PLAN §4 deadline rule (note:
+      // this restarts the phase timer — tracked for M4 refinement).
       await this.recomputeDeadlinesAndAlarm();
     }
   }
@@ -912,6 +926,11 @@ export class GameRoom extends DurableObject<Env> {
     };
 
     if (actionId.length === 0) return reject(wireError('protocol.missingActionId'));
+    // Codex M2 audit: 'timeout:' is the RESERVED synthetic-id namespace for
+    // alarm-applied default actions ('timeout:seat:seq'). A client-forged id
+    // there would poison actions_seen and swallow a future genuine timeout
+    // (liveness). Reject it outright.
+    if (actionId.startsWith('timeout:')) return reject(wireError('action.reservedActionId'));
     if (typeof seat !== 'number' || !Number.isInteger(seat)) {
       return reject(wireError('protocol.malformed'));
     }

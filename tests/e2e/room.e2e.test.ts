@@ -465,6 +465,20 @@ describe('GameRoom e2e (M2 gate)', () => {
       );
       expect(rej.error.code).toBe('seat.notHeld');
 
+      // (1b) Codex M2 audit: the 'timeout:' actionId namespace is reserved
+      // for alarm-applied default actions — a forged id there could swallow
+      // a future genuine timeout. Must be rejected even for a held seat.
+      const mark1b = a.mark();
+      const forged = a.action(s1.seat, { type: 'guess', value: 50 }, {
+        expectedSeq: start.seq,
+        actionId: `timeout:${s1.seat}:${start.seq + 1}`,
+      });
+      const rejForged = await a.waitFor<RejectedMsg>(
+        (m) => m.type === 'rejected' && m.actionId === forged,
+        { from: mark1b },
+      );
+      expect(rejForged.error.code).toBe('action.reservedActionId');
+
       // (2) TAKEOVER: a new socket presenting seat 0's token takes over
       // seat-0 delivery; A keeps only its other seat (1).
       const { client: taker, welcome } = await connectAndWelcome(server, code, {

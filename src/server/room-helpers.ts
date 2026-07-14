@@ -135,3 +135,14 @@ export function deltaCoversGap(
   }
   return true;
 }
+
+/** Constant-time-ish string equality for secret comparison (Grok M2 audit
+ *  F2). Leaks only the length, which is acceptable for the dump token —
+ *  the practical timing-exploit surface over the network is already weak;
+ *  this removes the trivially variable early-exit compare. */
+export function timingSafeEqualStr(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
