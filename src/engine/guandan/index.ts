@@ -233,6 +233,22 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
       // Failing at init beats failing mid-match.
       throw new Error("config.notImplemented: equalTributeAssignment='winnersChoose'");
     }
+    if (config.tributeLevelBasis === 'previousLevel') {
+      // Codex+Grok convergent audit finding (M1 gate): tribute eligibility
+      // is currently computed with the upcoming hand's level only — under
+      // this variant that would be silently wrong, so reject loudly
+      // instead. Full support is tracked as a pre-M3 item. Default profile
+      // unaffected.
+      throw new Error("config.notImplemented: tributeLevelBasis='previousLevel'");
+    }
+    if (config.levelTrack === 'shared' && config.aFailConsequence === 'demote') {
+      // Grok audit finding (M1 gate): per-team demotion desyncs the shared
+      // ladder, and a later shared upgrade would drag the other team DOWN.
+      // The spec leaves shared-ladder demotion semantics undefined; reject
+      // the combination loudly until the owner defines it. Defaults
+      // (perTeam + suspendPlayOpponentLevel) unaffected.
+      throw new Error("config.notImplemented: levelTrack='shared' with aFailConsequence='demote'");
+    }
     const prng = seedPrng(seed);
     return startHand(
       { config, prng, levels: ['2', '2'], aAttempts: [0, 0], aAttemptsExhausted: [false, false] },

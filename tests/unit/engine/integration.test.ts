@@ -98,4 +98,14 @@ describe('GuandanGame integration (seeded bot playouts)', () => {
     const config: RuleVariant = { ...JIANGSU_OFFICIAL_ONLINE, equalTributeAssignment: 'winnersChoose' };
     expect(() => GuandanGame.init(config, 4, 'x')).toThrow(/notImplemented/);
   });
+
+  it("rejects tributeLevelBasis='previousLevel' at init (Codex+Grok convergent audit finding: was silently ignored)", () => {
+    const config: RuleVariant = { ...JIANGSU_OFFICIAL_ONLINE, tributeLevelBasis: 'previousLevel' };
+    expect(() => GuandanGame.init(config, 4, 'x')).toThrow(/notImplemented/);
+  });
+
+  it("rejects levelTrack='shared' + aFailConsequence='demote' at init (Grok audit finding: ladder desync)", () => {
+    const config: RuleVariant = { ...JIANGSU_OFFICIAL_ONLINE, levelTrack: 'shared', aFailConsequence: 'demote' };
+    expect(() => GuandanGame.init(config, 4, 'x')).toThrow(/notImplemented/);
+  });
 });
