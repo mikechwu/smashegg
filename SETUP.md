@@ -47,7 +47,7 @@ Each step is marked **[AUTO]** (I can run it from this machine once prerequisite
 ## Secrets policy
 
 - Never committed. CI: GitHub Actions secrets only. Local: `.dev.vars` (gitignored; `.dev.vars.example` committed).
-- Cloudflare token scope: single account, Workers-edit template only. Rotate from the same dashboard page if ever exposed.
+- Cloudflare token scope (`smashegg-ci`, narrowed 2026-07-14 after the M0 template-created token proved broader than needed): **Account → Workers Scripts:Edit + Account Settings:Read, User → Memberships:Read + User Details:Read, single account, zero zone grants** — verified sufficient for `wrangler deploy` with static assets + DO migrations by a green Deploy run after narrowing. The dashboard "Edit Cloudflare Workers" template grants ~13 permissions incl. zone-wide Workers Routes, KV, R2, Pages, Containers — none needed for a workers.dev-only Worker. Rotate from the same dashboard page if ever exposed; editing scope preserves the token value (no secret rotation needed), unlike Roll.
 - MVP has no runtime server secrets; if any appear (e.g., admin endpoints), they go in via `wrangler secret put`.
 
 ## Critical-path summary for you (everything else is mine)
