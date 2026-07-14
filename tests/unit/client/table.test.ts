@@ -11,6 +11,8 @@ import {
   activeSeats,
   asGuandanView,
   canPass,
+  comboKey,
+  declJokerRank,
   declRunText,
   declSignature,
   errorKeyFor,
@@ -25,6 +27,7 @@ import {
   tributeEligibleCards,
   tributeKind,
 } from '../../../src/client/table/helpers';
+import { comboRankLabel } from '../../../src/client/table/CardFace';
 import { EMPTY_DERIVED, foldEvents } from '../../../src/client/GameTable';
 import { resolveFeedParams } from '../../../src/client/table/EventFeed';
 import { getLocale, setLocale, t } from '../../../src/client/i18n';
@@ -486,5 +489,123 @@ describe('foldEvents + EventFeed render-time localization (m1)', () => {
     } finally {
       setLocale(original);
     }
+  });
+});
+
+// REGRESSION (M4 computer-use visual round): playing a lone 大王 rendered as
+// "單張 A" in both the trick-well caption and the event feed. Root cause —
+// joker-keyed singles/pairs carry keyRank 'A' as a FROZEN-TYPES placeholder
+// (combos.ts: never compared, mirrors jokerBomb's convention) with jokerRank
+// as the REAL identity; every label built from `${comboKey} ${keyRank}`
+// ignored jokerRank and printed the placeholder instead. Fixed by routing
+// the label's rank segment through declJokerRank/comboRankLabel (CardFace.ts)
+// and by carrying jokerRank through the feed's SEMANTIC combo descriptor
+// (GameTable.foldEvents → EventFeed.resolveFeedParams, m1 render-time-
+// localization architecture) instead of baking a string into the fold.
+describe('joker-keyed combo labels (regression: BJ/SJ singles & pairs)', () => {
+  const bjSingle = { type: 'single', size: 1, keyRank: 'A', jokerRank: 'BJ' } as CanonicalForm;
+  const sjPair = { type: 'pair', size: 2, keyRank: 'A', jokerRank: 'SJ' } as CanonicalForm;
+  const plainPair: CanonicalForm = { type: 'pair', size: 2, keyRank: '9' };
+
+  it('declJokerRank extracts the FROZEN-TYPES extra, undefined for ordinary forms', () => {
+    expect(declJokerRank(bjSingle)).toBe('BJ');
+    expect(declJokerRank(sjPair)).toBe('SJ');
+    expect(declJokerRank(plainPair)).toBeUndefined();
+  });
+
+  // Direct comboKey unit case: comboKey still names the TYPE (單張/對子);
+  // comboRankLabel is what must diverge from the old `rankText(keyRank)`
+  // call for a jokerRank decl. Values read from the locale files, not
+  // guessed (game.card.bj/sj, game.combo.single/pair).
+  it('comboKey + comboRankLabel compose to the joker name, not the keyRank placeholder', () => {
+    const original = getLocale();
+    try {
+      setLocale('zh-Hant');
+      expect(t(comboKey(bjSingle))).toBe('單張');
+      expect(comboRankLabel(bjSingle)).toBe('大王');
+      expect(comboRankLabel(bjSingle)).not.toBe('A');
+      expect(t(comboKey(sjPair))).toBe('對子');
+      expect(comboRankLabel(sjPair)).toBe('小王');
+
+      setLocale('en');
+      expect(comboRankLabel(bjSingle)).toBe('Big Joker');
+      expect(comboRankLabel(sjPair)).toBe('Joker');
+
+      // Non-joker decls are unaffected — comboRankLabel is total.
+      expect(comboRankLabel(plainPair)).toBe('9');
+    } finally {
+      setLocale(original);
+    }
+  });
+
+  it('a folded "played" line for a lone 大王 (BJ single) resolves per-locale as 單張 大王, never 單張 A', () => {
+    const original = getLocale();
+    const nameFor = () => 'Alice';
+    let nextId = 0;
+    const idGen = () => nextId++;
+    try {
+      const events: GuandanEvent[] = [{ type: 'played', seat: 0, cards: ['BJ'], decl: bjSingle }];
+      const derived = foldEvents(EMPTY_DERIVED, events, 0, nameFor, idGen);
+      const line = derived.feed[0]!;
+      expect(line.key).toBe('game.feed.played');
+      // The fold carries jokerRank through the SEMANTIC descriptor — no
+      // pre-localized string baked in (m1 architecture).
+      expect(line.params?.combo).toEqual({
+        kind: 'combo',
+        comboType: 'single',
+        keyRank: 'A',
+        jokerRank: 'BJ',
+      });
+
+      setLocale('en');
+      const en = t(line.key, resolveFeedParams(line.params));
+      setLocale('zh-Hant');
+      const zhHant = t(line.key, resolveFeedParams(line.params));
+      setLocale('zh-Hans');
+      const zhHans = t(line.key, resolveFeedParams(line.params));
+
+      expect(en).toBe('Alice played Single Big Joker');
+      expect(zhHant).toBe('Alice 出 單張 大王');
+      expect(zhHans).toBe('Alice 出 单张 大王');
+      expect(zhHant).not.toBe('Alice 出 單張 A');
+    } finally {
+      setLocale(original);
+    }
+  });
+
+  it('a folded "played" line for a SJ+SJ pair resolves per-locale as 對子 小王, never 對子 A', () => {
+    const original = getLocale();
+    const nameFor = () => 'Alice';
+    let nextId = 0;
+    const idGen = () => nextId++;
+    try {
+      const events: GuandanEvent[] = [{ type: 'played', seat: 0, cards: ['SJ', 'SJ'], decl: sjPair }];
+      const derived = foldEvents(EMPTY_DERIVED, events, 0, nameFor, idGen);
+      const line = derived.feed[0]!;
+      expect(line.params?.combo).toEqual({
+        kind: 'combo',
+        comboType: 'pair',
+        keyRank: 'A',
+        jokerRank: 'SJ',
+      });
+
+      setLocale('en');
+      expect(t(line.key, resolveFeedParams(line.params))).toBe('Alice played Pair Joker');
+      setLocale('zh-Hant');
+      expect(t(line.key, resolveFeedParams(line.params))).toBe('Alice 出 對子 小王');
+      setLocale('zh-Hans');
+      expect(t(line.key, resolveFeedParams(line.params))).toBe('Alice 出 对子 小王');
+    } finally {
+      setLocale(original);
+    }
+  });
+
+  it('an ordinary (non-joker) played line is unaffected — no jokerRank leaks in', () => {
+    const nameFor = () => 'Alice';
+    let nextId = 0;
+    const idGen = () => nextId++;
+    const events: GuandanEvent[] = [{ type: 'played', seat: 0, cards: ['9S', '9C'], decl: plainPair }];
+    const derived = foldEvents(EMPTY_DERIVED, events, 0, nameFor, idGen);
+    expect(derived.feed[0]!.params?.combo).toEqual({ kind: 'combo', comboType: 'pair', keyRank: '9' });
   });
 });

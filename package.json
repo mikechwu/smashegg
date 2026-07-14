@@ -13,7 +13,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.engine.json && tsc --noEmit -p tsconfig.server.json && tsc --noEmit -p tsconfig.client.json && tsc --noEmit -p tsconfig.scripts.json",
     "test": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
-    "deploy": "wrangler deploy --var BUILD_VERSION:$(git rev-parse HEAD)"
+    "deploy": "SHA=$(git rev-parse HEAD) && BUILD_VERSION=$SHA vite build && wrangler deploy --var BUILD_VERSION:$SHA"
   },
   "dependencies": {
     "partysocket": "^1.3.0",

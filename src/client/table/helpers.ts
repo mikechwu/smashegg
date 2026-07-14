@@ -17,7 +17,7 @@ import {
   type Suit,
 } from '../../engine/guandan/cards';
 import type { Seat } from '../../engine/core/game';
-import { classifyPlays, sequenceWindow } from '../../engine/guandan/combos';
+import { classifyPlays, sequenceWindow, type JokerRank } from '../../engine/guandan/combos';
 import { JIANGSU_OFFICIAL_ONLINE, type RuleVariant } from '../../engine/guandan/config';
 import type {
   CanonicalForm,
@@ -542,6 +542,19 @@ export function comboKeyForType(type: ComboType): TranslationKey {
 
 export function comboKey(decl: CanonicalForm): TranslationKey {
   return comboKeyForType(decl.type);
+}
+
+/** Reads the FROZEN-TYPES jokerRank extra (combos.ts's ComboFormExtras,
+ *  see the note there) off a decl that is only structurally typed as the
+ *  sealed CanonicalForm. This is the one cast site for it on the label
+ *  path (mirrors formProjectionKey's identical cast above) — a joker-keyed
+ *  single/pair carries keyRank 'A' as a never-compared placeholder (same
+ *  convention as jokerBomb) with jokerRank as the REAL identity, so any
+ *  label built from keyRank alone is wrong for these two forms (the M4 "單
+ *  張 A" bug). Undefined for every other decl, including jokerBomb, which
+ *  has no ambiguity to resolve (comboKey alone names it). */
+export function declJokerRank(decl: CanonicalForm): JokerRank | undefined {
+  return (decl as CanonicalForm & { jokerRank?: JokerRank }).jokerRank;
 }
 
 /** Run description for a straight-flush decl ("A–5♠", "5–9♥"): the chooser

@@ -8,19 +8,23 @@
 // This is the m1 fix: a mid-session locale switch re-localizes every line
 // already in the feed instead of leaving earlier lines baked in the old
 // language (t() calls used to run inside the fold itself).
-import { cardLabel } from './CardFace';
+import { cardLabel, jokerLabel } from './CardFace';
 import { comboKeyForType, placeKey, rankText } from './helpers';
 import { t, type TranslationKey, type TranslationParams } from '../i18n';
 import type { Card, Rank } from '../../engine/guandan/cards';
+import type { JokerRank } from '../../engine/guandan/combos';
 import type { ComboType } from '../../engine/guandan/types';
 
 /** A feed-line param that resolves directly (names, raw numbers, and
  *  already locale-free glyphs like rank text) vs. one that needs a
- *  locale-aware lookup at render time. */
+ *  locale-aware lookup at render time. `jokerRank`, when set, is the REAL
+ *  identity of a joker-keyed single/pair (keyRank is the FROZEN-TYPES 'A'
+ *  placeholder there, combos.ts) — carried through so resolveFeedParams can
+ *  name the joker instead of printing keyRank (the M4 "單張 A" bug). */
 export type FeedParamValue =
   | string
   | number
-  | { kind: 'combo'; comboType: ComboType; keyRank: Rank }
+  | { kind: 'combo'; comboType: ComboType; keyRank: Rank; jokerRank?: JokerRank }
   | { kind: 'place'; place: number }
   | { kind: 'card'; card: Card; level: Rank };
 
@@ -46,7 +50,8 @@ export function resolveFeedParams(params: FeedParams | undefined): TranslationPa
     if (typeof value === 'string' || typeof value === 'number') {
       resolved[name] = value;
     } else if (value.kind === 'combo') {
-      resolved[name] = `${t(comboKeyForType(value.comboType))} ${rankText(value.keyRank)}`;
+      const rank = value.jokerRank !== undefined ? jokerLabel(value.jokerRank) : rankText(value.keyRank);
+      resolved[name] = `${t(comboKeyForType(value.comboType))} ${rank}`;
     } else if (value.kind === 'place') {
       const key = placeKey(value.place);
       resolved[name] = key === null ? String(value.place) : t(key);

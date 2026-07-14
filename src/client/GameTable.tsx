@@ -30,6 +30,7 @@ import {
   asGuandanEvents,
   asGuandanView,
   asRuleVariant,
+  declJokerRank,
   errorKeyFor,
   matchSelection,
   multisetKey,
@@ -129,7 +130,12 @@ export function foldEvents(
         d.anti = null; // the 抗貢 reveal yields the center back to the trick
         push('game.feed.played', {
           name: nameFor(ev.seat),
-          combo: { kind: 'combo', comboType: ev.decl.type, keyRank: ev.decl.keyRank },
+          combo: {
+            kind: 'combo',
+            comboType: ev.decl.type,
+            keyRank: ev.decl.keyRank,
+            jokerRank: declJokerRank(ev.decl),
+          },
         });
         break;
       case 'passed':

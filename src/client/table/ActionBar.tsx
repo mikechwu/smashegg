@@ -33,7 +33,7 @@ import {
   type PlayMatch,
   type ResolvedFace,
 } from './helpers';
-import { CardFace, GhostFace, cardLabel } from './CardFace';
+import { CardFace, GhostFace, cardLabel, comboRankLabel } from './CardFace';
 import { t } from '../i18n';
 
 /** Accessible name of one resolved face: the identity that hits the table
@@ -57,7 +57,7 @@ export function optionAria(match: PlayMatch, level: Rank): string {
   const parts: string[] = [];
   const run = declRunText(match.decl);
   parts.push(
-    `${t(comboKey(match.decl))} ${rankText(match.decl.keyRank)}${run !== null ? ` (${run})` : ''}`,
+    `${t(comboKey(match.decl))} ${comboRankLabel(match.decl)}${run !== null ? ` (${run})` : ''}`,
   );
   for (const chip of substitutionChips(wildSubstitutions(match.cards, match.decl, level))) {
     const card =
@@ -234,7 +234,7 @@ export function ActionBar(props: ActionBarProps) {
                       </span>
                     ))}
                     <span className="gd-chooser__label">
-                      {t(comboKey(match.decl))} {rankText(match.decl.keyRank)}
+                      {t(comboKey(match.decl))} {comboRankLabel(match.decl)}
                       {run !== null && ` (${run})`}
                       {!match.playable && (
                         <span className="gd-chooser__note"> · {t('game.chooser.cannotBeat')}</span>

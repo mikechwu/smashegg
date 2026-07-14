@@ -496,4 +496,27 @@ describe('optionAria (accessibility text backbone)', () => {
       setLocale(original);
     }
   });
+
+  // Totality check (M4 regression follow-up, docs/research/METHODOLOGY.md
+  // QA ratchet): the chooser NEVER actually offers a jokerRank decl — a
+  // joker single/pair takes no wild substitutions, so classifyPlays'ed
+  // selections that reach the chooser are never joker-keyed. But comboKey's
+  // caller here (optionAria's label segment) must still be TOTAL over a
+  // jokerRank decl rather than falling back to the FROZEN-TYPES keyRank 'A'
+  // placeholder if one ever reached it (the bug this whole regression suite
+  // guards against, just exercised through the chooser's own label path
+  // instead of the trick-well/feed paths covered in table.test.ts).
+  it('names the joker in the label for a synthetic joker-keyed single (totality)', () => {
+    const original = getLocale();
+    try {
+      setLocale('en');
+      const cards: Card[] = ['BJ'];
+      const decl = { type: 'single', size: 1, keyRank: 'A', jokerRank: 'BJ' } as CanonicalForm;
+      const aria = optionAria({ cards, decl, playable: true }, '2');
+      expect(aria).toContain('Single Big Joker');
+      expect(aria).not.toContain('Single A');
+    } finally {
+      setLocale(original);
+    }
+  });
 });

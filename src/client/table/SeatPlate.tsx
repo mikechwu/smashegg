@@ -78,7 +78,11 @@ export function SeatPlate(props: SeatPlateProps) {
         ))}
       {passed && <span className="gd-plate__pass">{t('game.action.pass')}</span>}
       {committed && <span className="gd-plate__pass">{t('game.tribute.committedChip')}</span>}
-      {seconds !== null && planning && (
+      {/* Planning label only while CONNECTED: a disconnected actor's
+          countdown is the disconnect grace (possibly clamped well below
+          planningMs), and labeling that 起手思考 would promise a budget the
+          clock isn't giving (Grok M4 F3). */}
+      {seconds !== null && planning && connected && (
         <span className={dimTimer ? 'gd-plate__timerNote gd-plate__timerNote--dim' : 'gd-plate__timerNote'}>
           {t('table.deadline.planning')}
         </span>

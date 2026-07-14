@@ -6,8 +6,8 @@
 import type { Seat } from '../../engine/core/game';
 import type { Rank } from '../../engine/guandan/cards';
 import type { TrickState } from '../../engine/guandan/types';
-import { CardFace } from './CardFace';
-import { comboKey, rankText } from './helpers';
+import { CardFace, comboRankLabel } from './CardFace';
+import { comboKey } from './helpers';
 import { t } from '../i18n';
 
 export interface TrickWellProps {
@@ -44,7 +44,7 @@ export function TrickWell({ trick, level, nameFor, sweepKey, jiefeng }: TrickWel
             ))}
           </div>
           <p className="gd-well__meta">
-            {nameFor(top.seat)} · {t(comboKey(top.decl))} {rankText(top.decl.keyRank)}
+            {nameFor(top.seat)} · {t(comboKey(top.decl))} {comboRankLabel(top.decl)}
           </p>
         </div>
       )}

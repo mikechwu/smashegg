@@ -8,7 +8,9 @@
 // reason. 小王 is ink, 大王 cinnabar.
 
 import { isJoker, isWild, rankOf, suitOf, type Card, type Rank, type Suit } from '../../engine/guandan/cards';
-import { isRedSuit, rankText, suitGlyph } from './helpers';
+import type { JokerRank } from '../../engine/guandan/combos';
+import type { CanonicalForm } from '../../engine/guandan/types';
+import { declJokerRank, isRedSuit, rankText, suitGlyph } from './helpers';
 import { t } from '../i18n';
 
 export type CardFaceSize = 'hand' | 'trick' | 'mini';
@@ -20,16 +22,39 @@ export interface CardFaceProps {
   size: CardFaceSize;
 }
 
+/** Localized joker name (小王/大王, Joker/Big Joker) — level-independent
+ *  (jokers are never wild), so it needs no card/level context. Factored out
+ *  of {@link cardLabel} so combo labels can name a joker-keyed single/pair
+ *  (bug: playing a lone BJ rendered as "單張 A" — the FROZEN-TYPES keyRank
+ *  'A' placeholder leaking into the label instead of jokerRank, the real
+ *  identity — see {@link comboRankLabel}) without needing a Card/level. */
+export function jokerLabel(rank: JokerRank): string {
+  return rank === 'BJ' ? t('game.card.bj') : t('game.card.sj');
+}
+
 /** Localized accessible name of a card (buttons wrapping a CardFace use
  *  this as their aria-label). */
 export function cardLabel(card: Card, level: Rank): string {
-  if (card === 'SJ') return t('game.card.sj');
-  if (card === 'BJ') return t('game.card.bj');
+  if (isJoker(card)) return jokerLabel(card);
   const base = t('game.card.label', {
     suit: t(`game.suit.${suitOf(card)!}` as const),
     rank: rankText(rankOf(card)!),
   });
   return isWild(card, level) ? `${base} (${t('game.card.wild')})` : base;
+}
+
+/** The combo label's "rank" segment: every call site that renders a decl as
+ *  `${t(comboKey(decl))} ${<rank segment>}` (TrickWell caption, ActionBar's
+ *  chooser + its aria label) must route the rank segment through here so a
+ *  joker-keyed single/pair (decl.jokerRank set, FROZEN-TYPES NOTE in
+ *  combos.ts) names the joker instead of printing the never-compared
+ *  keyRank 'A' placeholder. Total over every CanonicalForm shape — the
+ *  chooser never actually offers a jokerRank decl (jokers take no wild
+ *  substitutions), but this still resolves correctly if one ever reached
+ *  it. */
+export function comboRankLabel(decl: CanonicalForm): string {
+  const jokerRank = declJokerRank(decl);
+  return jokerRank !== undefined ? jokerLabel(jokerRank) : rankText(decl.keyRank);
 }
 
 export function CardFace({ card, level, size }: CardFaceProps) {

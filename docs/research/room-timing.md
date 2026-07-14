@@ -88,9 +88,13 @@ now + 60s; budget = now + clamp(ms, [5s, 120s])):
 The one legitimate timer RESTART is a new decision point (rows re-armed on
 an applied action) — that is now the ONLY restart path. Invariants, each a
 unit assertion: (I1) due ≤ base when base ≠ NULL; (I2) no presence sequence
-can increase due within one decision point; (I3) seat X's presence never
-changes seat Y's row; (I4) a disconnected actor's grace is anchored at first
-disconnect and survives co-actor actions.
+can push due ABOVE BASE within one decision point — i.e. no fresh budget;
+a reconnect legitimately raises a grace-clamped due back UP to base
+(restoring the remainder is the point of the fix), so I2 is a
+never-above-base bound, not literal monotonicity (wording fixed per Codex
+M4 audit); (I3) seat X's presence never changes seat Y's row; (I4) a
+disconnected actor's grace is anchored at first disconnect and survives
+co-actor actions.
 
 ## 3. Deadlock freedom (PLAN §4/§5 property)
 

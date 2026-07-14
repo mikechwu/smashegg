@@ -18,6 +18,14 @@
 //       previous due for NULL-base grace rows).
 //   I3  seat X's presence leaves seat Y's row byte-identical.
 //   I4  a disconnected actor's grace anchor survives co-actor actions
+//
+// SCOPE (stated honestly, per the Codex M4 audit): VirtualRoom exercises
+// the pure deadline layer (nextDeadlines / resolveTimeoutMs / the real
+// engines) with an in-memory mirror of the DO's call pattern — it does NOT
+// execute DO SQL replacement, hello/takeover ordering, socket-close
+// ordering, idempotency, or the fire-and-forget async boundary. Those
+// integration behaviors are owned by the e2e suites
+// (reconnection.e2e.test.ts, timing.e2e.test.ts) over the real DO.
 //       (named double-tribute case below).
 
 import { describe, expect, it } from 'vitest';
@@ -147,6 +155,17 @@ class VirtualRoom {
         this.seq > seqBefore || this.rows.length < rowsBefore,
         'DL3: an alarm firing makes progress (applies or prunes)',
       ).toBe(true);
+    }
+    // Codex M4 audit: DL3's per-iteration progress alone would tolerate a
+    // run that exhausts MAX_ALARM_APPLIES with due rows still pending —
+    // assert the loop actually DRAINED everything due at this instant
+    // (the real alarm would re-fire, but a full-budget drain that leaves
+    // due rows means the bound is load-bearing, which it must never be).
+    if (!this.game.isTerminal(this.state)) {
+      expect(
+        this.rows.filter((r) => r.dueAt <= this.now).length,
+        'alarm loop drained all currently-due rows within MAX_ALARM_APPLIES',
+      ).toBe(0);
     }
   }
 }
