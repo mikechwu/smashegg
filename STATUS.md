@@ -1,8 +1,14 @@
 # STATUS
 
-## Current phase: M2 gate reached — awaiting owner review (M1 approved 2026-07-14)
+## Current phase: M3 (Guandan playable) — M2 gate approved 2026-07-14
 
 **Last updated:** 2026-07-14
+
+## M3 (2026-07-14, in progress) — Guandan into the table UI
+
+- **M2 gate approved by owner.** M3 target bar: playable, clean, clearly usable — not final-pixel polish (that is M5/polish scope). Two gates: functional (e2e) AND visual (computer-use iteration on the deployed URL against a UX checklist — required, logged per pass).
+- **Owner feature now fully specified — 翻牌定先 (drawCard ceremony):** engine-side seeded ceremony data in `handStarted` (hand 1 only): cutter (PRNG), counting flips with re-flip on joker/level-rank, **counting rule pinned: rank counts CCW with the cutter as position 1 (A=self, 2=next, 3=partner, 4=remaining; (rank−1) mod 4)**, marker draw = leader; UI animates exactly the event data. Uniformity preserved (statistical test) — flavor, not fairness. This resolves the previously-UNCERTAIN first-lead offset; `turnDirection` stays a config key with CCW default, and a consistency sweep of all seat-progression sites is part of the engine task.
+- Build plan: engine (ceremony + guandan registration + CCW sweep) ∥ client infra (partysocket RoomConnection, multi-seat store, routing, lobby shell) → table UI + rule-picker → Guandan e2e → deploy → computer-use visual iteration rounds → Codex/Grok audits (integration+ceremony determinism / CCW sweep+picker wiring).
 
 ## M2 (2026-07-14) — GameRoom DO + session/room plumbing: GATE REACHED
 

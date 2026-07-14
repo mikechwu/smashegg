@@ -199,6 +199,25 @@ export type GuandanEvent =
       suspensionApplied: boolean;
       /** Full deal — viewEvent redacts to the recipient's own hand. */
       hands: [Card[], Card[], Card[], Card[]];
+      /** 翻牌定先 opening ceremony (hand 1 under firstLeadMethod='drawCard'
+       *  ONLY; owner spec, M3). Seeded, deterministic, replay-identical —
+       *  the UI animates EXACTLY this data and computes nothing:
+       *  - cutter: the seat that cuts the deck (PRNG-uniform);
+       *  - flips: every counting card flipped, in order — all but the last
+       *    were re-flips (joker or current-level rank, which has no
+       *    countable natural position);
+       *  - firstDrawer: counting the last flip's rank COUNTERCLOCKWISE
+       *    with the cutter as position 1 (A=self, 2=next CCW, 3=partner,
+       *    4=remaining; ranks wrap mod 4 — seatOffset=(rank-1)%4);
+       *  - markerSeat: the seat that draws the face-up marker card = the
+       *    hand's leader. Distribution over seats is uniform (same as
+       *    'random' — the ceremony is flavor, not a fairness change). */
+      ceremony?: {
+        cutter: Seat;
+        flips: Rank[];
+        firstDrawer: Seat;
+        markerSeat: Seat;
+      };
     }
   | { type: 'antiTribute'; reveals: { seat: Seat; card: Card }[] }
   | { type: 'tributeCommitted'; seat: Seat } // card-less staging marker
