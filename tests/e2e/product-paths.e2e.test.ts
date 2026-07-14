@@ -47,6 +47,13 @@
 // three rare paths reached 'wire' this run — i.e. an assertion that the
 // wire hunts got lucky, not just that the engine proofs held.
 //
+// M4 watch-item close: strict mode is no longer only opt-in — the nightly
+// scheduled workflow (.github/workflows/strict-e2e.yml, also manually
+// dispatchable pre-gate) runs E2E_REQUIRE_WIRE=1 with E2E_HUNT_SCALE=3
+// (3× hunt budgets, see HUNT_SCALE below), so a red THERE means the rare
+// path genuinely failed to occur in a generous budget — worth a look —
+// rather than plain-CI hunt-luck.
+//
 // Bot policy: same "first-hint bot" as tests/e2e/guandan.e2e.test.ts (the
 // expected actor plays the FIRST server-provided hint); the driver here is
 // that file's, extended with wall-clock deadlines and graceful stop reasons
@@ -101,6 +108,18 @@ const picksFromUiConfig = picksFromConfig as (config: unknown) => Record<string,
 
 /** EXACTLY what HomePage.handleCreate sends as `config`. */
 const UI_DEFAULT_CONFIG: RuleVariant = assembleUiConfig(curatedDefaultPicks);
+
+/** Multiplies every wire-hunt budget (wall-clock deadline, rooms cap, and
+ *  the owning test's timeout). Default 1 = plain-CI budgets. The scheduled
+ *  strict run (E2E_REQUIRE_WIRE=1) sets this higher so a red there means
+ *  "the rare path genuinely did not occur", not "the hunt ran out of the
+ *  small plain-CI budget". */
+const HUNT_SCALE = Math.max(1, Number(process.env.E2E_HUNT_SCALE ?? '1') || 1);
+const huntMs = (ms: number): number => ms * HUNT_SCALE;
+const huntRooms = (n: number): number => Math.ceil(n * HUNT_SCALE);
+/** Test timeout = fixed non-hunt overhead + the scaled hunt budget. */
+const testBudget = (fixedMs: number, huntBudgetMs: number): number =>
+  fixedMs + huntMs(huntBudgetMs);
 
 // ---------------------------------------------------------------------------
 // Small guandan wire helpers (same shapes as guandan.e2e.test.ts).
@@ -513,7 +532,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
       // own hand + the server's hints, pick the WEAKER of the two offered
       // full-house readings, submit concrete cards + chosen decl over the
       // wire, and require the played event to carry exactly that decl.
-      const deadline = Date.now() + 55_000;
+      const deadline = Date.now() + huntMs(55_000);
       const stopWhen = (p: DriveProgress): boolean =>
         [...p.lastCopies.entries()].some(([seat, copy]) => {
           if (copy.hints === undefined) return false;
@@ -530,7 +549,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
       const hunt = await huntOverRooms(server, {
         config: UI_DEFAULT_CONFIG,
         label: 'wild',
-        roomsCap: 4,
+        roomsCap: huntRooms(4),
         deadline,
         maxActionsPerRoom: 1_500,
         stopWhen,
@@ -630,7 +649,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
       }
       expect(ran).toBe(true); // the scenario must be constructible — never skipped
     },
-    90_000,
+    testBudget(35_000, 55_000),
   );
 
   test(
@@ -681,11 +700,11 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
 
       // ---- Phase B (wire, bounded hunt): fresh rooms until anti-tribute
       // happens on the wire; then assert the TRANSPORT of the same facts. ----
-      const deadline = Date.now() + 70_000;
+      const deadline = Date.now() + huntMs(70_000);
       const hunt = await huntOverRooms(server, {
         config: UI_DEFAULT_CONFIG,
         label: 'anti',
-        roomsCap: 8,
+        roomsCap: huntRooms(8),
         deadline,
         maxActionsPerRoom: 4_000,
         stopWhen: (p) =>
@@ -728,7 +747,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
         );
       }
     },
-    110_000,
+    testBudget(40_000, 70_000),
   );
 
   test(
@@ -809,7 +828,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
 
       // ---- Phase B (wire, bounded hunt): fresh rooms until a suspension
       // handStarted crosses the wire; chase the clear with leftover budget. ----
-      const deadline = Date.now() + 85_000;
+      const deadline = Date.now() + huntMs(85_000);
       const suspendedIn = (p: DriveProgress): HandStartedEvent | undefined => {
         const hs = eventOfType(guandanEvents(p.lastCopies.get(0)!), 'handStarted');
         return hs !== undefined && hs.suspensionApplied ? hs : undefined;
@@ -817,7 +836,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
       const hunt = await huntOverRooms(server, {
         config,
         label: 'susp',
-        roomsCap: 8,
+        roomsCap: huntRooms(8),
         deadline,
         maxActionsPerRoom: 4_000,
         stopWhen: (p) => suspendedIn(p) !== undefined,
@@ -875,7 +894,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
         );
       }
     },
-    115_000,
+    testBudget(30_000, 85_000),
   );
 
   test('proof-level summary is recorded and ≥ engine for all rare paths', () => {

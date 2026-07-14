@@ -1,0 +1,41 @@
+# Nightly STRICT e2e: the QA-ratchet's proof-level ratchet, enforced.
+#
+# Plain CI (ci.yml) runs the e2e suite in DEFAULT mode: the rare-path tests
+# (tests/e2e/product-paths.e2e.test.ts) guarantee their engine-level proof,
+# and wire-level verification is a bonus recorded per run. This job runs the
+# same suite with E2E_REQUIRE_WIRE=1, which fails unless every rare path
+# (wild disambiguation, anti-tribute, A-suspension) reached WIRE level, and
+# E2E_HUNT_SCALE=3 (3x hunt budgets) so a red here means "the rare path
+# genuinely did not occur in a generous budget", not plain-CI hunt-luck.
+#
+# Fully local: wrangler dev runs workerd on the runner; no Cloudflare auth.
+# workflow_dispatch is the pre-gate hook: run it manually before a milestone
+# gate to get a fresh strict pass on demand.
+name: Strict E2E
+
+on:
+  schedule:
+    - cron: '30 19 * * *' # 03:30 Asia/Taipei, daily
+  workflow_dispatch:
+
+jobs:
+  strict-e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: E2E, strict wire-proof mode (wrangler dev)
+        run: npm run test:e2e
+        env:
+          E2E_REQUIRE_WIRE: '1'
+          E2E_HUNT_SCALE: '3'
+        timeout-minutes: 30
