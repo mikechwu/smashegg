@@ -9,3 +9,9 @@ export type Locale = 'zh-Hant' | 'en';
 export const DEFAULT_LOCALE: Locale = 'zh-Hant';
 
 export const SUPPORTED_LOCALES: readonly Locale[] = ['zh-Hant', 'en'];
+
+/** The game the home page's create-room form creates. The MVP ships one
+ * game, so this is a constant rather than a picker — but the id lives here,
+ * not hardcoded at the call site, so adding a picker later is a UI change
+ * only (PLAN.md §4: the room layer treats gameId/config as opaque). */
+export const DEFAULT_GAME_ID = 'guandan';

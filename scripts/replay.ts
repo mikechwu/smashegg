@@ -62,16 +62,10 @@ import { getGame, type AnyGameDefinition } from '../src/shared/games';
  *  BACK-COMPAT RULE in the artifact-format comment above. */
 export const DEFAULT_REPLAY_GAME_ID = 'guandan';
 
-/** Resolve an artifact's gameId to its GameDefinition. Prefers the shared
- *  registry; falls back to the directly-imported GuandanGame because
- *  guandan deliberately stays OUT of the registry until M3 (the M2 gate
- *  compile-proves the room layer pulls zero guandan code) — once M3
- *  registers it, this fallback becomes dead code and can be dropped. */
-function resolveGame(gameId: string): AnyGameDefinition | null {
-  const registered = getGame(gameId);
-  if (registered) return registered;
-  return gameId === DEFAULT_REPLAY_GAME_ID ? (GuandanGame as AnyGameDefinition) : null;
-}
+// gameId resolution goes purely through the shared registry (getGame) —
+// guandan has been registered since M3, so the M1/M2-era direct-import
+// fallback this file used to carry is gone. (GuandanGame is still imported
+// directly below, but only as recordPlayout's concrete driver.)
 
 /** One logged action. `action` is deliberately loose (game-defined JSON) —
  *  the same deliberate type erasure as the server's AnyGameDefinition. */
@@ -187,7 +181,7 @@ export function replayMatch(input: ReplayInput, opts?: ReplayOpts): ReplayResult
   const states: unknown[] = [];
   const events: unknown[][] = [];
 
-  const game = resolveGame(gameId);
+  const game = getGame(gameId);
   if (!game) {
     return {
       states,

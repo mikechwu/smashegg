@@ -5,6 +5,7 @@
 // without pulling in game-specific types.
 
 import type { GameDefinition } from '../engine/core/game';
+import { GuandanGame } from '../engine/guandan';
 import { GuessNumberGame } from '../engine/guess-number';
 
 /**
@@ -24,6 +25,9 @@ export type AnyGameDefinition = GameDefinition<any, any, any, any, any>;
 
 export const GAME_REGISTRY: Record<string, AnyGameDefinition> = {
   'guess-number': GuessNumberGame,
+  // Registered at M3 (PLAN §9): the room layer reaches guandan ONLY through
+  // this registry — game-room.ts stays guandan-agnostic by construction.
+  guandan: GuandanGame,
 };
 
 export function getGame(gameId: string): AnyGameDefinition | null {

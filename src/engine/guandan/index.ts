@@ -7,7 +7,7 @@
 
 import type { ApplyResult, GameDefinition, GameResult, RuleError, Seat } from '../core/game';
 import { nextInt, seedPrng, shuffle, type PrngState } from '../core/prng';
-import { buildDeck, rankOf, sortCards, type Card } from './cards';
+import { buildDeck, naturalValue, rankOf, RANKS, sortCards, type Card, type Rank } from './cards';
 import { JIANGSU_OFFICIAL_ONLINE, type RuleVariant } from './config';
 import { beats, inferDecl, validatePlay } from './combos';
 import { defaultPlayAction, legalActionsFor } from './generate';
@@ -22,7 +22,15 @@ import {
 } from './tribute';
 import { applyHandResult, scoreHand, selectCurrentLevel } from './levels';
 import { applyPass, applyPlay, startTrick } from './trick';
-import { teamOf, type GuandanAction, type GuandanEvent, type GuandanState, type GuandanView, type Phase } from './types';
+import {
+  nextSeat,
+  teamOf,
+  type GuandanAction,
+  type GuandanEvent,
+  type GuandanState,
+  type GuandanView,
+  type Phase,
+} from './types';
 
 export { JIANGSU_OFFICIAL_ONLINE };
 
@@ -47,6 +55,108 @@ function dealHands(prng: PrngState): { hands: Hands; prng: PrngState } {
   };
 }
 
+// ---------------------------------------------------------------------------
+// 翻牌定先 drawCard ceremony (spec §5.1 `firstLeadMethod='drawCard'`, owner
+// counting rule; M3). Hand 1 only. Fully seeded and deterministic — the
+// emitted ceremony data is exactly what the UI animates (types.ts
+// handStarted contract); the engine computes it once, replay reproduces it
+// bit-for-bit, and clients compute nothing.
+// ---------------------------------------------------------------------------
+
+type Ceremony = NonNullable<Extract<GuandanEvent, { type: 'handStarted' }>['ceremony']>;
+
+/** Counting value of a flipped rank under the owner rule: A counts 1 (the
+ *  cutter themself), 2..10 face value, J=11, Q=12, K=13. Deliberately NOT
+ *  levelValue or naturalValue — this is the physical count-around-the-table
+ *  number, so A is LOW here (naturalValue would put it at 14). */
+function countingValue(rank: Rank): number {
+  return rank === 'A' ? 1 : naturalValue(rank);
+}
+
+/** Walk `steps` seats from `from`, 下家 by 下家 (types.ts nextSeat), so the
+ *  count follows turnDirection: CCW by default, clockwise when configured. */
+function stepSeats(from: Seat, steps: number, config: RuleVariant): Seat {
+  let seat = from;
+  for (let i = 0; i < steps; i++) seat = nextSeat(seat, config);
+  return seat;
+}
+
+/** Flip-draw model: a uniform card identity from the full 108-card double
+ *  deck's multiset — 8 copies of each of the 13 ranks plus 4 jokers — so
+ *  flip probabilities match physically flipping a shuffled deck
+ *  (P(each rank) = 8/108, P(joker) = 4/108). Draw values ≥ 104 are jokers. */
+const FLIP_DECK_SIZE = 108;
+const FLIP_RANK_COPIES = 8;
+
+/** Re-flip cap. At hand-1 level '2', P(re-flip) = (8+4)/108 per draw, so 24
+ *  consecutive re-flips ≈ 1e-23 — the cap only turns termination from a
+ *  probabilistic property into a structural one (the fallback below draws
+ *  once, uniformly, over the countable ranks). */
+const MAX_FLIPS = 24;
+
+/** Run the seeded ceremony: cut → flip counting cards → count around the
+ *  table → place the marker. Returns the advanced PRNG alongside the
+ *  ceremony data; the caller leads the hand from `markerSeat`. */
+function runDrawCardCeremony(
+  prngIn: PrngState,
+  level: Rank,
+  config: RuleVariant,
+): { ceremony: Ceremony; prng: PrngState } {
+  let prng = prngIn;
+
+  // (a) Who cuts the deck — PRNG-uniform over the four seats.
+  const cut = nextInt(prng, 4);
+  prng = cut.state;
+  const cutter = cut.value as Seat;
+
+  // (b) Flip counting cards until one is countable. Jokers and the current
+  // level rank have no countable natural position under the owner rule and
+  // force a re-flip — hand 1 plays at level '2', so a flipped '2' re-flips
+  // too. EVERY flip is recorded, jokers included (contract widened for
+  // animation fidelity): the last recorded flip is always countable.
+  const flips: Ceremony['flips'] = [];
+  let counted: Rank | null = null;
+  for (let i = 0; i < MAX_FLIPS && counted === null; i++) {
+    const draw = nextInt(prng, FLIP_DECK_SIZE);
+    prng = draw.state;
+    if (draw.value >= RANKS.length * FLIP_RANK_COPIES) {
+      // 4 joker slots: 2 small, 2 big — matching the physical multiset.
+      flips.push(draw.value - RANKS.length * FLIP_RANK_COPIES < 2 ? 'SJ' : 'BJ');
+      continue;
+    }
+    const rank = RANKS[Math.floor(draw.value / FLIP_RANK_COPIES)]!;
+    flips.push(rank);
+    if (rank !== level) counted = rank; // level rank stays recorded but re-flips
+  }
+  if (counted === null) {
+    // Cap hit (astronomically unlikely — defensive only): collapse the
+    // remaining rejection loop into one uniform draw over the countable
+    // ranks — the exact distribution the loop converges to.
+    const countable = RANKS.filter((rank) => rank !== level);
+    const draw = nextInt(prng, countable.length);
+    prng = draw.state;
+    counted = countable[draw.value]!;
+    flips.push(counted);
+  }
+
+  // (c) Count around the table with the cutter as position 1, following the
+  // turn direction: A=the cutter, 2=下家, 3=partner, 4=the remaining seat,
+  // higher counts wrap — seatOffset = (count - 1) mod 4.
+  const firstDrawer = stepSeats(cutter, (countingValue(counted) - 1) % 4, config);
+
+  // (d) Where the face-up marker card sits in the deal, expressed as
+  // rotation steps from the first drawer. The uniform 0..3 draw makes the
+  // leader uniform over seats BY CONSTRUCTION (markerSeat = firstDrawer +
+  // U{0..3} steps), exactly matching 'random' — the marker's position
+  // within the deal is presentation flavor, not a fairness change
+  // (types.ts contract).
+  const marker = nextInt(prng, 4);
+  prng = marker.state;
+  const markerSeat = stepSeats(firstDrawer, marker.value, config);
+
+  return { ceremony: { cutter, flips, firstDrawer, markerSeat }, prng };
+}
+
 /** Start hand `handNo`, dealing from the carried PRNG state and entering
  *  the hand's first acting phase. prevFinishOrder === null ⇔ hand 1. */
 function startHand(
@@ -67,16 +177,17 @@ function startHand(
   let prng = deal.prng;
   const hands = deal.hands;
 
-  const events: GuandanEvent[] = [
-    {
-      type: 'handStarted',
-      handNo,
-      currentLevel: level,
-      declarerTeam,
-      suspensionApplied,
-      hands: [hands[0].slice(), hands[1].slice(), hands[2].slice(), hands[3].slice()],
-    },
-  ];
+  // Named (not inlined into the array) so the hand-1 drawCard branch can
+  // attach the ceremony before the event escapes this function.
+  const handStarted: Extract<GuandanEvent, { type: 'handStarted' }> = {
+    type: 'handStarted',
+    handNo,
+    currentLevel: level,
+    declarerTeam,
+    suspensionApplied,
+    hands: [hands[0].slice(), hands[1].slice(), hands[2].slice(), hands[3].slice()],
+  };
+  const events: GuandanEvent[] = [handStarted];
 
   const base: GuandanState = {
     config,
@@ -99,15 +210,21 @@ function startHand(
   };
 
   if (prevFinishOrder === null) {
-    // Hand 1: no tribute. firstLeadMethod 'drawCard' is the offline
-    // draw-a-card procedure — its outcome distribution is a uniform seat
-    // pick, so the engine implements it exactly like 'random' (documented
-    // equivalence, spec §5.1); 'fixedSeat' pins seat 0.
+    // Hand 1: no tribute (spec §5.1). Leader per firstLeadMethod:
+    // 'fixedSeat' pins seat 0; 'random' draws a uniform seat; 'drawCard'
+    // runs the seeded 翻牌定先 ceremony above and leads from the marker
+    // seat — still uniform over seats by construction, with the full
+    // flip/count flavor attached to handStarted for the UI to animate.
     let leader: Seat = 0;
-    if (config.firstLeadMethod !== 'fixedSeat') {
+    if (config.firstLeadMethod === 'random') {
       const r = nextInt(prng, 4);
       prng = r.state;
       leader = r.value;
+    } else if (config.firstLeadMethod === 'drawCard') {
+      const drawn = runDrawCardCeremony(prng, level, config);
+      prng = drawn.prng;
+      handStarted.ceremony = drawn.ceremony;
+      leader = drawn.ceremony.markerSeat;
     }
     return {
       state: { ...base, prng, trick: startTrick(leader, hands, config) },
@@ -551,6 +668,9 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
     switch (event.type) {
       case 'handStarted': {
         // Deal redaction (obligation 3): each seat sees only its own hand.
+        // The drawCard ceremony (when present) is deliberately PUBLIC — it
+        // reveals nothing about any hand (the flips are counting flavor,
+        // not dealt cards), and every seat animates the same opening.
         const hands = event.hands.map((hand, s) => (s === seat ? hand : [])) as typeof event.hands;
         return { ...event, hands };
       }

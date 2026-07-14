@@ -203,9 +203,9 @@ export type GuandanEvent =
        *  ONLY; owner spec, M3). Seeded, deterministic, replay-identical —
        *  the UI animates EXACTLY this data and computes nothing:
        *  - cutter: the seat that cuts the deck (PRNG-uniform);
-       *  - flips: every counting card flipped, in order — all but the last
-       *    were re-flips (joker or current-level rank, which has no
-       *    countable natural position);
+       *  - flips: every counting card flipped, in order, INCLUDING joker
+       *    flips — all but the last were re-flips (jokers and the
+       *    current-level rank have no countable natural position);
        *  - firstDrawer: counting the last flip's rank COUNTERCLOCKWISE
        *    with the cutter as position 1 (A=self, 2=next CCW, 3=partner,
        *    4=remaining; ranks wrap mod 4 — seatOffset=(rank-1)%4);
@@ -214,7 +214,7 @@ export type GuandanEvent =
        *    'random' — the ceremony is flavor, not a fairness change). */
       ceremony?: {
         cutter: Seat;
-        flips: Rank[];
+        flips: (Rank | 'SJ' | 'BJ')[];
         firstDrawer: Seat;
         markerSeat: Seat;
       };
