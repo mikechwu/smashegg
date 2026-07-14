@@ -61,10 +61,19 @@ jobs:
         if: vars.WORKER_URL != ''
         # Beyond liveness, assert the deployed Worker actually serves THIS
         # commit's build — every deploy self-verifies the version signal.
+        # Retry loop: edge propagation is eventually-consistent; a single
+        # fixed-sleep probe raced it and failed the first versioned deploy
+        # (the build was correct ~2 minutes later).
         run: |
-          sleep 10
-          body=$(curl --fail "$WORKER_URL/api/health")
-          echo "$body"
-          test "$(echo "$body" | jq -r .build)" = "$GITHUB_SHA"
+          for i in $(seq 1 18); do
+            sleep 10
+            body=$(curl --fail --silent "$WORKER_URL/api/health") || body=""
+            echo "probe $i: $body"
+            if [ "$(echo "$body" | jq -r .build)" = "$GITHUB_SHA" ]; then
+              exit 0
+            fi
+          done
+          echo "deployed build never matched $GITHUB_SHA within 3 minutes"
+          exit 1
         env:
           WORKER_URL: ${{ vars.WORKER_URL }}
