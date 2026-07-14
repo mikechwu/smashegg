@@ -60,7 +60,12 @@ tests/e2e/.proof-levels.json
 *~
 
 # --- Claude Code (local agent state, not source) ---
-.claude/
+# `.claude/*` (not `.claude/`) so the ONE shared file below can be negated:
+# git cannot re-include a file whose parent DIRECTORY is excluded.
+.claude/*
+# Committed on purpose: repo-level model dispatch default (PLAN §9 policy —
+# sessions in this repo default to Opus; Fable is escalation-only).
+!.claude/settings.json
 
 # --- Logs ---
 *.log

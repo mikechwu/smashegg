@@ -1,8 +1,28 @@
 # STATUS
 
-## Current phase: M3 hardening gate reached — awaiting owner review (pre-M4)
+## Current phase: M4 (reconnection + timeouts + owner items A/B) — in progress
 
 **Last updated:** 2026-07-14
+
+## Process: model dispatch policy change (owner mission, 2026-07-14)
+
+Opus replaces Fable as the default hard tier from M4 on; Fable is
+escalation-only on logged demonstrated need (policy text: PLAN §9; ladder
+rule: METHODOLOGY; verified mechanism + sources: docs/research/
+model-dispatch.md). Applied as committed repo-level `.claude/settings.json`
+(`"model": "opus"` — project settings override the user default; subagents
+inherit unless a per-invocation model is stated). **Sanity-checked live**
+(owner §5): three probe subagents self-reported Haiku 4.5 (explicit haiku),
+Opus 4.8 (explicit opus), and Fable 5 (no param — inherit from this
+still-Fable session), confirming both that explicit routing works and why
+unannotated calls are banned while a Fable session is live. Honest caveats:
+(a) the project `model` setting is read at session start — this running
+session stays on Fable; the next session in this repo starts on Opus (the
+startup header names the settings file, per docs); (b) the M4 implementation
+workflow already in flight was launched pre-policy with inherited-Fable
+agents — allowed to finish rather than restarted (M4 is the last scheduled
+hard-tier milestone; a restart would cost more than it saves); all
+subsequent dispatch follows the new ladder.
 
 ## M3 hardening (2026-07-14) — watch-items + wild disambiguation + QA ratchet: GATE REACHED
 
