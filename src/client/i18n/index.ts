@@ -3,8 +3,9 @@
 // when the locale changes.
 
 import zhHant from './locales/zh-Hant.json';
+import zhHans from './locales/zh-Hans.json';
 import en from './locales/en.json';
-import { DEFAULT_LOCALE, SUPPORTED_LOCALES } from '../config';
+import { detectLocale, SUPPORTED_LOCALES } from '../config';
 import type { Locale } from '../config';
 
 // `keyof typeof zhHant` makes every t() call site-checked at compile time,
@@ -14,6 +15,7 @@ export type TranslationKey = keyof typeof zhHant;
 
 const translations: Record<Locale, Record<TranslationKey, string>> = {
   'zh-Hant': zhHant,
+  'zh-Hans': zhHans,
   en,
 };
 
@@ -23,13 +25,16 @@ function isLocale(value: string | null): value is Locale {
   return value !== null && (SUPPORTED_LOCALES as readonly string[]).includes(value);
 }
 
+// A manually-saved locale (from the switcher) always wins over browser
+// detection — that's the whole point of a manual override persisting.
+// Only when there is no saved choice do we fall through to detectLocale().
 function readStoredLocale(): Locale {
-  if (typeof localStorage === 'undefined') return DEFAULT_LOCALE;
+  if (typeof localStorage === 'undefined') return detectLocale();
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    return isLocale(stored) ? stored : DEFAULT_LOCALE;
+    return isLocale(stored) ? stored : detectLocale();
   } catch {
-    return DEFAULT_LOCALE;
+    return detectLocale();
   }
 }
 

@@ -3,12 +3,55 @@
 
 /** Supported UI locales. Add a new locale by adding a value here plus a
  * matching JSON file in src/client/i18n/locales/. */
-export type Locale = 'zh-Hant' | 'en';
+export type Locale = 'zh-Hant' | 'zh-Hans' | 'en';
 
-/** THE one-line default-locale config (PLAN.md §7). */
+/** FALLBACK locale, used when the browser reports nothing detectLocale()
+ * recognizes (or navigator is unavailable, e.g. under Node test runners).
+ * No longer THE default in a browser — detectLocale() below picks that;
+ * this is the tail of its resolution chain (detected → zh-Hant → en). */
 export const DEFAULT_LOCALE: Locale = 'zh-Hant';
 
-export const SUPPORTED_LOCALES: readonly Locale[] = ['zh-Hant', 'en'];
+export const SUPPORTED_LOCALES: readonly Locale[] = ['zh-Hant', 'zh-Hans', 'en'];
+
+// Ordered browser-tag → Locale mapping, most specific first. A tag matches
+// an entry when it equals the entry's tag or starts with it followed by
+// "-" (so "zh-Hant-TW" matches "zh-Hant", "zh-CN" matches exactly, etc).
+// Matching is case-insensitive. Bare "zh" (no script/region) maps to
+// zh-Hans, matching the majority of bare-"zh" browser configurations.
+const LOCALE_TAG_MAP: readonly { tag: string; locale: Locale }[] = [
+  { tag: 'zh-tw', locale: 'zh-Hant' },
+  { tag: 'zh-hk', locale: 'zh-Hant' },
+  { tag: 'zh-hant', locale: 'zh-Hant' },
+  { tag: 'zh-cn', locale: 'zh-Hans' },
+  { tag: 'zh-sg', locale: 'zh-Hans' },
+  { tag: 'zh-hans', locale: 'zh-Hans' },
+  { tag: 'zh', locale: 'zh-Hans' },
+  { tag: 'en', locale: 'en' },
+];
+
+function matchTag(lowerTag: string): Locale | undefined {
+  for (const { tag, locale } of LOCALE_TAG_MAP) {
+    if (lowerTag === tag || lowerTag.startsWith(`${tag}-`)) return locale;
+  }
+  return undefined;
+}
+
+/** Detect the best-fit locale from the browser's navigator.languages, in
+ * preference order; the first language tag that maps to a supported
+ * locale wins. Falls back to DEFAULT_LOCALE (zh-Hant) when navigator is
+ * unavailable (e.g. Node-based unit tests) or nothing matches. A manual
+ * choice saved to localStorage always overrides this — see i18n/index.ts. */
+export function detectLocale(): Locale {
+  const languages =
+    typeof navigator !== 'undefined' && Array.isArray(navigator.languages)
+      ? navigator.languages
+      : [];
+  for (const tag of languages) {
+    const match = matchTag(tag.toLowerCase());
+    if (match) return match;
+  }
+  return DEFAULT_LOCALE;
+}
 
 /** The game the home page's create-room form creates. The MVP ships one
  * game, so this is a constant rather than a picker — but the id lives here,

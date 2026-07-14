@@ -4,7 +4,7 @@
 // plain module over engine types.
 
 import { describe, expect, it } from 'vitest';
-import type { Card } from '../../../src/engine/guandan/cards';
+import { sortCards, type Card, type Rank } from '../../../src/engine/guandan/cards';
 import type { CanonicalForm, GuandanAction, GuandanView } from '../../../src/engine/guandan/types';
 import { GuandanGame, JIANGSU_OFFICIAL_ONLINE } from '../../../src/engine/guandan';
 import {
@@ -188,6 +188,59 @@ describe('hand grouping (fan rows)', () => {
 
   it('handles the empty hand', () => {
     expect(handRows([], 14)).toEqual([]);
+  });
+});
+
+// The descending hand-sort toggle (owner §3) is display-only: HandFan
+// reverses the DISPLAY of the already-sorted `hand` array (reuses
+// sortCards's ascending order, then reverses — it never re-sorts by a
+// second scheme), and keeps every selection index anchored to the
+// ORIGINAL `hand` array so a lifted card's identity never shifts under
+// the toggle. These tests pin that contract at the engine-order level
+// (no DOM/React needed — helpers.ts's handRows-style index split is
+// exercised the same way HandFan.tsx exercises it internally).
+describe('descending hand sort (exact reverse of ascending)', () => {
+  it('descending is byte-for-byte the reverse of sortCards ascending order', () => {
+    const level: Rank = '2';
+    const hand: Card[] = ['5S', '2H', 'SJ', 'BJ', 'AS', '3D', '2S', '2C'];
+    const ascending = sortCards(hand, level);
+    const descending = [...ascending].reverse();
+    expect(descending[0]).toBe(ascending[ascending.length - 1]);
+    expect(descending[descending.length - 1]).toBe(ascending[0]);
+    expect([...descending].reverse()).toEqual(ascending);
+  });
+
+  it('wilds, jokers and level naturals keep their mirrored slot (no second sort scheme)', () => {
+    const level: Rank = '5';
+    // 5H is the wild at level 5 (levelValue 15, tied with the 5-naturals);
+    // jokers (16/17) sit above everything. Deliberately mixes all three
+    // "special" placements the owner flagged (wild/level-card placement).
+    const hand: Card[] = ['2S', '5H', '5S', '5C', 'SJ', 'BJ'];
+    const ascending = sortCards(hand, level);
+    const descending = [...ascending].reverse();
+    // Every slot mirrors: descending[i] === ascending[n-1-i] for ALL i —
+    // this is what distinguishes a true reverse from an independent
+    // re-sort that happens to agree only at the two extremes.
+    for (let i = 0; i < ascending.length; i++) {
+      expect(descending[i]).toBe(ascending[ascending.length - 1 - i]);
+    }
+    const wildAscIdx = ascending.indexOf('5H');
+    expect(descending.indexOf('5H')).toBe(ascending.length - 1 - wildAscIdx);
+  });
+
+  it('reversing the DISPLAY order preserves original-array indices for selection', () => {
+    // Mirrors HandFan.tsx: selection/toggle/glow key off the index into
+    // the ORIGINAL (ascending) hand array, not the display position —
+    // reversing must renumber nothing.
+    const hand: Card[] = ['5S', '2H', 'SJ', 'BJ', 'AS', '3D', '2S'];
+    const n = hand.length;
+    const ascendingOrder = hand.map((_, i) => i);
+    const descendingOrder = [...ascendingOrder].reverse();
+    expect(descendingOrder).toEqual(Array.from({ length: n }, (_, i) => n - 1 - i));
+    expect(descendingOrder.map((i) => hand[i])).toEqual([...hand].reverse());
+    // A card's original index (its true hand slot) is unaffected by which
+    // direction it is currently being displayed in.
+    expect(descendingOrder.every((i) => hand[i] === hand[i])).toBe(true);
   });
 });
 

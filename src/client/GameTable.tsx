@@ -53,6 +53,33 @@ export interface GameTableProps {
 }
 
 // ---------------------------------------------------------------------------
+// Hand-sort direction — a per-client UI preference (owner §3), NOT room
+// state: it never touches the server, so it's read/written straight to
+// localStorage rather than folded through the snapshot/store like the rest
+// of this file's state.
+// ---------------------------------------------------------------------------
+
+const HAND_SORT_STORAGE_KEY = 'pref:handSort';
+
+function readHandSortDescending(): boolean {
+  if (typeof localStorage === 'undefined') return false;
+  try {
+    return localStorage.getItem(HAND_SORT_STORAGE_KEY) === 'desc';
+  } catch {
+    return false;
+  }
+}
+
+function writeHandSortDescending(descending: boolean): void {
+  try {
+    localStorage.setItem(HAND_SORT_STORAGE_KEY, descending ? 'desc' : 'asc');
+  } catch {
+    // localStorage unavailable (e.g. private mode) — the toggle still
+    // works for the current session, just doesn't persist.
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Per-seat presentation state folded from event batches.
 // ---------------------------------------------------------------------------
 
@@ -181,6 +208,14 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   const [ceremonyDone, setCeremonyDone] = useState(false);
   const [dismissedRejections, setDismissedRejections] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  const [handDescending, setHandDescending] = useState(() => readHandSortDescending());
+  const toggleHandSort = () => {
+    setHandDescending((prev) => {
+      const next = !prev;
+      writeHandSortDescending(next);
+      return next;
+    });
+  };
 
   const room = snapshot.room;
   const nameFor = (seat: Seat): string =>
@@ -361,6 +396,15 @@ export function GameTable({ snapshot, store }: GameTableProps) {
 
           <div className="gd-south">
             {plate(layout.south)}
+            <button
+              type="button"
+              className="gd-handSort"
+              aria-label={t('game.sort.label')}
+              aria-pressed={handDescending}
+              onClick={toggleHandSort}
+            >
+              {handDescending ? t('game.sort.descending') : t('game.sort.ascending')}
+            </button>
             <HandFan
               hand={view.hand}
               level={view.currentLevel}
@@ -374,6 +418,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
                 })
               }
               glow={eligible}
+              descending={handDescending}
             />
             <ActionBar
               hints={hints}

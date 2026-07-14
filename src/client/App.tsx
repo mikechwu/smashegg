@@ -44,7 +44,9 @@ export function App() {
               disabled={l === locale}
               onClick={() => setLocale(l)}
             >
-              {t(l === 'zh-Hant' ? 'locale.zhHant' : 'locale.en')}
+              {t(
+                l === 'zh-Hant' ? 'locale.zhHant' : l === 'zh-Hans' ? 'locale.zhHans' : 'locale.en',
+              )}
             </button>
           ))}
         </nav>

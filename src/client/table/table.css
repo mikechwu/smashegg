@@ -459,6 +459,26 @@
   flex-direction: column;
   gap: 0.5rem;
 }
+/* Quiet toggle for the hand's sort direction — a UI preference, not a
+ * signature element, so it stays visually subordinate to the fan below it. */
+.gd-handSort {
+  align-self: flex-end;
+  background: transparent;
+  color: var(--ivory);
+  opacity: 0.65;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-family: var(--font-ui);
+}
+.gd-handSort:hover {
+  opacity: 0.9;
+}
+.gd-handSort[aria-pressed='true'] {
+  color: var(--goldleaf);
+  opacity: 0.9;
+}
 .gd-fan {
   display: flex;
   flex-direction: column;
