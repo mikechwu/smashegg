@@ -19,6 +19,8 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 
 Web research runs on the built-in WebSearch/WebFetch tools, `curl` via shell for direct page/PDF fetches, and `gh api` for GitHub content. **Firecrawl is disabled as of 2026-07-13 (credit limit reached — owner instruction); state this in every research-agent prompt.** Escalate to costlier tooling only on demonstrated failure of a cheaper rung, and log the failure.
 
+**QA ratchet (standing rule, added 2026-07-14).** Every computer-use/visual-iteration finding becomes an automated regression (e2e or unit) BEFORE its fix is considered done. QA is a ratchet: manual/visual tooling (browser drives, screenshots, computer use) is for *finding* behavior, never for *keeping* it — whatever a costlier rung of the ladder discovers must be pinned by a cheaper, repeatable rung (a named test that traverses the real product path, e.g. tests/e2e/product-paths.e2e.test.ts) or the finding is considered unfixed.
+
 ## Consciously NOT adopted (trading-domain-specific)
 
 Backtesting engine conventions; walk-forward / purged & embargoed K-fold / CPCV cross-validation; DSR/PBO multiple-testing corrections; market-data hygiene (survivorship bias, adjustment factors, vendor feed semantics); conformal prediction gating; R-multiple/expectancy/SQN reporting; cost/slippage modeling. These guard against temporal leakage and P&L-metric overfitting, which have no analogue in platform-docs/rules research. The *general* principles behind two of them do transfer and are covered above: "distrust reused code, verify before reuse" (→ practice 1) and "count every trial including failures" (→ practice 4).

@@ -148,6 +148,7 @@
   "game.tribute.antiHolder": "{name} 亮出大王",
   "game.chooser.title": "選擇宣告的牌型",
   "game.chooser.cancel": "取消",
+  "game.chooser.cannotBeat": "大不過上家",
   "game.ceremony.title": "翻牌定先",
   "game.ceremony.shuffling": "洗牌中…",
   "game.ceremony.cutter": "{name} 切牌",

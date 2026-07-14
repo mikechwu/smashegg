@@ -608,6 +608,16 @@
   font-size: 0.8125rem;
   opacity: 0.85;
 }
+/* Unplayable readings stay listed (spec v1.4 disambiguation: the chooser
+   shows the FULL offered set; the server stays the arbiter) but read as
+   secondary. */
+.gd-chooser__unplayable {
+  opacity: 0.55;
+}
+.gd-chooser__note {
+  font-size: 0.75rem;
+  opacity: 0.8;
+}
 
 /* --- overlays (ceremony / result) --------------------------------------------------- */
 .gd-overlay {

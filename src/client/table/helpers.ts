@@ -8,7 +8,7 @@
 
 import { isJoker, isWild, rankOf, type Card, type Rank, type Suit } from '../../engine/guandan/cards';
 import type { Seat } from '../../engine/core/game';
-import { classifyPlays } from '../../engine/guandan/combos';
+import { classifyPlays, sequenceWindow } from '../../engine/guandan/combos';
 import { JIANGSU_OFFICIAL_ONLINE, type RuleVariant } from '../../engine/guandan/config';
 import type {
   CanonicalForm,
@@ -56,11 +56,17 @@ export function declSignature(decl: CanonicalForm): string {
 // Selection → hint matching (ActionBar's enabling rule).
 // ---------------------------------------------------------------------------
 
-/** A playable interpretation of the current selection: the concrete cards
- *  to submit plus the declared form (the server validates cards ⊨ decl). */
+/** One meaningful-distinct interpretation of the current selection: the
+ *  concrete cards to submit plus the declared form (the server validates
+ *  cards ⊨ decl). `playable` = the form appears among the server's hints,
+ *  i.e. it beats the table (or leads); unplayable readings are still
+ *  surfaced so the chooser can present the FULL offered set (spec v1.4
+ *  disambiguation) — picking one submits and the server rejects it with a
+ *  localized error, exactly as a raw-protocol client would experience. */
 export interface PlayMatch {
   cards: Card[];
   decl: CanonicalForm;
+  playable: boolean;
 }
 
 /** Suit-blind identity of a canonical form: (type, size, keyRank) plus the
@@ -86,7 +92,8 @@ export function asRuleVariant(config: unknown): RuleVariant {
 }
 
 /**
- * Match the selected cards against the seat's play hints.
+ * The selection's FULL meaningful-distinct offered set (spec v1.4 wild
+ * disambiguation), with playability against the seat's hints.
  *
  * Hints carry ONE wild-frugal concrete realization per canonical form
  * (generate.ts), so exact-cards comparison is not enough: any selection
@@ -95,14 +102,17 @@ export function asRuleVariant(config: unknown): RuleVariant {
  * of 9s realized as 9♠9♥, and natural+wild realizes the pair the hint
  * spelled with two naturals. Implementation: classify the selection with
  * the ENGINE's own classifyPlays (which runs validatePlay, so matching can
- * never disagree with server validation — §3.8's one-suit straight refusal
- * and §4.2's wild under-declaration guard come for free), then intersect
- * with the hint decls by suit-blind projection. The decl sent is the
- * SELECTION's classified form — for a straight flush that re-anchors the
- * suit to the selection's own.
+ * never disagree with server validation — the v1.4 one-suit-naturals
+ * straight suppression and §4.2's wild under-declaration guard come for
+ * free) and mark each form `playable` iff a hint shares its suit-blind
+ * projection. The decl sent is the SELECTION's classified form — for a
+ * straight flush that re-anchors the suit to the selection's own.
  *
- * Returns one entry per DISTINCT decl. Length 0 = not playable; 1 = play
- * it; ≥2 = the wild-ambiguity case — the UI shows a decl chooser.
+ * Returns one entry per DISTINCT decl, in classifyPlays's strength order
+ * (strongest first, R5 — the SF end-position pair larger-on-top). Zero
+ * playable entries = not playable; exactly one reading = play it; ≥2
+ * readings = the wild-ambiguity case — the UI shows the decl chooser over
+ * the whole list.
  */
 export function matchSelection(
   selection: readonly Card[],
@@ -113,21 +123,19 @@ export function matchSelection(
   if (selection.length === 0) return [];
   const selectionForms = classifyPlays([...selection], level, config);
   if (selectionForms.length === 0) return [];
-  const byProjection = new Map<string, CanonicalForm>();
-  for (const form of selectionForms) byProjection.set(formProjectionKey(form), form);
 
-  const out: PlayMatch[] = [];
-  const seen = new Set<string>();
+  const hinted = new Set<string>();
   for (const hint of hints) {
-    if (hint.type !== 'play' || hint.decl === undefined) continue;
-    const decl = byProjection.get(formProjectionKey(hint.decl));
-    if (decl === undefined) continue;
-    const sig = declSignature(decl);
-    if (seen.has(sig)) continue;
-    seen.add(sig);
-    out.push({ cards: [...selection], decl });
+    if (hint.type === 'play' && hint.decl !== undefined) hinted.add(formProjectionKey(hint.decl));
   }
-  return out;
+  // classifyPlays emits one form per projection (suit collapse, R1), so
+  // iterating the already-strength-ordered forms yields one entry per
+  // distinct decl with no extra dedupe.
+  return selectionForms.map((decl) => ({
+    cards: [...selection],
+    decl,
+    playable: hinted.has(formProjectionKey(decl)),
+  }));
 }
 
 /** Whether a pass hint exists (spec §5.2: never when leading). */
@@ -254,6 +262,19 @@ const COMBO_KEYS: Record<CanonicalForm['type'], TranslationKey> = {
 
 export function comboKey(decl: CanonicalForm): TranslationKey {
   return COMBO_KEYS[decl.type];
+}
+
+/** Run description for a straight-flush decl ("A–5♠", "5–9♥"): the chooser
+ *  labels SF readings with their full window so the end-position pair
+ *  (larger-on-top) is unmistakable. Locale-free — rank glyphs and suit
+ *  symbols only. Null for every other type (they read fine as combo name +
+ *  key rank). */
+export function declRunText(decl: CanonicalForm): string | null {
+  if (decl.type !== 'straightFlush') return null;
+  const window = sequenceWindow(decl.keyRank, decl.size);
+  if (window === null) return null;
+  const run = `${rankText(window[0]!)}–${rankText(window[window.length - 1]!)}`;
+  return decl.suit === undefined ? run : `${run}${suitGlyph(decl.suit)}`;
 }
 
 const PLACE_KEYS: Record<number, TranslationKey> = {

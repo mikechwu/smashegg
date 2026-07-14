@@ -292,14 +292,18 @@ function chooseFullHousePair(
   return null;
 }
 
-/** Concrete cards for a plain-straight window, honoring §3.8: a fully-
- *  natural realization must not be all one suit under the default
- *  allowUnderDeclareStraightFlush=false — such a set is inherently a
- *  straight flush and must be declared as one. When an off-suit natural
- *  choice exists we take it; when every choice is one-suit we return null
- *  (only the SF form exists). Wild-containing realizations are exempt: the
- *  declaration is free because a wild may take an off-suit identity
- *  (spec §4.4.2 wild policy). */
+/** Concrete cards for a plain-straight window, honoring the owner-extended
+ *  §3.8 guard (spec v1.4 / R4c): a realization's NATURAL cards must not be
+ *  all one suit under the default allowUnderDeclareStraightFlush=false —
+ *  such a selection is inherently a straight flush and must be declared as
+ *  one, and wilds do NOT open an off-suit escape. The generator's predicate
+ *  (docs/research/wild-disambiguation.md §4.4): emit straight-V iff the
+ *  hand's in-window naturals span ≥ 2 suits — then some mixed-suit
+ *  realization exists (swap in any off-suit copy); a singleton suit-union
+ *  forces one-suit naturals in EVERY realization, so we return null and
+ *  only the SF form of the window survives (never orphaned, §1.3 lemma).
+ *  The check applies to BOTH the deficit-0 and deficit≥1 paths — wild-fill
+ *  never mixes the naturals. */
 function realizeStraight(
   pools: Pools,
   window: readonly Rank[],
@@ -311,7 +315,7 @@ function realizeStraight(
   for (const rank of window) {
     if (countOf(pools, rank) > 0) picks.push(takeNaturals(pools, rank, 1)[0]!);
   }
-  if (deficit === 0 && !config.allowUnderDeclareStraightFlush) {
+  if (!config.allowUnderDeclareStraightFlush) {
     const pickedSuits = new Set(picks.map((card) => suitOf(card)));
     if (pickedSuits.size === 1) {
       // Default picks are one-suit; look for ANY alternative identity of a
@@ -327,16 +331,12 @@ function realizeStraight(
           }
         }
       }
-      if (!swapped) {
-        // No natural off-suit copy — but a HELD WILD can stand in for any
-        // one slot with an off-suit identity (legal substitution, §4.4.2
-        // wild policy), making the plain-straight form real even though
-        // the naturals alone are one suit. Less wild-frugal, but it is the
-        // ONLY legal realization of this form. No wild either ⇒ the §3.8
-        // forced case: only the SF form exists for this window.
-        if (pools.wilds >= 1) picks[0] = wild;
-        else return null;
-      }
+      // No natural off-suit copy anywhere in the window pool ⇒ the suit
+      // union is a singleton ⇒ every realization would have one-suit
+      // naturals and be rejected by validateStraight (v1.4). Spending a
+      // wild on an off-suit identity is exactly the laundering R4c forbids
+      // — suppress the form instead (only the SF emission remains).
+      if (!swapped) return null;
     }
   }
   for (let i = 0; i < deficit; i++) picks.push(wild);

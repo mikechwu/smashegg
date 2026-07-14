@@ -340,3 +340,12 @@ P23 {6S,6C,6D,7S,7C,7D} lvl2 → plate:6:7
 P24 {6S,6C,6D,7S,7C,2H} lvl2 → plate:6:7
 P25 {5S,6S,7S,8S,2H}   lvl2 → straight:5:8, straight:5:9, straightFlush:5:8:S, straightFlush:5:9:S
 ```
+
+---
+
+## Corrections (2026-07-14, post-implementation — supersession-marked per METHODOLOGY)
+
+The implementation's brute-force completeness oracle (§5.3 as designed) found two rows in the §2 enumeration INCOMPLETE — the engine and the independent oracle AGREE on the larger sets; the rows above understate them:
+- **FH-9** `{7,7,W,K,K}` at level 7: also offers `fullHouse-K` (the FH-1 dual-assignment pattern; the row cited only the validity probe). Offered set = {fullHouse-7♥wild-as-7? — fullHouse with triple 7} AND {fullHouse with triple K}.
+- **SF-8** `{4♥5♥6♥,W,W}` at level 7: offers THREE straight-flush windows (tops 8, 7, 6 — the SF-4 double-wild end-extension pattern), not one.
+Both are asserted as the true sets in tests/unit/engine/wild-disambiguation.test.ts. Root cause: those rows were written from manual reading rather than probe transcripts — reinforcing this doc's own conclusion that the brute-force oracle, not manual enumeration, is the completeness authority.

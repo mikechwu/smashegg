@@ -155,13 +155,11 @@ describe('obligation 4 — randomized cross-check properties (§4.4.3)', () => {
 // ---------------------------------------------------------------------------
 
 describe('§4.4.3 worked example and straight/SF generation', () => {
-  it('§4.4.3: 3♠4♠5♠6♠ + wild ⇒ SF-top-7, SF-top-6, and the corresponding plain straights', () => {
+  it('§4.4.3 (v1.4): 3♠4♠5♠6♠ + wild ⇒ SF-top-7 and SF-top-6 ONLY — no plain-straight readings', () => {
     const hand: Card[] = ['3S', '4S', '5S', '6S', 'TH']; // level T ⇒ TH is a wild
     const plays = legalPlays(hand, null, 'T', cfg);
     const runs = plays.filter((p) => p.decl.type === 'straight' || p.decl.type === 'straightFlush');
     expect(fps(runs)).toEqual([
-      'straight:5:6:-:-',
-      'straight:5:7:-:-',
       'straightFlush:5:6:-:-',
       'straightFlush:5:7:-:-',
     ]);
@@ -186,13 +184,22 @@ describe('§4.4.3 worked example and straight/SF generation', () => {
     expect(validatePlay(straightPlay!.cards, straightPlay!.decl, '2', cfg)).toEqual({ ok: true });
   });
 
-  it('§3.8 wild policy: with only one-suit naturals, a held wild realizes the plain straight off-suit', () => {
+  it('§3.8 owner-extended (v1.4): one-suit naturals + wild generate NO plain straight — only the SF windows', () => {
     const hand: Card[] = ['3S', '4S', '5S', '6S', '7S', '2H']; // level 2 ⇒ 2H is a wild
     const plays = legalPlays(hand, null, '2', cfg);
-    const straightPlay = plays.find((p) => fp(p.decl) === 'straight:5:7:-:-');
-    expect(straightPlay).toBeDefined();
-    expect(straightPlay!.cards).toContain('2H'); // the wild stands off-suit
-    expect(validatePlay(straightPlay!.cards, straightPlay!.decl, '2', cfg)).toEqual({ ok: true });
+    // Spending the wild on an off-suit identity would be exactly the
+    // laundering R4c forbids — the suppression replaces the v1.3 wild-swap.
+    expect(plays.some((p) => p.decl.type === 'straight')).toBe(false);
+    const runs = fps(plays.filter((p) => p.decl.type === 'straightFlush'));
+    expect(runs).toEqual([
+      'straightFlush:5:6:-:-',
+      'straightFlush:5:7:-:-',
+      'straightFlush:5:8:-:-',
+    ]);
+    // Never orphaned (§1.3 lemma): every suppressed window survives as SF.
+    for (const play of plays) {
+      expect(validatePlay(play.cards, play.decl, '2', cfg)).toEqual({ ok: true });
+    }
   });
 
   it('§3.8 variant allowUnderDeclareStraightFlush=true: the one-suit straight may be generated', () => {

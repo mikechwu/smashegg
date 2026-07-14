@@ -11,6 +11,7 @@ import {
   activeSeats,
   asGuandanView,
   canPass,
+  declRunText,
   declSignature,
   errorKeyFor,
   handRows,
@@ -85,9 +86,13 @@ describe('matchSelection (selection → hint matching)', () => {
 
   it('does not match a different multiset (negative case)', () => {
     expect(matchSelection(['9S', '8S'], [play(['9S', '9C'], pairOf9)], '2')).toEqual([]);
-    // A single of a different rank never matches a hinted single either.
+    // A single of a different rank never matches a hinted single either:
+    // the reading surfaces (full offered set) but is NOT playable.
     const single4: CanonicalForm = { type: 'single', size: 1, keyRank: '4' };
-    expect(matchSelection(['5D'], [play(['4S'], single4)], '2')).toEqual([]);
+    const readings = matchSelection(['5D'], [play(['4S'], single4)], '2');
+    expect(readings).toHaveLength(1);
+    expect(readings[0]!.decl).toEqual({ type: 'single', size: 1, keyRank: '5' });
+    expect(readings.some((m) => m.playable)).toBe(false);
   });
 
   it('accepts a wild-substituted realization of a hinted form', () => {
@@ -106,9 +111,13 @@ describe('matchSelection (selection → hint matching)', () => {
   });
 
   it('never lets a wild under-declare as another rank (negative case)', () => {
-    // ♥2 at level 2 is the level single, not a single of 9s.
+    // ♥2 at level 2 is the level single, not a single of 9s — the ONLY
+    // reading offered is the level single (§4.2), and it is not playable
+    // against a hinted single of 9s.
     const single9: CanonicalForm = { type: 'single', size: 1, keyRank: '9' };
-    expect(matchSelection(['2H'], [play(['9S'], single9)], '2')).toEqual([]);
+    const readings = matchSelection(['2H'], [play(['9S'], single9)], '2');
+    expect(readings.map((m) => m.decl)).toEqual([{ type: 'single', size: 1, keyRank: '2' }]);
+    expect(readings.some((m) => m.playable)).toBe(false);
   });
 
   it('dedupes hints that share a decl and reports each distinct decl once', () => {
@@ -127,6 +136,36 @@ describe('matchSelection (selection → hint matching)', () => {
     expect(new Set(matches.map((m) => declSignature(m.decl))).size).toBe(2);
   });
 
+  it('returns the FULL offered set strongest-first with playability flags (v1.4 chooser input)', () => {
+    // Selection {4♠4♦5♠5♦+W+W} at level 2 offers tube-6, plate-5, tube-5
+    // (strength order, R5: key desc, plate above tube at an equal key).
+    // Following a tube-4, only the tubes beat — the plate reading stays
+    // listed but unplayable (the server remains the arbiter).
+    const cards: Card[] = ['4S', '4D', '5S', '5D', '2H', '2H'];
+    const tube6: CanonicalForm = { type: 'tube', size: 6, keyRank: '6' };
+    const tube5: CanonicalForm = { type: 'tube', size: 6, keyRank: '5' };
+    const hints = [play(['4S', '4D', '5S', '5D', '2H', '2H'], tube6), play(cards, tube5), PASS];
+    const matches = matchSelection(cards, hints, '2');
+    expect(matches.map((m) => `${m.decl.type}-${m.decl.keyRank}`)).toEqual([
+      'tube-6',
+      'plate-5',
+      'tube-5',
+    ]);
+    expect(matches.map((m) => m.playable)).toEqual([true, false, true]);
+  });
+
+  it('orders the SF end-position pair larger-on-top (owner pin, §9.18)', () => {
+    const cards: Card[] = ['2S', '3S', '4S', '5S', '6H']; // level 6 ⇒ 6H is the wild
+    const sf6: CanonicalForm = { type: 'straightFlush', size: 5, keyRank: '6', suit: 'S' };
+    const sf5: CanonicalForm = { type: 'straightFlush', size: 5, keyRank: '5', suit: 'S' };
+    // Hint order deliberately SMALLER first — the output must not inherit it.
+    const matches = matchSelection(cards, [play(cards, sf5), play(cards, sf6)], '6');
+    expect(matches.map((m) => m.decl.keyRank)).toEqual(['6', '5']);
+    expect(matches.every((m) => m.playable)).toBe(true);
+    // No plain-straight readings for one-suit naturals (v1.4).
+    expect(matches.some((m) => m.decl.type === 'straight')).toBe(false);
+  });
+
   it('re-anchors a straight-flush decl to the selection suit', () => {
     const sfSpades: CanonicalForm = { type: 'straightFlush', size: 5, keyRank: '9', suit: 'S' };
     const hint = play(['5S', '6S', '7S', '8S', '9S'], sfSpades);
@@ -135,12 +174,18 @@ describe('matchSelection (selection → hint matching)', () => {
     expect(matches[0]!.decl).toEqual({ ...sfSpades, suit: 'H' });
   });
 
-  it('refuses to under-declare a fully-natural one-suit set as a plain straight (§3.8)', () => {
+  it('refuses to under-declare a one-suit set as a plain straight (§3.8, v1.4 owner-extended)', () => {
     const straight: CanonicalForm = { type: 'straight', size: 5, keyRank: '9' };
     const hint = play(['5S', '6H', '7S', '8S', '9S'], straight);
-    expect(matchSelection(['5H', '6H', '7H', '8H', '9H'], [hint], '3')).toEqual([]);
+    // One-suit naturals offer ONLY the SF reading — never the hinted
+    // plain straight, so nothing is playable against it.
+    const readings = matchSelection(['5H', '6H', '7H', '8H', '9H'], [hint], '3');
+    expect(readings.map((m) => m.decl.type)).toEqual(['straightFlush']);
+    expect(readings.some((m) => m.playable)).toBe(false);
     // An off-suit selection of the same ranks IS the plain straight.
-    expect(matchSelection(['5D', '6H', '7H', '8H', '9H'], [hint], '3')).toHaveLength(1);
+    const mixed = matchSelection(['5D', '6H', '7H', '8H', '9H'], [hint], '3');
+    expect(mixed).toHaveLength(1);
+    expect(mixed[0]!.playable).toBe(true);
   });
 
   it('matches jokers only exactly', () => {
@@ -148,10 +193,28 @@ describe('matchSelection (selection → hint matching)', () => {
     // jokerRank extra (keyRank 'A' + jokerRank distinguishes them from
     // rank-A forms).
     const sjSingle = { type: 'single', size: 1, keyRank: 'A', jokerRank: 'SJ' } as CanonicalForm;
-    expect(matchSelection(['SJ'], [play(['SJ'], sjSingle)], '2')).toHaveLength(1);
-    expect(matchSelection(['BJ'], [play(['SJ'], sjSingle)], '2')).toEqual([]);
+    const sj = matchSelection(['SJ'], [play(['SJ'], sjSingle)], '2');
+    expect(sj).toHaveLength(1);
+    expect(sj[0]!.playable).toBe(true);
+    // A big joker is NOT the small-joker single: its own reading surfaces
+    // but nothing is playable against the SJ hint.
+    expect(matchSelection(['BJ'], [play(['SJ'], sjSingle)], '2').some((m) => m.playable)).toBe(false);
     // A natural ace is NOT the joker single (and vice versa).
-    expect(matchSelection(['AS'], [play(['SJ'], sjSingle)], '2')).toEqual([]);
+    expect(matchSelection(['AS'], [play(['SJ'], sjSingle)], '2').some((m) => m.playable)).toBe(false);
+  });
+});
+
+describe('declRunText (chooser SF run labels)', () => {
+  it('describes the straight-flush window with rank glyphs and suit symbol', () => {
+    expect(declRunText({ type: 'straightFlush', size: 5, keyRank: '9', suit: 'S' })).toBe('5–9♠');
+    expect(declRunText({ type: 'straightFlush', size: 5, keyRank: '5', suit: 'H' })).toBe('A–5♥'); // A-low
+    expect(declRunText({ type: 'straightFlush', size: 5, keyRank: 'A', suit: 'D' })).toBe('10–A♦');
+  });
+
+  it('is null for every non-SF type (combo name + key rank suffices)', () => {
+    expect(declRunText({ type: 'straight', size: 5, keyRank: '9' })).toBeNull();
+    expect(declRunText({ type: 'fullHouse', size: 5, keyRank: '9' })).toBeNull();
+    expect(declRunText({ type: 'bomb', size: 5, keyRank: '9' })).toBeNull();
   });
 });
 

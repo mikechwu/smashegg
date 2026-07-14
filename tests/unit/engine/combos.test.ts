@@ -420,10 +420,15 @@ describe('§3.8 under-declaring a suited run as a plain straight', () => {
     expect(inferDecl(suited, '2', c)).toEqual({ ambiguous: true });
   });
 
-  it('§4.4.2 wild policy: a wild-completed suited set may be declared either way even by default', () => {
+  it('§3.8 owner-extended (v1.4): one-suit-NATURALS wild sets must declare the straight flush', () => {
     const cards: Card[] = ['5S', '6S', '7S', '9S', '2H']; // wild covers the 8
     expectOk(cards, sf('9', 'S'), '2');
-    expectOk(cards, straight('9'), '2'); // wild assigned an off-suit 8 — legal substitution
+    // v1.4 supersedes the v1.3 wild-policy sentence: the wild does NOT open
+    // an off-suit escape — it reads into the run's suit (R4c).
+    expectErr(cards, straight('9'), 'play.mustDeclareStraightFlush', '2');
+    // The variant re-enables under-declaration for wild sets and natural
+    // sets alike (symmetry the v1.3 asymmetry lacked).
+    expectOk(cards, straight('9'), '2', vary({ allowUnderDeclareStraightFlush: true }));
   });
 
   it('§3.8: mixed-suit no-wild straights are unaffected by the guard', () => {
@@ -562,15 +567,15 @@ describe('§9.11 / §9.14 level-rank and ten-card bombs', () => {
 });
 
 describe('§4.4.4 / §9.18 classifyPlays & inferDecl', () => {
-  it('§9.18: 2♠3♠4♠5♠ + wild admits SF-6♠, SF-A-low♠, and both plain-straight windows', () => {
+  it('§9.18 (v1.4): 2♠3♠4♠5♠ + wild admits ONLY SF-6♠ and SF-A-low♠, larger-on-top', () => {
     const cards: Card[] = ['2S', '3S', '4S', '5S', '6H']; // level 6 → 6H is the wild
     const forms = classifyPlays(cards, '6', cfg);
     expect(fingerprints(forms)).toEqual([
-      'straight:5:5:-:-:-',
-      'straight:5:6:-:-:-',
       'straightFlush:5:5:S:-:-',
       'straightFlush:5:6:S:-:-',
     ]);
+    // R5 owner pin: the SF end-position pair is presented larger-on-top.
+    expect(forms.map((f) => f.keyRank)).toEqual(['6', '5']);
     expect(inferDecl(cards, '6', cfg)).toEqual({ ambiguous: true });
   });
 

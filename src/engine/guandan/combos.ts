@@ -327,11 +327,14 @@ function validateStraight(split: SplitCards, d: ComboForm, config: RuleVariant):
   if (split.sj + split.bj > 0) return fail('play.jokerNotAllowed', { type: 'straight' }); // §2.2
   const inclusion = checkRankMultiset(split.naturals, window);
   if (!inclusion.ok) return inclusion;
-  // §3.8 guard: a fully-natural one-suit run is inherently a straight flush
-  // and may not be under-declared as a plain straight (default). When wilds
-  // are present the declaration is free — assigning a wild an off-suit
-  // identity is legal substitution (§4.4.2 wild policy).
-  if (split.wilds === 0 && !config.allowUnderDeclareStraightFlush) {
+  // §3.8 guard (owner-extended, spec v1.4 / R4c): a selection whose NATURAL
+  // cards are all one suit is inherently a straight flush and may not be
+  // under-declared as a plain straight (default) — wilds do NOT open an
+  // off-suit escape (they read into the run's suit; the SF reading always
+  // exists, §1.3 non-orphaning lemma in docs/research/wild-disambiguation.md).
+  // A straight always has ≥3 naturals (5 cards, ≤2 wilds, no jokers), so
+  // the suit census is never empty.
+  if (!config.allowUnderDeclareStraightFlush) {
     const suits = new Set(split.naturals.map((card) => suitOf(card)));
     if (suits.size === 1) return fail('play.mustDeclareStraightFlush');
   }
@@ -412,7 +415,11 @@ const PLATE_TOPS: readonly Rank[] = RANKS;
  *  demoted extras, which are functions of the multiset anyway). Used for
  *  ambiguity detection (§4.4.4) and decl inference. Implementation: run the
  *  tiny per-size template space through validatePlay, so classification can
- *  never disagree with validation. */
+ *  never disagree with validation.
+ *
+ *  POST (v1.4 / R5): the result is sorted by compareComboStrength,
+ *  STRONGEST FIRST — the SF end-position pair comes larger-on-top
+ *  (owner pin, spec §9.18) and the chooser/hints inherit the order. */
 export function classifyPlays(cards: Card[], level: Rank, config: RuleVariant): CanonicalForm[] {
   const forms: CanonicalForm[] = [];
   const attempt = (candidate: ComboForm): void => {
@@ -466,6 +473,7 @@ export function classifyPlays(cards: Card[], level: Rank, config: RuleVariant): 
       }
       break;
   }
+  forms.sort((a, b) => compareComboStrength(b, a, level, config));
   return forms;
 }
 
@@ -543,6 +551,60 @@ function bombTier(form: CanonicalForm, config: RuleVariant): number {
       // Rank bombs: 4..10 cards → 40..100.
       return form.size * 10;
   }
+}
+
+/** Spec §3 table row number — the FINAL presentation tiebreak of the R5
+ *  strength order (docs/research/wild-disambiguation.md §4.3). It only ever
+ *  fires between non-bombs with equal comboKeyValue and distinct types: the
+ *  reachable cases are plate-vs-tube at an equal top (plate above tube — a
+ *  pinned presentation convention, not a rules claim: the two are mutually
+ *  unbeatable) and, under variants, a demoted SF above the equal-window
+ *  plain straight. */
+const TYPE_ORDER: Readonly<Record<ComboType, number>> = {
+  single: 1,
+  pair: 2,
+  triple: 3,
+  fullHouse: 4,
+  straight: 5,
+  tube: 6,
+  plate: 7,
+  bomb: 8,
+  straightFlush: 9,
+  jokerBomb: 10,
+};
+
+/** Total strength order over canonical forms (R5, spec v1.4 disambiguation
+ *  ordering): positive ⇒ `a` is stronger than `b`. Sort descending via
+ *  `arr.sort((x, y) => compareComboStrength(y, x, level, config))`.
+ *
+ *  1. Bombs above non-bombs (a demoted SF is a non-bomb and sorts with the
+ *     straights it beats like).
+ *  2. Within bombs: bombTier (§3.11 ladder), then comboKeyValue — the SF
+ *     end-position pair shares tier 55 and orders larger-on-top by its
+ *     window top (owner pin).
+ *  3. Within non-bombs: comboKeyValue, then TYPE_ORDER (see above).
+ *
+ *  Antisymmetric and transitive by construction (a chain of numeric
+ *  comparisons); total on any offered set — two distinct offered forms of
+ *  one selection can only tie through steps 1–2 by being non-bombs with
+ *  equal key AND distinct types (equal key + equal type ⇒ same projection
+ *  ⇒ same form), which step 3 breaks. */
+export function compareComboStrength(
+  a: CanonicalForm,
+  b: CanonicalForm,
+  level: Rank,
+  config: RuleVariant,
+): number {
+  const aBomb = isBombForm(a, config);
+  const bBomb = isBombForm(b, config);
+  if (aBomb !== bBomb) return aBomb ? 1 : -1;
+  if (aBomb) {
+    const tier = bombTier(a, config) - bombTier(b, config);
+    if (tier !== 0) return tier;
+  }
+  const key = comboKeyValue(a, level) - comboKeyValue(b, level);
+  if (key !== 0) return key;
+  return TYPE_ORDER[a.type] - TYPE_ORDER[b.type];
 }
 
 /** Does `candidate` beat `top`? Spec §3: same type & size with a strictly

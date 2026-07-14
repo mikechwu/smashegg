@@ -148,6 +148,7 @@
   "game.tribute.antiHolder": "{name} reveals a big joker",
   "game.chooser.title": "Declare the combination",
   "game.chooser.cancel": "Cancel",
+  "game.chooser.cannotBeat": "can't beat the table",
   "game.ceremony.title": "Card draw for first lead",
   "game.ceremony.shuffling": "Shuffling...",
   "game.ceremony.cutter": "{name} cuts the deck",

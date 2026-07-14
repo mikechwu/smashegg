@@ -418,11 +418,13 @@ describe('spec §9 engine edge-cases checklist', () => {
   });
 
   it('§9.18 ambiguous wild selections require a declared canonical form that binds what followers must beat', () => {
-    // Spec's own example: 2♠3♠4♠5♠+wild (level=6, wild=6♥) admits several
-    // canonical forms (straight top-6, straight top-5/A-low, straight
-    // flush top-6♠, straight flush top-5/A-low ♠, ...).
+    // Spec's own example (v1.4): 2♠3♠4♠5♠+wild (level=6, wild=6♥) admits
+    // SF top-6♠ and SF top-5/A-low ♠ — plain-straight readings are barred
+    // for one-suit naturals (owner-extended §3.8). Seat 0 additionally
+    // holds an off-suit 5♦ so a MIXED-suit wild straight (a different
+    // concrete selection) demonstrates the binding-declaration mechanics.
     const hands: Hands = [
-      ['2S', '3S', '4S', '5S', '6H', '9C'],
+      ['2S', '3S', '4S', '5S', '5D', '6H', '9C'],
       ['3H', '4C', '5D', '6C', '7S'], // follow-up: mixed-suit straight top-7
       ['8S'],
       ['9S'],
@@ -433,15 +435,26 @@ describe('spec §9 engine edge-cases checklist', () => {
     expect(ambiguous.ok).toBe(false);
     if (!ambiguous.ok) expect(ambiguous.error.code).toBe('play.declRequired');
 
-    // Declared as a plain straight (non-bomb): a stronger plain straight beats it.
+    // v1.4 owner-extended §3.8: the one-suit-naturals selection may NOT be
+    // under-declared as a plain straight — the wild opens no off-suit escape.
     const asStraight = GuandanGame.applyAction(state, 0, {
       type: 'play',
       cards: ['2S', '3S', '4S', '5S', '6H'],
       decl: form('straight', 5, '6'),
     });
-    expect(asStraight.ok).toBe(true);
-    if (asStraight.ok) {
-      const follow = GuandanGame.applyAction(asStraight.state, 1, {
+    expect(asStraight.ok).toBe(false);
+    if (!asStraight.ok) expect(asStraight.error.code).toBe('play.mustDeclareStraightFlush');
+
+    // A mixed-suit selection (5♦ instead of 5♠) IS a plain straight
+    // (non-bomb): a stronger plain straight beats it.
+    const asMixedStraight = GuandanGame.applyAction(state, 0, {
+      type: 'play',
+      cards: ['2S', '3S', '4S', '5D', '6H'],
+      decl: form('straight', 5, '6'),
+    });
+    expect(asMixedStraight.ok).toBe(true);
+    if (asMixedStraight.ok) {
+      const follow = GuandanGame.applyAction(asMixedStraight.state, 1, {
         type: 'play',
         cards: ['3H', '4C', '5D', '6C', '7S'],
         decl: form('straight', 5, '7'),
@@ -449,7 +462,7 @@ describe('spec §9 engine edge-cases checklist', () => {
       expect(follow.ok).toBe(true);
     }
 
-    // The SAME physical cards declared as a straight FLUSH (a bomb): the
+    // The one-suit selection declared as a straight FLUSH (a bomb): the
     // identical follow-up straight can no longer beat it — the
     // declaration is what binds.
     const asStraightFlush = GuandanGame.applyAction(state, 0, {

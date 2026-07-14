@@ -1,7 +1,12 @@
 // ActionBar — the acting seat's controls. 出牌 is enabled iff the current
-// selection matches some play hint (matchSelection, unit-tested); when the
-// same selection admits several declared forms (the wild-ambiguity case) a
-// small chooser lists each decl as localized combo name + key rank.
+// selection has some PLAYABLE reading (matchSelection, unit-tested); when
+// the selection admits several declared forms (the wild-ambiguity case,
+// spec §4.4.4 / v1.4 disambiguation) a small chooser lists the FULL
+// meaningful-distinct set strongest-first (SF end-positions larger-on-top)
+// as localized combo name + key rank, plus the run description for
+// straight flushes. Unplayable readings stay listed (marked) — picking one
+// submits and the server rejects it as usual, so the UI never hides a
+// reading a raw client could attempt.
 //
 // Both playing-phase buttons ALWAYS render in a fixed order (出牌 left,
 // wide gap, 過 right) so a mid-tick reflow can never swap what sits under
@@ -15,7 +20,7 @@
 import { useEffect, useState } from 'react';
 import type { GuandanAction } from '../../engine/guandan/types';
 import type { Rank } from '../../engine/guandan/cards';
-import { comboKey, rankText, type PlayMatch } from './helpers';
+import { comboKey, declRunText, rankText, type PlayMatch } from './helpers';
 import { t } from '../i18n';
 
 export interface ActionBarProps {
@@ -95,7 +100,12 @@ export function ActionBar(props: ActionBarProps) {
   // reserved and BOTH buttons always render in the same slots, so nothing
   // that happens between render ticks can move 過 under a tap aimed at
   // 出牌 (or vice versa).
-  const showReason = selectionCount > 0 && matches.length === 0;
+  // 出牌 enables iff SOME reading is playable; a valid-but-multi-reading
+  // selection always opens the chooser (declaration required, spec §4.4.4)
+  // — with a non-empty selection the primary action can never silently do
+  // nothing, and 過 keeps its own two-tap confirm below.
+  const playableCount = matches.reduce((n, m) => n + (m.playable ? 1 : 0), 0);
+  const showReason = selectionCount > 0 && playableCount === 0;
   return (
     <div className="gd-actions">
       <p className="gd-actions__reason" aria-live="polite">
@@ -105,7 +115,7 @@ export function ActionBar(props: ActionBarProps) {
         <button
           type="button"
           className="gd-actions__primary"
-          disabled={matches.length === 0}
+          disabled={playableCount === 0}
           onClick={() => {
             if (matches.length === 1) props.onPlay(matches[0]!);
             else if (matches.length > 1) props.onOpenChooser();
@@ -134,11 +144,27 @@ export function ActionBar(props: ActionBarProps) {
       {chooserOpen && matches.length > 1 && (
         <div className="gd-chooser" role="dialog" aria-label={t('game.chooser.title')}>
           <p className="gd-chooser__title">{t('game.chooser.title')}</p>
-          {matches.map((match, i) => (
-            <button key={i} type="button" onClick={() => props.onPlay(match)}>
-              {t(comboKey(match.decl))} {rankText(match.decl.keyRank as Rank)}
-            </button>
-          ))}
+          {matches.map((match, i) => {
+            // Full offered set, strongest first (matchSelection preserves
+            // classifyPlays's R5 order). Label: combo name + key rank, and
+            // the run description for straight flushes so the end-position
+            // pair (larger-on-top) reads unambiguously.
+            const run = declRunText(match.decl);
+            return (
+              <button
+                key={i}
+                type="button"
+                className={match.playable ? undefined : 'gd-chooser__unplayable'}
+                onClick={() => props.onPlay(match)}
+              >
+                {t(comboKey(match.decl))} {rankText(match.decl.keyRank as Rank)}
+                {run !== null && ` (${run})`}
+                {!match.playable && (
+                  <span className="gd-chooser__note"> · {t('game.chooser.cannotBeat')}</span>
+                )}
+              </button>
+            );
+          })}
           <button type="button" onClick={props.onCloseChooser}>
             {t('game.chooser.cancel')}
           </button>

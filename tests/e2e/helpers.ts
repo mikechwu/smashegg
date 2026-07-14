@@ -197,15 +197,21 @@ export async function stopAllServers(): Promise<void> {
 // HTTP helpers
 // ---------------------------------------------------------------------------
 
-export async function createRoom(server: DevServer, config: unknown): Promise<string> {
+/** Create a room for any registered game — the same POST /api/rooms call
+ *  HomePage.handleCreate makes (body: { gameId, config }). */
+export async function createRoomFor(server: DevServer, gameId: string, config: unknown): Promise<string> {
   const res = await fetch(`${server.url}/api/rooms`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ gameId: 'guess-number', config }),
+    body: JSON.stringify({ gameId, config }),
   });
-  if (res.status !== 201) throw new Error(`createRoom failed: ${res.status} ${await res.text()}`);
+  if (res.status !== 201) throw new Error(`createRoomFor failed: ${res.status} ${await res.text()}`);
   const body = (await res.json()) as { code: string };
   return body.code;
+}
+
+export async function createRoom(server: DevServer, config: unknown): Promise<string> {
+  return createRoomFor(server, 'guess-number', config);
 }
 
 export async function getRoomInfo(server: DevServer, code: string): Promise<RoomInfo> {
