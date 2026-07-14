@@ -56,6 +56,25 @@ describe('detectLocale()', () => {
     }
   };
 
+  // m2/m3: navigator.languages AND navigator.language, together, so a
+  // browser that only populates the singular field is still detected.
+  const withLanguagesAndLanguage = (
+    languages: string[] | undefined,
+    language: string | undefined,
+    fn: () => void,
+  ) => {
+    const originalLanguages = Object.getOwnPropertyDescriptor(globalThis.navigator, 'languages');
+    const originalLanguage = Object.getOwnPropertyDescriptor(globalThis.navigator, 'language');
+    Object.defineProperty(globalThis.navigator, 'languages', { value: languages, configurable: true });
+    Object.defineProperty(globalThis.navigator, 'language', { value: language, configurable: true });
+    try {
+      fn();
+    } finally {
+      if (originalLanguages) Object.defineProperty(globalThis.navigator, 'languages', originalLanguages);
+      if (originalLanguage) Object.defineProperty(globalThis.navigator, 'language', originalLanguage);
+    }
+  };
+
   it('maps zh-TW and zh-HK to zh-Hant', () => {
     withLanguages(['zh-TW'], () => expect(detectLocale()).toBe('zh-Hant'));
     withLanguages(['zh-HK'], () => expect(detectLocale()).toBe('zh-Hant'));
@@ -90,11 +109,41 @@ describe('detectLocale()', () => {
 
   it('falls back to DEFAULT_LOCALE for unknown/unmatched languages', () => {
     withLanguages(['fr-FR', 'de-DE'], () => expect(detectLocale()).toBe(DEFAULT_LOCALE));
-    withLanguages([], () => expect(detectLocale()).toBe(DEFAULT_LOCALE));
+    // An empty navigator.languages now falls through to navigator.language
+    // (m2) — neutralize it too, so this pins the "nothing matches at all"
+    // case rather than accidentally depending on the test runner's own
+    // navigator.language.
+    withLanguagesAndLanguage([], 'fr-FR', () => expect(detectLocale()).toBe(DEFAULT_LOCALE));
   });
 
   it('falls back to DEFAULT_LOCALE when navigator.languages is absent', () => {
-    withLanguages(undefined, () => expect(detectLocale()).toBe(DEFAULT_LOCALE));
+    withLanguagesAndLanguage(undefined, 'fr-FR', () => expect(detectLocale()).toBe(DEFAULT_LOCALE));
+  });
+
+  // m3: Macau uses traditional script.
+  it('maps zh-MO to zh-Hant', () => {
+    withLanguages(['zh-MO'], () => expect(detectLocale()).toBe('zh-Hant'));
+  });
+
+  // m2: some browsers only populate the singular navigator.language, not
+  // navigator.languages — detectLocale must still find it.
+  describe('navigator.language fallback (m2)', () => {
+    it('consults navigator.language when navigator.languages is undefined', () => {
+      withLanguagesAndLanguage(undefined, 'zh-TW', () => expect(detectLocale()).toBe('zh-Hant'));
+    });
+
+    it('consults navigator.language when navigator.languages is empty', () => {
+      withLanguagesAndLanguage([], 'zh-CN', () => expect(detectLocale()).toBe('zh-Hans'));
+    });
+
+    it('prefers navigator.languages over navigator.language when both are present', () => {
+      withLanguagesAndLanguage(['en-US'], 'zh-CN', () => expect(detectLocale()).toBe('en'));
+    });
+
+    it('falls back to DEFAULT_LOCALE when both are empty/unmatched', () => {
+      withLanguagesAndLanguage([], 'fr-FR', () => expect(detectLocale()).toBe(DEFAULT_LOCALE));
+      withLanguagesAndLanguage(undefined, undefined, () => expect(detectLocale()).toBe(DEFAULT_LOCALE));
+    });
   });
 });
 

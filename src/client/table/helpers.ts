@@ -12,6 +12,7 @@ import { classifyPlays, sequenceWindow } from '../../engine/guandan/combos';
 import { JIANGSU_OFFICIAL_ONLINE, type RuleVariant } from '../../engine/guandan/config';
 import type {
   CanonicalForm,
+  ComboType,
   GuandanAction,
   GuandanEvent,
   GuandanView,
@@ -260,8 +261,16 @@ const COMBO_KEYS: Record<CanonicalForm['type'], TranslationKey> = {
   jokerBomb: 'game.combo.jokerBomb',
 };
 
+/** Same mapping as {@link comboKey}, keyed on the bare combo type — lets a
+ *  caller that only has (type, keyRank) apart (e.g. a folded feed line's
+ *  SEMANTIC record, resolved at render time — GameTable/EventFeed, m1 fix)
+ *  look up the translation key without reconstructing a full CanonicalForm. */
+export function comboKeyForType(type: ComboType): TranslationKey {
+  return COMBO_KEYS[type];
+}
+
 export function comboKey(decl: CanonicalForm): TranslationKey {
-  return COMBO_KEYS[decl.type];
+  return comboKeyForType(decl.type);
 }
 
 /** Run description for a straight-flush decl ("A–5♠", "5–9♥"): the chooser

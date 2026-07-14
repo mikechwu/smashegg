@@ -12,27 +12,49 @@
 //    interpretation path (matchSelection/declSignature from
 //    src/client/table/helpers.ts) against real server hints over the wire.
 //
-// RARE-PATH PROOF LEVELS (stated honestly, per test): rooms accept no seed
-// (PLAN §8 — seeds are server-minted), so seed-dependent rare paths
-// (anti-tribute, A-suspension) cannot be FORCED over the wire. Each rare-path
-// test therefore has two phases:
+// RARE-PATH PROOF LEVELS (stated honestly, per test AND per title): rooms
+// accept no seed (PLAN §8 — seeds are server-minted), so seed-dependent
+// rare paths (wild disambiguation, anti-tribute, A-suspension) cannot be
+// FORCED over the wire. Each rare-path test therefore has two phases:
 //  (A) a DETERMINISTIC engine-level proof: a bounded seed scan drives the
 //      real engine (same first-hint policy as the wire bot) to the rare
-//      path and asserts the full mechanics — this phase can never flake and
-//      is the guaranteed regression;
+//      path and asserts the full mechanics — this phase can never flake,
+//      is the GUARANTEED regression, and is exactly what each test's title
+//      promises ("engine-guaranteed");
 //  (B) a BOUNDED wire hunt: fresh rooms are created and bot-driven until
 //      the rare path occurs on the wire (probability per match is high —
 //      measured ~0.73 for anti-tribute, ~0.35 for suspension — so the hunt
-//      succeeds in the overwhelming majority of runs); when it does, the
-//      wire transport of the events is asserted too. The proof level
-//      actually achieved is recorded in the PROOF-LEVEL summary printed by
-//      afterAll and must be reported by whoever reads the run.
+//      succeeds in the overwhelming majority of runs, but depends on the
+//      server-minted seed each room happens to get — "seed-huntable");
+//      when it does, the wire transport of the events is asserted too.
+//
+// M1/M2 fix (title honesty + machine-visible proof level): a test's TITLE
+// must claim only what a GREEN run of that test guarantees — never more.
+// Titling these "over the full wire stack" was false advertising: a green
+// run only guarantees phase A (engine-level); phase B is a bonus that a
+// green run does NOT guarantee (an exhausted hunt still passes the test).
+// So titles now read "<path>: engine-guaranteed, wire-verified when
+// seed-huntable". The level EACH test actually achieved this run is no
+// longer just console-printed (afterAll's PROOF-LEVEL summary, kept below
+// for humans) — it is written into `proofLevels` (shared, in-memory) and
+// then asserted + persisted to tests/e2e/.proof-levels.json (gitignored)
+// by the dedicated FINAL test, "proof-level summary is recorded and ≥
+// engine for all rare paths". CI runs in DEFAULT mode, where that summary
+// test only requires every rare path to have recorded at least the
+// engine-level proof (always true — phase A never flakes). Set
+// E2E_REQUIRE_WIRE=1 (a scheduled/extended run, never plain CI) to switch
+// the summary test to STRICT mode, where it additionally FAILS unless all
+// three rare paths reached 'wire' this run — i.e. an assertion that the
+// wire hunts got lucky, not just that the engine proofs held.
 //
 // Bot policy: same "first-hint bot" as tests/e2e/guandan.e2e.test.ts (the
 // expected actor plays the FIRST server-provided hint); the driver here is
 // that file's, extended with wall-clock deadlines and graceful stop reasons
 // so bounded hunts can span multiple rooms.
 
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 import type { Seat } from '../../src/engine/core/game';
@@ -298,6 +320,21 @@ function engineFirstHintDrive(
 }
 
 // ---------------------------------------------------------------------------
+// M1/M2: machine-visible proof-level record. Each rare-path test writes the
+// level it ACTUALLY achieved this run; the dedicated final test asserts
+// every rare path recorded at least 'engine' and persists the record to
+// tests/e2e/.proof-levels.json (gitignored) so it survives past the run's
+// console output and can be audited later (docs/research/METHODOLOGY.md
+// QA-ratchet paragraph).
+// ---------------------------------------------------------------------------
+
+type ProofLevel = 'engine' | 'wire';
+type RarePathId = 'wildDisambiguation' | 'antiTribute' | 'suspension';
+const RARE_PATH_IDS: readonly RarePathId[] = ['wildDisambiguation', 'antiTribute', 'suspension'];
+const proofLevels = new Map<RarePathId, ProofLevel>();
+const PROOF_LEVELS_PATH = fileURLToPath(new URL('.proof-levels.json', import.meta.url));
+
+// ---------------------------------------------------------------------------
 // Test 3 scenario: a leading turn whose hand holds a wild + two distinct
 // natural pairs — {a,a,b,b,W} then classifies as EXACTLY two full houses
 // (over a and over b): the wild multi-interpretation case.
@@ -469,7 +506,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
   );
 
   test(
-    'concrete selection path incl. wild multi-interpretation',
+    'wild disambiguation: engine-guaranteed, wire-verified when seed-huntable',
     async () => {
       // Drive rooms until some seat LEADS holding a wild + two distinct
       // natural pairs; then run the client's OWN matchSelection over its
@@ -540,6 +577,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
           expect(played!.seat).toBe(actor);
           expect(sameMultiset(played!.cards, scenario.selection)).toBe(true);
           expect(declSignature(played!.decl)).toBe(declSignature(chosen.decl));
+          proofLevels.set('wildDisambiguation', 'wire');
           proofNotes.push(
             `test 3 (wild disambiguation): WIRE path — room ${hunt.roomsTried}, ` +
               `found after ${progress.actionsApplied} bot actions; ` +
@@ -583,6 +621,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
           expect(sameMultiset(played!.cards, scenario.selection)).toBe(true);
           expect(declSignature(played!.decl)).toBe(declSignature(chosen.decl));
         }
+        proofLevels.set('wildDisambiguation', 'engine');
         proofNotes.push(
           `test 3 (wild disambiguation): ENGINE-CONSTRUCTED fallback (wire hunt exhausted ` +
             `after ${hunt.roomsTried} rooms) — seed wild-fallback-${i}`,
@@ -595,7 +634,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
   );
 
   test(
-    'anti-tribute over the full wire stack',
+    'anti-tribute: engine-guaranteed, wire-verified when seed-huntable',
     async () => {
       // ---- Phase A (deterministic): engine seed scan to a REAL hand-2+
       // anti-tribute, asserting the full mechanics. ----
@@ -671,6 +710,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
             expect(view.tribute).toBeNull();
             expect(view.trick!.leader).toBe(prevOrder[0]);
           }
+          proofLevels.set('antiTribute', 'wire');
           proofNotes.push(
             `test 4 (anti-tribute): WIRE-LEVEL proof — room ${hunt.roomsTried}, hand ` +
               `${progress.maxHandNo}, after ${progress.actionsApplied} bot actions ` +
@@ -680,6 +720,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
           client.close();
         }
       } else {
+        proofLevels.set('antiTribute', 'engine');
         proofNotes.push(
           `test 4 (anti-tribute): ENGINE-CONSTRUCTED proof only (seed ${ep.seed}); wire hunt ` +
             `exhausted (${hunt.roomsTried} rooms) — rooms accept no seed, so wire occurrence ` +
@@ -691,7 +732,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
   );
 
   test(
-    'suspension over the full wire stack',
+    'suspension: engine-guaranteed, wire-verified when seed-huntable',
     async () => {
       // Owner house rule accelerated to reachability: ONE failed A-attempt
       // suspends (aMaxAttempts:1), match never ends by overshoot.
@@ -816,6 +857,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
             expect(clearEnded.newLevels[wireTeam]).toBe('A');
             clearNote = 'clear-by-win ALSO observed on the wire';
           }
+          proofLevels.set('suspension', 'wire');
           proofNotes.push(
             `test 5 (suspension): WIRE-LEVEL proof — room ${hunt.roomsTried}, hand ` +
               `${progress.maxHandNo}, after ${progress.actionsApplied} bot actions; ${clearNote} ` +
@@ -825,6 +867,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
           client.close();
         }
       } else {
+        proofLevels.set('suspension', 'engine');
         proofNotes.push(
           `test 5 (suspension): ENGINE-CONSTRUCTED proof only incl. clear (seed ${engineSeed}); ` +
             `wire hunt exhausted (${hunt.roomsTried} rooms) — rooms accept no seed, wire ` +
@@ -834,4 +877,37 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
     },
     115_000,
   );
+
+  test('proof-level summary is recorded and ≥ engine for all rare paths', () => {
+    // Every rare-path test above ALWAYS records a level (its engine-level
+    // phase A is deterministic and never flakes) — this can only fail if a
+    // rare-path test above was skipped/reordered or a future rare path was
+    // added without wiring its proofLevels.set(...) calls.
+    const levels: Record<RarePathId, ProofLevel | undefined> = {
+      wildDisambiguation: proofLevels.get('wildDisambiguation'),
+      antiTribute: proofLevels.get('antiTribute'),
+      suspension: proofLevels.get('suspension'),
+    };
+    for (const id of RARE_PATH_IDS) {
+      expect(levels[id], `${id} recorded no proof level at all (≥ 'engine' required)`).toBeDefined();
+    }
+
+    const requireWire = process.env.E2E_REQUIRE_WIRE === '1';
+    const summary = {
+      generatedAt: new Date().toISOString(),
+      requireWire,
+      levels,
+    };
+    mkdirSync(dirname(PROOF_LEVELS_PATH), { recursive: true });
+    writeFileSync(PROOF_LEVELS_PATH, `${JSON.stringify(summary, null, 2)}\n`);
+
+    // Opt-in STRICT mode (E2E_REQUIRE_WIRE=1, a scheduled/extended run —
+    // never plain CI, docs/research/METHODOLOGY.md QA-ratchet paragraph):
+    // demand all three rare paths ACTUALLY crossed the wire this run.
+    if (requireWire) {
+      for (const id of RARE_PATH_IDS) {
+        expect(levels[id], `${id} did not reach 'wire' this run (E2E_REQUIRE_WIRE=1)`).toBe('wire');
+      }
+    }
+  });
 });

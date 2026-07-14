@@ -38,6 +38,10 @@ test-results/
 playwright-report/
 blob-report/
 playwright/.cache/
+# e2e rare-path PROOF-LEVEL summary (tests/e2e/product-paths.e2e.test.ts) —
+# machine-readable record of the proof level each run achieved; regenerated
+# every run, never a source-of-truth artifact.
+tests/e2e/.proof-levels.json
 
 # --- macOS ---
 .DS_Store

@@ -17,7 +17,6 @@ import type { GuandanAction, GuandanEvent } from '../engine/guandan/types';
 import type { Card, Rank } from '../engine/guandan/cards';
 import type { RoomSnapshot, RoomStore } from './room/store';
 import { ActionBar } from './table/ActionBar';
-import { cardLabel } from './table/CardFace';
 import { CeremonyOverlay } from './table/CeremonyOverlay';
 import { EventFeed, FEED_LIMIT, type FeedLine } from './table/EventFeed';
 import { HandFan } from './table/HandFan';
@@ -31,11 +30,9 @@ import {
   asGuandanEvents,
   asGuandanView,
   asRuleVariant,
-  comboKey,
   errorKeyFor,
   matchSelection,
   multisetKey,
-  placeKey,
   placeOf,
   rankText,
   seatLayout,
@@ -83,7 +80,7 @@ function writeHandSortDescending(descending: boolean): void {
 // Per-seat presentation state folded from event batches.
 // ---------------------------------------------------------------------------
 
-interface SeatDerived {
+export interface SeatDerived {
   feed: FeedLine[];
   passed: Seat[];
   jiefeng: { finisher: Seat; leader: Seat } | null;
@@ -93,7 +90,7 @@ interface SeatDerived {
   sweep: number;
 }
 
-const EMPTY_DERIVED: SeatDerived = {
+export const EMPTY_DERIVED: SeatDerived = {
   feed: [],
   passed: [],
   jiefeng: null,
@@ -103,7 +100,12 @@ const EMPTY_DERIVED: SeatDerived = {
   sweep: 0,
 };
 
-function foldEvents(
+// Exported (not just used internally) so a unit test can fold real events
+// and assert the resulting FeedLine carries SEMANTIC params (combo/place/
+// card descriptors, not pre-localized strings) and that resolving those
+// params (EventFeed.resolveFeedParams) re-localizes correctly after a
+// locale switch — tests/unit/client/table.test.ts, m1 fix.
+export function foldEvents(
   prev: SeatDerived,
   events: readonly GuandanEvent[],
   viewerTeam: 0 | 1,
@@ -127,7 +129,7 @@ function foldEvents(
         d.anti = null; // the 抗貢 reveal yields the center back to the trick
         push('game.feed.played', {
           name: nameFor(ev.seat),
-          combo: `${t(comboKey(ev.decl))} ${rankText(ev.decl.keyRank)}`,
+          combo: { kind: 'combo', comboType: ev.decl.type, keyRank: ev.decl.keyRank },
         });
         break;
       case 'passed':
@@ -142,14 +144,12 @@ function foldEvents(
         d.jiefeng = { finisher: ev.finisher, leader: ev.leader };
         push('game.feed.jiefeng', { name: nameFor(ev.leader) });
         break;
-      case 'playerFinished': {
-        const key = placeKey(ev.place);
+      case 'playerFinished':
         push('game.feed.playerFinished', {
           name: nameFor(ev.seat),
-          place: key === null ? String(ev.place) : t(key),
+          place: { kind: 'place', place: ev.place },
         });
         break;
-      }
       case 'tributeCommitted':
         push('game.feed.tributeCommitted', { name: nameFor(ev.seat) });
         break;
@@ -158,7 +158,7 @@ function foldEvents(
           push('game.feed.tributePaid', {
             from: nameFor(p.from),
             to: nameFor(p.to),
-            card: cardLabel(p.card, d.level),
+            card: { kind: 'card', card: p.card, level: d.level },
           });
         }
         break;
@@ -167,7 +167,7 @@ function foldEvents(
           push('game.feed.tributeReturned', {
             from: nameFor(p.from),
             to: nameFor(p.to),
-            card: cardLabel(p.card, d.level),
+            card: { kind: 'card', card: p.card, level: d.level },
           });
         }
         break;

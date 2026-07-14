@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { sortCards, type Card, type Rank } from '../../../src/engine/guandan/cards';
-import type { CanonicalForm, GuandanAction, GuandanView } from '../../../src/engine/guandan/types';
+import type { CanonicalForm, GuandanAction, GuandanEvent, GuandanView } from '../../../src/engine/guandan/types';
 import { GuandanGame, JIANGSU_OFFICIAL_ONLINE } from '../../../src/engine/guandan';
 import {
   activeSeats,
@@ -25,6 +25,9 @@ import {
   tributeEligibleCards,
   tributeKind,
 } from '../../../src/client/table/helpers';
+import { EMPTY_DERIVED, foldEvents } from '../../../src/client/GameTable';
+import { resolveFeedParams } from '../../../src/client/table/EventFeed';
+import { getLocale, setLocale, t } from '../../../src/client/i18n';
 
 function play(cards: Card[], decl: CanonicalForm): GuandanAction {
   return { type: 'play', cards, decl };
@@ -406,5 +409,82 @@ describe('asGuandanView', () => {
     expect(
       asGuandanView({ phase: 'playing', hand: [], levels: ['2', '2'] }),
     ).not.toBeNull();
+  });
+});
+
+// m1 fix: foldEvents must store SEMANTIC data (combo type key + rank, place
+// index, card code) in a FeedLine's params, never a pre-localized string —
+// otherwise a mid-session locale switch leaves earlier feed lines baked in
+// the OLD language. These tests fold once, then resolve the SAME FeedLine
+// (EventFeed.resolveFeedParams) under two different locales, proving the
+// output re-localizes without re-folding.
+describe('foldEvents + EventFeed render-time localization (m1)', () => {
+  const nameFor = () => 'Alice';
+  let nextId = 0;
+  const idGen = () => nextId++;
+
+  it('a folded "played" line (combo semantics) re-localizes after a locale switch', () => {
+    const original = getLocale();
+    try {
+      const decl: CanonicalForm = { type: 'pair', size: 2, keyRank: '9' };
+      const events: GuandanEvent[] = [{ type: 'played', seat: 0, cards: ['9S', '9C'], decl }];
+      const derived = foldEvents(EMPTY_DERIVED, events, 0, nameFor, idGen);
+      const line = derived.feed[0]!;
+      expect(line.key).toBe('game.feed.played');
+      // The fold must NOT have baked a translated string into params.
+      expect(line.params?.combo).toEqual({ kind: 'combo', comboType: 'pair', keyRank: '9' });
+
+      setLocale('en');
+      const en = t(line.key, resolveFeedParams(line.params));
+      setLocale('zh-Hant');
+      const zhHant = t(line.key, resolveFeedParams(line.params));
+      setLocale('zh-Hans');
+      const zhHans = t(line.key, resolveFeedParams(line.params));
+
+      expect(en).toBe('Alice played Pair 9');
+      expect(zhHant).toBe('Alice 出 對子 9');
+      expect(zhHans).toBe('Alice 出 对子 9');
+      // Same folded line object, three different renders — proof the
+      // localization happens at render (resolveFeedParams), not at fold.
+      expect(new Set([en, zhHant, zhHans]).size).toBe(3);
+    } finally {
+      setLocale(original);
+    }
+  });
+
+  it('a folded "playerFinished" line (place semantics) re-localizes after a locale switch', () => {
+    const original = getLocale();
+    try {
+      const events: GuandanEvent[] = [{ type: 'playerFinished', seat: 1, place: 1 }];
+      const derived = foldEvents(EMPTY_DERIVED, events, 0, nameFor, idGen);
+      const line = derived.feed[0]!;
+      expect(line.params?.place).toEqual({ kind: 'place', place: 1 });
+
+      setLocale('en');
+      expect(t(line.key, resolveFeedParams(line.params))).toBe('Alice went out (1st out)');
+      setLocale('zh-Hant');
+      expect(t(line.key, resolveFeedParams(line.params))).toBe('Alice 出完了(頭游)');
+    } finally {
+      setLocale(original);
+    }
+  });
+
+  it('a folded "tributePaid" line (card semantics) re-localizes after a locale switch', () => {
+    const original = getLocale();
+    try {
+      const events: GuandanEvent[] = [
+        { type: 'tributePaid', pairings: [{ from: 0, to: 1, card: 'KS' }] },
+      ];
+      const derived = foldEvents(EMPTY_DERIVED, events, 0, nameFor, idGen);
+      const line = derived.feed[0]!;
+      expect(line.params?.card).toEqual({ kind: 'card', card: 'KS', level: EMPTY_DERIVED.level });
+
+      setLocale('en');
+      expect(t(line.key, resolveFeedParams(line.params))).toBe('Alice paid K of Spades to Alice');
+      setLocale('zh-Hant');
+      expect(t(line.key, resolveFeedParams(line.params))).toBe('Alice 進貢 黑桃K 給 Alice');
+    } finally {
+      setLocale(original);
+    }
   });
 });
