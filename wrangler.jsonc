@@ -6,6 +6,14 @@
   "main": "src/server/index.ts",
   "compatibility_date": "2026-07-13",
 
+  // Deployed default: the room-dump route (PLAN.md §6) is gated behind
+  // DEBUG_DUMP_TOKEN in production. Local `wrangler dev` overrides this to
+  // "dev" via .dev.vars (see .dev.vars.example), which opens the dump route
+  // unconditionally.
+  "vars": {
+    "ENVIRONMENT": "production"
+  },
+
   // Assets are matched first against the request path; anything that does
   // not match a static file (notably /api/*) falls through to the Worker's
   // `fetch` handler in src/server/index.ts. "single-page-application"

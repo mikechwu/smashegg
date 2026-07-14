@@ -1,7 +1,14 @@
 # Copy this file to .dev.vars (gitignored) and fill in real values for
-# local `wrangler dev` runs. Never commit .dev.vars itself.
+# local `wrangler dev` runs — wrangler dev auto-loads .dev.vars and its
+# values override wrangler.jsonc "vars". Never commit .dev.vars itself.
 
-# Gates the future GET /api/debug/rooms/:code/dump route (PLAN.md §6): the
-# route is always on under `wrangler dev`, but in production it 404s
-# unless this secret is configured AND presented by the caller.
+# ENVIRONMENT=dev opens GET /api/rooms/:code/dump unconditionally for local
+# debugging (PLAN.md §6). The deployed default is "production" (see
+# wrangler.jsonc "vars"), where the dump route 404s unless
+# DEBUG_DUMP_TOKEN is configured AND presented.
+ENVIRONMENT=dev
+
+# Gates GET /api/rooms/:code/dump outside dev (PLAN.md §6): in production
+# the route 404s unless this secret is configured AND presented by the
+# caller in the 'x-debug-dump-token' header.
 DEBUG_DUMP_TOKEN=dev-only-example
