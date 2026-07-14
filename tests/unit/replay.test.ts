@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { JIANGSU_OFFICIAL_ONLINE } from '../../src/engine/guandan/config';
 import type { RuleVariant } from '../../src/engine/guandan/config';
 import type { GuandanAction } from '../../src/engine/guandan/types';
+import { GuessNumberGame, type GNConfig } from '../../src/engine/guess-number';
+import type { Seat } from '../../src/engine/core/game';
 import { recordPlayout, replayMatch, type ReplayInput } from '../../scripts/replay';
 
 /** Snapshot every recorded state at its seq, in the {seq, state} shape
@@ -80,7 +82,7 @@ describe('replay harness (scripts/replay.ts)', () => {
     // If our synthetic tamper happened to also be 'pass' (i.e. original was
     // already 'pass' and forcing 'pass' again is a no-op), force a
     // different, definitely-distinct tamper: swap the acting seat instead.
-    if (tampered.actions[tamperIndex]!.action.type === original.action.type) {
+    if ((tampered.actions[tamperIndex]!.action as GuandanAction).type === original.action.type) {
       tampered.actions[tamperIndex] = { seat: ((original.seat + 1) % 4), action: original.action };
     }
 
@@ -125,6 +127,61 @@ describe('replay harness (scripts/replay.ts)', () => {
     // And replaying the round-tripped artifact reproduces the same states.
     const result = replayMatch(roundTripped, { snapshots: snapshotsFrom(rec.states) });
     expect(result.ok).toBe(true);
+  });
+
+  it("replays an artifact with gameId 'guess-number' through the registry-resolved game", () => {
+    // Record a real guess-number playout through the public GameDefinition
+    // surface (defaultAction = binary-search midpoint, so it terminates),
+    // then replay the recorded (gameId, seed, config, seats, actions) and
+    // demand bit-for-bit agreement at every seq. seats=3 (< maxSeats=4)
+    // also proves the artifact's `seats` field reaches game.init.
+    const config: GNConfig = { rangeMax: 100, suddenDeath: false };
+    const seed = 'replay-guess-number';
+    const seats = 3;
+
+    const init = GuessNumberGame.init(config, seats, seed);
+    let state = init.state;
+    const states: unknown[] = [state];
+    const actions: { seat: Seat; action: unknown }[] = [];
+    for (let guard = 0; !GuessNumberGame.isTerminal(state) && guard < 1_000; guard++) {
+      const seat = GuessNumberGame.expectedActors(state)[0]!;
+      const action = GuessNumberGame.defaultAction(state, seat)!;
+      const res = GuessNumberGame.applyAction(state, seat, action);
+      if (!res.ok) throw new Error(`recording playout hit a rejection: ${res.error.code}`);
+      state = res.state;
+      states.push(state);
+      actions.push({ seat, action });
+    }
+    expect(GuessNumberGame.isTerminal(state)).toBe(true);
+    expect(actions.length).toBeGreaterThan(0);
+
+    const result = replayMatch(
+      { gameId: 'guess-number', seed, config, seats, actions },
+      { snapshots: states.map((s, seq) => ({ seq, state: s })) },
+    );
+    expect(result.ok).toBe(true);
+    expect(result.divergence).toBeUndefined();
+    expect(result.rejection).toBeUndefined();
+    expect(result.finalState).toEqual(state);
+  });
+
+  it("resolves 'guandan' when the artifact carries no gameId (M1 back-compat)", () => {
+    const rec = recordPlayout('replay-backcompat', JIANGSU_OFFICIAL_ONLINE, undefined, {
+      maxActions: 5_000,
+      stopAfterHands: 1,
+    });
+    // An M1-era artifact is exactly {seed, config, actions} — strip the
+    // self-describing fields recordPlayout now adds.
+    const { gameId: _gameId, seats: _seats, ...bare } = rec.artifact;
+    const result = replayMatch(bare as ReplayInput, { snapshots: snapshotsFrom(rec.states) });
+    expect(result.ok).toBe(true);
+    expect(result.finalState).toEqual(rec.states[rec.states.length - 1]);
+  });
+
+  it('reports an unknown gameId as a structured rejection, never a crash', () => {
+    const result = replayMatch({ gameId: 'no-such-game', seed: 's', config: null, actions: [] });
+    expect(result.ok).toBe(false);
+    expect(result.rejection?.error).toEqual({ code: 'replay.unknownGame', params: { gameId: 'no-such-game' } });
   });
 
   it('is deterministic: replaying the same artifact twice is identical', () => {

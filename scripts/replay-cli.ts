@@ -5,11 +5,14 @@
 // Usage: npx vite-node scripts/replay-cli.ts -- <artifact.json>
 
 import { replayMatch, type ReplayActionEntry, type ReplaySnapshot } from './replay';
-import type { RuleVariant } from '../src/engine/guandan/config';
 
+/** The replay artifact (see scripts/replay.ts header): gameId/seats are
+ *  optional — absent means 'guandan' / game.maxSeats (M1 back-compat). */
 interface ArtifactFile {
+  gameId?: string;
   seed: string;
-  config: RuleVariant;
+  config: unknown;
+  seats?: number;
   actions: ReplayActionEntry[];
   snapshots?: ReplaySnapshot[];
 }
@@ -20,7 +23,13 @@ async function runCli(filePath: string): Promise<number> {
   const artifact = JSON.parse(raw) as ArtifactFile;
 
   const result = replayMatch(
-    { seed: artifact.seed, config: artifact.config, actions: artifact.actions },
+    {
+      ...(artifact.gameId !== undefined ? { gameId: artifact.gameId } : {}),
+      seed: artifact.seed,
+      config: artifact.config,
+      ...(artifact.seats !== undefined ? { seats: artifact.seats } : {}),
+      actions: artifact.actions,
+    },
     artifact.snapshots ? { snapshots: artifact.snapshots } : undefined,
   );
 

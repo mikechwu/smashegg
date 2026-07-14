@@ -73,6 +73,9 @@ interface RoomRow {
   status: RoomStatus;
   code: string;
   created_at: number;
+  /** The exact seed passed to game.init at start (PLAN §6 replay artifact);
+   *  NULL until the room leaves the lobby. */
+  seed: string | null;
   [column: string]: SqlStorageValue;
 }
 
@@ -92,6 +95,14 @@ interface SnapshotRow {
 interface EventsRow {
   seq: number;
   events_json: string;
+  [column: string]: SqlStorageValue;
+}
+
+interface ActionRow {
+  seq: number;
+  seat: number;
+  action_id: string;
+  action_json: string;
   [column: string]: SqlStorageValue;
 }
 
@@ -180,9 +191,18 @@ export class GameRoom extends DurableObject<Env> {
          config_json TEXT NOT NULL,
          status TEXT NOT NULL CHECK (status IN ('lobby','playing','finished')),
          code TEXT NOT NULL,
-         created_at INTEGER NOT NULL
+         created_at INTEGER NOT NULL,
+         seed TEXT  -- set at start: the exact seed passed to game.init (PLAN §6 replay)
        )`,
     );
+    // Migration for rooms created before the seed column existed: SQLite has
+    // no ADD COLUMN IF NOT EXISTS, so probe the live schema first.
+    const roomColumns = sql
+      .exec<{ name: string; [c: string]: SqlStorageValue }>("SELECT name FROM pragma_table_info('room')")
+      .toArray();
+    if (!roomColumns.some((c) => c.name === 'seed')) {
+      sql.exec('ALTER TABLE room ADD COLUMN seed TEXT');
+    }
     sql.exec(
       `CREATE TABLE IF NOT EXISTS seats (
          seat INTEGER PRIMARY KEY,
@@ -201,6 +221,18 @@ export class GameRoom extends DurableObject<Env> {
       `CREATE TABLE IF NOT EXISTS events (
          seq INTEGER PRIMARY KEY,
          events_json TEXT NOT NULL  -- JSON ARRAY of the engine events from that one applied action
+       )`,
+    );
+    // The replay-artifact action log (PLAN §6): one row per APPLIED action —
+    // player-submitted and alarm-applied timeouts alike — with seq matching
+    // the mutation seq. The start mutation writes NO row here: replay
+    // reproduces it via game.init(config, seats, seed).
+    sql.exec(
+      `CREATE TABLE IF NOT EXISTS actions (
+         seq INTEGER PRIMARY KEY,
+         seat INTEGER NOT NULL,
+         action_id TEXT NOT NULL,
+         action_json TEXT NOT NULL
        )`,
     );
     sql.exec(
@@ -233,7 +265,7 @@ export class GameRoom extends DurableObject<Env> {
 
   private readRoomRow(): RoomRow | null {
     const rows = this.ctx.storage.sql
-      .exec<RoomRow>('SELECT game_id, config_json, status, code, created_at FROM room WHERE id = 1')
+      .exec<RoomRow>('SELECT game_id, config_json, status, code, created_at, seed FROM room WHERE id = 1')
       .toArray();
     const row = rows[0] ?? null;
     if (row) this.roomCode = row.code;
@@ -477,6 +509,9 @@ export class GameRoom extends DurableObject<Env> {
     const eventRows = this.ctx.storage.sql
       .exec<EventsRow>('SELECT seq, events_json FROM events ORDER BY seq')
       .toArray();
+    const actionRows = this.ctx.storage.sql
+      .exec<ActionRow>('SELECT seq, seat, action_id, action_json FROM actions ORDER BY seq')
+      .toArray();
     const seen = this.ctx.storage.sql
       .exec<ActionSeenRow>('SELECT action_id, result_seq, at FROM actions_seen ORDER BY at')
       .toArray();
@@ -485,6 +520,11 @@ export class GameRoom extends DurableObject<Env> {
       .toArray();
 
     return Response.json({
+      // Top-level gameId + seed: with room.config and the actions rows they
+      // form the exact replay-artifact triple scripts/dump-room.ts converts
+      // to (PLAN §6). seed is null until the room leaves the lobby.
+      gameId: room.game_id,
+      seed: room.seed,
       room: {
         gameId: room.game_id,
         config: this.parseConfig(room),
@@ -494,6 +534,12 @@ export class GameRoom extends DurableObject<Env> {
       seats: this.readSeatRows().map((r) => ({ seat: r.seat, name: r.name, tokenHash: r.token_hash })),
       snapshot: { seq: snapshot.seq, state: snapshot.state_json === null ? null : JSON.parse(snapshot.state_json) },
       events: eventRows.map((r) => ({ seq: r.seq, events: JSON.parse(r.events_json) as unknown[] })),
+      actions: actionRows.map((r) => ({
+        seq: r.seq,
+        seat: r.seat,
+        actionId: r.action_id,
+        action: JSON.parse(r.action_json) as unknown,
+      })),
       actionsSeen: seen.map((r) => ({ actionId: r.action_id, resultSeq: r.result_seq, at: r.at })),
       deadlines: deadlineRows.map((r) => ({ seat: r.seat, dueAt: r.due_at })),
     });
@@ -810,7 +856,9 @@ export class GameRoom extends DurableObject<Env> {
       return reject(wireError('room.startFailed', { message }));
     }
 
-    this.ctx.storage.sql.exec("UPDATE room SET status = 'playing' WHERE id = 1");
+    // Persist the seed alongside the status flip — it is the first leg of
+    // the (seed, config, action log) replay triple (PLAN §6).
+    this.ctx.storage.sql.exec("UPDATE room SET status = 'playing', seed = ? WHERE id = 1", seed);
     const seq = this.bumpSeq();
     this.ctx.storage.sql.exec(
       'UPDATE snapshot SET state_json = ? WHERE id = 1',
@@ -991,6 +1039,17 @@ export class GameRoom extends DurableObject<Env> {
       actionId,
       newSeq,
       Date.now(),
+    );
+    // Replay-artifact log (PLAN §6): both the client path and the alarm
+    // path flow through here, so every applied action — and only applied
+    // ones; duplicates returned above never reach this line — gets exactly
+    // one row, keyed by the mutation seq it produced.
+    this.ctx.storage.sql.exec(
+      'INSERT INTO actions (seq, seat, action_id, action_json) VALUES (?, ?, ?, ?)',
+      newSeq,
+      seat,
+      actionId,
+      JSON.stringify(opts.action),
     );
     if (game.isTerminal(applied.state)) {
       this.ctx.storage.sql.exec("UPDATE room SET status = 'finished' WHERE id = 1");

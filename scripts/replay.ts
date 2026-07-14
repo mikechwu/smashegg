@@ -1,28 +1,40 @@
-// Deterministic replay harness (PLAN.md §6 — required M1 deliverable).
+// Deterministic replay harness (PLAN.md §6 — required M1 deliverable,
+// generalized to any registered GameDefinition at M2).
 //
-// Because GuandanGame is a pure, deterministic, seeded engine (PLAN §3), the
-// triple (seed, config, ordered action log) reconstructs any match bit for
-// bit. This module is the one place that turns that fact into a reusable
-// tool: a library API (`replayMatch`, `recordPlayout`) for tests and
-// postmortem tooling, plus a thin CLI wrapper.
+// Because every engine is a pure, deterministic, seeded GameDefinition
+// (PLAN §3), the tuple (gameId, seed, config, ordered action log)
+// reconstructs any match bit for bit. This module is the one place that
+// turns that fact into a reusable tool: a library API (`replayMatch`,
+// `recordPlayout`) for tests and postmortem tooling, plus a thin CLI
+// wrapper.
 //
 // ---------------------------------------------------------------------------
 // Artifact format (the exact shape the obligations property suite emits on
-// failure, and the shape this file's CLI consumes):
+// failure, the shape scripts/dump-room.ts derives from a room dump, and the
+// shape the replay CLI consumes):
 //
 //   {
+//     "gameId": "guandan",                                        // optional
 //     "seed": "some-seed-string",
-//     "config": { ...RuleVariant... },
+//     "config": { ...game-defined config... },
+//     "seats": 4,                                                 // optional
 //     "actions": [ { "seat": 0, "action": { "type": "play", "cards": [...] } }, ... ],
-//     "snapshots": [ { "seq": 0, "state": { ...GuandanState... } }, ... ]   // optional
+//     "snapshots": [ { "seq": 0, "state": { ... } }, ... ]        // optional
 //   }
 //
-// - `seed` + `config` are exactly GuandanGame.init's second/first args (seats
-//   is always 4 for guandan).
+// - `gameId` names the GameDefinition to replay through, resolved via the
+//   shared registry (src/shared/games.ts). BACK-COMPAT RULE: when absent it
+//   defaults to 'guandan', so M1-era artifacts — emitted before the field
+//   existed — keep replaying unchanged.
+// - `seed` + `config` are exactly game.init's third/first args.
+// - `seats` is game.init's second arg; when absent it defaults to
+//   game.maxSeats (for guandan that is 4 — exactly the M1 behavior).
 // - `actions` is the ordered action log. Index i (0-based) in this array is
 //   applied to produce the state at seq i+1.
 // - `seq` numbering: seq 0 = the state returned by init() (before any
 //   action). seq N (N >= 1) = the state after applying actions[N-1].
+//   (Room-layer seqs also count lobby mutations, so a dump's action rows
+//   carry room seqs — scripts/dump-room.ts drops them and keeps order.)
 // - `snapshots` is optional: a sparse or dense list of { seq, state } pairs
 //   to deep-compare the replay against. When present, replayMatch reports
 //   the FIRST seq at which the recorded state disagrees with the replayed
@@ -32,20 +44,40 @@
 // engine-internal that isn't already JSON-serializable (obligation 2).
 // ---------------------------------------------------------------------------
 
-import type { RuleError, Seat } from '../src/engine/core/game';
+import type { ApplyResult, RuleError, Seat } from '../src/engine/core/game';
 import { nextInt, seedPrng, type PrngState } from '../src/engine/core/prng';
 import { GuandanGame } from '../src/engine/guandan';
 import type { RuleVariant } from '../src/engine/guandan/config';
 import type { GuandanAction, GuandanEvent, GuandanState } from '../src/engine/guandan/types';
+import { getGame, type AnyGameDefinition } from '../src/shared/games';
 
 // ---------------------------------------------------------------------------
-// Core API — imports ONLY engine code (src/engine/**). No process/console
-// reference below this line until the CLI section at the bottom of the file.
+// Core API — imports ONLY engine code (src/engine/** plus the registry in
+// src/shared/games.ts, which itself imports only src/engine/**). No
+// process/console reference below this line until the CLI section at the
+// bottom of the file.
 // ---------------------------------------------------------------------------
 
+/** The artifact's default game when `gameId` is absent — see the
+ *  BACK-COMPAT RULE in the artifact-format comment above. */
+export const DEFAULT_REPLAY_GAME_ID = 'guandan';
+
+/** Resolve an artifact's gameId to its GameDefinition. Prefers the shared
+ *  registry; falls back to the directly-imported GuandanGame because
+ *  guandan deliberately stays OUT of the registry until M3 (the M2 gate
+ *  compile-proves the room layer pulls zero guandan code) — once M3
+ *  registers it, this fallback becomes dead code and can be dropped. */
+function resolveGame(gameId: string): AnyGameDefinition | null {
+  const registered = getGame(gameId);
+  if (registered) return registered;
+  return gameId === DEFAULT_REPLAY_GAME_ID ? (GuandanGame as AnyGameDefinition) : null;
+}
+
+/** One logged action. `action` is deliberately loose (game-defined JSON) —
+ *  the same deliberate type erasure as the server's AnyGameDefinition. */
 export interface ReplayActionEntry {
   seat: Seat;
-  action: GuandanAction;
+  action: unknown;
 }
 
 export interface ReplaySnapshot {
@@ -54,9 +86,21 @@ export interface ReplaySnapshot {
 }
 
 export interface ReplayInput {
+  /** Absent = 'guandan' (back-compat with M1 artifacts). */
+  gameId?: string;
   seed: string;
-  config: RuleVariant;
+  config: unknown;
+  /** Absent = game.maxSeats (guandan: 4 — the M1 behavior). */
+  seats?: number;
   actions: ReplayActionEntry[];
+}
+
+/** The guandan-typed artifact recordPlayout emits — same wire shape as
+ *  ReplayInput, with the concrete engine types for test ergonomics. */
+export interface GuandanReplayInput extends ReplayInput {
+  gameId: 'guandan';
+  config: RuleVariant;
+  actions: { seat: Seat; action: GuandanAction }[];
 }
 
 export interface ReplayOpts {
@@ -74,14 +118,14 @@ export interface ReplayDivergence {
 export interface ReplayRejection {
   seq: number;
   seat: Seat;
-  action: GuandanAction;
+  action: unknown;
   error: RuleError | { message: string };
 }
 
 export interface ReplayResult {
-  states: GuandanState[];
-  events: GuandanEvent[][];
-  finalState: GuandanState | undefined;
+  states: unknown[];
+  events: unknown[][];
+  finalState: unknown;
   ok: boolean;
   /** First snapshot mismatch, if opts.snapshots was given and one was found. */
   divergence?: ReplayDivergence;
@@ -91,9 +135,11 @@ export interface ReplayResult {
 }
 
 /** Structural deep-equal over plain JSON-shaped data (objects/arrays/
- *  primitives) — exactly what GuandanState is (obligation 2), so this is
- *  sufficient without a general-purpose equality library. */
-function deepEqual(a: unknown, b: unknown): boolean {
+ *  primitives) — exactly what every game state is required to be
+ *  (obligation 2), so this is sufficient without a general-purpose equality
+ *  library. Exported so scripts/dump-room.ts verifies its roundtrip with
+ *  the very same comparison the harness uses. */
+export function deepEqual(a: unknown, b: unknown): boolean {
   if (a === b) return true;
   if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false;
   if (Array.isArray(a) !== Array.isArray(b)) return false;
@@ -120,35 +166,49 @@ function toStructuredError(e: unknown): { message: string } {
   return { message: e instanceof Error ? e.message : String(e) };
 }
 
-/** Replay a recorded (seed, config, action log) through GuandanGame.init +
- *  applyAction, optionally deep-comparing against recorded snapshots at
- *  each seq. Never throws: a rejected action, a thrown error, or a snapshot
- *  mismatch all come back as a structured, seq-tagged result. */
+/** Replay a recorded (gameId, seed, config, action log) through the
+ *  resolved game's init + applyAction, optionally deep-comparing against
+ *  recorded snapshots at each seq. Never throws: an unknown gameId, a
+ *  rejected action, a thrown error, or a snapshot mismatch all come back as
+ *  a structured, seq-tagged result. */
 export function replayMatch(input: ReplayInput, opts?: ReplayOpts): ReplayResult {
   const { seed, config, actions } = input;
+  const gameId = input.gameId ?? DEFAULT_REPLAY_GAME_ID;
   const snapshotBySeq = new Map<number, unknown>();
   for (const s of opts?.snapshots ?? []) snapshotBySeq.set(s.seq, s.state);
 
-  const checkSnapshot = (seq: number, state: GuandanState): ReplayDivergence | null => {
+  const checkSnapshot = (seq: number, state: unknown): ReplayDivergence | null => {
     if (!snapshotBySeq.has(seq)) return null;
     const expected = snapshotBySeq.get(seq);
     if (deepEqual(expected, state)) return null;
     return { seq, expected, actual: state };
   };
 
-  const states: GuandanState[] = [];
-  const events: GuandanEvent[][] = [];
+  const states: unknown[] = [];
+  const events: unknown[][] = [];
 
-  let initResult: { state: GuandanState; events: GuandanEvent[] };
+  const game = resolveGame(gameId);
+  if (!game) {
+    return {
+      states,
+      events,
+      finalState: undefined,
+      ok: false,
+      rejection: { seq: 0, seat: -1, action: null, error: { code: 'replay.unknownGame', params: { gameId } } },
+    };
+  }
+  const seats = input.seats ?? game.maxSeats;
+
+  let initResult: { state: unknown; events: unknown[] };
   try {
-    initResult = GuandanGame.init(config, 4, seed);
+    initResult = game.init(config, seats, seed) as { state: unknown; events: unknown[] };
   } catch (e) {
     return {
       states,
       events,
       finalState: undefined,
       ok: false,
-      rejection: { seq: 0, seat: -1, action: { type: 'pass' }, error: toStructuredError(e) },
+      rejection: { seq: 0, seat: -1, action: null, error: toStructuredError(e) },
     };
   }
 
@@ -165,9 +225,9 @@ export function replayMatch(input: ReplayInput, opts?: ReplayOpts): ReplayResult
     const seq = i + 1;
     const { seat, action } = actions[i]!;
 
-    let applied: ReturnType<typeof GuandanGame.applyAction>;
+    let applied: ApplyResult<unknown, unknown>;
     try {
-      applied = GuandanGame.applyAction(state, seat, action);
+      applied = game.applyAction(state, seat, action) as ApplyResult<unknown, unknown>;
     } catch (e) {
       return {
         states,
@@ -225,7 +285,7 @@ export interface RecordPlayoutOpts {
 }
 
 export interface RecordPlayoutResult {
-  artifact: ReplayInput;
+  artifact: GuandanReplayInput;
   states: GuandanState[];
   events: GuandanEvent[][];
 }
@@ -260,7 +320,7 @@ export function recordPlayout(
   let state = init.state;
   const states: GuandanState[] = [state];
   const events: GuandanEvent[][] = [init.events];
-  const actionsLog: ReplayActionEntry[] = [];
+  const actionsLog: { seat: Seat; action: GuandanAction }[] = [];
 
   let handsCompleted = 0;
   let steps = 0;
@@ -288,5 +348,7 @@ export function recordPlayout(
     if (stopAfterHands !== undefined && handsCompleted >= stopAfterHands) break;
   }
 
-  return { artifact: { seed, config, actions: actionsLog }, states, events };
+  // Recorded artifacts are self-describing (explicit gameId + seats) even
+  // though replayMatch would default both identically for guandan.
+  return { artifact: { gameId: 'guandan', seed, config, seats: 4, actions: actionsLog }, states, events };
 }

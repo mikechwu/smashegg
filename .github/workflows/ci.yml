@@ -31,3 +31,10 @@ jobs:
         run: |
           test -f dist/client/index.html
           test -d dist/client/assets
+
+      # E2E: boots real `wrangler dev` (local workerd — no Cloudflare auth
+      # needed) and drives the GameRoom DO over WebSockets. Must run AFTER
+      # the build step: wrangler dev serves the dist/client assets dir.
+      - name: E2E (wrangler dev)
+        run: npm run test:e2e
+        timeout-minutes: 15

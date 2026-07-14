@@ -4,7 +4,7 @@
   // types so process/fs usage is typed without leaking node globals into
   // the client/engine configs.
   "extends": "./tsconfig.json",
-  "include": ["scripts/**/*"],
+  "include": ["scripts/**/*", "tests/e2e/**/*"],
   "compilerOptions": {
     "lib": ["ES2022"],
     "types": ["node"]
