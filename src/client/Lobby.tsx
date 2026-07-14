@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import type { RoomInfo } from '../shared/protocol';
 import type { RoomSnapshot, RoomStore } from './room/store';
+import { RulePicker } from './RulePicker';
 import { t } from './i18n';
 
 export interface LobbyProps {
@@ -66,14 +67,19 @@ export function Lobby({ snapshot, store }: LobbyProps) {
         </button>
       </form>
 
-      {/* Config-panel slot: the Guandan rule-picker task mounts its editor
-          here (curated RuleVariant subset over the opaque setConfig
-          transport, PLAN §4/§9). Until then: read-only config + placeholder
-          copy, so config broadcasts are already visible end to end. */}
+      {/* Config-panel slot: the curated Guandan rule-picker (a subset of the
+          25 RuleVariant keys over the opaque setConfig transport, PLAN
+          §4/§9). Any seated player may edit; edits broadcast live via
+          configChanged (RulePicker is fully controlled by room.config), and
+          the panel disables itself once the match config is frozen
+          (room.status !== 'lobby'). */}
       <section data-slot="config-panel">
         <h3>{t('lobby.configHeading')}</h3>
-        <p>{t('lobby.configPlaceholder')}</p>
-        {room.config !== null && <pre>{JSON.stringify(room.config, null, 2)}</pre>}
+        <RulePicker
+          config={room.config}
+          disabled={room.status !== 'lobby'}
+          onChange={(config) => store.setConfig(config)}
+        />
       </section>
 
       <button type="button" disabled={!canStart} onClick={() => store.start()}>

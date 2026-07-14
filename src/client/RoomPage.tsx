@@ -72,8 +72,9 @@ export function RoomPage({ code }: RoomPageProps) {
         <Lobby snapshot={snapshot} store={store} />
       ) : (
         // 'playing' and 'finished' both render the table: final views stay
-        // visible at game end (the table task adds a results treatment).
-        <GameTable snapshot={snapshot} />
+        // visible at game end (ResultOverlay). The table needs the store to
+        // submit game actions, same as Lobby.
+        <GameTable snapshot={snapshot} store={store} />
       )}
     </main>
   );

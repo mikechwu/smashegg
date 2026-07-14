@@ -43,6 +43,7 @@ import {
   sha256Hex,
   timeoutActionId,
   timingSafeEqualStr,
+  toWireDeadlines,
 } from './room-helpers';
 
 // Bare literal "ping" -> "pong" answered while hibernated, at zero cost
@@ -369,6 +370,19 @@ export class GameRoom extends DurableObject<Env> {
     this.send(ws, msg);
   }
 
+  private readDeadlineRows(): DeadlineRow[] {
+    return this.ctx.storage.sql
+      .exec<DeadlineRow>('SELECT seat, due_at FROM deadlines ORDER BY seat')
+      .toArray();
+  }
+
+  /** The current per-seat deadlines in wire shape (PLAN §5), broadcast on
+   *  'welcome' | 'resync' | 'event' — public info, unredacted, empty array
+   *  when none are outstanding (lobby/terminal). */
+  private currentWireDeadlines(): ReturnType<typeof toWireDeadlines> {
+    return toWireDeadlines(this.readDeadlineRows());
+  }
+
   private buildRoomInfo(room: RoomRow): RoomInfo {
     const game = this.gameFor(room);
     const seatRows = this.readSeatRows();
@@ -520,9 +534,7 @@ export class GameRoom extends DurableObject<Env> {
     const seen = this.ctx.storage.sql
       .exec<ActionSeenRow>('SELECT action_id, result_seq, at FROM actions_seen ORDER BY at')
       .toArray();
-    const deadlineRows = this.ctx.storage.sql
-      .exec<DeadlineRow>('SELECT seat, due_at FROM deadlines ORDER BY seat')
-      .toArray();
+    const deadlineRows = this.readDeadlineRows();
 
     return Response.json({
       // Top-level gameId + seed: with room.config and the actions rows they
@@ -647,7 +659,15 @@ export class GameRoom extends DurableObject<Env> {
 
     const seq = this.currentSeq();
     const sortedSeats = [...seats].sort((a, b) => a - b);
-    this.send(ws, { v: 1, type: 'welcome', seq, seats: sortedSeats, room: this.buildRoomInfo(room) });
+    const currentDeadlines = this.currentWireDeadlines();
+    this.send(ws, {
+      v: 1,
+      type: 'welcome',
+      seq,
+      seats: sortedSeats,
+      room: this.buildRoomInfo(room),
+      deadlines: currentDeadlines,
+    });
 
     // Per-held-seat resync once a game exists ('playing', and 'finished' so
     // late reconnects still see the end state).
@@ -675,6 +695,7 @@ export class GameRoom extends DurableObject<Env> {
           seq,
           seat,
           view: game.playerView(state, seat),
+          deadlines: currentDeadlines,
         };
         if (sendDelta) {
           resync.events = eventRows.map((r) => ({
@@ -885,8 +906,11 @@ export class GameRoom extends DurableObject<Env> {
     );
 
     this.broadcast({ v: 1, type: 'started', seq });
-    this.fanOutEvents(game, config, seq, init.events, init.state);
+    // Recompute deadlines BEFORE fanning out events (PLAN §5 deadlines
+    // field): the event broadcast must reflect the just-started match's
+    // fresh deadlines, not the pre-start (empty) table.
     await this.recomputeDeadlinesAndAlarm();
+    this.fanOutEvents(game, config, seq, init.events, init.state, this.currentWireDeadlines());
 
     logMutation({
       room: room.code,
@@ -997,6 +1021,7 @@ export class GameRoom extends DurableObject<Env> {
           seq,
           seat,
           view: game.playerView(state, seat),
+          deadlines: this.currentWireDeadlines(),
         };
         if (new Set<Seat>(game.expectedActors(state)).has(seat)) {
           resync.hints = game.legalActions(state, seat) as unknown[];
@@ -1074,10 +1099,16 @@ export class GameRoom extends DurableObject<Env> {
       this.ctx.storage.sql.exec("UPDATE room SET status = 'finished' WHERE id = 1");
     }
 
-    this.fanOutEvents(game, config, newSeq, applied.events, applied.state);
     // Deadlines recomputed after EVERY state change (PLAN §4); fire-and-
-    // forget is fine — storage writes settle within this invocation.
+    // forget is fine for the async alarm-scheduling tail — the delete+insert
+    // SQL statements inside recomputeDeadlinesAndAlarm run synchronously
+    // (only `await scheduleAlarm()` is async), so the `deadlines` table
+    // already reflects the new state by the time currentWireDeadlines()
+    // reads it immediately below, BEFORE fanning out the 'event' broadcast
+    // (PLAN §5 deadlines field: populated from the table after
+    // recomputation).
     void this.recomputeDeadlinesAndAlarm();
+    this.fanOutEvents(game, config, newSeq, applied.events, applied.state, this.currentWireDeadlines());
 
     logMutation({
       room: room.code,
@@ -1101,6 +1132,7 @@ export class GameRoom extends DurableObject<Env> {
     seq: number,
     events: readonly unknown[],
     state: unknown,
+    deadlines: ReturnType<typeof toWireDeadlines>,
   ): void {
     const actors = new Set<Seat>(game.expectedActors(state));
     for (const [ws, seats] of this.sessions) {
@@ -1112,6 +1144,7 @@ export class GameRoom extends DurableObject<Env> {
           seat,
           event: redactEventsFor(game, events, seat, config),
           view: game.playerView(state, seat),
+          deadlines,
         };
         if (actors.has(seat)) msg.hints = game.legalActions(state, seat) as unknown[];
         this.send(ws, msg);

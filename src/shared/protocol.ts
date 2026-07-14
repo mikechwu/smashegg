@@ -78,8 +78,29 @@ export interface WireError {
   params?: Record<string, unknown>;
 }
 
+/** Who is on the clock and when their deadline expires (PLAN §4 turn
+ *  timeouts). `dueAt` is a SERVER-CLOCK epoch-ms timestamp: clients render
+ *  it as relative time (`dueAt - Date.now()`), so client/server clock skew
+ *  is purely cosmetic (a countdown a little fast or slow) — the DO's own
+ *  alarm, not the client, is what actually applies the timeout at expiry.
+ *  This is PUBLIC info (who is on the clock is visible at a physical table)
+ *  so it is broadcast unredacted, unlike per-seat events/views. */
+export interface WireDeadline {
+  seat: Seat;
+  dueAt: number;
+}
+
 export type ServerMessage =
-  | { v: 1; type: 'welcome'; seq: number; seats: Seat[]; room: RoomInfo }
+  | {
+      v: 1;
+      type: 'welcome';
+      seq: number;
+      seats: Seat[];
+      room: RoomInfo;
+      /** Current per-seat deadlines (empty when none are outstanding, e.g.
+       *  lobby/terminal). */
+      deadlines?: WireDeadline[];
+    }
   | { v: 1; type: 'roomChanged'; seq: number; room: RoomInfo } // claims/presence/lobby churn
   | {
       v: 1;
@@ -104,6 +125,9 @@ export type ServerMessage =
       /** The seat's current legal actions — present iff it is an expected
        *  actor (PLAN §5 hints). */
       hints?: unknown[];
+      /** Current per-seat deadlines, read AFTER this action's deadline
+       *  recomputation (empty array when none outstanding). */
+      deadlines?: WireDeadline[];
     }
   | {
       v: 1;
@@ -114,6 +138,8 @@ export type ServerMessage =
       /** Redacted missed events when the gap fits the retained log. */
       events?: { seq: number; event: unknown }[];
       hints?: unknown[];
+      /** Current per-seat deadlines (empty array when none outstanding). */
+      deadlines?: WireDeadline[];
     }
   | { v: 1; type: 'presence'; seq: number; seat: Seat; connected: boolean }
   | { v: 1; type: 'rejected'; seq: number; actionId?: string; error: WireError };

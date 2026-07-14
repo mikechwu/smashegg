@@ -17,6 +17,7 @@ import {
   roomCodeFromBytes,
   sha256Hex,
   timeoutActionId,
+  toWireDeadlines,
 } from '../../../src/server/room-helpers';
 
 describe('bytesToHex', () => {
@@ -184,6 +185,40 @@ describe('redactEventsFor', () => {
 
   it('returns an empty array when every event is hidden', () => {
     expect(redactEventsFor(stubGame, [{ kind: 'x', to: 3 }], 0, {})).toEqual([]);
+  });
+});
+
+describe('toWireDeadlines (PLAN §5 broadcast deadlines field)', () => {
+  it('maps snake_case due_at rows to the camelCase wire shape', () => {
+    expect(toWireDeadlines([{ seat: 1, due_at: 1_000 }])).toEqual([{ seat: 1, dueAt: 1_000 }]);
+  });
+
+  it('sorts by seat regardless of input order', () => {
+    expect(
+      toWireDeadlines([
+        { seat: 2, due_at: 3_000 },
+        { seat: 0, due_at: 1_000 },
+        { seat: 1, due_at: 2_000 },
+      ]),
+    ).toEqual([
+      { seat: 0, dueAt: 1_000 },
+      { seat: 1, dueAt: 2_000 },
+      { seat: 2, dueAt: 3_000 },
+    ]);
+  });
+
+  it('returns an empty array for no outstanding deadlines', () => {
+    expect(toWireDeadlines([])).toEqual([]);
+  });
+
+  it('does not mutate the input array', () => {
+    const rows = [
+      { seat: 2, due_at: 3_000 },
+      { seat: 0, due_at: 1_000 },
+    ];
+    const rowsCopy = rows.map((r) => ({ ...r }));
+    toWireDeadlines(rows);
+    expect(rows).toEqual(rowsCopy);
   });
 });
 

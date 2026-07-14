@@ -9,7 +9,7 @@
 // survive a full tab reload, not just a socket drop.
 
 import type { Seat } from '../../engine/core/game';
-import type { RoomInfo, ServerMessage, WireError } from '../../shared/protocol';
+import type { RoomInfo, ServerMessage, WireDeadline, WireError } from '../../shared/protocol';
 
 /** The credential minted by our own seatClaimed copy (PLAN §4): holding it
  *  IS the authority over that seat. Never logged, persisted only to this
@@ -46,6 +46,11 @@ export interface RoomSnapshot {
   connected: boolean;
   /** Most recent rejections, oldest first, bounded. */
   rejections: readonly Rejection[];
+  /** Current per-seat turn deadlines (PLAN §5 deadlines broadcast) — the
+   *  latest deadlines array carried by welcome/event/resync; empty when
+   *  none are outstanding. Server-clock epoch ms (protocol.ts): the table
+   *  UI renders `dueAt - Date.now()` countdowns. */
+  deadlines: readonly WireDeadline[];
 }
 
 /** What the store needs from the transport. RoomConnection implements this;
@@ -115,6 +120,7 @@ export class RoomStore {
       seq: persisted?.lastSeenSeq ?? 0,
       connected: false,
       rejections: [],
+      deadlines: [],
     };
   }
 
@@ -188,7 +194,7 @@ export class RoomStore {
         if ([...prev.seats.keys()].some((s) => !valid.has(s))) {
           seats = new Map([...prev.seats].filter(([s]) => valid.has(s)));
         }
-        this.commit({ ...prev, room: msg.room, seats, seq });
+        this.commit({ ...prev, room: msg.room, seats, seq, deadlines: msg.deadlines ?? prev.deadlines });
         this.persist();
         return;
       }
@@ -248,7 +254,7 @@ export class RoomStore {
           // always iterate.
           lastEventBatch: Array.isArray(msg.event) ? msg.event : [msg.event],
         });
-        this.commit({ ...prev, perSeat, seq });
+        this.commit({ ...prev, perSeat, seq, deadlines: msg.deadlines ?? prev.deadlines });
         this.persist();
         return;
       }
@@ -262,7 +268,7 @@ export class RoomStore {
           // (PLAN §5 step 3), so no stale batch is left around to animate.
           lastEventBatch: null,
         });
-        this.commit({ ...prev, perSeat, seq });
+        this.commit({ ...prev, perSeat, seq, deadlines: msg.deadlines ?? prev.deadlines });
         this.persist();
         return;
       }

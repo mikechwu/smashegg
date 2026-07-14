@@ -93,6 +93,31 @@ export function timeoutActionId(seat: Seat, seq: number): string {
   return `timeout:${seat}:${seq}`;
 }
 
+/** The wire shape of a broadcast deadline (protocol.ts `ServerMessage`
+ *  'welcome' | 'resync' | 'event'): who is on the clock and when their
+ *  deadline expires, in server-clock epoch ms. This is PUBLIC information —
+ *  at a physical table everyone can see whose turn it is — so it is sent
+ *  unredacted to every seat, unlike game events/views. Clients render it as
+ *  RELATIVE time (dueAt - Date.now()); server/client clock skew is cosmetic
+ *  (a countdown a little fast or slow), never a correctness concern, since
+ *  the DO's own alarm — not the client — is what actually applies the
+ *  default action at expiry. */
+export interface WireDeadline {
+  seat: Seat;
+  dueAt: number;
+}
+
+/** Maps the DO's `deadlines` table rows (snake_case, persisted shape) to the
+ *  wire's camelCase shape, sorted by seat for a deterministic broadcast.
+ *  Pure so it's testable without a DO/SqlStorage runtime. */
+export function toWireDeadlines(
+  rows: readonly { seat: Seat; due_at: number }[],
+): WireDeadline[] {
+  return rows
+    .map((r) => ({ seat: r.seat, dueAt: r.due_at }))
+    .sort((a, b) => a.seat - b.seat);
+}
+
 // ---------------------------------------------------------------------------
 // Redaction fan-out (PLAN §3 obligation 3 / §5): viewEvent is the ONLY
 // event egress. One applied action produces an ARRAY of engine events; the
