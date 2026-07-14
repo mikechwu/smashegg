@@ -414,24 +414,43 @@
 .gd-card__suit {
   font-size: calc(var(--gd-cardw) * 0.36);
 }
+/* The joker's vertical name lives in the LEFT strip (like the corner
+ * index): the fan overlaps each card's right ~60%, so centered content is
+ * occluded by the neighbour — 小王 sat invisible under 大王. 小王 keeps
+ * ink (via .gd-card--black), 大王 cinnabar (via .gd-card--red). */
 .gd-card--joker .gd-card__joker {
   font-family: var(--font-card);
   writing-mode: vertical-rl;
   text-orientation: upright;
   font-size: calc(var(--gd-cardw) * 0.3);
   font-weight: 600;
-  margin: 0.25rem auto 0;
+  margin: 0.1875rem 0 0 0.2rem;
+  align-self: flex-start;
   letter-spacing: 0.0625em;
 }
-.gd-card__ribbon {
+/* Wild (逢人配) marker: solid cinnabar corner triangle + 配 glyph at the
+ * card's bottom-LEFT — inside the strip the fan overlap leaves visible —
+ * readable at both hand and trick sizes. */
+.gd-card__wild {
   position: absolute;
-  top: -2px;
-  right: -2px;
-  width: 0;
-  height: 0;
-  border-top: calc(var(--gd-cardw) * 0.32) solid var(--cinnabar);
-  border-left: calc(var(--gd-cardw) * 0.32) solid transparent;
-  border-top-right-radius: 6px;
+  left: 0;
+  bottom: 0;
+  width: calc(var(--gd-cardw) * 0.62);
+  height: calc(var(--gd-cardw) * 0.62);
+  background: var(--cinnabar);
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+  border-bottom-left-radius: 6px;
+  pointer-events: none;
+}
+.gd-card__wildGlyph {
+  position: absolute;
+  left: calc(var(--gd-cardw) * 0.05);
+  bottom: calc(var(--gd-cardw) * 0.04);
+  color: var(--ivory);
+  font-family: var(--font-card);
+  font-size: calc(var(--gd-cardw) * 0.28);
+  font-weight: 600;
+  line-height: 1;
 }
 
 /* --- hand fan ----------------------------------------------------------------- */
@@ -489,6 +508,43 @@
   gap: 0.5rem;
   flex-wrap: wrap;
   position: relative;
+}
+/* Fixed playing-phase geometry: reason line space is ALWAYS reserved and
+ * the two buttons hold fixed slots with a wide gap, so a mid-tick rerender
+ * can never move 過 under a tap aimed at 出牌. */
+.gd-actions__reason {
+  width: 100%;
+  text-align: center;
+  margin: 0;
+  min-height: 1rem;
+  font-size: 0.75rem;
+  color: color-mix(in srgb, var(--ivory) 85%, var(--cinnabar));
+}
+.gd-actions__slots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2.25rem;
+}
+.gd-actions__slots button {
+  min-width: 5.5rem;
+}
+.gd-actions__passSlot {
+  position: relative;
+  display: inline-flex;
+}
+.gd-actions__confirm {
+  position: absolute;
+  bottom: calc(100% + 0.375rem);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  background: var(--ivory);
+  color: var(--ink);
+  border-radius: 6px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  z-index: 4;
 }
 .gd-actions button {
   background: var(--rosewood);

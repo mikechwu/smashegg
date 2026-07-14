@@ -30,6 +30,7 @@ import {
   activeSeats,
   asGuandanEvents,
   asGuandanView,
+  asRuleVariant,
   comboKey,
   errorKeyFor,
   matchSelection,
@@ -223,8 +224,19 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     perSeat?.hints == null ? null : (perSeat.hints as GuandanAction[]);
 
   // Selection resets whenever the active seat or the hand contents change
-  // (a play/tribute/deal replaced the cards under the indices).
-  const handKey = view === null ? '' : `${activeSeat}|${multisetKey(view.hand)}`;
+  // (a play/tribute/deal replaced the cards under the indices), whenever
+  // this seat's expected-actor status ends (hints → null: the turn was
+  // resolved — possibly by the server clock), and whenever the trick
+  // context changes (a new top play, a new leader, or a trick sweep): a
+  // lifted card must never survive the situation it was lifted for.
+  const trickKey =
+    view === null || view.trick === null
+      ? 'noTrick'
+      : `${view.trick.leader}|${view.trick.top === null ? 'lead' : multisetKey(view.trick.top.cards)}`;
+  const handKey =
+    view === null
+      ? ''
+      : `${activeSeat}|${multisetKey(view.hand)}|${hints === null ? 'idle' : 'actor'}|${trickKey}`;
   useEffect(() => {
     setSelected(new Set());
     setChooserOpen(false);
@@ -238,10 +250,15 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       .filter((c): c is Card => c !== undefined);
   }, [selected, view]);
 
+  // classifyPlays needs the room's rule variant (coerced defensively —
+  // helpers.asRuleVariant; the server's hints still gate legality).
+  const roomConfig = room?.config;
+  const variant = useMemo(() => asRuleVariant(roomConfig), [roomConfig]);
+
   const matches: PlayMatch[] = useMemo(() => {
     if (view === null || hints === null || view.phase !== 'playing') return [];
-    return matchSelection(selectionCards, hints, view.currentLevel);
-  }, [selectionCards, hints, view]);
+    return matchSelection(selectionCards, hints, view.currentLevel, variant);
+  }, [selectionCards, hints, view, variant]);
 
   if (activeSeat === undefined) {
     // Connected without any seat token (e.g. joined a game already going):
@@ -363,6 +380,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
               phase={view.phase}
               matches={matches}
               passAvailable={hints !== null && hints.some((h) => h.type === 'pass')}
+              selectionCount={selected.size}
               tributeAction={tributeAction}
               tributePhase={tributePhase}
               chooserOpen={chooserOpen}

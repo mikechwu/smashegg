@@ -6,7 +6,7 @@
 // markerSeat → 該家先出 banner. ~4–6s total, skippable by tap; under
 // prefers-reduced-motion it renders a static one-line summary instead.
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Seat } from '../../engine/core/game';
 import { rankText, type Ceremony } from './helpers';
 import { t } from '../i18n';
@@ -26,12 +26,12 @@ type Step =
   | { kind: 'banner' };
 
 const STEP_MS: Record<Step['kind'], number> = {
-  shuffle: 800,
-  cut: 800,
-  flip: 450,
-  count: 900,
-  marker: 800,
-  banner: 1400,
+  shuffle: 700,
+  cut: 700,
+  flip: 400,
+  count: 800,
+  marker: 700,
+  banner: 1200,
 };
 
 function buildSteps(ceremony: Ceremony): Step[] {
@@ -62,16 +62,26 @@ export function CeremonyOverlay({ ceremony, nameFor, onDone }: CeremonyOverlayPr
   const steps = useMemo(() => buildSteps(ceremony), [ceremony]);
   const [stepIdx, setStepIdx] = useState(0);
 
+  // onDone goes through a ref, NOT the effect deps: the parent passes a
+  // fresh closure every render, and while a turn deadline is outstanding
+  // GameTable re-renders every 500ms (the countdown tick). With onDone as
+  // a dep each re-render's cleanup cleared the pending step timeout before
+  // it could fire (500ms tick < every step duration), freezing the overlay
+  // on 洗牌中… forever. The ref keeps the timer chain untouchable by parent
+  // re-renders while still calling the LATEST callback.
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
   useEffect(() => {
     if (reduced) return;
     if (stepIdx >= steps.length) {
-      onDone();
+      onDoneRef.current();
       return;
     }
     const step = steps[stepIdx]!;
     const timer = setTimeout(() => setStepIdx((i) => i + 1), STEP_MS[step.kind]);
     return () => clearTimeout(timer);
-  }, [reduced, stepIdx, steps, onDone]);
+  }, [reduced, stepIdx, steps]);
 
   const summary = t('game.ceremony.summary', { name: nameFor(ceremony.markerSeat) });
 

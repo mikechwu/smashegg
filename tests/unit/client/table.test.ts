@@ -68,15 +68,47 @@ describe('matchSelection (selection → hint matching)', () => {
     expect(matches[0]!.decl).toEqual(pairOf9);
   });
 
-  it('does not match a different multiset', () => {
-    expect(matchSelection(['9S', '8S'], [play(['9S', '9C'], pairOf9)], '2')).toEqual([]);
+  it('matches a suit-equivalent single (hint 4♠, selection 4♦)', () => {
+    const single4: CanonicalForm = { type: 'single', size: 1, keyRank: '4' };
+    const matches = matchSelection(['4D'], [play(['4S'], single4), PASS], '2');
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.cards).toEqual(['4D']);
+    expect(matches[0]!.decl).toEqual(single4);
   });
 
-  it('never swaps a wild for a natural of the same rank', () => {
-    // Level 9: ♥9 is the wild. A hint over two NATURAL 9s is not satisfied
-    // by natural+wild (that realization is a different card commitment).
-    const matches = matchSelection(['9S', '9H'], [play(['9S', '9C'], pairOf9)], '9');
-    expect(matches).toEqual([]);
+  it('matches a suit-equivalent pair (hint 9♠9♥, selection 9♥9♦)', () => {
+    const matches = matchSelection(['9H', '9D'], [play(['9S', '9H'], pairOf9)], '2');
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.cards).toEqual(['9H', '9D']);
+    expect(matches[0]!.decl).toEqual(pairOf9);
+  });
+
+  it('does not match a different multiset (negative case)', () => {
+    expect(matchSelection(['9S', '8S'], [play(['9S', '9C'], pairOf9)], '2')).toEqual([]);
+    // A single of a different rank never matches a hinted single either.
+    const single4: CanonicalForm = { type: 'single', size: 1, keyRank: '4' };
+    expect(matchSelection(['5D'], [play(['4S'], single4)], '2')).toEqual([]);
+  });
+
+  it('accepts a wild-substituted realization of a hinted form', () => {
+    // The generator emits ONE wild-frugal realization per form; a player
+    // spending the ♥level wild on the same form is still that form — the
+    // engine's validatePlay accepts natural+wild as the pair of 9s. (This
+    // exact gap made 出牌 refuse legal wild plays in production.)
+    const matches = matchSelection(['9S', '2H'], [play(['9S', '9C'], pairOf9)], '2');
+    expect(matches).toHaveLength(1);
+    expect(matches[0]!.cards).toEqual(['9S', '2H']);
+    expect(matches[0]!.decl).toEqual(pairOf9);
+    // A bare wild IS the level single (§4.2), even when the hint's
+    // realization used a natural copy.
+    const levelSingle: CanonicalForm = { type: 'single', size: 1, keyRank: '2' };
+    expect(matchSelection(['2H'], [play(['2S'], levelSingle)], '2')).toHaveLength(1);
+  });
+
+  it('never lets a wild under-declare as another rank (negative case)', () => {
+    // ♥2 at level 2 is the level single, not a single of 9s.
+    const single9: CanonicalForm = { type: 'single', size: 1, keyRank: '9' };
+    expect(matchSelection(['2H'], [play(['9S'], single9)], '2')).toEqual([]);
   });
 
   it('dedupes hints that share a decl and reports each distinct decl once', () => {
@@ -112,9 +144,14 @@ describe('matchSelection (selection → hint matching)', () => {
   });
 
   it('matches jokers only exactly', () => {
-    const single: CanonicalForm = { type: 'single', size: 1, keyRank: 'A' };
-    expect(matchSelection(['SJ'], [play(['SJ'], single)], '2')).toHaveLength(1);
-    expect(matchSelection(['BJ'], [play(['SJ'], single)], '2')).toEqual([]);
+    // Shape-faithful hint: generate.ts spells joker singles with the
+    // jokerRank extra (keyRank 'A' + jokerRank distinguishes them from
+    // rank-A forms).
+    const sjSingle = { type: 'single', size: 1, keyRank: 'A', jokerRank: 'SJ' } as CanonicalForm;
+    expect(matchSelection(['SJ'], [play(['SJ'], sjSingle)], '2')).toHaveLength(1);
+    expect(matchSelection(['BJ'], [play(['SJ'], sjSingle)], '2')).toEqual([]);
+    // A natural ace is NOT the joker single (and vice versa).
+    expect(matchSelection(['AS'], [play(['SJ'], sjSingle)], '2')).toEqual([]);
   });
 });
 
@@ -225,7 +262,7 @@ describe('solo drivability (UI selection path × engine)', () => {
       const hint = hints[step % hints.length]!;
       let action: GuandanAction = hint;
       if (hint.type === 'play') {
-        const matches = matchSelection(hint.cards, hints, state.currentLevel);
+        const matches = matchSelection(hint.cards, hints, state.currentLevel, state.config);
         expect(matches.length).toBeGreaterThan(0);
         const chosen =
           matches.find((m) => declSignature(m.decl) === declSignature(hint.decl!)) ?? matches[0]!;

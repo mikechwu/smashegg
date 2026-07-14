@@ -1,6 +1,10 @@
 // CardFace — ivory face, rosewood border, serif corner index (design
 // system). Sizes: 'hand' (large, the fan) / 'trick' (medium, the well).
-// The current-level HEART wild carries a small cinnabar corner ribbon.
+// The current-level HEART wild carries a solid cinnabar corner triangle
+// with a 配 glyph at the BOTTOM-LEFT — the fan overlaps each card's right
+// side, so only the left strip is reliably visible; the joker's vertical
+// name sits in that same strip (left-anchored, not centered) for the same
+// reason. 小王 is ink, 大王 cinnabar.
 
 import { isJoker, isWild, rankOf, suitOf, type Card, type Rank } from '../../engine/guandan/cards';
 import { isRedSuit, rankText, suitGlyph } from './helpers';
@@ -44,7 +48,11 @@ export function CardFace({ card, level, size }: CardFaceProps) {
         <span className="gd-card__rank">{rankText(rank)}</span>
         <span className="gd-card__suit">{suitGlyph(suit)}</span>
       </span>
-      {isWild(card, level) && <span className="gd-card__ribbon" />}
+      {isWild(card, level) && (
+        <span className="gd-card__wild">
+          <span className="gd-card__wildGlyph">{t('game.card.wildBadge')}</span>
+        </span>
+      )}
     </span>
   );
 }

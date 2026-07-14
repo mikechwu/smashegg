@@ -2,11 +2,14 @@
 // function over engine types so tests/unit/client/table.test.ts exercises
 // selection→hint matching, grouping/sorting and seat math with no DOM.
 //
-// Engine imports are type-only or pure functions (cards.ts) — client-legal
-// per PLAN.md §2's dependency rule (same precedent as RulePicker.tsx).
+// Engine imports are type-only or pure functions (cards.ts, combos.ts
+// classifyPlays, config.ts constants) — client-legal per PLAN.md §2's
+// dependency rule (same precedent as RulePicker.tsx).
 
-import { isJoker, isWild, rankOf, suitOf, type Card, type Rank, type Suit } from '../../engine/guandan/cards';
+import { isJoker, isWild, rankOf, type Card, type Rank, type Suit } from '../../engine/guandan/cards';
 import type { Seat } from '../../engine/core/game';
+import { classifyPlays } from '../../engine/guandan/combos';
+import { JIANGSU_OFFICIAL_ONLINE, type RuleVariant } from '../../engine/guandan/config';
 import type {
   CanonicalForm,
   GuandanAction,
@@ -60,16 +63,43 @@ export interface PlayMatch {
   decl: CanonicalForm;
 }
 
+/** Suit-blind identity of a canonical form: (type, size, keyRank) plus the
+ *  jokerRank / demoted extras. The SF suit is deliberately EXCLUDED — the
+ *  generator emits one suit per window, and an equivalent selection in a
+ *  different suit realizes the same form (the decl is re-anchored to the
+ *  selection's own classification). demoted stays IN: a demoted SF beats
+ *  strictly less (spec §3.7), so it is a different form for hint purposes. */
+export function formProjectionKey(decl: CanonicalForm): string {
+  const d = decl as CanonicalForm & { jokerRank?: string; demoted?: boolean };
+  return [d.type, d.size, d.keyRank, d.jokerRank ?? '', d.demoted === true ? 'D' : ''].join('|');
+}
+
+/** The rule variant the engine-side classifier needs. room.config is opaque
+ *  to the room layer (PLAN §4) — coerce it defensively over the owner
+ *  defaults (same degradation contract as RulePicker.picksFromConfig).
+ *  A wrong value can never enable an illegal play: matches are still
+ *  intersected with the SERVER's hints, which were generated under the
+ *  true config. */
+export function asRuleVariant(config: unknown): RuleVariant {
+  if (typeof config !== 'object' || config === null) return JIANGSU_OFFICIAL_ONLINE;
+  return { ...JIANGSU_OFFICIAL_ONLINE, ...(config as Partial<RuleVariant>) };
+}
+
 /**
  * Match the selected cards against the seat's play hints.
  *
- * Primary rule: the selection's multiset equals some hint's cards. Hints
- * carry ONE concrete realization per canonical form (generate.ts), so a
- * fallback admits rank-equivalent realizations of the same form — holding
- * 9♠9♥9♦, any two of them are the pair of 9s (PLAN §3 obligation 4). For a
- * straight flush the declared suit is recomputed from the selection; a
- * fully-natural one-suit selection is never matched to a plain straight
- * (spec §3.8 — such a set must be declared as the straight flush).
+ * Hints carry ONE wild-frugal concrete realization per canonical form
+ * (generate.ts), so exact-cards comparison is not enough: any selection
+ * that VALIDATES as a hinted form is that form (PLAN §3 obligation 4) —
+ * 4♦ is the hinted single of 4s realized as 4♠, 9♥9♦ is the hinted pair
+ * of 9s realized as 9♠9♥, and natural+wild realizes the pair the hint
+ * spelled with two naturals. Implementation: classify the selection with
+ * the ENGINE's own classifyPlays (which runs validatePlay, so matching can
+ * never disagree with server validation — §3.8's one-suit straight refusal
+ * and §4.2's wild under-declaration guard come for free), then intersect
+ * with the hint decls by suit-blind projection. The decl sent is the
+ * SELECTION's classified form — for a straight flush that re-anchors the
+ * suit to the selection's own.
  *
  * Returns one entry per DISTINCT decl. Length 0 = not playable; 1 = play
  * it; ≥2 = the wild-ambiguity case — the UI shows a decl chooser.
@@ -78,36 +108,20 @@ export function matchSelection(
   selection: readonly Card[],
   hints: readonly GuandanAction[],
   level: Rank,
+  config: RuleVariant = JIANGSU_OFFICIAL_ONLINE,
 ): PlayMatch[] {
   if (selection.length === 0) return [];
-  const selKey = multisetKey(selection);
-  const selRanks = rankKey(selection, level);
-  const naturals = selection.filter((card) => !isJoker(card) && !isWild(card, level));
-  const naturalSuits = new Set<Suit>(naturals.map((card) => suitOf(card)!));
-  const fullyNaturalOneSuit = naturals.length === selection.length && naturalSuits.size === 1;
+  const selectionForms = classifyPlays([...selection], level, config);
+  if (selectionForms.length === 0) return [];
+  const byProjection = new Map<string, CanonicalForm>();
+  for (const form of selectionForms) byProjection.set(formProjectionKey(form), form);
 
   const out: PlayMatch[] = [];
   const seen = new Set<string>();
   for (const hint of hints) {
     if (hint.type !== 'play' || hint.decl === undefined) continue;
-    let decl: CanonicalForm | null = null;
-    if (multisetKey(hint.cards) === selKey) {
-      decl = hint.decl;
-    } else if (rankKey(hint.cards, level) === selRanks) {
-      if (hint.decl.type === 'straightFlush') {
-        // The generator emitted one suit per window; re-anchor the declared
-        // suit to the selection's own (all naturals must share it).
-        decl =
-          naturals.length > 0 && naturalSuits.size === 1
-            ? { ...hint.decl, suit: [...naturalSuits][0]! }
-            : null;
-      } else if (hint.decl.type === 'straight' && fullyNaturalOneSuit) {
-        decl = null; // §3.8: inherently a straight flush, not under-declarable
-      } else {
-        decl = hint.decl;
-      }
-    }
-    if (decl === null) continue;
+    const decl = byProjection.get(formProjectionKey(hint.decl));
+    if (decl === undefined) continue;
     const sig = declSignature(decl);
     if (seen.has(sig)) continue;
     seen.add(sig);

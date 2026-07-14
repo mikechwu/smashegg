@@ -21,6 +21,14 @@
 6. Rejection toast showed only the raw error code, no explanatory params.
 Positives: rule-picker panel already reads well (rosewood/segmented, natural zh-Hant labels); zh-Hant copy natural; language switch works; multi-claim self-play flow works. Fix batch dispatched (round-1 fixes workflow); table itself not yet reachable — inspected in round 2 after the start bug fix.
 
+**Round 2 (2026-07-14, desktop, after round-1 fixes deployed):** home/lobby transformed and on-system (lacquer shell, hero create, serif room-code chip + copy link, seat plates with claim-form-in-plate and prefilled name, start button with live disabled-reason, 首局先手 toggle present with drawCard product default). Reached the real table. Findings:
+1. **Ceremony overlay stuck on 洗牌中… indefinitely** (never advances stages; tap-skip works) — and the first actor's 45s clock drains behind it: 阿蘭's opening turn was consumed by the alarm (the timeout auto-play visibly worked in production, which is its own positive).
+2. **小王 card faces render nearly blank** (vertical 王 text invisible; 大王 correct).
+3. **2♥ wild ribbon not distinguishable** at hand size.
+4. **PLAY-BECOMES-PASS (major, reproduced ×2):** with a legal beating single selected and lifted, clicking the primary action logged a pass — suspected hint-matcher demanding multiset equality against the engine's single wild-frugal representative (4♦ selection vs 4♠ hint) leaving 出牌 dead and 過 catching the click; no pass-with-selection guard.
+5. Selection persists after the turn resolves.
+Positives: level rail + goldleaf 打2 with 我隊/對方 markers reads immediately; turn ring + countdown unmistakable and moves correctly; seat-tab self-play works with correct per-seat rotation and redacted hands; trick well labels plays (阿蘭・單張 3); event feed localized and clear; pass badges on plates. Round-2 fix batch dispatched with mandated root-cause reporting.
+
 ## M2 (2026-07-14) — GameRoom DO + session/room plumbing: GATE REACHED
 
 - **M1 gate approved by owner.** The three audit findings resolved: **all stay guarded** (loud init rejection + tests, already in place) — `tributeLevelBasis='previousLevel'` (hair-split, owner never selects it), `levelTrack='shared'`+`demote` (semantics undefined by any source, combination nobody wants), `equalTributeAssignment='winnersChoose'` (Western variant, wrong lineage). The `aceFinishDemotes`×suspension ambiguity stays logged as-is. Documented in spec §10 "Implementation status" with per-decision reasoning; any can be promoted later behind its existing key.
