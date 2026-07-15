@@ -56,7 +56,7 @@ The Worker entry is stateless: route, validate room-code shape, `idFromName(code
 | DO requests | 100k | a few hundred (each inbound WS message) | trivial |
 | DO duration | 13,000 GB-s | near zero — hibernation stops duration billing between messages | trivial |
 | DO SQL rows written | 100k | ~1–2k (event log + snapshots + deadlines) | fine; batch if needed |
-| DO storage | 5 GB | KB per room; rooms self-purge at game end + TTL alarm | trivial |
+| DO storage | 5 GB | KB per room; lobby-abandoned rooms self-purge via the retention TTL, played-out/paused rooms reclaimed via scripts/cleanup-rooms.ts (lazy mode — pause-and-retention.md §3.1) | trivial |
 
 Open verification item: how inbound WS messages are accounted against the DO request meter is not documented at all; the table conservatively assumes 1:1, and the numbers hold with >50× headroom even then. WebSocket messages do not count against *Worker* request limits (verified).
 
@@ -222,18 +222,22 @@ One DO instance per room code (`idFromName(code)`), SQLite-backed, WebSocket Hib
 **In-DO SQLite schema:**
 
 ```sql
-room     (id, game_id, variant_json, room_cfg_json, created_at, status)
-players  (seat INTEGER PRIMARY KEY, token_hash TEXT, name TEXT, connected INT,
-          last_seen_seq INTEGER)
+room     (id, game_id, config_json, status, code, created_at, seed, timing_json,
+          last_active_at, pause_started_at)  -- last_active_at = retention TTL anchor
+                                             -- (human events only); pause_started_at
+                                             -- = Q3 offset origin (NULL while connected)
+seats    (seat INTEGER PRIMARY KEY, token_hash TEXT, name TEXT)  -- NO connected/
+          -- last_seen_seq column: connectivity is a rebuildable in-memory cache
+          -- over live WebSocket attachments; the client supplies lastSeenSeq per hello
 snapshot (seq INTEGER, state_json TEXT)          -- latest authoritative S
 events   (seq INTEGER PRIMARY KEY, seat, event_json, at)   -- retained window
 actions_seen (action_id TEXT PRIMARY KEY, result_seq INTEGER, at)  -- idempotency
 deadlines(seat INTEGER PRIMARY KEY, due_at INTEGER)         -- alarm schedule
 ```
 
-**Hibernation discipline:** `ctx.acceptWebSocket(ws, [seat:N tag])`; per-socket `serializeAttachment({seat, tokenHash})` (≤16KB limit — we store ~100B); constructor rehydrates the socket→seat map from `getWebSockets()+deserializeAttachment()`; in-memory maps are rebuildable caches, never authoritative; `setWebSocketAutoResponse('ping'→'pong')` for zero-cost liveness — note this matches **exact literal strings only**, so clients send the bare string `ping` *outside* the JSON envelope (a JSON-wrapped ping would wake the DO and be billed). Duration billing stops while hibernated (verified). `compatibility_date` will be ≥ 2026-04-07, which enables `web_socket_auto_reply_to_close`: the runtime auto-replies to Close frames, so `webSocketClose` must not assume it owes a close handshake.
+**Hibernation discipline:** `ctx.acceptWebSocket(ws)` with **no tags** (a socket's seats are unknown at upgrade time — it acquires them later via hello tokens / claimSeat); per-socket `serializeAttachment({seats: Seat[]})` (a SET — one connection can hold 0–4 seats in the multi-seat/self-play model; ≤16KB limit); constructor rehydrates the socket→seats map from `getWebSockets()+deserializeAttachment()`; in-memory maps are rebuildable caches, never authoritative; `setWebSocketAutoResponse('ping'→'pong')` for zero-cost liveness — note this matches **exact literal strings only**, so clients send the bare string `ping` *outside* the JSON envelope (a JSON-wrapped ping would wake the DO and be billed). Duration billing stops while hibernated (verified). `compatibility_date` will be ≥ 2026-04-07, which enables `web_socket_auto_reply_to_close`: the runtime auto-replies to Close frames, so `webSocketClose` must not assume it owes a close handshake.
 
-**Turn timeouts (DO Alarms):** on every state transition, recompute `deadlines` (one row per expected actor: `now + actionTimeoutMs`, clamped by room config; disconnected seats get `min(that, now + disconnectGraceMs)` — and when `actionTimeoutMs` is `null`, a **disconnected** expected actor still gets `now + disconnectGraceMs`; `null` disables the timeout only for connected seats), then `setAlarm(min(due_at))`. `alarm()` re-reads deadlines (stale-alarm guard), applies `defaultAction` for each overdue seat via the normal action path (same seq/broadcast machinery), reschedules. Alarms wake hibernated DOs and survive eviction (verified). A room-TTL alarm also self-purges abandoned rooms. The null-timeout-while-disconnected case is part of the M4 deadlock-freedom property test.
+**Turn timeouts (DO Alarms):** on every DECISION point (state change) recompute `deadlines` (one row per expected actor; a *newly*-acting seat gets a fresh `now + clamp(actionTimeoutMs)` budget in `base_due_at` — the ONLY fresh-clock path; a seat that remains an actor keeps its base; a disconnected actor clamps toward `now + disconnectGraceMs`, and `null` `actionTimeoutMs` disables the clock only for connected seats), then `setAlarm(min(due_at))`. Presence changes may only clamp toward the grace or RESTORE up to the preserved base — never re-arm a fresh clock (the M4 fix — room-timing.md §2; PLAN's earlier "recompute `now + actionTimeoutMs` every transition" was the pre-M4 bug and is corrected here). `alarm()` re-reads deadlines (stale-alarm guard) and applies `defaultAction` for each overdue seat via the normal action path — **but only while a seat is connected** (Q3 pause: a room with zero connected seats is frozen, no auto-play, so no rows-written burn accrues; pause-and-retention.md). Alarms wake hibernated DOs and survive eviction (verified). **Retention TTL:** the single alarm slot also carries a per-room self-purge — an ABANDONED room (zero live *sockets*) past its retention window `deleteAll()`s itself. In the default LAZY mode only lobby-abandoned rooms auto-purge (a few rows, cheap); played-out/paused rooms arm no TTL and are reclaimed manually via `scripts/cleanup-rooms.ts` (rows-written is the scarce, fail-closed meter; storage is abundant — auto-purging a big room would spend scarce to reclaim abundant). The null-timeout-while-disconnected case is part of the M4 deadlock-freedom property test.
 
 **Single-writer guarantee:** a DO processes one message at a time, so `seq++` + state write + event insert happen atomically per action — no locks, no races (verified DO semantics).
 
@@ -250,8 +254,8 @@ Versioned JSON envelope on the wire (`v:1`). Semantic keys only — the protocol
 **Client → server:**
 
 ```ts
-{ v:1, type:'hello', token, lastSeenSeq }            // first message after (re)connect
-{ v:1, type:'action', actionId, expectedSeq, action } // actionId = client UUID
+{ v:1, type:'hello', tokens, lastSeenSeq }           // tokens: string[] (up to 8) — multi-seat
+{ v:1, type:'action', seat, actionId, expectedSeq, action } // seat = which held seat acts; actionId = client UUID
 'ping'                                                // bare literal string, NOT JSON —
                                                       // only exact literals match the DO's
                                                       // auto-response; answered while hibernated
@@ -281,7 +285,7 @@ Versioned JSON envelope on the wire (`v:1`). Semantic keys only — the protocol
    - gap within retained `events` window → `resync{seq, view, events: redacted delta}` (UI can show what was missed);
    - gap too large / log trimmed → `resync{seq, view}` (snapshot only). Either way the `view` alone is sufficient to resume.
 4. Any action the client had in flight is re-submitted with its original `actionId`:
-   - already applied → server returns the recorded `event` (dedup via `actions_seen`) — no double play;
+   - already applied → the server sends that seat a fresh `resync` (current view + hints), never re-applying — idempotency is guaranteed by the `actions_seen` check, not by replaying the original `event`;
    - not applied → revalidated against the *current* state via `applyAction`: accepted if still legal, else `rejected{error}` — and the client, already resynced, re-decides.
 5. Presence broadcast on drop/return; the seat's turns are auto-played by `defaultAction` after `disconnectGraceMs` — the table never deadlocks (interface obligation 5).
 
@@ -294,7 +298,7 @@ Versioned JSON envelope on the wire (`v:1`). Semantic keys only — the protocol
 Owner direction: complexity cost is **not** a primary concern — a usable, easy-to-debug, maintainable foundation wins over fewer moving parts. The event-log / seq-resync / snapshot-fallback / idempotency machinery stays at full strength, and the following are **required deliverables**, not nice-to-haves:
 
 - **Deterministic replay harness** (`scripts/replay.ts`, CLI + test utility). Because the engine is pure and seeded, `(seed, config, ordered action log)` reconstructs any match bit-for-bit. Input: a room dump (below) or a bare action log; output: re-derived state at every seq, asserted against recorded snapshots. Three uses: postmortem debugging (replay to the failing seq and inspect), regression-test generation (freeze a real game as a golden test), and property-test failure capture (every fuzz failure emits a replayable log). In the M1 and M2 exit gates.
-- **Room dump as a first-class affordance.** The DO's SQLite content *is* the audit trail; dumping it is a documented operation, not spelunking. `GET /api/debug/rooms/:code/dump` returns `{room, players (token hashes only), snapshot, events, actions_seen, deadlines}` in the replay harness's input format. Gating: always on under `wrangler dev`; in production the route 404s unless a `DEBUG_DUMP_TOKEN` secret is configured *and* presented — never public by default. A `scripts/dump-room.ts` wrapper invokes it via wrangler for local/live diagnosis.
+- **Room dump as a first-class affordance.** The DO's SQLite content *is* the audit trail; dumping it is a documented operation, not spelunking. `GET /api/rooms/:code/dump` returns `{gameId, seed, room (incl. status + the Q3/retention diagnostics pauseStartedAt/lastActiveAt), seats (token hashes only), snapshot, events, actions, actionsSeen, deadlines}` — the `actions` array is the replay artifact the harness consumes. Gating: always on under `wrangler dev` (`ENVIRONMENT=dev`); in production the route 404s (indistinguishable from a missing route) unless the `DEBUG_DUMP_TOKEN` secret is configured *and* presented in `x-debug-dump-token` (constant-time compared) — never public by default. `scripts/dump-room.ts` invokes it for local/live diagnosis. The same gate guards `POST /api/rooms/:code/purge` (manual on-demand `deleteAll()`), driven by `scripts/cleanup-rooms.ts` (dry-run default, dump-first — pause-and-retention.md §4).
 - **Structured server logs.** Every state mutation emits one JSON line — `{room, seq, actionId, seat, actionType, outcome: 'applied'|'rejected', error?}` — greppable and correlatable by `room`+`seq` through `wrangler tail`. Semantic error codes are specific enough to diagnose from a single line (`tribute.cardNotEligible`, not `invalidAction`).
 - **Readable engine code.** The wild-card template matcher and the tribute state machine carry why-comments and named intermediate values; cleverness loses to auditability in review.
 
@@ -312,7 +316,7 @@ Owner direction: complexity cost is **not** a primary concern — a usable, easy
 
 - No secrets in the repo — `CLOUDFLARE_API_TOKEN` (scoped to the single deploy account via the Workers-edit token template; the exact current template name is confirmed at creation time — it's a dashboard-only step and template names drift) + `CLOUDFLARE_ACCOUNT_ID` live in GitHub Actions secrets; local secrets via `.dev.vars` (gitignored, `.dev.vars.example` committed). MVP has no server secrets beyond this.
 - Player identity = per-seat random 128-bit token minted at claim time, hashed (SHA-256) at rest in the DO; possession of a token = authority over that seat, and one connection may hold several (self-play is a feature, not an attack — see §4 seat-token authority model). No accounts in MVP.
-- Room codes: 6-char unambiguous alphabet (no 0/O/1/I), ~1 billion combinations, non-enumerable (creation returns the code; joining requires it), rooms TTL-purged.
+- Room codes: 6-char unambiguous alphabet (no 0/O/1/I), ~1 billion combinations, non-enumerable (creation returns the code; joining requires it); lobby-abandoned rooms self-purge via the retention TTL (pause-and-retention.md), played-out rooms via scripts/cleanup-rooms.ts.
 - Server-authoritative everything: hands never leave the DO unredacted; all combination validation (including wild declarations) server-side; client `decl` is a claim the engine verifies.
 - Input hardening at the Worker: room-code shape check before DO dispatch; message size caps; JSON schema validation of the envelope.
 
