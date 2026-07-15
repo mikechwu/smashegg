@@ -1,6 +1,6 @@
 # STATUS
 
-## Current phase: Q3 pause + retention-TTL implemented & gated (feat/q3-ttl → merging); then Q4, then M5
+## Current phase: free-tier action set COMPLETE (Q3+TTL+§4+PLAN+Q4 live); M5 next (owner gate)
 
 **Last updated:** 2026-07-15
 
@@ -39,8 +39,31 @@ independent-lineage panel the owner emphasized is therefore DEGRADED this round;
 a fuller external sweep would need the owner to run codex/grok interactively.
 The substantive review is the independent adversarial pass + the tests above.
 
-**Next:** merge → deploy (self-verifying; retroactively pauses the 3 live zombie
-rooms within ~60s) → §4 cleanup script → the 7 PLAN corrections → Q4.
+**Sequence COMPLETE (2026-07-15, autonomous run):**
+- **Merged + deployed** (build 944656f, self-verified). **Live-confirmed the
+  retroactive pause:** the 3 zombies (P2FFYD/YM2C72/M74D3N, which had climbed to
+  seq 364/469/359 — burning the whole time) FROZE — 0 seq advance over 95s. The
+  burn is stopped. They'll be reclaimed via §4 on owner confirmation (frozen at
+  ~3–4k rows each; not urgent).
+- **§4 cleanup script** (scripts/cleanup-rooms.ts) + token-gated `POST
+  /api/rooms/:code/purge`: explicit codes, dry-run default, dump-first,
+  irreversible only on --delete. e2e: dump→purge→404. NOT auto-invoked.
+- **7 PLAN drifts corrected** (R3 sweep) — the false TTL claim (×3) replaced with
+  the real lazy mechanism; players→seats + new columns; hibernation tags;
+  dump route path/shape + purge; resync-not-event; pre-M4 fresh-clock wording.
+- **Q4:** the native Workers `ratelimits` binding on POST /api/rooms is
+  Free-available (deploy accepted — closes the one UNCERTAIN) + wired in
+  (optional, degrades to no-limit). Functional note: an 18-request burst did NOT
+  trip it — the documented permissive/eventually-consistent behavior (per-PoP,
+  not an accurate accounting system); it backstops a SUSTAINED accidental loop,
+  not a burst. Primary guard = the client's already-debounced create button (no
+  retry loop) + fail-closed-at-$0. 18 test rooms created will lobby-TTL self-purge.
+- Suites: 650 unit + 30 e2e green, 4 typechecks; CI + Deploy green.
+
+**Audit caveat carried:** the independent-lineage panel was DEGRADED — Codex
+contributed 1 fix (resume 0→1 edge) but its headless CLI never flushed a clean
+report; Grok did not run (TUI needs a terminal). See docs/audits/Q3TTL-audit.md.
+A fuller external sweep needs the owner to run codex/grok interactively.
 
 ## M4 (2026-07-14) — reconnection + timeouts + owner items A/B: implementation complete, gate report final
 
