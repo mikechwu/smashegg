@@ -397,6 +397,17 @@ const GAMES: GameSpec[] = [
     seats: 4,
     preferPlays: false,
   },
+  {
+    // Item 3: the real cut — DL1-DL3 and I1-I4 must hold through the
+    // ceremonyCut actor phase and across the cut→deal transition (this is
+    // also the PRODUCT default for created rooms). LAST in the array: the
+    // named cases above reference GAMES[0]/GAMES[1] by index.
+    name: 'guandan-drawcard',
+    game: GuandanGame as unknown as AnyGameDefinition,
+    config: { ...JIANGSU_OFFICIAL_ONLINE, firstLeadMethod: 'drawCard' },
+    seats: 4,
+    preferPlays: true,
+  },
 ];
 
 const TIMINGS: { name: string; timing: RoomTiming | null }[] = [
@@ -487,6 +498,28 @@ describe('deadline liveness properties (room-timing.md §3): DL1-DL3 + I1-I4', (
 // ---------------------------------------------------------------------------
 
 describe('named liveness cases', () => {
+  it('item 3: the ceremonyCut phase is clocked and an AFK cutter auto-cuts into a dealt hand', () => {
+    const spec = GAMES[2]!; // guandan-drawcard: hand 1 opens at the CUT
+    const room = new VirtualRoom(spec.game, TIMING_PRESETS.standard, spec.seats, spec.config, 'dl-cut-1');
+    const cutter = room.actors()[0]!;
+    const row = room.rows.find((r) => r.seat === cutter)!;
+    // The cut is an ordinary 'turn' decision (no hand to read) under the
+    // standard 45s budget — it must NOT burn the cutter's planning window.
+    expect(row.timingClass).toBe('turn');
+    expect(row.baseDueAt).toBe(T0 + 45_000);
+
+    // AFK cutter: the alarm fires at expiry and the defaultAction (middle
+    // cut) applies — the table cannot deadlock before the game starts, and
+    // the DEAL that follows arms the LEADER's fresh planning window.
+    room.now = row.dueAt + 1;
+    room.fireAlarmIfDue();
+    const leaderRow = room.rows[0]!;
+    expect(room.rows).toHaveLength(1);
+    expect(leaderRow.timingClass).toBe('planning');
+    expect(leaderRow.baseDueAt).toBe(room.now + 90_000);
+    assertInvariants(room);
+  });
+
   it('untimed preset: a disconnecting sole actor gets the grace row in the SAME event, and the alarm resolves it', () => {
     const spec = GAMES[1]!; // guess-number: exactly one expected actor
     const room = new VirtualRoom(spec.game, TIMING_PRESETS.untimed, spec.seats, spec.config, 'dl-untimed-1');

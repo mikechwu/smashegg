@@ -51,6 +51,7 @@ const SERVER_CODES: readonly string[] = [
   'tribute.notPaidYet',
   'config.invalidSuddenDeath',
   'config.notImplemented',
+  'ceremony.invalidCutPosition',
   'protocol.malformed',
   'protocol.missingActionId',
   'protocol.tooLarge',
@@ -79,6 +80,9 @@ const GENERIC_OK = new Set([
   'tribute.notAPayer',
   'tribute.notAReceiver',
   'tribute.notPaidYet',
+  // The cut UI's slider is bounded to the legal range — an out-of-range
+  // position is forged-client-only, so generic copy is right.
+  'ceremony.invalidCutPosition',
 ]);
 
 describe('describeError — F3: never leak a raw code', () => {

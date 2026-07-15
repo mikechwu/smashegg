@@ -520,12 +520,29 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
       // The one PRODUCT default on top of the engine profile is pinned:
       expect((info.config as RuleVariant).firstLeadMethod).toBe('drawCard');
 
-      // The started room's FIRST handStarted carries the 翻牌定先 ceremony
-      // payload on every seat's copy (drawCard product default visible).
+      // Item 3: the product default now OPENS at the REAL cut — the start
+      // copies carry ceremonyCutStarted and name the cutter; the client
+      // (holding all four seats) cuts, and the deal follows.
+      const startCopy = await client.waitFor<EventMsg>(
+        (m) => m.type === 'event' && m.seat === 0 && m.seq === startedSeq,
+      );
+      const cutView = viewOf(startCopy);
+      expect(cutView.phase).toBe('ceremonyCut');
+      const cutter = cutView.ceremonyCutter!;
+      const cutMark = client.mark();
+      client.action(cutter, { type: 'cutDeck', position: 54 }, { expectedSeq: startedSeq });
+      const afterCut = await client.waitFor<EventMsg>(
+        (m) => m.type === 'event' && m.seat === cutter && m.seq > startedSeq,
+        { from: cutMark },
+      );
+      const dealSeq = afterCut.seq;
+
+      // The FIRST handStarted carries the 翻牌定先 ceremony payload on
+      // every seat's copy (drawCard product default visible).
       let ceremony: HandStartedEvent['ceremony'] | undefined;
       for (let seat = 0 as Seat; seat < 4; seat++) {
         const copy = await client.waitFor<EventMsg>(
-          (m) => m.type === 'event' && m.seat === seat && m.seq === startedSeq,
+          (m) => m.type === 'event' && m.seat === seat && m.seq === dealSeq,
         );
         const hs = eventOfType(guandanEvents(copy), 'handStarted');
         expect(hs).toBeDefined();

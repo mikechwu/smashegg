@@ -63,6 +63,7 @@ function playingState(overrides: Partial<GuandanState> & Pick<GuandanState, 'han
     handNo: 1,
     phase: 'playing',
     actedThisHand: [false, false, false, false],
+    ceremonyCut: null,
     levels: ['2', '2'],
     aAttempts: [0, 0],
     aAttemptsExhausted: [false, false],

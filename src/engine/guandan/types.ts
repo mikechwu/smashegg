@@ -123,6 +123,7 @@ export interface TributeState {
 // ---------------------------------------------------------------------------
 
 export type Phase =
+  | 'ceremonyCut' // hand 1 under firstLeadMethod='drawCard': the cutter picks WHERE to cut (item 3)
   | 'antiTributeDecision' // only under antiTributeMode='optional'
   | 'tribute'
   | 'returnTribute'
@@ -159,6 +160,12 @@ export interface GuandanState {
    *  tribute, return, anti-tribute decision alike — flips its flag. Drives
    *  the per-seat planning timing class; deterministic and replayable. */
   actedThisHand: [boolean, boolean, boolean, boolean];
+  /** The REAL cut (item 3): non-null exactly while phase === 'ceremonyCut'.
+   *  `deck` is the full shuffled 108-card order the cut will rotate and the
+   *  deal will consume — HIDDEN INFO OF THE STRONGEST KIND (everyone's
+   *  future hands): playerView/viewEvent must NEVER expose it, exactly like
+   *  the PRNG state (obligation 3; property-pinned). `cutter` is public. */
+  ceremonyCut: { cutter: Seat; deck: Card[] } | null;
   finishOrder: Seat[];
   trick: TrickState | null;
   tribute: TributeState | null;
@@ -191,7 +198,13 @@ export type GuandanAction =
   | { type: 'pass' }
   | { type: 'payTribute'; card: Card }
   | { type: 'returnTribute'; card: Card }
-  | { type: 'antiTributeDecision'; invoke: boolean };
+  | { type: 'antiTributeDecision'; invoke: boolean }
+  /** The REAL cut (item 3): the cutter picks WHERE to split the face-down
+   *  deck. Interior positions only — CUT_MIN..CUT_MAX (5-card minimum
+   *  packet at each end, per the physical interior-cut rule); a CHOICE
+   *  phase, so legalActions returns the exact eligible set. Deterministic
+   *  and logged: (seed, position) reproduces flips AND the deal. */
+  | { type: 'cutDeck'; position: number };
 
 // ---------------------------------------------------------------------------
 // Events (E) — semantic, locale-free, redacted per seat by viewEvent.
@@ -209,26 +222,37 @@ export type GuandanEvent =
       /** Full deal — viewEvent redacts to the recipient's own hand. */
       hands: [Card[], Card[], Card[], Card[]];
       /** 翻牌定先 opening ceremony (hand 1 under firstLeadMethod='drawCard'
-       *  ONLY; owner spec, M3). Seeded, deterministic, replay-identical —
-       *  the UI animates EXACTLY this data and computes nothing:
-       *  - cutter: the seat that cuts the deck (PRNG-uniform);
-       *  - flips: every counting card flipped, in order, INCLUDING joker
-       *    flips — all but the last were re-flips (jokers and the
-       *    current-level rank have no countable natural position);
+       *  ONLY; owner spec M3, made REAL by item 3). Deterministic from
+       *  (seed, cutPosition), replay-identical — the UI animates EXACTLY
+       *  this data and computes nothing:
+       *  - cutter: the seat that cut the deck (PRNG-uniform);
+       *  - cutPosition: WHERE the cutter chose to cut (the logged action);
+       *  - flips: the ACTUAL top cards of the cut deck, in order, INCLUDING
+       *    joker flips — all but the last were re-flips (jokers and the
+       *    current-level rank have no countable natural position). These
+       *    are real deck cards: they land in the dealt hands, publicly
+       *    known, exactly as at a physical table;
        *  - firstDrawer: counting the last flip's rank IN TURN DIRECTION
        *    (counterclockwise by default, per turnDirection) with the cutter
        *    as position 1 (A=self, 2=下家, 3=partner, 4=remaining; ranks
        *    wrap mod 4 — seatOffset=(rank-1)%4);
-       *  - markerSeat: the seat that draws the face-up marker card = the
-       *    hand's leader. Distribution over seats is uniform (same as
-       *    'random' — the ceremony is flavor, not a fairness change). */
+       *  - markerSeat: the seat the face-up marker card (the counted flip)
+       *    REALLY lands at in the one-card-at-a-time deal from firstDrawer
+       *    = the hand's leader. The ABSOLUTE leader distribution stays
+       *    uniform over seats (the cutter is PRNG-uniform and independent
+       *    of the deck); conditional on the cutter it follows the physical
+       *    rank arithmetic — the real table's distribution, by design. */
       ceremony?: {
         cutter: Seat;
-        flips: (Rank | 'SJ' | 'BJ')[];
+        cutPosition: number;
+        flips: Card[];
         firstDrawer: Seat;
         markerSeat: Seat;
       };
     }
+  /** Item 3: hand 1 (drawCard) now OPENS with the cut — emitted by init,
+   *  before any deal exists. Public in full: everyone watches one actor. */
+  | { type: 'ceremonyCutStarted'; cutter: Seat }
   | { type: 'antiTribute'; reveals: { seat: Seat; card: Card }[] }
   | { type: 'tributeCommitted'; seat: Seat } // card-less staging marker
   | { type: 'tributePaid'; pairings: TributePairing[] } // atomic reveal
@@ -265,6 +289,10 @@ export interface GuandanView {
   /** Remaining-card counts per seat, filtered by cardCountVisibility
    *  (null = hidden from this viewer). */
   cardCounts: [number | null, number | null, number | null, number | null];
+  /** Item 3: who is cutting, while phase === 'ceremonyCut' (public — the
+   *  whole table watches one actor); null in every other phase. The deck
+   *  itself NEVER appears in a view. */
+  ceremonyCutter: Seat | null;
   finishOrder: Seat[];
   trick: TrickState | null;
   /** Public tribute info only (per tributeVisibility); staged cards of

@@ -188,6 +188,50 @@
   }
 }
 
+/* --- the cut panel (item 3; item 4 restyles it into the deck ribbon) ------ */
+.gd-cut {
+  background: var(--rosewood);
+  border-radius: 8px;
+  padding: 0.75rem 0.875rem;
+  max-width: 20rem;
+  width: 100%;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.gd-cut__title {
+  margin: 0;
+  font-family: var(--font-card);
+  font-size: 1rem;
+}
+.gd-cut__prompt {
+  margin: 0;
+  font-size: 0.8125rem;
+  opacity: 0.85;
+}
+.gd-cut__slider {
+  width: 100%;
+  accent-color: var(--cinnabar);
+}
+.gd-cut__pos {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.8125rem;
+  opacity: 0.9;
+}
+.gd-cut__confirm {
+  align-self: center;
+  background: var(--cinnabar);
+  color: var(--ivory);
+  border: none;
+  border-radius: 8px;
+  padding: 0.45rem 1.5rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
 /* --- tribute panel --------------------------------------------------------- */
 .gd-tribute {
   background: var(--rosewood);

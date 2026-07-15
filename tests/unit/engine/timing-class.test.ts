@@ -61,10 +61,9 @@ describe('timingClass — the per-seat planning window (item 2)', () => {
   it('a state persisted BEFORE the field existed reads as not-yet-acted (live-room migration)', () => {
     const state = initHand1();
     // Simulate a pre-item-2 persisted state: the field is absent entirely.
-    const legacy = JSON.parse(JSON.stringify(state)) as GuandanState & {
-      actedThisHand?: unknown;
-    };
-    delete legacy.actedThisHand;
+    const raw = JSON.parse(JSON.stringify(state)) as Record<string, unknown>;
+    delete raw.actedThisHand;
+    const legacy = raw as unknown as GuandanState;
     expect(GuandanGame.timingClass!(legacy as GuandanState, 2)).toBe('planning');
     // ...and applying an action on the legacy state neither crashes nor
     // loses the mark.

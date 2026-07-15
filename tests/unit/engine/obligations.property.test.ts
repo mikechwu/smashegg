@@ -116,10 +116,14 @@ function checkTimingClass(state: GuandanState, actedIndependent: ReadonlySet<Sea
     const cls = GuandanGame.timingClass!(state, seat);
     expect(['turn', 'planning'], 'timingClass stays inside the closed union').toContain(cls);
     expect(GuandanGame.timingClass!(state, seat), 'timingClass determinism').toBe(cls);
-    expect(
-      cls,
-      `timingClass ⇔ first-action-pending (phase ${state.phase}, seat ${seat})`,
-    ).toBe(actedIndependent.has(seat) ? 'turn' : 'planning');
+    // Item 3 carve-out: the cut precedes the deal — no hand to read, so the
+    // ceremonyCut phase classes 'turn' by design and consumes no window
+    // (the acted flags reset AT the deal that follows).
+    const expected =
+      state.phase === 'ceremonyCut' ? 'turn' : actedIndependent.has(seat) ? 'turn' : 'planning';
+    expect(cls, `timingClass ⇔ first-action-pending (phase ${state.phase}, seat ${seat})`).toBe(
+      expected,
+    );
   }
 }
 
@@ -570,6 +574,15 @@ const BASE = JIANGSU_OFFICIAL_ONLINE;
 const CONFIG_MATRIX: { name: string; config: RuleVariant; seeds: string[] }[] = [
   { name: 'default profile', config: BASE, seeds: ['obl-default-1', 'obl-default-2', 'obl-default-3'] },
   {
+    // Item 3: the REAL cut — obligations 1-6 must hold through the
+    // ceremonyCut phase (an actor phase with a 97-action choice set) and
+    // across the cut→deal transition. This is also the PRODUCT default
+    // (curated rooms create with drawCard).
+    name: "firstLeadMethod='drawCard' (real cut phase)",
+    config: { ...BASE, firstLeadMethod: 'drawCard' },
+    seeds: ['obl-drawcard-1', 'obl-drawcard-2'],
+  },
+  {
     name: "aFailConsequence='demote'",
     config: { ...BASE, aFailConsequence: 'demote' },
     seeds: ['obl-demote-1', 'obl-demote-2'],
@@ -741,6 +754,7 @@ function constructedAntiTributeDecisionState(): GuandanState {
     handNo: 2,
     phase: 'antiTributeDecision',
     actedThisHand: [false, false, false, false],
+    ceremonyCut: null,
     levels: ['2', '2'],
     aAttempts: [0, 0],
     aAttemptsExhausted: [false, false],

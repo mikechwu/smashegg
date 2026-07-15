@@ -8,11 +8,16 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Seat } from '../../engine/core/game';
-import { rankText, type Ceremony } from './helpers';
+import type { Rank } from '../../engine/guandan/cards';
+import { CardFace, cardLabel } from './CardFace';
+import { type Ceremony } from './helpers';
 import { t } from '../i18n';
 
 export interface CeremonyOverlayProps {
   ceremony: Ceremony;
+  /** Current level — flips are REAL cards since item 3, so they render as
+   *  true faces (a flipped level card even shows its wild marker). */
+  level: Rank;
   nameFor: (seat: Seat) => string;
   onDone: () => void;
 }
@@ -45,19 +50,13 @@ function buildSteps(ceremony: Ceremony): Step[] {
   ];
 }
 
-function flipText(flip: Ceremony['flips'][number]): string {
-  if (flip === 'SJ') return t('game.card.sj');
-  if (flip === 'BJ') return t('game.card.bj');
-  return rankText(flip);
-}
-
 function prefersReducedMotion(): boolean {
   return (
     typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
   );
 }
 
-export function CeremonyOverlay({ ceremony, nameFor, onDone }: CeremonyOverlayProps) {
+export function CeremonyOverlay({ ceremony, level, nameFor, onDone }: CeremonyOverlayProps) {
   const reduced = useMemo(prefersReducedMotion, []);
   const steps = useMemo(() => buildSteps(ceremony), [ceremony]);
   const [stepIdx, setStepIdx] = useState(0);
@@ -127,8 +126,10 @@ export function CeremonyOverlay({ ceremony, nameFor, onDone }: CeremonyOverlayPr
                 <span
                   key={i}
                   className={`gd-ceremony__flip ${!isLast ? 'gd-ceremony__flip--reflip' : ''} ${superseded ? 'gd-ceremony__flip--gone' : ''}`}
+                  role="img"
+                  aria-label={cardLabel(flip, level)}
                 >
-                  <span className="gd-ceremony__flipcard">{flipText(flip)}</span>
+                  <CardFace card={flip} level={level} size="mini" />
                   {!isLast && <span className="gd-ceremony__reflip">{t('game.ceremony.reflip')}</span>}
                 </span>
               );

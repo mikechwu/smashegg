@@ -20,6 +20,7 @@ import type { Card, Rank } from '../engine/guandan/cards';
 import type { RoomSnapshot, RoomStore } from './room/store';
 import { ActionBar } from './table/ActionBar';
 import { CeremonyOverlay } from './table/CeremonyOverlay';
+import { CutPanel } from './table/CutPanel';
 import { EventFeed, FEED_LIMIT, type FeedLine } from './table/EventFeed';
 import { HandFan } from './table/HandFan';
 import { TableHeadline } from './table/TableHeadline';
@@ -122,6 +123,9 @@ export function foldEvents(
   };
   for (const ev of events) {
     switch (ev.type) {
+      case 'ceremonyCutStarted':
+        push('game.feed.cutStarted', { name: nameFor(ev.cutter) });
+        break;
       case 'handStarted':
         d = { ...d, passed: [], jiefeng: null, anti: null, level: ev.currentLevel };
         if (ev.ceremony !== undefined) d.ceremony = ev.ceremony;
@@ -415,7 +419,15 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         <div className="gd-ring__seat gd-ring__seat--north">{plate(layout.north)}</div>
         <div className="gd-ring__seat gd-ring__seat--west">{plate(layout.west)}</div>
         <div className="gd-ring__center">
-          {inTributeCenter || showAnti ? (
+          {view.phase === 'ceremonyCut' && view.ceremonyCutter !== null ? (
+            // Item 3: the REAL cut — one actor, three spectators, all named.
+            <CutPanel
+              cutter={view.ceremonyCutter}
+              isCutter={view.ceremonyCutter === activeSeat}
+              nameFor={nameFor}
+              onCut={(position) => act({ type: 'cutDeck', position })}
+            />
+          ) : inTributeCenter || showAnti ? (
             <TributePanel view={view} nameFor={nameFor} antiReveals={derived.anti} />
           ) : (
             <TrickWell
@@ -462,6 +474,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           glow={eligible}
           descending={handDescending}
         />
+        {view.phase !== 'ceremonyCut' && (
         <ActionBar
           hints={hints}
           phase={view.phase}
@@ -481,6 +494,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           }}
           onAntiDecision={(invoke) => act({ type: 'antiTributeDecision', invoke })}
         />
+        )}
       </div>
 
       {showToast && lastRejection !== undefined && (
@@ -495,6 +509,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       {ceremonyShowing && derived.ceremony !== null && (
         <CeremonyOverlay
           ceremony={derived.ceremony}
+          level={view.currentLevel}
           nameFor={nameFor}
           onDone={() => setCeremonyDone(true)}
         />

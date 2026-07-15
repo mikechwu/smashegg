@@ -248,6 +248,32 @@ describe('Guandan e2e (M3 gate)', () => {
 
         const startedSeq = await startMatch(clients[0]!.client);
 
+        // --- Item 3: the match OPENS at the REAL cut. Every seat's start
+        // copy names the same cutter; the cutter picks a position; the
+        // deal — and the ceremony payload — follow from that action. ---
+        const startCopies: EventMsg[] = [];
+        for (const c of clients) {
+          startCopies.push(
+            await c.client.waitFor<EventMsg>(
+              (m) => m.type === 'event' && m.seat === c.seat && m.seq === startedSeq,
+            ),
+          );
+        }
+        const cutView = viewOf(startCopies[0]!);
+        expect(cutView.phase).toBe('ceremonyCut');
+        const cutter = cutView.ceremonyCutter!;
+        for (const copy of startCopies) {
+          expect(viewOf(copy).ceremonyCutter).toBe(cutter); // public, identical
+        }
+        const cutterClient = clients[cutter]!.client;
+        const cutMark = cutterClient.mark();
+        cutterClient.action(cutter, { type: 'cutDeck', position: 42 }, { expectedSeq: startedSeq });
+        const afterCut = await cutterClient.waitFor<EventMsg>(
+          (m) => m.type === 'event' && m.seat === cutter && m.seq > startedSeq,
+          { from: cutMark },
+        );
+        const dealSeq = afterCut.seq;
+
         // --- 翻牌定先 ceremony: the FIRST handStarted (hand 1) must carry
         // the ceremony payload, identical (public) on every seat's copy,
         // and its markerSeat must hold the lead. ---
@@ -255,7 +281,7 @@ describe('Guandan e2e (M3 gate)', () => {
         for (const c of clients) {
           firstCopies.push(
             await c.client.waitFor<EventMsg>(
-              (m) => m.type === 'event' && m.seat === c.seat && m.seq === startedSeq,
+              (m) => m.type === 'event' && m.seat === c.seat && m.seq === dealSeq,
             ),
           );
         }
@@ -276,20 +302,23 @@ describe('Guandan e2e (M3 gate)', () => {
           // Hints (legal actions) go to the leader's copy and nobody else's.
           expect(copy.hints !== undefined).toBe(copy.seat === ceremony0!.markerSeat);
         }
-        // Ceremony internals: last flip is countable (a rank, not a joker,
-        // not the hand-1 level '2'), and all seats are in range.
-        const lastFlip = ceremony0!.flips[ceremony0!.flips.length - 1];
+        // Ceremony internals (item 3: flips are REAL cards now): the last
+        // flip is countable — not a joker, not the hand-1 level '2' — the
+        // logged position matches what we sent, and all seats are in range.
+        const lastFlip = ceremony0!.flips[ceremony0!.flips.length - 1]!;
         expect(ceremony0!.flips.length).toBeGreaterThan(0);
+        expect(ceremony0!.cutPosition).toBe(42);
         expect(lastFlip).not.toBe('SJ');
         expect(lastFlip).not.toBe('BJ');
-        expect(lastFlip).not.toBe('2');
+        expect(lastFlip[0], 'countable rank').not.toBe('2');
         for (const s of [ceremony0!.cutter, ceremony0!.firstDrawer, ceremony0!.markerSeat]) {
           expect([0, 1, 2, 3]).toContain(s);
         }
 
-        // --- Drive the whole match with the first-hint bot. ---
+        // --- Drive the whole match with the first-hint bot, from the
+        // post-cut seq (the cut above already consumed the ceremony). ---
         const holders: GuandanHolder[] = clients.map((c) => ({ client: c.client, seats: [c.seat] }));
-        const result = await driveFirstHintBot(holders, startedSeq, { maxActions: 20_000 });
+        const result = await driveFirstHintBot(holders, dealSeq, { maxActions: 20_000 });
 
         // Terminal state on every seat's authoritative view.
         for (const c of clients) {

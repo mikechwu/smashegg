@@ -36,6 +36,7 @@ export { JIANGSU_OFFICIAL_ONLINE };
 
 /** Suggested per-phase deadlines (room layer may clamp/override). */
 const TIMEOUT_MS: Record<Phase, number | null> = {
+  ceremonyCut: 30_000,
   antiTributeDecision: 20_000,
   tribute: 30_000,
   returnTribute: 30_000,
@@ -81,80 +82,109 @@ function stepSeats(from: Seat, steps: number, config: RuleVariant): Seat {
   return seat;
 }
 
-/** Flip-draw model: a uniform card identity from the full 108-card double
- *  deck's multiset — 8 copies of each of the 13 ranks plus 4 jokers — so
- *  flip probabilities match physically flipping a shuffled deck
- *  (P(each rank) = 8/108, P(joker) = 4/108). Draw values ≥ 104 are jokers. */
-const FLIP_DECK_SIZE = 108;
-const FLIP_RANK_COPIES = 8;
+// ---------------------------------------------------------------------------
+// 翻牌定先 with a REAL cut (item 3): init commits a shuffled deck and stops
+// in phase 'ceremonyCut'; the cutter's cutDeck action rotates the deck at
+// the chosen position, the flip/count ritual reads ACTUAL top cards, and
+// the SAME rotated deck is then dealt one card at a time from firstDrawer —
+// so the face-up marker card genuinely lands at the seat that leads, and
+// the cut changes both the flips and every hand. Deterministic from
+// (seed, position); the action is logged, so replay reproduces everything.
+// ---------------------------------------------------------------------------
 
-/** Re-flip cap. At hand-1 level '2', P(re-flip) = (8+4)/108 per draw, so 24
- *  consecutive re-flips ≈ 1e-23 — the cap only turns termination from a
- *  probabilistic property into a structural one (the fallback below draws
- *  once, uniformly, over the countable ranks). */
+/** Interior-cut bounds: a physical cut takes a non-trivial packet from each
+ *  end (≥5 cards — the interior-cut convention), and ribbon-edge pixels are
+ *  the least touch-reliable anyway; the UI maps a continuous drag onto
+ *  exactly this range. */
+export const CUT_MIN = 6;
+export const CUT_MAX = 102;
+/** The indifferent cut — what the deadline's defaultAction plays for an AFK
+ *  cutter: split the deck roughly in half, as a human would. */
+export const DEFAULT_CUT_POSITION = 54;
+
+/** Flip-walk cap: a real double deck holds at most 8 level-rank cards + 4
+ *  jokers = 12 consecutive re-flips, so a countable card ALWAYS appears
+ *  within 13 flips; the cap is purely defensive. */
 const MAX_FLIPS = 24;
 
-/** Run the seeded ceremony: cut → flip counting cards → count around the
- *  table → place the marker. Returns the advanced PRNG alongside the
- *  ceremony data; the caller leads the hand from `markerSeat`. */
-function runDrawCardCeremony(
-  prngIn: PrngState,
+/** The flip/count ritual over the REAL top of the cut deck: flip cards until
+ *  one is countable (jokers and the current-level rank re-flip, every flip
+ *  recorded), count around the table from the cutter (owner rule: cutter=1,
+ *  in turn direction, offset (value−1) mod 4) to find the first drawer, and
+ *  locate where the counted (face-up marker) card lands in the one-card-at-
+ *  a-time deal — that seat leads. No PRNG is consumed: the deck IS the
+ *  randomness. The ABSOLUTE leader stays uniform over seats (the cutter is
+ *  PRNG-uniform and independent of the deck); conditional on the cutter the
+ *  distribution follows the physical rank arithmetic, by design. */
+function runCutRitual(
+  rotated: readonly Card[],
   level: Rank,
   config: RuleVariant,
-): { ceremony: Ceremony; prng: PrngState } {
-  let prng = prngIn;
-
-  // (a) Who cuts the deck — PRNG-uniform over the four seats.
-  const cut = nextInt(prng, 4);
-  prng = cut.state;
-  const cutter = cut.value as Seat;
-
-  // (b) Flip counting cards until one is countable. Jokers and the current
-  // level rank have no countable natural position under the owner rule and
-  // force a re-flip — hand 1 plays at level '2', so a flipped '2' re-flips
-  // too. EVERY flip is recorded, jokers included (contract widened for
-  // animation fidelity): the last recorded flip is always countable.
-  const flips: Ceremony['flips'] = [];
+  cutter: Seat,
+): { flips: Card[]; firstDrawer: Seat; markerSeat: Seat } {
+  const flips: Card[] = [];
   let counted: Rank | null = null;
-  for (let i = 0; i < MAX_FLIPS && counted === null; i++) {
-    const draw = nextInt(prng, FLIP_DECK_SIZE);
-    prng = draw.state;
-    if (draw.value >= RANKS.length * FLIP_RANK_COPIES) {
-      // 4 joker slots: 2 small, 2 big — matching the physical multiset.
-      flips.push(draw.value - RANKS.length * FLIP_RANK_COPIES < 2 ? 'SJ' : 'BJ');
-      continue;
-    }
-    const rank = RANKS[Math.floor(draw.value / FLIP_RANK_COPIES)]!;
-    flips.push(rank);
-    if (rank !== level) counted = rank; // level rank stays recorded but re-flips
+  for (let i = 0; i < Math.min(MAX_FLIPS, rotated.length) && counted === null; i++) {
+    const card = rotated[i]!;
+    flips.push(card);
+    const rank = rankOf(card); // null for jokers → re-flip
+    if (rank !== null && rank !== level) counted = rank;
   }
   if (counted === null) {
-    // Cap hit (astronomically unlikely — defensive only): collapse the
-    // remaining rejection loop into one uniform draw over the countable
-    // ranks — the exact distribution the loop converges to.
-    const countable = RANKS.filter((rank) => rank !== level);
-    const draw = nextInt(prng, countable.length);
-    prng = draw.state;
-    counted = countable[draw.value]!;
-    flips.push(counted);
+    // Unreachable on a real double deck (≤12 possible re-flips); defensive
+    // structural fallback only.
+    counted = 'A';
   }
-
-  // (c) Count around the table with the cutter as position 1, following the
-  // turn direction: A=the cutter, 2=下家, 3=partner, 4=the remaining seat,
-  // higher counts wrap — seatOffset = (count - 1) mod 4.
   const firstDrawer = stepSeats(cutter, (countingValue(counted) - 1) % 4, config);
+  // Deal index i lands at stepSeats(firstDrawer, i % 4); the marker card is
+  // the counted flip at rotated[flips.length - 1].
+  const markerSeat = stepSeats(firstDrawer, (flips.length - 1) % 4, config);
+  return { flips, firstDrawer, markerSeat };
+}
 
-  // (d) Where the face-up marker card sits in the deal, expressed as
-  // rotation steps from the first drawer. The uniform 0..3 draw makes the
-  // leader uniform over seats BY CONSTRUCTION (markerSeat = firstDrawer +
-  // U{0..3} steps), exactly matching 'random' — the marker's position
-  // within the deal is presentation flavor, not a fairness change
-  // (types.ts contract).
-  const marker = nextInt(prng, 4);
-  prng = marker.state;
-  const markerSeat = stepSeats(firstDrawer, marker.value, config);
-
-  return { ceremony: { cutter, flips, firstDrawer, markerSeat }, prng };
+/** Apply the cut: rotate the committed deck, run the ritual on its real top
+ *  cards, deal the SAME rotated deck round-robin from firstDrawer, and
+ *  enter play with the marker's landing seat leading. */
+function completeCeremonyCut(
+  state: GuandanState,
+  position: number,
+): { state: GuandanState; events: GuandanEvent[] } {
+  const { cutter, deck } = state.ceremonyCut!;
+  const { config } = state;
+  const rotated = [...deck.slice(position), ...deck.slice(0, position)];
+  const ritual = runCutRitual(rotated, state.currentLevel, config, cutter);
+  const hands: GuandanState['hands'] = [[], [], [], []];
+  for (let i = 0; i < rotated.length; i++) {
+    hands[stepSeats(ritual.firstDrawer, i % 4, config)]!.push(rotated[i]!);
+  }
+  const handStarted: Extract<GuandanEvent, { type: 'handStarted' }> = {
+    type: 'handStarted',
+    handNo: state.handNo,
+    currentLevel: state.currentLevel,
+    declarerTeam: state.declarerTeam,
+    suspensionApplied: false, // hand 1: no declarer team, no suspension path
+    hands: [hands[0].slice(), hands[1].slice(), hands[2].slice(), hands[3].slice()],
+    ceremony: {
+      cutter,
+      cutPosition: position,
+      flips: ritual.flips,
+      firstDrawer: ritual.firstDrawer,
+      markerSeat: ritual.markerSeat,
+    },
+  };
+  return {
+    state: {
+      ...state,
+      phase: 'playing',
+      hands,
+      // The DEAL resets the planning windows (item 2) — including the
+      // cutter's: the cut itself never consumes a window.
+      actedThisHand: [false, false, false, false],
+      ceremonyCut: null,
+      trick: startTrick(ritual.markerSeat, hands, config),
+    },
+    events: [handStarted],
+  };
 }
 
 /** Start hand `handNo`, dealing from the carried PRNG state and entering
@@ -189,6 +219,38 @@ function startHand(
     aAttemptsExhausted: state.aAttemptsExhausted,
   });
 
+  // Item 3: hand 1 under drawCard stops at the CUT — the deck is shuffled
+  // and COMMITTED into state (hidden like the PRNG), nothing is dealt, and
+  // the cutter (PRNG-uniform) becomes the phase's actor. The deal, the
+  // flips and the leader all follow from the cutDeck action.
+  if (prevFinishOrder === null && config.firstLeadMethod === 'drawCard') {
+    const shuffled = shuffle(buildDeck(), state.prng);
+    const cut = nextInt(shuffled.state, 4);
+    const cutter = cut.value as Seat;
+    const ceremonyState: GuandanState = {
+      config,
+      prng: cut.state,
+      handNo,
+      phase: 'ceremonyCut',
+      levels: state.levels,
+      aAttempts: state.aAttempts,
+      aAttemptsExhausted: state.aAttemptsExhausted,
+      currentLevel: level,
+      declarerTeam,
+      hands: [[], [], [], []],
+      actedThisHand: [false, false, false, false],
+      ceremonyCut: { cutter, deck: shuffled.items },
+      finishOrder: [],
+      trick: null,
+      tribute: null,
+      prevFinishOrder,
+      antiTributePending: null,
+      firstFinisherAllAces: null,
+      matchWinner: null,
+    };
+    return { state: ceremonyState, events: [{ type: 'ceremonyCutStarted', cutter }] };
+  }
+
   const deal = dealHands(state.prng);
   let prng = deal.prng;
   const hands = deal.hands;
@@ -221,6 +283,7 @@ function startHand(
     // must win over that action's own acted-mark, and does: startHand runs
     // after the mark).
     actedThisHand: [false, false, false, false],
+    ceremonyCut: null,
     finishOrder: [],
     trick: null,
     tribute: null,
@@ -232,20 +295,14 @@ function startHand(
 
   if (prevFinishOrder === null) {
     // Hand 1: no tribute (spec §5.1). Leader per firstLeadMethod:
-    // 'fixedSeat' pins seat 0; 'random' draws a uniform seat; 'drawCard'
-    // runs the seeded 翻牌定先 ceremony above and leads from the marker
-    // seat — still uniform over seats by construction, with the full
-    // flip/count flavor attached to handStarted for the UI to animate.
+    // 'fixedSeat' pins seat 0; 'random' draws a uniform seat. ('drawCard'
+    // never reaches here — it returned above in phase ceremonyCut; the
+    // cutDeck action deals and leads via completeCeremonyCut.)
     let leader: Seat = 0;
     if (config.firstLeadMethod === 'random') {
       const r = nextInt(prng, 4);
       prng = r.state;
       leader = r.value;
-    } else if (config.firstLeadMethod === 'drawCard') {
-      const drawn = runDrawCardCeremony(prng, level, config);
-      prng = drawn.prng;
-      handStarted.ceremony = drawn.ceremony;
-      leader = drawn.ceremony.markerSeat;
     }
     return {
       state: { ...base, prng, trick: startTrick(leader, hands, config) },
@@ -330,6 +387,8 @@ function finishHand(
 
 function actorsFor(state: GuandanState): Seat[] {
   switch (state.phase) {
+    case 'ceremonyCut':
+      return [state.ceremonyCut!.cutter];
     case 'antiTributeDecision': {
       const pending = state.antiTributePending!;
       return pending.payers.filter((seat) => pending.decisions[seat] === undefined);
@@ -405,6 +464,13 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
   legalActions(state, seat) {
     if (!actorsFor(state).includes(seat)) return [];
     switch (state.phase) {
+      case 'ceremonyCut': {
+        // Choice phase → the EXACT eligible set (obligation 4): one action
+        // per interior cut position.
+        const cuts: GuandanAction[] = [];
+        for (let p = CUT_MIN; p <= CUT_MAX; p++) cuts.push({ type: 'cutDeck', position: p });
+        return cuts;
+      }
       case 'antiTributeDecision':
         return [
           { type: 'antiTributeDecision', invoke: true },
@@ -457,6 +523,18 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
       : { ...input, actedThisHand: withSeatActed(acted, seat) };
 
     switch (state.phase) {
+      case 'ceremonyCut': {
+        if (action.type !== 'cutDeck') return err('action.wrongPhase', { phase: state.phase });
+        if (seat !== state.ceremonyCut!.cutter) return err('action.notYourTurn', { seat });
+        if (
+          !Number.isInteger(action.position) ||
+          action.position < CUT_MIN ||
+          action.position > CUT_MAX
+        ) {
+          return err('ceremony.invalidCutPosition', { position: action.position });
+        }
+        return { ok: true, ...completeCeremonyCut(state, action.position) };
+      }
       case 'antiTributeDecision': {
         if (action.type !== 'antiTributeDecision') return err('action.wrongPhase', { phase: state.phase });
         const res = applyAntiTributeDecision(
@@ -615,6 +693,10 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
   defaultAction(state, seat) {
     if (!actorsFor(state).includes(seat)) return null;
     switch (state.phase) {
+      case 'ceremonyCut':
+        // An AFK cutter must not deadlock the table before the game even
+        // starts (liveness, obligation 5): the indifferent middle cut.
+        return { type: 'cutDeck', position: DEFAULT_CUT_POSITION };
       case 'antiTributeDecision':
         // Mirrors 'auto' mode; keeps liveness on timeout (spec §7.6).
         return { type: 'antiTributeDecision', invoke: true };
@@ -649,6 +731,10 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
   },
 
   timingClass(state, seat) {
+    // Item 3: the cut precedes the deal — there is no hand to read yet, so
+    // it classes 'turn'; and it never consumes anyone's planning window
+    // (the acted flags reset AT the deal, which follows the cut).
+    if (state.phase === 'ceremonyCut') return 'turn';
     // Item 2: 'planning' ⇔ this SEAT has not yet acted in the current hand.
     // Its first decision — play, pass, tribute, return, anti-tribute alike
     // (owner decision: tribute IS the hand-reading moment) — gets the
@@ -701,6 +787,9 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
       aAttemptsExhausted: state.aAttemptsExhausted,
       hand: sortCards(state.hands[seat]!, state.currentLevel),
       cardCounts,
+      // Item 3: the cutter is public; the committed DECK never leaves the
+      // state (obligation 3 — it is everyone's future hands).
+      ceremonyCutter: state.ceremonyCut?.cutter ?? null,
       finishOrder: state.finishOrder.slice(),
       trick: state.trick,
       tribute: t
@@ -727,12 +816,16 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
     switch (event.type) {
       case 'handStarted': {
         // Deal redaction (obligation 3): each seat sees only its own hand.
-        // The drawCard ceremony (when present) is deliberately PUBLIC — it
-        // reveals nothing about any hand (the flips are counting flavor,
-        // not dealt cards), and every seat animates the same opening.
+        // The drawCard ceremony (when present) is deliberately PUBLIC —
+        // including the flips, which since item 3 are REAL dealt cards
+        // whose landing seats are publicly derivable: that is the physical
+        // table's reality (everyone watched them flip), by design. The
+        // committed deck itself never appears in any event.
         const hands = event.hands.map((hand, s) => (s === seat ? hand : [])) as typeof event.hands;
         return { ...event, hands };
       }
+      // ceremonyCutStarted is public in full via the default arm below:
+      // everyone watches one actor cut.
       case 'tributeReturned':
         // spec §7.7 returnHidden variant: uninvolved seats see the marker
         // (returns happened, atomically) but not the cards.
