@@ -59,8 +59,8 @@ import {
   isPausedRoom,
   mayAutoPlay,
   nextDeadlines,
+  resolveSeatTiming,
   resolveTimeoutMs,
-  resolveTimingClass,
   resumeOffsetMs,
   type DeadlineEntry,
 } from '../../../src/server/room-helpers';
@@ -115,8 +115,10 @@ class VirtualRoom {
     return this.game.isTerminal(this.state) ? [] : (this.game.expectedActors(this.state) as Seat[]);
   }
 
-  timeoutMs(): number | null {
-    return resolveTimeoutMs(this.game, this.state, this.timing);
+  /** Per-seat resolved budget (item 2) — the model reads the SAME pure
+   *  resolution the product uses, seat by seat. */
+  timeoutMsFor(seat: Seat): number | null {
+    return resolveTimeoutMs(this.game, this.state, this.timing, seat);
   }
 
   private recompute(reason: 'decision' | 'presence', changedSeats: ReadonlySet<Seat> | undefined): void {
@@ -126,8 +128,9 @@ class VirtualRoom {
       : nextDeadlines({
           prev: this.rows,
           expectedActors: this.actors(),
-          timeoutMs: this.timeoutMs(),
-          timingClass: resolveTimingClass(this.game, this.state),
+          // Item 2: the model hands nextDeadlines the SAME per-seat resolver
+          // the DO builds — budgets and classes vary by seat now.
+          resolveFor: resolveSeatTiming(this.game, this.state, this.timing),
           connectedSeats: this.connected,
           now: this.now,
           reason,
@@ -267,10 +270,12 @@ class VirtualRoom {
 
 /** DL1/DL2/I1 — the always-on invariants, asserted after every event. */
 function assertInvariants(room: VirtualRoom): void {
-  const timeoutMs = room.game.isTerminal(room.state) ? null : room.timeoutMs();
   const bySeat = new Map(room.rows.map((r) => [r.seat, r]));
 
   for (const actor of room.actors()) {
+    // Item 2: the budget bound is PER-ACTOR (each seat's own class maps to
+    // its own budget), so DL1 resolves it seat by seat.
+    const timeoutMs = room.game.isTerminal(room.state) ? null : room.timeoutMsFor(actor);
     const row = bySeat.get(actor);
     if (row === undefined) {
       // The ONLY row-less actor allowed: connected in an untimed state.

@@ -31,11 +31,12 @@
 //      types are bare camelCase keys, and no CJK appears in the JSON of any
 //      event or error.
 //
-// M4 timingClass pin (docs/research/room-timing.md §1): at every step the
-// class is deterministic, inside the closed union, and 'planning' holds
-// EXACTLY when an independently tracked "no play yet this hand" flag says
-// the hand's opening lead is pending — so a future variant that breaks the
-// Σ|hands|=108 derivation fails here loudly instead of misclassifying.
+// Item-2 timingClass pin (per-seat planning window): at every step, for
+// EVERY seat, the class is deterministic, inside the closed union, and
+// 'planning' holds EXACTLY when an INDEPENDENTLY tracked acted-set says
+// that seat has not yet acted in the current hand (the tracker is driven
+// from applied actions + handStarted events, never from the engine's own
+// actedThisHand field — model = product, not a re-implementation).
 //
 // Determinism note: the only randomness is src/engine/core/prng seeded with
 // the string literals below (engine PRNG via init(seed); bot policy via its
@@ -105,28 +106,37 @@ function applyNoThrow(state: GuandanState, seat: Seat, action: GuandanAction, la
   }
 }
 
-/** M4 timingClass pin at one state. `noPlayYetThisHand` is tracked
- *  INDEPENDENTLY of the engine's derivation (from handStarted/played
- *  events), so this asserts the semantic meaning, not the implementation:
- *  'planning' ⇔ the hand's opening lead is the pending decision. */
-function checkTimingClass(state: GuandanState, noPlayYetThisHand: boolean): void {
-  const cls = GuandanGame.timingClass!(state);
-  expect(['turn', 'planning'], 'timingClass stays inside the closed union').toContain(cls);
-  expect(GuandanGame.timingClass!(state), 'timingClass determinism').toBe(cls);
-  expect(
-    cls === 'planning',
-    `timingClass ⇔ opening lead (phase ${state.phase}, noPlayYet ${noPlayYetThisHand})`,
-  ).toBe(state.phase === 'playing' && noPlayYetThisHand);
+/** Item-2 timingClass pin at one state, for EVERY seat. `actedIndependent`
+ *  is tracked from applied actions + handStarted events — never from the
+ *  engine's own actedThisHand field — so this asserts the semantic meaning,
+ *  not the implementation: 'planning' ⇔ this seat's first action of the
+ *  current hand is still pending. */
+function checkTimingClass(state: GuandanState, actedIndependent: ReadonlySet<Seat>): void {
+  for (const seat of [0, 1, 2, 3] as Seat[]) {
+    const cls = GuandanGame.timingClass!(state, seat);
+    expect(['turn', 'planning'], 'timingClass stays inside the closed union').toContain(cls);
+    expect(GuandanGame.timingClass!(state, seat), 'timingClass determinism').toBe(cls);
+    expect(
+      cls,
+      `timingClass ⇔ first-action-pending (phase ${state.phase}, seat ${seat})`,
+    ).toBe(actedIndependent.has(seat) ? 'turn' : 'planning');
+  }
 }
 
-/** Event-driven "no play yet this hand" tracker (the independent flag). */
-function trackNoPlayYet(noPlayYet: boolean, events: readonly GuandanEvent[]): boolean {
-  let flag = noPlayYet;
+/** The independent acted-set tracker: the ACTING seat marks on apply; a
+ *  handStarted event (a fresh deal — including one dealt atomically by a
+ *  hand-ending action) clears everyone. Order matters and mirrors the
+ *  product's: mark first, then let the deal reset win. */
+function trackActed(
+  acted: Set<Seat>,
+  actingSeat: Seat | null,
+  events: readonly GuandanEvent[],
+): Set<Seat> {
+  if (actingSeat !== null) acted.add(actingSeat);
   for (const event of events) {
-    if (event.type === 'handStarted') flag = true;
-    else if (event.type === 'played') flag = false;
+    if (event.type === 'handStarted') acted.clear();
   }
-  return flag;
+  return acted;
 }
 
 /** Obligation 6 checks on a rejection. */
@@ -461,12 +471,15 @@ function playoutBody(
   for (const event of first.events) checkEvent(event, config);
   sampleState(state, config);
 
-  // M4: the independent "no play yet this hand" flag starts from the init
-  // events (hand 1's handStarted) and is checked at EVERY step below.
-  let noPlayYet = trackNoPlayYet(false, first.events);
+  // Item 2: the independent acted-set starts from the init events (hand 1's
+  // handStarted clears it — nobody has acted) and is checked for EVERY seat
+  // at EVERY step below.
+  const acted = trackActed(new Set<Seat>(), null, first.events);
   let planningStatesSeen = 0;
-  checkTimingClass(state, noPlayYet);
-  if (GuandanGame.timingClass!(state) === 'planning') planningStatesSeen++;
+  checkTimingClass(state, acted);
+  if ([0, 1, 2, 3].some((s) => GuandanGame.timingClass!(state, s as Seat) === 'planning')) {
+    planningStatesSeen++;
+  }
 
   let bot: PrngState = seedPrng(`obligations-bot:${seed}`);
   let actions = 0;
@@ -523,9 +536,12 @@ function playoutBody(
     log.push({ seat, action });
     for (const event of res.events) checkEvent(event, config);
     state = res.state;
-    noPlayYet = trackNoPlayYet(noPlayYet, res.events);
-    checkTimingClass(state, noPlayYet);
-    if (!GuandanGame.isTerminal(state) && GuandanGame.timingClass!(state) === 'planning') {
+    trackActed(acted, seat, res.events);
+    checkTimingClass(state, acted);
+    if (
+      !GuandanGame.isTerminal(state) &&
+      [0, 1, 2, 3].some((s) => GuandanGame.timingClass!(state, s as Seat) === 'planning')
+    ) {
       planningStatesSeen++;
     }
     actions++;
@@ -724,6 +740,7 @@ function constructedAntiTributeDecisionState(): GuandanState {
     prng: seedPrng('obl-constructed-anti'),
     handNo: 2,
     phase: 'antiTributeDecision',
+    actedThisHand: [false, false, false, false],
     levels: ['2', '2'],
     aAttempts: [0, 0],
     aAttemptsExhausted: [false, false],

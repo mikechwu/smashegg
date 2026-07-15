@@ -159,6 +159,22 @@ function runDrawCardCeremony(
 
 /** Start hand `handNo`, dealing from the carried PRNG state and entering
  *  the hand's first acting phase. prevFinishOrder === null ⇔ hand 1. */
+/** actedThisHand with `seat` flipped true (item 2). Tolerates a short/missing
+ *  array from a state persisted before the field existed. */
+function withSeatActed(
+  acted: readonly boolean[],
+  seat: Seat,
+): [boolean, boolean, boolean, boolean] {
+  const next: [boolean, boolean, boolean, boolean] = [
+    acted[0] ?? false,
+    acted[1] ?? false,
+    acted[2] ?? false,
+    acted[3] ?? false,
+  ];
+  next[seat] = true;
+  return next;
+}
+
 function startHand(
   state: Pick<GuandanState, 'config' | 'prng' | 'levels' | 'aAttempts' | 'aAttemptsExhausted'>,
   handNo: number,
@@ -200,6 +216,11 @@ function startHand(
     currentLevel: level,
     declarerTeam,
     hands,
+    // Item 2: the deal resets every seat's planning window — including for a
+    // hand dealt ATOMICALLY inside a hand-ending applyAction (this reset
+    // must win over that action's own acted-mark, and does: startHand runs
+    // after the mark).
+    actedThisHand: [false, false, false, false],
     finishOrder: [],
     trick: null,
     tribute: null,
@@ -416,9 +437,24 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
     }
   },
 
-  applyAction(state, seat, action): ApplyResult<GuandanState, GuandanEvent> {
-    if (state.phase === 'matchEnd') return err('match.ended');
+  applyAction(input, seat, action): ApplyResult<GuandanState, GuandanEvent> {
+    if (input.phase === 'matchEnd') return err('match.ended');
     if (seat < 0 || seat > 3) return err('action.invalidSeat', { seat });
+
+    // Item 2 (per-seat planning window): a seat's FIRST applied action of a
+    // hand consumes its planning class, whatever the phase — play, pass,
+    // tribute, return, anti-tribute decision alike. Marked on the INPUT
+    // state so every ok-path below carries it, while a hand-ending action
+    // that atomically deals hand N+1 still gets fresh all-false flags from
+    // startHand (the deal's reset must win — and does, it runs later).
+    // Rejected actions return err() without state, so they never commit the
+    // mark. The ?? guards states persisted before this field existed (live
+    // rooms mid-hand at deploy): those seats read as not-yet-acted once,
+    // which only grants a generous window — never a crash.
+    const acted = input.actedThisHand ?? [false, false, false, false];
+    const state: GuandanState = acted[seat]
+      ? input
+      : { ...input, actedThisHand: withSeatActed(acted, seat) };
 
     switch (state.phase) {
       case 'antiTributeDecision': {
@@ -570,6 +606,10 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
         };
       }
     }
+    // Unreachable: matchEnd early-returned above and the switch covers every
+    // other phase — kept as a defensive rejection (and the ending return TS
+    // requires now that `state` is reconstructed, widening the phase union).
+    return err('action.wrongPhase', { phase: state.phase });
   },
 
   defaultAction(state, seat) {
@@ -608,27 +648,19 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
     return TIMEOUT_MS[state.phase];
   },
 
-  timingClass(state) {
-    // 'planning' ⇔ the hand's opening lead: phase 'playing', no top play,
-    // and no card has LEFT any hand this deal. The deal produces 108 held
-    // cards and tribute/return/anti-tribute only MOVE cards between hands
-    // (tribute.ts moveCards; staged commits transfer nothing), so the total
-    // stays 108 until the first play — one predicate covers all three
-    // hand-opening paths (hand 1, tribute 'none'/'anti', post-return
-    // resolution) with no state-shape change. Every mid-hand trick lead
-    // follows at least one play, so the total is < 108 there. Fragility is
-    // pinned loudly: the obligations property test asserts 'planning' ⇔ an
-    // independently tracked "no play yet this hand" flag, so a future
-    // variant that removes cards from the deal fails a test, not silently.
-    // Tribute-family decisions class as 'turn' deliberately — they are
-    // forced choices from small eligible sets; the real planning moment is
-    // the opening lead over the FINAL post-exchange hand.
-    const t = state.trick;
-    const held =
-      state.hands[0].length + state.hands[1].length + state.hands[2].length + state.hands[3].length;
-    return state.phase === 'playing' && t !== null && t.top === null && held === 108
-      ? 'planning'
-      : 'turn';
+  timingClass(state, seat) {
+    // Item 2: 'planning' ⇔ this SEAT has not yet acted in the current hand.
+    // Its first decision — play, pass, tribute, return, anti-tribute alike
+    // (owner decision: tribute IS the hand-reading moment) — gets the
+    // planning budget; every later decision this hand classes 'turn'. This
+    // replaces the M4-era global opening-lead predicate (held===108, whose
+    // own comment admitted its fragility): an explicit per-seat flag instead
+    // of a derived total, reset at the deal, marked at first apply. The ??
+    // guards states persisted before the field existed — those seats read
+    // as not-yet-acted, granting one generous mid-hand window, once. Pinned
+    // by the obligations property test against an INDEPENDENTLY tracked
+    // acted set (model = product).
+    return (state.actedThisHand ?? [false, false, false, false])[seat] ? 'turn' : 'planning';
   },
 
   isTerminal(state) {

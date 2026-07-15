@@ -154,6 +154,11 @@ export interface GuandanState {
   declarerTeam: 0 | 1 | null;
   /** 27 cards each at deal; empties as players finish. */
   hands: [Card[], Card[], Card[], Card[]];
+  /** Per-seat "has this seat acted in the CURRENT hand" (item 2): reset to
+   *  all-false at every deal; a seat's first applied action — play, pass,
+   *  tribute, return, anti-tribute decision alike — flips its flag. Drives
+   *  the per-seat planning timing class; deterministic and replayable. */
+  actedThisHand: [boolean, boolean, boolean, boolean];
   finishOrder: Seat[];
   trick: TrickState | null;
   tribute: TributeState | null;

@@ -63,7 +63,7 @@ describe('Room timing e2e (M4)', () => {
   });
 
   test(
-    'lobby timing path: standard default, setTiming(fast) broadcast, planning then turn deadlines',
+    'lobby timing path: standard default, setTiming(fast) broadcast, PER-SEAT planning windows then turn (item 2)',
     async () => {
       // Created WITHOUT timing → the server defaults the standard preset,
       // visible on the welcome's RoomInfo.
@@ -119,13 +119,48 @@ describe('Room timing e2e (M4)', () => {
         );
         expect(reply.type).toBe('event');
 
-        // After the lead the follower is an ordinary 'turn' under fast's 20s.
-        const turnReceivedAt = Date.now();
+        // Item 2 (the owner scenario, on the wire): the FOLLOWER's first
+        // action of the hand is ALSO its planning moment — fast's 45s
+        // planning budget, NOT the 20s turn budget. Pre-item-2 this row
+        // classed 'turn'; the leader playing fast must not eat the other
+        // seats' windows.
+        const followerReceivedAt = Date.now();
         const nextDeadlines = (reply as EventMsg).deadlines!;
         expect(nextDeadlines).toHaveLength(1);
-        expect(nextDeadlines[0]!.timingClass).toBe('turn');
+        expect(nextDeadlines[0]!.timingClass).toBe('planning');
         expect(nextDeadlines[0]!.seat).not.toBe(leader);
-        const turnLeft = nextDeadlines[0]!.dueAt - turnReceivedAt;
+        const followerLeft = nextDeadlines[0]!.dueAt - followerReceivedAt;
+        expect(followerLeft).toBeGreaterThan(40_000);
+        expect(followerLeft).toBeLessThanOrEqual(46_000);
+
+        // Pass the trick around — each follower's own first (planning)
+        // action — until the lead returns to the leader for trick 2: the
+        // leader's SECOND action of the hand classes 'turn' under fast's
+        // 20s budget (its window was consumed by the opening lead).
+        let seq = (reply as EventMsg).seq;
+        let rows = nextDeadlines;
+        for (let i = 0; i < 3; i++) {
+          const actor = rows[0]!.seat;
+          const actorCopy = await client.waitFor<EventMsg>(
+            (m) => m.type === 'event' && m.seat === actor && m.seq === seq,
+            { from: startMark },
+          );
+          const pass = (actorCopy.hints as GuandanAction[]).find((a) => a.type === 'pass');
+          expect(pass, `follower ${actor} can pass`).toBeDefined();
+          const mark2 = client.mark();
+          client.action(actor, pass!, { expectedSeq: seq });
+          const next = await client.waitFor<EventMsg>(
+            (m) => m.type === 'event' && m.seat === actor && m.seq > seq,
+            { from: mark2 },
+          );
+          seq = next.seq;
+          rows = next.deadlines!;
+        }
+        const turn2ReceivedAt = Date.now();
+        expect(rows).toHaveLength(1);
+        expect(rows[0]!.seat).toBe(leader);
+        expect(rows[0]!.timingClass).toBe('turn');
+        const turnLeft = rows[0]!.dueAt - turn2ReceivedAt;
         expect(turnLeft).toBeGreaterThan(15_000);
         expect(turnLeft).toBeLessThanOrEqual(21_000);
       } finally {

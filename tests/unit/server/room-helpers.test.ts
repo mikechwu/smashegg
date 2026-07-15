@@ -15,6 +15,7 @@ import {
   deltaCoversGap,
   nextDeadlines,
   redactEventsFor,
+  resolveSeatTiming,
   resolveTimeoutMs,
   resolveTimingClass,
   roomCodeFromBytes,
@@ -99,27 +100,41 @@ describe('nextDeadlines (room-timing.md §2 decision table)', () => {
     timingClass: DeadlineEntry['timingClass'] = 'turn',
   ): DeadlineEntry => ({ seat, baseDueAt, dueAt, timingClass });
 
-  function decision(input: Partial<NextDeadlinesInput> & Pick<NextDeadlinesInput, 'expectedActors'>): DeadlineEntry[] {
+  /** Uniform per-seat resolver — the pre-item-2 "one budget, one class for
+   *  everyone" shape most table rows still exercise. */
+  const rf =
+    (timeoutMs: number | null, timingClass: DeadlineEntry['timingClass'] & string = 'turn') =>
+    () => ({ timeoutMs, timingClass });
+
+  type LegacyTiming = { timeoutMs?: number | null; timingClass?: 'turn' | 'planning' };
+
+  function decision(
+    input: Partial<NextDeadlinesInput> & LegacyTiming & Pick<NextDeadlinesInput, 'expectedActors'>,
+  ): DeadlineEntry[] {
+    const { timeoutMs = 45_000, timingClass = 'turn', ...rest } = input;
     return nextDeadlines({
       prev: [],
-      timeoutMs: 45_000,
-      timingClass: 'turn',
+      resolveFor: rf(timeoutMs, timingClass),
       connectedSeats: connected(),
       now: NOW,
       reason: 'decision',
-      ...input,
+      ...rest,
     });
   }
 
-  function presence(input: Partial<NextDeadlinesInput> & Pick<NextDeadlinesInput, 'expectedActors' | 'changedSeats'>): DeadlineEntry[] {
+  function presence(
+    input: Partial<NextDeadlinesInput> &
+      LegacyTiming &
+      Pick<NextDeadlinesInput, 'expectedActors' | 'changedSeats'>,
+  ): DeadlineEntry[] {
+    const { timeoutMs = 45_000, timingClass = 'turn', ...rest } = input;
     return nextDeadlines({
       prev: [],
-      timeoutMs: 45_000,
-      timingClass: 'turn',
+      resolveFor: rf(timeoutMs, timingClass),
       connectedSeats: connected(),
       now: NOW,
       reason: 'presence',
-      ...input,
+      ...rest,
     });
   }
 
@@ -251,12 +266,12 @@ describe('nextDeadlines (room-timing.md §2 decision table)', () => {
     };
     assertI1(rows);
     rows = nextDeadlines({
-      prev: rows, expectedActors: [0, 2], timeoutMs: 90_000, timingClass: 'turn',
+      prev: rows, expectedActors: [0, 2], resolveFor: rf(90_000),
       connectedSeats: connected(2), now: NOW + 1_000, reason: 'presence', changedSeats: connected(0),
     });
     assertI1(rows);
     rows = nextDeadlines({
-      prev: rows, expectedActors: [0, 2], timeoutMs: 90_000, timingClass: 'turn',
+      prev: rows, expectedActors: [0, 2], resolveFor: rf(90_000),
       connectedSeats: connected(0, 2), now: NOW + 2_000, reason: 'presence', changedSeats: connected(0),
     });
     assertI1(rows);
@@ -274,7 +289,7 @@ describe('nextDeadlines (room-timing.md §2 decision table)', () => {
       const nowStep = NOW + step * 7_000;
       const isConnected = step % 2 === 0;
       rows = nextDeadlines({
-        prev: rows, expectedActors: [0], timeoutMs: 90_000, timingClass: 'turn',
+        prev: rows, expectedActors: [0], resolveFor: rf(90_000),
         connectedSeats: isConnected ? connected(0) : connected(), now: nowStep,
         reason: 'presence', changedSeats: connected(0),
       });
@@ -290,7 +305,7 @@ describe('nextDeadlines (room-timing.md §2 decision table)', () => {
     // 90s budget so seat 1's disconnect grace actually clamps its due.
     const before = decision({ expectedActors: [1, 3], connectedSeats: connected(1, 3), timeoutMs: 90_000 });
     const after = nextDeadlines({
-      prev: before, expectedActors: [1, 3], timeoutMs: 90_000, timingClass: 'turn',
+      prev: before, expectedActors: [1, 3], resolveFor: rf(90_000),
       connectedSeats: connected(3), now: NOW + 5_000, reason: 'presence', changedSeats: connected(1),
     });
     expect(JSON.stringify(after.find((r) => r.seat === 3))).toBe(
@@ -304,13 +319,13 @@ describe('nextDeadlines (room-timing.md §2 decision table)', () => {
     // (a decision recompute where 3 REMAINS an actor).
     let rows = decision({ expectedActors: [1, 3], connectedSeats: connected(1, 3), timeoutMs: 45_000 });
     rows = nextDeadlines({
-      prev: rows, expectedActors: [1, 3], timeoutMs: 45_000, timingClass: 'turn',
+      prev: rows, expectedActors: [1, 3], resolveFor: rf(45_000),
       connectedSeats: connected(1), now: NOW + 10_000, reason: 'presence', changedSeats: connected(3),
     });
     const graceDue = rows.find((r) => r.seat === 3)!.dueAt;
     expect(graceDue).toBe(NOW + 45_000); // base beat the grace here
     const afterCoActor = nextDeadlines({
-      prev: rows, expectedActors: [3], timeoutMs: 45_000, timingClass: 'turn',
+      prev: rows, expectedActors: [3], resolveFor: rf(45_000),
       connectedSeats: connected(1), now: NOW + 20_000, reason: 'decision',
     });
     expect(afterCoActor).toHaveLength(1);
@@ -319,11 +334,33 @@ describe('nextDeadlines (room-timing.md §2 decision table)', () => {
     expect(afterCoActor[0]!.baseDueAt).toBe(rows.find((r) => r.seat === 3)!.baseDueAt);
   });
 
+  it('item 2: co-actors resolve INDEPENDENT budgets and classes (per-seat window)', () => {
+    // Double tribute where payer 0 has not acted this hand (planning, 90s)
+    // while payer 1 already has (turn, 45s) — the same decision arms two
+    // DIFFERENT fresh clocks. Pre-item-2 this was impossible: one class and
+    // one budget applied to every actor.
+    const rows = nextDeadlines({
+      prev: [],
+      expectedActors: [0, 1],
+      resolveFor: (seat) =>
+        seat === 0
+          ? { timeoutMs: 90_000, timingClass: 'planning' as const }
+          : { timeoutMs: 45_000, timingClass: 'turn' as const },
+      connectedSeats: connected(0, 1),
+      now: NOW,
+      reason: 'decision',
+    });
+    expect(rows).toEqual([
+      row(0, NOW + 90_000, NOW + 90_000, 'planning'),
+      row(1, NOW + 45_000, NOW + 45_000, 'turn'),
+    ]);
+  });
+
   it('I4 (untimed flavor): a NULL-base grace row survives a co-actor decision verbatim', () => {
     const anchored = row(3, null, NOW - 30_000 + DISCONNECT_GRACE_MS);
     const after = nextDeadlines({
       prev: [anchored, row(1, NOW + 40_000, NOW + 40_000)],
-      expectedActors: [3], timeoutMs: null, timingClass: 'turn',
+      expectedActors: [3], resolveFor: rf(null),
       connectedSeats: connected(1), now: NOW, reason: 'decision',
     });
     expect(after).toEqual([anchored]);
@@ -342,28 +379,49 @@ describe('resolveTimeoutMs / resolveTimingClass', () => {
     }) as unknown as AnyGameDefinition;
 
   it('legacy room (timing null) → the engine suggestion verbatim, class ignored', () => {
-    expect(resolveTimeoutMs(gameWith(15_000, 'planning'), {}, null)).toBe(15_000);
-    expect(resolveTimeoutMs(gameWith(null, 'planning'), {}, null)).toBeNull();
+    expect(resolveTimeoutMs(gameWith(15_000, 'planning'), {}, null, 0)).toBe(15_000);
+    expect(resolveTimeoutMs(gameWith(null, 'planning'), {}, null, 0)).toBeNull();
   });
 
   it('engine-declared untimed state (actionTimeoutMs null) always wins over room timing', () => {
-    expect(resolveTimeoutMs(gameWith(null, 'turn'), {}, TIMING_PRESETS.standard)).toBeNull();
-    expect(resolveTimeoutMs(gameWith(null), {}, TIMING_PRESETS.fast)).toBeNull();
+    expect(resolveTimeoutMs(gameWith(null, 'turn'), {}, TIMING_PRESETS.standard, 0)).toBeNull();
+    expect(resolveTimeoutMs(gameWith(null), {}, TIMING_PRESETS.fast, 0)).toBeNull();
   });
 
   it('timed state maps the class through RoomTiming', () => {
-    expect(resolveTimeoutMs(gameWith(30_000, 'turn'), {}, TIMING_PRESETS.standard)).toBe(45_000);
-    expect(resolveTimeoutMs(gameWith(30_000, 'planning'), {}, TIMING_PRESETS.standard)).toBe(90_000);
-    expect(resolveTimeoutMs(gameWith(30_000, 'turn'), {}, TIMING_PRESETS.untimed)).toBeNull();
+    expect(resolveTimeoutMs(gameWith(30_000, 'turn'), {}, TIMING_PRESETS.standard, 0)).toBe(45_000);
+    expect(resolveTimeoutMs(gameWith(30_000, 'planning'), {}, TIMING_PRESETS.standard, 0)).toBe(90_000);
+    expect(resolveTimeoutMs(gameWith(30_000, 'turn'), {}, TIMING_PRESETS.untimed, 0)).toBeNull();
   });
 
   it("omitted timingClass method defaults to 'turn' (the guess-number path)", () => {
-    expect(resolveTimingClass(gameWith(15_000), {})).toBe('turn');
-    expect(resolveTimeoutMs(gameWith(15_000), {}, TIMING_PRESETS.fast)).toBe(20_000);
+    expect(resolveTimingClass(gameWith(15_000), {}, 0)).toBe('turn');
+    expect(resolveTimeoutMs(gameWith(15_000), {}, TIMING_PRESETS.fast, 0)).toBe(20_000);
   });
 
   it('implemented timingClass is respected', () => {
-    expect(resolveTimingClass(gameWith(45_000, 'planning'), {})).toBe('planning');
+    expect(resolveTimingClass(gameWith(45_000, 'planning'), {}, 0)).toBe('planning');
+  });
+
+  // --- item 2: the class (and therefore the budget) is PER-SEAT --------------
+
+  /** A game whose seat 0 is still planning while every other seat is not —
+   *  the owner scenario ("seat 1 plays fast; seats 2-4 are still sorting"). */
+  const perSeatGame = {
+    actionTimeoutMs: () => 30_000,
+    timingClass: (_state: unknown, seat: number) => (seat === 0 ? 'planning' : 'turn'),
+  } as unknown as AnyGameDefinition;
+
+  it('resolveSeatTiming maps EACH seat through its own class (item 2)', () => {
+    const resolve = resolveSeatTiming(perSeatGame, {}, TIMING_PRESETS.standard);
+    expect(resolve(0)).toEqual({ timeoutMs: 90_000, timingClass: 'planning' });
+    expect(resolve(1)).toEqual({ timeoutMs: 45_000, timingClass: 'turn' });
+  });
+
+  it('resolveSeatTiming under untimed stays moot for every class (item 2)', () => {
+    const resolve = resolveSeatTiming(perSeatGame, {}, TIMING_PRESETS.untimed);
+    expect(resolve(0).timeoutMs).toBeNull();
+    expect(resolve(1).timeoutMs).toBeNull();
   });
 });
 

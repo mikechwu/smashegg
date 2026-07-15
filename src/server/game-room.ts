@@ -47,8 +47,7 @@ import {
   mayAutoPlay,
   nextDeadlines,
   redactEventsFor,
-  resolveTimeoutMs,
-  resolveTimingClass,
+  resolveSeatTiming,
   resumeOffsetMs,
   sha256Hex,
   socketLastSeen,
@@ -1786,8 +1785,9 @@ export class GameRoom extends DurableObject<Env> {
     const rows = nextDeadlines({
       prev,
       expectedActors: game.expectedActors(state),
-      timeoutMs: resolveTimeoutMs(game, state, this.parseTiming(room)),
-      timingClass: resolveTimingClass(game, state),
+      // Item 2: budget + class resolve PER SEAT (each seat's first action
+      // of a hand is its own planning moment).
+      resolveFor: resolveSeatTiming(game, state, this.parseTiming(room)),
       connectedSeats: this.connectedSeats(),
       now: Date.now(),
       reason,

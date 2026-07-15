@@ -62,6 +62,7 @@ function playingState(overrides: Partial<GuandanState> & Pick<GuandanState, 'han
     prng: seedPrng('spec9-fixture'),
     handNo: 1,
     phase: 'playing',
+    actedThisHand: [false, false, false, false],
     levels: ['2', '2'],
     aAttempts: [0, 0],
     aAttemptsExhausted: [false, false],

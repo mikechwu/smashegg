@@ -86,36 +86,63 @@ export interface DeadlineEntry {
   timingClass: TimingClass | null;
 }
 
-/** Resolved timing class of the current state — the erased optional call
- *  the DO makes; an omitted engine method means every state is 'turn'. */
-export function resolveTimingClass(game: AnyGameDefinition, state: unknown): TimingClass {
-  return game.timingClass?.(state) ?? 'turn';
+/** Resolved timing class of a SEAT's pending decision (item 2: PER-SEAT —
+ *  each seat's first action of a hand is its own planning moment) — the
+ *  erased optional call the DO makes; an omitted engine method means every
+ *  state is 'turn'. */
+export function resolveTimingClass(
+  game: AnyGameDefinition,
+  state: unknown,
+  seat: Seat,
+): TimingClass {
+  return game.timingClass?.(state, seat) ?? 'turn';
 }
 
-/** Effective timeout for the current state (room-timing.md §1 resolution
- *  order): a legacy room (timing NULL) takes the engine suggestion
+/** Effective timeout for a SEAT (room-timing.md §1 resolution order, now
+ *  per-seat): a legacy room (timing NULL) takes the engine suggestion
  *  verbatim; an engine-declared untimed state (actionTimeoutMs null)
- *  always wins; otherwise the state's class maps through RoomTiming. */
+ *  always wins; otherwise the SEAT's class maps through RoomTiming — so
+ *  concurrent actors can hold different budgets (a still-planning tribute
+ *  payer vs a co-payer who already committed). */
 export function resolveTimeoutMs(
   game: AnyGameDefinition,
   state: unknown,
   timing: RoomTiming | null,
+  seat: Seat,
 ): number | null {
   const suggested = game.actionTimeoutMs(state);
   if (timing === null) return suggested;
   if (suggested === null) return null;
-  return timeoutMsFor(timing, resolveTimingClass(game, state));
+  return timeoutMsFor(timing, resolveTimingClass(game, state, seat));
+}
+
+/** A seat's resolved budget + class bundle — what nextDeadlines consumes. */
+export interface SeatTiming {
+  timeoutMs: number | null;
+  timingClass: TimingClass;
+}
+
+/** The per-seat resolver the DO hands to nextDeadlines (item 2): BOTH the
+ *  class and its mapped budget vary by seat now. */
+export function resolveSeatTiming(
+  game: AnyGameDefinition,
+  state: unknown,
+  timing: RoomTiming | null,
+): (seat: Seat) => SeatTiming {
+  return (seat) => ({
+    timeoutMs: resolveTimeoutMs(game, state, timing, seat),
+    timingClass: resolveTimingClass(game, state, seat),
+  });
 }
 
 export interface NextDeadlinesInput {
   /** The current deadlines rows (any order). */
   prev: readonly DeadlineEntry[];
   expectedActors: readonly Seat[];
-  /** Resolved budget for the CURRENT state (resolveTimeoutMs). */
-  timeoutMs: number | null;
-  /** Resolved class for the CURRENT state — stamped on newly armed rows;
-   *  preserved rows keep the class they were armed under. */
-  timingClass: TimingClass;
+  /** PER-SEAT budget + class resolution for the CURRENT state (item 2).
+   *  Newly armed rows stamp the seat's resolved class; preserved rows keep
+   *  the class they were armed under. */
+  resolveFor: (seat: Seat) => SeatTiming;
   connectedSeats: ReadonlySet<Seat>;
   now: number;
   /** 'decision' = the state changed (start / applied action — the ONLY
@@ -130,7 +157,7 @@ export interface NextDeadlinesInput {
  *  invariant (I1-I4) is unit-testable without a DO runtime; the DO replaces
  *  the deadlines table with the returned rows. */
 export function nextDeadlines(input: NextDeadlinesInput): DeadlineEntry[] {
-  const { prev, timeoutMs, timingClass, connectedSeats, now, reason } = input;
+  const { prev, connectedSeats, now, reason } = input;
   const grace = now + DISCONNECT_GRACE_MS;
   const actors = new Set(input.expectedActors);
   const prevBySeat = new Map(prev.map((row) => [row.seat, row]));
@@ -139,6 +166,8 @@ export function nextDeadlines(input: NextDeadlinesInput): DeadlineEntry[] {
   if (reason === 'decision') {
     // Rows for non-actors are dropped by not being emitted.
     for (const seat of input.expectedActors) {
+      // Item 2: budget + class are resolved PER SEAT — co-actors can differ.
+      const { timeoutMs, timingClass } = input.resolveFor(seat);
       const row = prevBySeat.get(seat);
       const connected = connectedSeats.has(seat);
       if (timeoutMs === null) {
@@ -213,7 +242,7 @@ export function nextDeadlines(input: NextDeadlinesInput): DeadlineEntry[] {
     if (!actors.has(seat) || connectedSeats.has(seat) || prevBySeat.has(seat)) continue;
     // Disconnect of an untimed (row-less) actor: insert the grace row in
     // the SAME event, so an absent actor is never left unclocked (DL1).
-    out.push({ seat, baseDueAt: null, dueAt: grace, timingClass });
+    out.push({ seat, baseDueAt: null, dueAt: grace, timingClass: input.resolveFor(seat).timingClass });
   }
   return out.sort((a, b) => a.seat - b.seat);
 }

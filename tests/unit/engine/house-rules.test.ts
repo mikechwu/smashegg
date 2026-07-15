@@ -57,6 +57,7 @@ function playingState(opts: {
     prng: seedPrng(opts.seed),
     handNo: 1,
     phase: 'playing',
+    actedThisHand: [false, false, false, false],
     levels: opts.levels,
     aAttempts: opts.aAttempts ?? [0, 0],
     aAttemptsExhausted: opts.aAttemptsExhausted ?? [false, false],
@@ -100,6 +101,7 @@ function tributeState(opts: {
     prng: seedPrng(opts.seed),
     handNo: 2,
     phase: 'tribute',
+    actedThisHand: [false, false, false, false],
     levels: opts.levels,
     aAttempts: [0, 0],
     aAttemptsExhausted: [false, false],
@@ -676,5 +678,41 @@ describe('house rule 6: 接风 fires only when the winning final play was not be
     expect(s.trick!.leader).toBe(1); // the beater leads the next trick
     expect(s.trick!.toAct).toBe(1);
     expect(s.finishOrder).toEqual([0]); // seat 0 finished but hand continues
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Item 2 (design-refinement round): tribute CONSUMES the planning window —
+// the owner's deliberate pick: paying/returning tribute IS the hand-reading
+// decision over the fresh 27, so it is the seat's planning action.
+// ---------------------------------------------------------------------------
+
+describe('item 2: tribute consumes the actor planning window', () => {
+  it("payTribute / returnTribute are first actions → each consumes ONLY that seat's window", () => {
+    let s = tributeState({
+      currentLevel: 'T',
+      levels: ['T', '2'],
+      declarerTeam: 0,
+      hands: [
+        ['TS', 'TC', '9S', '9H', '5C', 'JS', 'KD', '2H'],
+        ['3C', '4C'],
+        ['3D', '4D'],
+        ['AS', 'AC', '2S', '3S'],
+      ],
+      payer: 3,
+      receiver: 0,
+      prevFinishOrder: [0, 1, 2, 3],
+      seed: 'item2-tribute-window',
+    });
+    for (const seat of [0, 1, 2, 3] as Seat[]) {
+      expect(GuandanGame.timingClass!(s, seat), `fresh hand, seat ${seat}`).toBe('planning');
+    }
+    s = mustApply(s, 3, { type: 'payTribute', card: 'AS' }).state;
+    expect(GuandanGame.timingClass!(s, 3), 'payer window consumed by the tribute').toBe('turn');
+    expect(GuandanGame.timingClass!(s, 0), 'receiver still planning').toBe('planning');
+    s = mustApply(s, 0, { type: 'returnTribute', card: '9S' }).state;
+    expect(GuandanGame.timingClass!(s, 0), 'receiver window consumed by the return').toBe('turn');
+    expect(GuandanGame.timingClass!(s, 1)).toBe('planning');
+    expect(GuandanGame.timingClass!(s, 2)).toBe('planning');
   });
 });

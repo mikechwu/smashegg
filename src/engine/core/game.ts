@@ -82,14 +82,16 @@ export interface GameDefinition<S, A, E, V, C> {
    *  The room layer may clamp/override via room config. */
   actionTimeoutMs(state: S): number | null;
 
-  /** OPTIONAL semantic timing class of the current DECISION POINT — a pure
-   *  function of state alone, exactly like actionTimeoutMs. Per decision
-   *  point, not per seat: all concurrent expected actors share one class,
-   *  mirroring how actionTimeoutMs applies one budget to every actor.
-   *  Omitted ⇒ every state is 'turn' (the safe default — a game with no
-   *  planning moment never implements this). The engine never sees
-   *  milliseconds; the room maps class → ms via its RoomTiming config. */
-  timingClass?(state: S): TimingClass;
+  /** OPTIONAL semantic timing class of a SEAT's pending decision — a pure
+   *  function of (state, seat), like legalActions. PER-SEAT since the
+   *  design-refinement round (item 2): each seat's FIRST action of a newly
+   *  dealt hand is its own planning moment, so concurrent expected actors
+   *  may carry different classes (one tribute payer still planning while a
+   *  co-payer who committed already classes 'turn'). Omitted ⇒ every state
+   *  is 'turn' (the safe default — a game with no planning moment never
+   *  implements this). The engine never sees milliseconds; the room maps
+   *  class → ms via its RoomTiming config. */
+  timingClass?(state: S, seat: Seat): TimingClass;
 
   isTerminal(state: S): boolean;
 
