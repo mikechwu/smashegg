@@ -1,6 +1,27 @@
 # STATUS
 
-## Current phase: pre-M5 UX/UI polish COMPLETE — Lacquer Ledger ring DEPLOYED (main 6bc63e9); M5 next (owner gate)
+## Current phase: design-refinement round (5 items; 3 behaviour changes) — PROPOSE stage
+
+**Last updated:** 2026-07-15 (refinement round)
+
+## Design-refinement round (2026-07-15) — PROPOSAL out; items 1-2 decided+justified, 3/4/5 forks with owner
+
+Owner brief: 5 items — (1) nickname edit + leave/change seat [FULL gate: AUTHORITY —
+release MUST invalidate the seat token, row-level hash delete + delivery-map purge +
+stale-token starvation e2e]; (2) per-seat planning window [FULL: TIMING — actedThisHand
+per-seat flag replaces the fragile global held===108 predicate; timingClass(state, seat);
+tribute CONSUMES the window (owner lean adopted + justified); untimed stays moot];
+(3) REAL cut in 翻牌定先 [FULL: ENGINE — cutDeck action, deckOrder committed in S
+(redacted like PRNG), flips AND deal derive from the cut, defaultAction middle cut,
+uniformity re-proven]; (4) physical deal animation [presentation; ≤4s inside the 90s
+planning window; AFTER item 5]; (5) DeckTheme framework [presentation; framework owns the
+配 marker/selection/focus overlays so no theme can remove them; conformance ratchet].
+Buckets stated per the brief; full proposal:
+[design-refinement-preM5.md](docs/research/design-refinement-preM5.md).
+Background research (deck depth / deal pacing / cut UX / theme architecture) running as a
+workflow; digest lands before items 4-5 execute. Panel brief drafted (redaction hard line,
+uniformity-under-chosen-cut, engine time/locale-freedom, DO agnosticism, deckOrder
+unreachability, no comment overstatement).
 
 **Last updated:** 2026-07-15
 
