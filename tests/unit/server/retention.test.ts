@@ -22,11 +22,16 @@ import {
   ttlDueAt,
 } from '../../../src/shared/retention';
 import {
+  DISCONNECT_GRACE_MS,
+  STALE_SOCKET_MS,
   alarmCandidates,
   isPausedRoom,
+  isStaleSocket,
   mayAutoPlay,
   resumeOffsetMs,
+  socketLastSeen,
 } from '../../../src/server/room-helpers';
+import { ACTION_TIMEOUT_MAX_MS } from '../../../src/shared/timing';
 
 const HOUR = 3_600_000;
 const DAY = 86_400_000;
@@ -187,9 +192,13 @@ describe('isPausedRoom — the Q3 pause predicate (= the stamp predicate)', () =
     ).toBe(2);
     for (const i of helperCallIdxs) {
       const context = lines.slice(Math.max(0, i - 6), i + 1).join('\n');
-      expect(context, `the stamp call near line ${i + 1} is gated by the ONE pause predicate`).toMatch(
-        /if \(isPausedRoom\(/,
-      );
+      // Pin the full call shape (Grok audit): the guard must consult the LIVE
+      // count via the accessor — a hardcoded or stale-captured count would
+      // still match a bare isPausedRoom( regex.
+      expect(
+        context,
+        `the stamp call near line ${i + 1} is gated by isPausedRoom(room.status, this.seatCount())`,
+      ).toMatch(/if \(isPausedRoom\(room\.status, this\.seatCount\(\)\)\)/);
     }
     // (2) Raw pause_started_at WRITES exist only inside the helper itself and
     // the constructor's deploy-transition block — the latter guarded by the
@@ -201,8 +210,9 @@ describe('isPausedRoom — the Q3 pause predicate (= the stamp predicate)', () =
     for (const [, i] of writes) {
       const context = lines.slice(Math.max(0, i - 8), i + 1).join('\n');
       expect(
-        /isPausedRoom\(/.test(context) || /private stampPauseStart/.test(context),
-        `the stamp write near line ${i + 1} is either the guarded helper's body or isPausedRoom-gated`,
+        /isPausedRoom\(room\.status, this\.seatCount\(\)\)/.test(context) ||
+          /private stampPauseStart/.test(context),
+        `the stamp write near line ${i + 1} is either the guarded helper's body or gated by isPausedRoom(room.status, this.seatCount())`,
       ).toBe(true);
     }
   });
@@ -259,6 +269,7 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
       minSeatDeadlineDueAt: NOW + 45_000, // a frozen row exists
       lastActiveAt: NOW,
       probeDueAt: null,
+      oldestSocketLastSeenAt: null, // paused AND socketless — nothing to sweep
     });
     expect(cands).toEqual([]); // frozen: no seat alarm, no TTL (playing lazy) → hibernate at $0
   });
@@ -271,8 +282,12 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
       minSeatDeadlineDueAt: NOW + 45_000,
       lastActiveAt: NOW,
       probeDueAt: null,
+      oldestSocketLastSeenAt: NOW, // healthy sockets → the sweep sits 3 min out
     });
-    expect(cands).toEqual([NOW + 45_000]);
+    // The seat deadline stays the armed minimum: STALE_SOCKET_MS is calibrated
+    // ABOVE every legal turn budget (see the liveness matrix below).
+    expect(cands).toEqual([NOW + 45_000, NOW + STALE_SOCKET_MS]);
+    expect(Math.min(...cands)).toBe(NOW + 45_000);
   });
 
   it('T2: a finished room in lazy arms no TTL alarm (persists until §4)', () => {
@@ -284,6 +299,7 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
         minSeatDeadlineDueAt: null,
         lastActiveAt: NOW,
         probeDueAt: null,
+        oldestSocketLastSeenAt: null,
       }),
     ).toEqual([]);
   });
@@ -297,11 +313,15 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
         minSeatDeadlineDueAt: null,
         lastActiveAt: NOW,
         probeDueAt: null,
+        oldestSocketLastSeenAt: null,
       }),
     ).toEqual([NOW + 48 * HOUR]);
   });
 
-  it('T3: a lobby with a live (seatless) socket arms NO TTL', () => {
+  it('T3: a lobby with a live (seatless) socket arms NO TTL — but DOES arm the sweep wake', () => {
+    // Pre-liveness this returned [] — the immortal-phantom shape: an attached
+    // half-open socket suppressed the TTL forever with no future wake to reap
+    // it. The sweep candidate closes that hole (socket-liveness.md §5).
     expect(
       alarmCandidates({
         status: 'lobby',
@@ -310,8 +330,9 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
         minSeatDeadlineDueAt: null,
         lastActiveAt: NOW,
         probeDueAt: null,
+        oldestSocketLastSeenAt: NOW - 60_000, // last ping a minute ago
       }),
-    ).toEqual([]);
+    ).toEqual([NOW - 60_000 + STALE_SOCKET_MS]);
   });
 
   it('a room-less probe DO (null status) arms only the probe, never a TTL', () => {
@@ -323,6 +344,7 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
         minSeatDeadlineDueAt: null,
         lastActiveAt: 0,
         probeDueAt,
+        oldestSocketLastSeenAt: null,
       }),
     ).toEqual([probeDueAt]);
   });
@@ -338,6 +360,7 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
         minSeatDeadlineDueAt: null,
         lastActiveAt: null,
         probeDueAt: null,
+        oldestSocketLastSeenAt: null,
       }),
     ).toEqual([]);
   });
@@ -350,8 +373,82 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
       minSeatDeadlineDueAt: NOW + 45_000,
       lastActiveAt: NOW,
       probeDueAt,
+      oldestSocketLastSeenAt: NOW,
     });
-    expect(cands).toEqual([NOW + 45_000, probeDueAt]);
+    expect(cands).toEqual([NOW + 45_000, probeDueAt, NOW + STALE_SOCKET_MS]);
     expect(Math.min(...cands)).toBe(probeDueAt);
+  });
+});
+
+describe('socket liveness — the staleness-sweep decisions (socket-liveness.md §5)', () => {
+  it('socketLastSeen: the accept time is the baseline until the first ping', () => {
+    expect(socketLastSeen(null, NOW)).toBe(NOW);
+  });
+
+  it('socketLastSeen: the later of ping and accept wins', () => {
+    expect(socketLastSeen(NOW + 25_000, NOW)).toBe(NOW + 25_000);
+    // A rehydrated pre-liveness socket can have acceptedAt (treated as "now")
+    // AFTER its last real ping — accept must win or it would read as stale.
+    expect(socketLastSeen(NOW - 60_000, NOW)).toBe(NOW);
+  });
+
+  it('isStaleSocket: fresh is not stale; AT the deadline is (>=, or the sweep alarm would spin)', () => {
+    expect(isStaleSocket(NOW, NOW + STALE_SOCKET_MS - 1)).toBe(false);
+    expect(isStaleSocket(NOW, NOW + STALE_SOCKET_MS)).toBe(true);
+    expect(isStaleSocket(NOW, NOW + STALE_SOCKET_MS + 1)).toBe(true);
+  });
+
+  it('isStaleSocket: the test override shrinks the deadline', () => {
+    expect(isStaleSocket(NOW, NOW + 1_500, 1_500)).toBe(true);
+    expect(isStaleSocket(NOW, NOW + 1_499, 1_500)).toBe(false);
+  });
+
+  it('calibration: the deadline clears every legal turn budget and the grace', () => {
+    // Load-bearing for the property suite's "seat deadline is the armed min"
+    // invariant AND for fairness: a healthy room's alarm math is unchanged by
+    // the sweep candidate, and no legitimately-pinging-at-60s background tab
+    // (Chrome intensive throttling) can be reaped between two of its pings.
+    expect(STALE_SOCKET_MS).toBeGreaterThan(ACTION_TIMEOUT_MAX_MS);
+    expect(STALE_SOCKET_MS).toBeGreaterThan(DISCONNECT_GRACE_MS);
+    expect(STALE_SOCKET_MS).toBeGreaterThanOrEqual(2 * 60_000 + 60_000); // ≥2 missed 60s pings + margin
+  });
+
+  it('the sweep candidate arms iff a socket is attached (the anti-immortal wake)', () => {
+    const withSocket = alarmCandidates({
+      status: 'lobby',
+      connectedSeatCount: asSeatCount(0),
+      liveSocketCount: asLiveSocketCount(1),
+      minSeatDeadlineDueAt: null,
+      lastActiveAt: NOW,
+      probeDueAt: null,
+      oldestSocketLastSeenAt: NOW,
+    });
+    expect(withSocket).toEqual([NOW + STALE_SOCKET_MS]);
+    // No sockets → no sweep; the TTL takes over (mutually exclusive gates, so
+    // exactly one of {sweep, TTL} can be armed for a lobby — never neither).
+    const without = alarmCandidates({
+      status: 'lobby',
+      connectedSeatCount: asSeatCount(0),
+      liveSocketCount: asLiveSocketCount(0),
+      minSeatDeadlineDueAt: null,
+      lastActiveAt: NOW,
+      probeDueAt: null,
+      oldestSocketLastSeenAt: null,
+    });
+    expect(without).toEqual([NOW + 48 * HOUR]);
+  });
+
+  it('the sweep keys on the QUIETEST socket and honors the test override', () => {
+    const cands = alarmCandidates({
+      status: 'playing',
+      connectedSeatCount: asSeatCount(2),
+      liveSocketCount: asLiveSocketCount(2),
+      minSeatDeadlineDueAt: null, // e.g. rows momentarily empty at terminal
+      lastActiveAt: NOW,
+      probeDueAt: null,
+      oldestSocketLastSeenAt: NOW - 100_000,
+      overrideStaleMs: 1_500,
+    });
+    expect(cands).toEqual([NOW - 100_000 + 1_500]);
   });
 });

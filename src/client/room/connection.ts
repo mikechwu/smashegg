@@ -38,6 +38,16 @@ export class RoomConnection {
   private readonly ws: ReconnectingWebSocket;
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private closed = false;
+  /** Resume revalidation (socket-liveness.md §3/§5): after an iOS lock or a
+   *  background freeze the socket often LOOKS open (readyState lies) while the
+   *  transport is long dead — an immediate ping forces the truth: either the
+   *  edge pongs (genuinely alive) or the send trips the failure path and the
+   *  reconnect+hello handshake runs NOW instead of at the next 25s tick. */
+  private readonly onVisible = (): void => {
+    if (document.visibilityState === 'visible' && this.ws.readyState === ReconnectingWebSocket.OPEN) {
+      this.ws.send('ping');
+    }
+  };
 
   constructor(
     private readonly store: RoomStore,
@@ -64,6 +74,8 @@ export class RoomConnection {
       this.stopPing();
       this.store.setConnected(false);
     });
+
+    document.addEventListener('visibilitychange', this.onVisible);
 
     this.ws.addEventListener('message', (ev: MessageEvent) => {
       if (typeof ev.data !== 'string') return; // protocol is text frames only
@@ -116,6 +128,7 @@ export class RoomConnection {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    document.removeEventListener('visibilitychange', this.onVisible);
     this.stopPing();
     this.store.setConnected(false);
     this.ws.close();

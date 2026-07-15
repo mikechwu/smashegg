@@ -185,15 +185,15 @@ Q3 seat-deadline pause keeps keying on connected *seats* (it protects actors, th
 M4 semantics); only the retention TTL keys on live sockets. **INVARIANT (T3, for
 Grok's sweep): the TTL never purges a room with a live socket.**
 
-**Known limitation (accepted, recorded so nobody assumes TTL is exhaustive):**
-because T3 is unconditional, a **half-open socket** (client gone, edge still
-holds the connection) keeps a lobby room immortal — the TTL never fires. The
-consequence is trivial: a few rows in the abundant storage meter, and lobby rooms
-never auto-play, so there is no burn. Q1's `setWebSocketAutoResponse` + the
-client's onOpen resync are the mitigation for half-open detection elsewhere;
-here we deliberately prefer "never purge something that might be occupied" over
-"reclaim a few rows." If half-open lobby accumulation ever mattered, the §4
-manual script reclaims them by explicit code.
+**Known limitation — CLOSED by the staleness sweep (socket-liveness.md §5,
+pre-M5 liveness round):** because T3 is unconditional, a **half-open socket**
+(client gone, edge still holds the connection — and the platform never closes
+one for us: measured 30 min on production) used to keep a lobby room immortal.
+The sweep now reaps any socket whose ping-silence reaches `STALE_SOCKET_MS`
+(a fourth alarm candidate guarantees the wake while sockets are attached), the
+seatless departure re-arms the TTL, and the room self-purges — proven on the
+wire by the liveness e2e's phantom-lobby case. T3 itself is unchanged: the TTL
+still never purges a room with a live socket; "live" now has a deadline.
 
 **Two-questions/two-predicates, enforced by the type system:** the counts are
 BRANDED — `ConnectedSeatCount` ("is there an actor?" → pause/auto-play) and

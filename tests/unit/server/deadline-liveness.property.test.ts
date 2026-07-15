@@ -54,6 +54,7 @@ import {
   ACTION_TIMEOUT_MAX_MS,
   ACTION_TIMEOUT_MIN_MS,
   DISCONNECT_GRACE_MS,
+  STALE_SOCKET_MS,
   alarmCandidates,
   isPausedRoom,
   mayAutoPlay,
@@ -153,6 +154,13 @@ class VirtualRoom {
       minSeatDeadlineDueAt: this.rows.length > 0 ? Math.min(...this.rows.map((r) => r.dueAt)) : null,
       lastActiveAt: this.lastActiveAt,
       probeDueAt: null,
+      // Healthy-socket world: every connected seat's socket pinged "just now",
+      // so the staleness-sweep candidate sits a full STALE_SOCKET_MS (3 min)
+      // out — beyond every harness deadline, never the armed minimum. The
+      // stale-reap decision itself is matrix-tested in retention.test.ts and
+      // driven for real in the liveness e2e; this suite pins that a HEALTHY
+      // room's scheduling is unchanged by the sweep candidate's existence.
+      oldestSocketLastSeenAt: this.connected.size > 0 ? this.now : null,
     });
     return cands.length > 0 ? Math.min(...cands) : null;
   }
@@ -231,7 +239,10 @@ class VirtualRoom {
       if (fallback === null) {
         this.rows = this.rows.filter((r) => r.seat !== due.seat);
         this.armedAt.delete(due.seat);
-        this.alarmAt = this.rows.length > 0 ? Math.min(...this.rows.map((r) => r.dueAt)) : null;
+        // The REAL decision, not a re-derivation (model=product): with the
+        // sweep candidate, "rows empty" no longer implies "no alarm" while
+        // sockets are attached.
+        this.alarmAt = this.computeAlarmAt();
       } else {
         this.apply(due.seat, fallback);
       }
@@ -283,10 +294,19 @@ function assertInvariants(room: VirtualRoom): void {
   }
 
   // DL2 + P1: the alarm is parked at min(due) when a seat is connected and rows
-  // exist; a PAUSED room (0 connected seats) arms NOTHING even with frozen rows
-  // (P1 — no seat candidate, and 'playing' arms no TTL in lazy mode).
+  // exist — the healthy-socket sweep candidate (now + STALE_SOCKET_MS) never
+  // preempts it because STALE_SOCKET_MS > ACTION_TIMEOUT_MAX_MS ≥ every due
+  // horizon (calibration pinned in retention.test.ts). A PAUSED room (0
+  // connected seats ≡ 0 sockets in this model) arms NOTHING even with frozen
+  // rows (P1 — no seat candidate, no sweep candidate, and 'playing' arms no
+  // TTL in lazy mode).
   if (room.rows.length > 0 && room.connected.size > 0) {
     expect(room.alarmAt).toBe(Math.min(...room.rows.map((r) => r.dueAt)));
+  } else if (room.connected.size > 0) {
+    // Terminal with sockets still attached: no seat rows and no TTL
+    // (finished-lazy), but the staleness sweep still guarantees a future wake
+    // — the alarm is the sweep candidate, not null (socket-liveness.md §5).
+    expect(room.alarmAt, 'sockets attached ⇒ the sweep wake is armed').not.toBeNull();
   } else {
     expect(room.alarmAt, 'P1: paused (or empty) ⇒ no alarm armed').toBeNull();
   }
@@ -465,14 +485,20 @@ describe('named liveness cases', () => {
   it('untimed preset: a disconnecting sole actor gets the grace row in the SAME event, and the alarm resolves it', () => {
     const spec = GAMES[1]!; // guess-number: exactly one expected actor
     const room = new VirtualRoom(spec.game, TIMING_PRESETS.untimed, spec.seats, spec.config, 'dl-untimed-1');
-    expect(room.rows, 'all connected + untimed ⇒ no rows, alarm unset').toEqual([]);
-    expect(room.alarmAt).toBeNull();
+    expect(room.rows, 'all connected + untimed ⇒ no rows').toEqual([]);
+    // Pre-liveness this was null (no rows ⇒ no alarm). With sockets attached
+    // the staleness-sweep candidate is always armed — an untimed room must
+    // still reap phantom sockets (socket-liveness.md §5).
+    expect(room.alarmAt, 'untimed but occupied ⇒ the sweep wake is armed').toBe(
+      room.now + STALE_SOCKET_MS,
+    );
 
     const actor = room.actors()[0]!;
     room.disconnect(actor);
     expect(room.rows).toEqual([
       { seat: actor, baseDueAt: null, dueAt: room.now + DISCONNECT_GRACE_MS, timingClass: 'turn' },
     ]);
+    // grace (60s) < stale (3 min): the grace row is the armed minimum.
     expect(room.alarmAt).toBe(room.now + DISCONNECT_GRACE_MS);
 
     // Clock past the grace: the alarm applies the default action — no

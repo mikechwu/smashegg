@@ -43,6 +43,7 @@ import {
   bytesToHex,
   deltaCoversGap,
   isPausedRoom,
+  isStaleSocket,
   mayAutoPlay,
   nextDeadlines,
   redactEventsFor,
@@ -50,6 +51,8 @@ import {
   resolveTimingClass,
   resumeOffsetMs,
   sha256Hex,
+  socketLastSeen,
+  STALE_SOCKET_MS,
   timeoutActionId,
   timingSafeEqualStr,
   toWireDeadlines,
@@ -168,6 +171,13 @@ interface HelloRow {
  *  serializeAttachment; ≤16KB limit — this is ~tens of bytes). */
 interface SocketAttachment {
   seats: Seat[];
+  /** Wall-clock ms when the socket was accepted — the staleness baseline for a
+   *  socket that has never pinged (its auto-response timestamp is null until
+   *  the first 'ping'; socket-liveness.md §5). Absent on attachments written
+   *  before the liveness deploy: rehydration treats those as accepted NOW
+   *  (fail-safe young — a live client re-pings within 25s; a dead one is
+   *  reaped one deadline later). */
+  acceptedAt?: number;
 }
 
 interface MutationLog {
@@ -196,6 +206,10 @@ export class GameRoom extends DurableObject<Env> {
   /** Rebuildable cache: which seats each live socket holds. Authoritative
    *  copy lives in each socket's attachment; rebuilt in the constructor. */
   private sessions = new Map<WebSocket, Set<Seat>>();
+  /** Per-socket accept time (the staleness baseline before the first ping) —
+   *  same lifecycle as sessions: seeded at accept, rehydrated from the
+   *  attachment on every wake, deleted in handleSocketGone. */
+  private acceptedAt = new Map<WebSocket, number>();
 
   /** Rebuildable cache of the room code for log correlation in callbacks
    *  that carry no request URL (webSocketMessage/alarm). Falls back to the
@@ -211,6 +225,9 @@ export class GameRoom extends DurableObject<Env> {
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as SocketAttachment | null;
       this.sessions.set(ws, new Set(attachment?.seats ?? []));
+      // Pre-liveness attachments carry no acceptedAt → treat as accepted NOW
+      // (fail-safe young; see SocketAttachment).
+      this.acceptedAt.set(ws, attachment?.acceptedAt ?? Date.now());
     }
     this.ctx.setWebSocketAutoResponse(PING_PONG);
     this.stampPauseIfPreExisting();
@@ -476,9 +493,57 @@ export class GameRoom extends DurableObject<Env> {
     return Number.isFinite(n) ? n : undefined;
   }
 
+  /** TEST-ONLY staleness shrink (STALE_SOCKET_TEST_MS env), same pattern. */
+  private staleSocketOverride(): number | undefined {
+    const raw = this.env.STALE_SOCKET_TEST_MS;
+    if (raw === undefined) return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : undefined;
+  }
+
+  /** A socket's last proof of life (socket-liveness.md §5): the edge-answered
+   *  ping timestamp (readable without waking/billing; null until the first
+   *  ping) or its accept time. `now` is the fail-safe for a socket somehow
+   *  missing from acceptedAt — young, never insta-reaped. */
+  private socketLastSeenFor(ws: WebSocket, now: number): number {
+    const autoResponseAt = this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? null;
+    return socketLastSeen(autoResponseAt, this.acceptedAt.get(ws) ?? now);
+  }
+
+  /** Close every attached socket whose ping-silence has reached the deadline —
+   *  the platform never does this for us (socket-liveness.md §2: nothing at any
+   *  layer closes a silent socket; §3: locked/frozen mobile pages stop pinging
+   *  WITHOUT a close frame). From the close on, the ordinary disconnect
+   *  machinery (presence → grace clamp → Q3 pause → TTL re-arm) runs unchanged:
+   *  staleness only accelerates the close event the browser failed to send.
+   *  Runs at the top of every wake (alarm, hello) — cheap: ≤ a handful of
+   *  sockets, and the timestamp read never wakes anything. */
+  private async sweepStaleSockets(now: number): Promise<void> {
+    const staleMs = this.staleSocketOverride() ?? STALE_SOCKET_MS;
+    // Copy: handleSocketGone mutates sessions mid-iteration.
+    for (const ws of [...this.sessions.keys()]) {
+      if (!isStaleSocket(this.socketLastSeenFor(ws, now), now, staleMs)) continue;
+      try {
+        ws.close(4002, 'stale'); // app-range code; the client just reconnects
+      } catch {
+        // already closing/closed — the bookkeeping below still applies
+      }
+      // Server-initiated closes are not guaranteed to invoke our own
+      // webSocketClose handler, so do the bookkeeping explicitly; if the
+      // runtime delivers a duplicate close event later, handleSocketGone's
+      // seatless path is a harmless touch+re-arm.
+      await this.handleSocketGone(ws);
+    }
+  }
+
   private setSeats(ws: WebSocket, seats: Set<Seat>): void {
     this.sessions.set(ws, seats);
-    const attachment: SocketAttachment = { seats: [...seats].sort((a, b) => a - b) };
+    const attachment: SocketAttachment = {
+      seats: [...seats].sort((a, b) => a - b),
+      // Preserve the accept time across every seat rewrite — the attachment is
+      // replaced wholesale, and losing it would reset the staleness baseline.
+      acceptedAt: this.acceptedAt.get(ws) ?? Date.now(),
+    };
     ws.serializeAttachment(attachment);
   }
 
@@ -654,6 +719,7 @@ export class GameRoom extends DurableObject<Env> {
     // NO tags: seats are unknown at upgrade time — identity is acquired via
     // hello/claimSeat and lives in the attachment (PLAN §4).
     this.ctx.acceptWebSocket(server);
+    this.acceptedAt.set(server, Date.now()); // BEFORE setSeats, which persists it
     this.setSeats(server, new Set());
 
     return new Response(null, { status: 101, webSocket: client });
@@ -854,6 +920,13 @@ export class GameRoom extends DurableObject<Env> {
     room: RoomRow,
     msg: Extract<ClientMessage, { type: 'hello' }>,
   ): Promise<void> {
+    // Reap stale sockets FIRST: a reconnecting client (fresh socket) is often
+    // the proof its old zombie socket is dead — the presence delta below must
+    // be computed against post-sweep truth, or a phantom could mask a pause /
+    // takeover edge (socket-liveness.md §5). The fresh socket itself was
+    // accepted moments ago and is never stale.
+    await this.sweepStaleSockets(Date.now());
+
     const tokens = Array.isArray(msg.tokens) ? msg.tokens.slice(0, MAX_TOKENS_PER_HELLO) : [];
     const lastSeenSeq =
       typeof msg.lastSeenSeq === 'number' && Number.isInteger(msg.lastSeenSeq) && msg.lastSeenSeq >= 0
@@ -1622,6 +1695,18 @@ export class GameRoom extends DurableObject<Env> {
         ? probe.alarm_set_at + ALARM_DELAY_MS
         : null;
 
+    // The staleness-sweep candidate's input: the oldest last-proof-of-life
+    // across attached sockets (null when none) — the sweep alarm fires when
+    // the QUIETEST socket reaches the deadline (socket-liveness.md §5).
+    const nowForSeen = Date.now();
+    let oldestSocketLastSeenAt: number | null = null;
+    for (const ws of this.sessions.keys()) {
+      const seen = this.socketLastSeenFor(ws, nowForSeen);
+      if (oldestSocketLastSeenAt === null || seen < oldestSocketLastSeenAt) {
+        oldestSocketLastSeenAt = seen;
+      }
+    }
+
     const candidates = alarmCandidates({
       status: room?.status ?? null, // null room (bare M0 probe DO) → no TTL candidate
       connectedSeatCount: this.seatCount(),
@@ -1631,7 +1716,9 @@ export class GameRoom extends DurableObject<Env> {
       // never `?? 0` which would read as epoch = infinitely-stale = purge-now.
       lastActiveAt: room ? (room.last_active_at ?? room.created_at) : null,
       probeDueAt,
+      oldestSocketLastSeenAt,
       overrideWindowMs: this.retentionWindowOverride(),
+      overrideStaleMs: this.staleSocketOverride(),
     });
 
     if (candidates.length > 0) {
@@ -1660,6 +1747,13 @@ export class GameRoom extends DurableObject<Env> {
         outcome: 'applied',
       });
     }
+
+    // (a2) Staleness sweep BEFORE the counts, the TTL check, and the auto-play
+    // loop: all three must see post-sweep truth — a reaped phantom may have
+    // just emptied the room (pause stamped, no auto-play burn) or freed a
+    // lobby for its TTL (socket-liveness.md §5). This is also the sweep-alarm
+    // candidate's own wake path.
+    await this.sweepStaleSockets(now);
 
     const connectedSeatCount = this.seatCount();
     const liveSocketCount = this.socketCount();
@@ -1780,6 +1874,7 @@ export class GameRoom extends DurableObject<Env> {
   private async handleSocketGone(ws: WebSocket): Promise<void> {
     const seats = this.sessions.get(ws);
     this.sessions.delete(ws);
+    this.acceptedAt.delete(ws);
     if (!seats || seats.size === 0) {
       // No seat presence changed, but a SEATLESS departure can still be the
       // last live socket leaving: while it was attached, any TTL wake was

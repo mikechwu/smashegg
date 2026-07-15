@@ -109,7 +109,12 @@ async function killProcessTree(child: ChildProcess): Promise<void> {
  * .dev.vars file).
  */
 export async function startServer(
-  opts: { persistDir?: string; buildVersion?: string; retentionWindowMs?: number } = {},
+  opts: {
+    persistDir?: string;
+    buildVersion?: string;
+    retentionWindowMs?: number;
+    staleSocketMs?: number;
+  } = {},
 ): Promise<DevServer> {
   const persistDir = opts.persistDir ?? makePersistDir();
   const port = await getFreePort();
@@ -133,6 +138,11 @@ export async function startServer(
       // in-test rather than after 48h (pause-and-retention.md §7).
       ...(opts.retentionWindowMs !== undefined
         ? ['--var', `RETENTION_TEST_WINDOW_MS:${opts.retentionWindowMs}`]
+        : []),
+      // TEST ONLY: shrink the stale-socket deadline so a staleness reap can be
+      // observed in-test rather than after 3 min (socket-liveness.md §5).
+      ...(opts.staleSocketMs !== undefined
+        ? ['--var', `STALE_SOCKET_TEST_MS:${opts.staleSocketMs}`]
         : []),
     ],
     {
@@ -279,6 +289,9 @@ interface Waiter {
 export class WsClient {
   /** Every ServerMessage received, in arrival order — the inspectable log. */
   readonly log: ServerMessage[] = [];
+  /** Set when the server (or transport) closes the socket — the liveness e2e
+   *  asserts the staleness reap's app-range close code here. */
+  closeInfo: { code: number; reason: string } | null = null;
   private readonly waiters = new Set<Waiter>();
 
   private constructor(private readonly ws: WebSocket, readonly label: string) {}
@@ -286,9 +299,14 @@ export class WsClient {
   static async connect(server: DevServer, code: string, label = 'client'): Promise<WsClient> {
     const ws = new WebSocket(`ws://127.0.0.1:${server.port}/api/rooms/${code}/ws`);
     const client = new WsClient(ws, label);
+    ws.addEventListener('close', (ev) => {
+      client.closeInfo = { code: ev.code, reason: ev.reason };
+    });
     ws.addEventListener('message', (ev) => {
-      // The protocol is JSON envelopes only (the bare 'pong' auto-response
-      // would be the one exception; these tests never send bare pings).
+      // The protocol is JSON envelopes only, with one exception: the bare
+      // 'pong' the edge auto-response answers to a bare 'ping' (the liveness
+      // e2e's keep-alive client sends those) — not an envelope, skip it.
+      if (ev.data === 'pong') return;
       const msg = JSON.parse(String(ev.data)) as ServerMessage;
       client.log.push(msg);
       for (const waiter of client.waiters) {
@@ -354,6 +372,13 @@ export class WsClient {
 
   hello(tokens: string[], lastSeenSeq = 0): void {
     this.sendMsg({ v: 1, type: 'hello', tokens, lastSeenSeq });
+  }
+
+  /** The real client's keepalive: the bare 'ping' OUTSIDE the JSON envelope,
+   *  answered at the edge — and the only thing that advances the socket's
+   *  liveness clock (socket-liveness.md §5). */
+  ping(): void {
+    this.ws.send('ping');
   }
 
   claimSeat(name: string): void {

@@ -359,17 +359,27 @@ export interface AlarmCandidatesInput {
   lastActiveAt: number | null;
   /** The armed-and-unfired M0 probe's due time, or null. */
   probeDueAt: number | null;
+  /** MIN over attached sockets of socketLastSeen(), or null when no sockets —
+   *  arms the staleness-sweep candidate (socket-liveness.md §5): the wake that
+   *  reaps phantom sockets. Without it an all-phantom room with no seat
+   *  deadlines (TTL refused under T3) would never wake again — the same
+   *  immortal shape as the seatless-departure bug, one layer up. */
+  oldestSocketLastSeenAt: number | null;
   mode?: RetentionMode;
   /** Test-only window shrink (RETENTION_TEST_WINDOW_MS); undefined in prod. */
   overrideWindowMs?: number;
+  /** Test-only staleness shrink (STALE_SOCKET_TEST_MS); undefined in prod. */
+  overrideStaleMs?: number;
 }
 
 /** The candidate wake times for the DO's single alarm slot (the scheduleAlarm
  *  DECISION, §1 unified model): (a) the soonest seat deadline — only while a
  *  seat is connected (Q3 pause: a frozen room arms no turn alarm, so no
  *  auto-play burn); (b) the retention TTL — only while NO live socket is
- *  attached (T3); (c) the M0 hello probe. The DO arms `min(result)` or clears
- *  the alarm when the result is empty. */
+ *  attached (T3); (c) the M0 hello probe; (d) the staleness sweep — only while
+ *  a socket IS attached (socket-liveness.md §5: any attached socket guarantees
+ *  a future wake that can reap it). The DO arms `min(result)` or clears the
+ *  alarm when the result is empty. */
 export function alarmCandidates(input: AlarmCandidatesInput): number[] {
   const out: number[] = [];
   if (input.connectedSeatCount > 0 && input.minSeatDeadlineDueAt !== null) {
@@ -380,5 +390,39 @@ export function alarmCandidates(input: AlarmCandidatesInput): number[] {
     if (ttl !== null) out.push(ttl);
   }
   if (input.probeDueAt !== null) out.push(input.probeDueAt);
+  if (input.liveSocketCount > 0 && input.oldestSocketLastSeenAt !== null) {
+    out.push(input.oldestSocketLastSeenAt + (input.overrideStaleMs ?? STALE_SOCKET_MS));
+  }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Socket liveness (socket-liveness.md §5). The platform never closes a silent
+// socket for us (measured: 30 min on production, nothing at any layer), and
+// mobile departure paths (iOS lock, Android freeze) stop the client's pings
+// WITHOUT a close frame — so ping-silence is the only human-liveness signal
+// the DO can read. These pure decisions drive the sweep that closes a stale
+// socket server-side; everything downstream (presence, grace, Q3 pause, TTL)
+// is the EXISTING disconnect machinery, unchanged.
+// ---------------------------------------------------------------------------
+
+/** Reap a silent socket after 3 min: ≥ 2 missed worst-case-LEGITIMATE pings —
+ *  a backgrounded desktop tab still pings at ~1/min under Chrome's intensive
+ *  throttling and must survive — plus margin; yet a locked phone's seat enters
+ *  the ordinary disconnect path within ~3 min instead of never. */
+export const STALE_SOCKET_MS = 180_000;
+
+/** A socket's last proof of life: the edge-answered ping timestamp when one
+ *  exists (getWebSocketAutoResponseTimestamp — null until the FIRST ping),
+ *  else its accept time. Both are wall-clock ms. */
+export function socketLastSeen(autoResponseAt: number | null, acceptedAt: number): number {
+  return Math.max(autoResponseAt ?? 0, acceptedAt);
+}
+
+/** True iff the socket's silence has reached the deadline. `>=`, not `>`: the
+ *  sweep alarm is armed at exactly lastSeen+staleMs, and when it fires at that
+ *  instant the socket must already count as stale — otherwise the sweep would
+ *  find nothing and re-arm for the same moment forever. */
+export function isStaleSocket(lastSeen: number, now: number, staleMs: number = STALE_SOCKET_MS): boolean {
+  return now - lastSeen >= staleMs;
 }

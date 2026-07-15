@@ -28,6 +28,10 @@ export interface Env {
    *  so the e2e can drive a real self-purge without waiting 48h. Never set in
    *  production (`--var RETENTION_TEST_WINDOW_MS:...` only in the retention e2e). */
   RETENTION_TEST_WINDOW_MS?: string;
+  /** TEST ONLY (socket-liveness.md §5): shrinks the stale-socket deadline to N ms
+   *  so the e2e can drive a real staleness reap in seconds. Never set in
+   *  production (`--var STALE_SOCKET_TEST_MS:...` only in the liveness e2e). */
+  STALE_SOCKET_TEST_MS?: string;
   /** Q4 (free-tier-efficiency.md): native Workers rate limiter over POST
    *  /api/rooms. OPTIONAL — absent under `wrangler dev` and degrades to no-limit,
    *  so the app never depends on it (and a paid-gating deploy failure is the only

@@ -141,6 +141,7 @@ async function runCli(args: string[]): Promise<number> {
   console.log(doDelete ? '=== PURGE (dump-first, irreversible) ===' : '=== DRY RUN (inspect only — nothing deleted) ===');
   const fs = doDelete ? await import('node:fs') : null;
   let purgedCount = 0;
+  let refusedCount = 0;
 
   for (const code of codes) {
     const dump = await fetchDump(base, code, token);
@@ -180,6 +181,7 @@ async function runCli(args: string[]): Promise<number> {
           `${result.connectedSeats} connected seat(s) — is this the right room? ` +
           `(re-run with --force to override)`,
       );
+      refusedCount++;
       continue;
     }
     console.log(`    ✓ PURGED ${code}: reclaimed ${JSON.stringify(result.purged.rows)}`);
@@ -188,10 +190,14 @@ async function runCli(args: string[]): Promise<number> {
 
   console.log(
     doDelete
-      ? `\nDone: ${purgedCount}/${codes.length} purged (dumps written; deleteAll() is irreversible).`
+      ? `\nDone: ${purgedCount}/${codes.length} purged` +
+          `${refusedCount > 0 ? `, ${refusedCount} REFUSED (live sockets)` : ''} ` +
+          `(dumps written; deleteAll() is irreversible).`
       : `\nDry run complete. Nothing was deleted.`,
   );
-  return 0;
+  // A refused purge is a failed run for automation (Grok audit): exit status
+  // must not read "clean" when rooms were skipped behind a live-socket gate.
+  return refusedCount > 0 ? 1 : 0;
 }
 
 // Entry-point detection (same rationale as scripts/dump-room.ts): under
