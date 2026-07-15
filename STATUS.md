@@ -163,6 +163,36 @@ Q4 last (after a Free-plan smoke test of the binding). `deleteAll()` billing
 measured with owner meter-access to optionally unlock eager purge; the 3 live
 zombie rooms stopped once the §4 purge path exists.
 
+### Path A approved + two owner catches folded in (owner, 2026-07-15)
+
+Owner approved **Path A**: implement Q3+TTL now; the `smashegg-analytics` token +
+`deleteAll()` measurement are non-blocking (SETUP.md §2.5 always marked token
+creation `[HUMAN]` — M0's browser automation was the deviation, not my refusing to
+mint credentials via automation). Two of the owner's earlier arguments withdrawn
+and recorded: (1) "purge now, 20× cheaper" assumed we'd ever purge — under the
+lazy/storage-pressure-gated policy we probably never pay that bill (storage
+abundant); (2) the `deleteAll()` measurement was never on the critical path. The
+3 zombies are left to burn (~34.5k rows/day, ~⅓ cap, $0) — Q3 freezes them at
+~1k rows or they auto-complete first; no detour.
+
+Two real gaps the owner caught (neither the research nor my reframe found them),
+now folded into [pause-and-retention.md](docs/research/pause-and-retention.md)
+§3.1/§3.2/§5-P4/§7 and the audit brief:
+- **Deploy-transition `pause_started_at`-NULL bug.** A room already at
+  `connected==0` when Q3 deploys never hit the 1→0 stamp → resume computes a
+  NULL offset (garbage shift). The clean-state property tests are structurally
+  blind to it. Fix: constructor lazy-stamps `pause_started_at=now` when it wakes a
+  playing room with 0 sockets and NULL stamp (before any resume math); + a named
+  migration-case test (invariant P4).
+- **TTL lazy-branch was self-contradictory.** "TTL reclaims after the window,
+  automatically" IS eager reclamation — spending the SCARCE rows-written meter to
+  reclaim ABUNDANT storage if `deleteAll()` is per-row. Resolved (§3.1): in the
+  default lazy mode, auto-purge **lobby-abandoned only** (a few rows, cheap);
+  finished/paused rooms arm NO TTL alarm and are reclaimed **manually via §4** (or
+  auto once `RETENTION_MODE='eager'` after the measurement proves `deleteAll()`
+  flat). PLAN must describe THIS — the unconditional "self-purges abandoned rooms"
+  is exactly the drift that survived four audits.
+
 ## Process: model dispatch policy change (owner mission, 2026-07-14)
 
 Opus replaces Fable as the default hard tier from M4 on; Fable is

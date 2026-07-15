@@ -74,9 +74,11 @@ watched), but the *duration* left is invariant. Deadlock-freedom: vacuous at
 ## 3. TTL self-purge
 
 **Per-room, self-driven — no external enumeration.** Each room's own DO decides,
-on its own alarm wake, whether it is past its retention window and purges itself.
-This sidesteps the "you cannot list DOs / recover codes from `idFromName`"
-problem entirely (that only constrains the *manual* §4 script).
+on its own alarm wake, whether it is past its retention window and *eligible* to
+self-purge — but **whether eligibility triggers an actual purge depends on the
+§3.1 policy** (lobby-abandoned: yes; played-out: only in eager mode). This
+sidesteps the "you cannot list DOs / recover codes from `idFromName`" problem
+entirely (that only constrains the *manual* §4 script).
 
 - **Activity clock — no write amplification.** New `room.last_active_at INTEGER`
   column (migration-probed like `seed`/`timing_json`), stamped ONLY on
@@ -91,32 +93,85 @@ problem entirely (that only constrains the *manual* §4 script).
   retentionWindow(status)` feeds scheduleAlarm candidate (c); re-stamped
   `last_active_at` pushes it out automatically.
 - **Purge primitive:** `ctx.storage.deleteAll()` + `ctx.storage.deleteAlarm()`
-  (the compat date is ≥ 2026-02-24, so deleteAll also clears the alarm, but call
-  deleteAlarm explicitly for clarity). `deleteAll()` is the ONLY operation that
-  reclaims a DO's storage (§6); row-wise DELETE and DROP TABLE do not (DROP leaves
-  metadata). One-DO-per-room means the retention unit is the whole DO's storage —
-  a perfect fit for `deleteAll()`.
+  (compat ≥ 2026-02-24, so deleteAll also clears the alarm, but call deleteAlarm
+  explicitly for clarity). `deleteAll()` is the ONLY op that reclaims a DO's
+  storage (§6); row-wise DELETE and DROP TABLE do not (DROP leaves metadata).
+  One-DO-per-room means the retention unit is the whole DO's storage — a perfect
+  fit for `deleteAll()`.
 
-## 4. Retention defaults (proposed, justified)
+### 3.1 What the TTL actually DOES — resolving the eager/lazy contradiction (owner catch)
 
-Windows are a **floor** (never purge before this), deliberately generous — the
-scarce resource is write-budget, not storage, so there is no reason to reclaim
-early. All measured from `last_active_at`.
+Auto-purging *any* played-out room on a timer IS eager reclamation, and if
+`deleteAll()` is per-row billed (§6, unmeasured) that spends the SCARCE meter
+(rows-written, 100k/day, fail-closed) to reclaim the ABUNDANT one (storage, 5 GB,
+per-room tiny) — exactly what the research said not to do. So "the TTL purges the
+room after the window" is only correct for the CHEAP case. Resolved policy, keyed
+on the meter asymmetry (and a `RETENTION_MODE = 'lazy' | 'eager'` room-layer
+constant, default `'lazy'` until §6 measures `deleteAll()`):
+
+| Room state | Rows | Lazy branch (default) | Eager branch (deleteAll measured flat) |
+|---|---|---|---|
+| **lobby-abandoned** | a few | **auto-purge at window** — cheap even per-row; keeps DO clutter bounded | auto-purge at window |
+| **finished / paused** | ~1–23k | **NOT auto-purged** — the TTL arms NO alarm for these; they persist (storage is abundant) and are reclaimed **manually via the §4 script** (owner-initiated, dump-first, batched) | auto-purge at window (now cheap) |
+
+So in the default lazy branch the only automatic self-purge is the lobby case; the
+expensive rooms are never time-purged (that is the meter-asymmetry trap). A room's
+storage growth is therefore genuinely unbounded-but-slow — which is FINE: reaching
+5 GB at family scale (~1 MB/room, ~1–23k tiny rows) needs thousands of rooms, so
+the owner has years before manual reclamation is even wanted, and the §4 script is
+the sanctioned way to do it. `RETENTION_MODE='eager'` is a one-constant flip once
+the measurement proves `deleteAll()` flat. **Crucially, PLAN must describe THIS**
+(auto-purge lobby-abandoned only in lazy mode; §4-manual for played-out; eager-all
+gated on the measurement) — asserting "self-purges abandoned rooms" unconditionally
+is precisely the §4/§1.6/§8 false-TTL drift that survived four audits.
+
+### 3.2 Deploy transition — pre-existing paused rooms have no `pause_started_at` (owner catch)
+
+Q3 stamps `pause_started_at` on the 1→0 transition. A room already at
+`connected==0` when Q3 deploys (the three zombies; or a family room where everyone's
+wifi drops *during* a deploy) never had that transition under the new code, so
+`pause_started_at` is NULL — and the `alarm()` guard half is fine (it keys on
+`connected==0`), but the resume half computes `offset = now − pause_started_at`
+with a NULL → a garbage shift (NaN/immediate-timeout). The clean-state property
+tests start every case from a fresh room and are **structurally blind** to this
+migration case.
+
+**Resolution — lazy-stamp in the constructor (the single choke point that runs on
+every wake, before both `alarm()` and any `hello`/resume):** if
+`room.status==='playing' && connectedSeats().isEmpty() && pause_started_at IS NULL`,
+set `pause_started_at = now`. At constructor time `this.sessions` is rehydrated
+from `getWebSockets()` and does NOT yet include an incoming reconnect (that socket
+is accepted later in `fetch`), so a resuming room is still seen as empty here and
+gets stamped *before* the resume math runs. Semantics: we cannot recover the true
+pause instant for a pre-Q3 room, so we treat "first wake under Q3" as the pause
+start — safe (bounded; non-exploitable, since it only applies to rooms that were
+*fully* empty at deploy, where there is no present player to dodge) and slightly
+generous (the pre-Q3 paused interval is not charged). Resume then always sees a
+non-NULL `pause_started_at`. **Named test (property + a targeted unit):** "room
+already paused at deploy time (playing, 0 sockets, `pause_started_at` NULL) →
+constructor stamps → reconnect → remaining budget sane (no NaN, no fresh clock, no
+auto-play burst, no mass immediate-timeout)."
+
+## 4. Retention windows (proposed, justified) — ELIGIBILITY floors
+
+Windows are the **floor** before a room is even *eligible*; whether eligibility
+then triggers an auto-purge depends on §3.1 (lobby: yes; played-out: only in eager
+mode). Deliberately generous — the scarce resource is write-budget, not storage.
+All measured from `last_active_at`.
 
 | Room state | Window | Justification |
 |---|---|---|
-| **lobby-abandoned** (`status='lobby'`, `connected==0`) | **48 h** | Tiny (a few rows) so reclaiming saves ~nothing; the cost is being wrong when family trickles in from a group chat. 48 h covers "made a room last night, everyone joins tomorrow." Not aggressive. |
-| **paused mid-match** (`status='playing'`, `connected==0`) | **14 days** | The friendliest case — someone may come back and resume the exact remaining clock (Q3). Err generous: days, not minutes. Two weeks says "we'll keep your game for a fortnight." |
-| **finished** (`status='finished'`) | **7 days** | Holds the full match (~10–20k rows — the real storage). A week is ample to dump→replay anything interesting (via the §4 script) before reclaiming. |
+| **lobby-abandoned** (`status='lobby'`, `connected==0`) | **48 h** | Tiny; the cost of being wrong is a family trickling in from a group chat. 48 h covers "made a room last night, everyone joins tomorrow." Auto-purged (cheap). |
+| **paused mid-match** (`status='playing'`, `connected==0`) | **14 days** | Friendliest case — someone may resume the exact remaining clock (Q3). Err generous: days, not minutes. Eligibility only; reclaimed manually (§4) in lazy mode. |
+| **finished** (`status='finished'`) | **7 days** | Holds the full match (~1–23k rows). A week is ample to dump→replay before reclaiming. Eligibility only; reclaimed manually (§4) in lazy mode. |
 
-Rooms with `connected>0` are **never** TTL-eligible (someone is present). The
-windows are constants in `src/shared/` (game-agnostic, like `RoomTiming`), tunable
-without touching the engine. **Replay preservation:** the window IS the guarantee —
-anything worth keeping is dumped within it (`scripts/dump-room.ts` / the §4
-script); after the window an abandoned room is genuinely disposable. No silent
-destruction: a purge is logged (`logMutation` actionType `'roomPurged'`) with the
-room code, final seq, status, and age, so the audit log records what left even
-though the SQLite is gone.
+Rooms with `connected>0` are **never** TTL-eligible (someone is present). Windows +
+`RETENTION_MODE` are constants in `src/shared/` (game-agnostic, like `RoomTiming`),
+tunable without touching the engine. **Replay preservation:** the window IS the
+guarantee — anything worth keeping is dumped within it; after it an abandoned room
+is disposable. No silent destruction: every purge is logged (`logMutation`
+actionType `'roomPurged'`) with the code, final seq, status, and age, so the audit
+log records what left even though the SQLite is gone.
 
 ## 5. Composition + liveness (for the property test / audit)
 
@@ -133,19 +188,32 @@ New/undamaged invariants, on top of room-timing.md I1–I4 / DL1–DL3:
 - **P3 (resume completeness):** on 0→1, ALL expected actors are re-armed (not just
   the reconnecting seat) — a present non-actor can never be left waiting forever
   on an absent on-turn actor.
-- **T1 (TTL liveness/safety):** a paused or finished room past its window is
-  purged on its next alarm wake; a room with `connected>0` or within its window is
-  never purged; the TTL branch runs regardless of the Q3 seat-deadline guard.
+- **P4 (deploy-transition safety — §3.2):** for any state reachable with
+  `status='playing' && connected==0 && pause_started_at IS NULL` (a room paused
+  before Q3 existed), the constructor stamps `pause_started_at` before any resume
+  math runs, so resume never computes a NULL offset — no NaN shift, no fresh clock,
+  no mass immediate-timeout, no auto-play burst. *(This is the invariant the
+  clean-state tests are blind to; it needs an explicit migration-case test.)*
+- **T1 (TTL safety, per §3.1):** a room with `connected>0` or within its window is
+  NEVER purged. In lazy mode only **lobby-abandoned** rooms auto-purge at their
+  window; **finished/paused** rooms are never auto-purged (reclaimed via §4). In
+  eager mode all eligible rooms auto-purge. The TTL branch runs regardless of the
+  Q3 seat-deadline guard (a paused lobby... n/a; a paused *playing* room's TTL is
+  eligibility-only in lazy mode).
 - **T2 (no purge-loop burn):** the TTL alarm is a single far-future wake, not a
-  poll; it re-arms only while an active purge is trickling (§6 per-row branch) and
-  stops arming once storage is reclaimed — cleanup never becomes a burn source.
+  poll; a room arms a TTL candidate ONLY when it has an auto-purge to perform
+  (lobby in lazy; any eligible in eager), and stops arming once purged — cleanup
+  never becomes a burn source, and a played-out room in lazy mode arms no TTL alarm
+  at all (it just persists until §4).
 
 The `deadline-liveness.property.test.ts` gains a **connected-count dimension** and
 a **wall-clock-advance/TTL dimension**: random interleavings of action / connect /
 disconnect / alarm-fire / clock-advance across all presets (incl. untimed) and
-hot-seat, asserting P1–P3 + T1–T2 after every event, and specifically the 1→0
-freeze, the 0→1 remaining-budget conservation, and "alarm never advances a paused
-room."
+hot-seat, asserting P1–P4 + T1–T2 after every event, and specifically the 1→0
+freeze, the 0→1 remaining-budget conservation, "alarm never advances a paused
+room," and — the case the clean-state harness cannot generate on its own — a
+**seeded pre-paused room** (`pause_started_at` forced NULL with 0 sockets mid-play)
+that is then reconnected, asserting P4.
 
 ## 6. `deleteAll()` billing — the one measured unknown (owner-assisted)
 
@@ -183,19 +251,32 @@ full regime the owner mandated (and the doc's own warning: the corrected Q3 came
 from a single adversarial lineage — re-audit independently, do not trust it
 because it caught the first bug):
 
-1. **Q3 pause** — implement §2; extend the property test (connected-count
-   dimension: P1–P3); wire-level e2e (drop all sockets mid-hand → no auto-play
-   while paused → reconnect → *remaining* clock, not fresh → game continues).
-2. **TTL retention** — implement §3–§4; extend the property test (TTL dimension:
-   T1–T2); e2e (fast-clock room past a tiny test window → self-purges → GET /info
-   → 404; a `connected>0` room never purges; a within-window room never purges).
+1. **Q3 pause** — implement §2 + the §3.2 constructor lazy-stamp; extend the
+   property test (connected-count dimension: P1–P4, **including the seeded
+   pre-paused/deploy-transition case P4**); wire-level e2e (drop all sockets
+   mid-hand → no auto-play while paused → reconnect → *remaining* clock, not fresh
+   → game continues; **plus a room forced into the pre-Q3 paused state → reconnect
+   → sane remainder, no burst**).
+2. **TTL retention** — implement §3–§4 with `RETENTION_MODE='lazy'` (auto-purge
+   lobby-abandoned only; played-out via §4); extend the property test (TTL
+   dimension: T1–T2); e2e (fast-clock lobby room past a tiny test window →
+   self-purges → GET /info → 404; a `connected>0` room never purges; a
+   within-window room never purges; **a finished room in lazy mode is NOT
+   auto-purged**).
 3. **Cross-model audit** — Codex on resync/liveness continuity (the 1→0 / 0→1
-   transitions, the alarm-guard scoping, purge-vs-replay) + Grok on the invariant
-   sweep (I1–I4 / DL1–DL3 / P1–P3 / T1–T2 under pause + TTL). Then a live drill,
-   including stopping the three real zombie rooms via the §4 script.
+   transitions, the alarm-guard scoping, purge-vs-replay, **and the §3.2
+   deploy-transition stamp — verify no reachable NULL-offset resume**) + Grok on
+   the invariant sweep (I1–I4 / DL1–DL3 / P1–P4 / T1–T2 under pause + TTL, **and
+   whether §3.1's lazy policy ever spends the scarce meter to reclaim abundant
+   storage**). Then a live drill. Audit brief MUST call out both owner catches
+   explicitly: (a) the deploy-transition `pause_started_at`-NULL case the
+   clean-state tests miss; (b) that no time-triggered purge of an expensive room
+   runs in lazy mode.
 4. **PLAN corrections folded in** — replace the false TTL claim (§4/§1.6/§8) with
-   the real mechanism above, and fix the five descriptive drifts R3 found, in one
-   PLAN pass.
+   the real §3.1 mechanism (lazy: lobby-only auto-purge; played-out manual; eager
+   gated on the measurement), and fix the five descriptive drifts R3 found, in one
+   PLAN pass. Also correct §4's pre-M4 fresh-clock description (R3 medium) — the
+   doc is currently teaching the M2 bug the code already killed.
 
 Boundaries held: engine stays time-free and TTL-unaware (retention windows are
 room-layer constants keyed on `status`, not a game rule); the DO never learns
