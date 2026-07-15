@@ -730,9 +730,10 @@ export class GameRoom extends DurableObject<Env> {
 
     // Park the sweep wake THE MOMENT a socket attaches (Grok/Codex audit —
     // both lineages): without this, an idle lobby's next wake is its 48h TTL,
-    // not acceptedAt + STALE_SOCKET_MS, so a phone that froze right after
-    // connecting held its phantom for 48h — the exact immortal-phantom hole
-    // the sweep candidate exists to close. Every later wake re-arms it.
+    // not acceptedAt + STALE_SOCKET_MS — a phone that froze right after
+    // connecting held its phantom for up to 48h (delayed, not immortal: that
+    // TTL wake's own sweep would eventually reap it). Every later wake
+    // re-arms the candidate.
     await this.scheduleAlarm();
 
     return new Response(null, { status: 101, webSocket: client });

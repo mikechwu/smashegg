@@ -470,6 +470,6 @@ describe('socket liveness — one quiet peer among healthy ones (Grok audit)', (
       oldestSocketLastSeenAt: NOW - 100_000, // the quiet peer
     });
     expect(cands).toEqual([NOW + 120_000, NOW - 100_000 + STALE_SOCKET_MS]);
-    expect(Math.min(...cands), 'the quiet peer is reaped before the turn expires').toBe(NOW + 80_000);
+    expect(Math.min(...cands), 'the sweep wake precedes the turn deadline').toBe(NOW + 80_000);
   });
 });
