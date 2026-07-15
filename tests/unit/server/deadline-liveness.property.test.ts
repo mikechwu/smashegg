@@ -19,14 +19,28 @@
 //   I3  seat X's presence leaves seat Y's row byte-identical.
 //   I4  a disconnected actor's grace anchor survives co-actor actions
 //
-// SCOPE (stated honestly, per the Codex M4 audit): VirtualRoom exercises
-// the pure deadline layer (nextDeadlines / resolveTimeoutMs / the real
-// engines) with an in-memory mirror of the DO's call pattern — it does NOT
-// execute DO SQL replacement, hello/takeover ordering, socket-close
-// ordering, idempotency, or the fire-and-forget async boundary. Those
-// integration behaviors are owned by the e2e suites
-// (reconnection.e2e.test.ts, timing.e2e.test.ts) over the real DO.
-//       (named double-tribute case below).
+// Q3 pause/resume (pause-and-retention.md §2, §3.2), added the same way — the
+// driver calls the REAL decisions (isPausedRoom / mayAutoPlay / resumeOffsetMs /
+// alarmCandidates), so the model IS the product for scheduling:
+//   P1  a paused room (0 connected seats) arms NO alarm even with frozen rows.
+//   P2  resume shifts each frozen deadline's base by exactly the paused duration
+//       (never a fresh clock — the concrete no-timer-dodge); named + random.
+//   P3  a non-actor resuming first still leaves the absent on-turn actor armed
+//       (no present-player stall) — falls out of DL1's grace coverage.
+//   P4  a room paused BEFORE Q3 (NULL offset) is stamped by the constructor
+//       simulator on the next wake; the guard-path resumes to exactly ONE
+//       0-remaining auto-play (no floor). Named, deterministic.
+//
+// SCOPE (stated honestly, per the Codex M4 audit): VirtualRoom exercises the pure
+// deadline + Q3 decision layer (nextDeadlines / alarmCandidates / isPausedRoom /
+// resumeOffsetMs / mayAutoPlay + the real engines) with an in-memory mirror of the
+// DO's call pattern. What is MODELED, not executed, and therefore owned by the
+// wire e2e: the SQL application of these decisions (the deadline-row shift, row
+// replacement), hello/takeover/socket-close ORDERING (incl. the stamp-ordering
+// dependency that stamp==pause relies on — asserted directly in e2e), real alarm
+// delivery timing, deleteAll(), idempotency, and the fire-and-forget async
+// boundary. liveSockets≈seats here (the seatless-socket TTL edge is a lobby
+// concern — retention.test.ts at the decision level + the e2e seatless case).
 
 import { describe, expect, it } from 'vitest';
 import { nextInt, seedPrng, type PrngState } from '../../../src/engine/core/prng';
@@ -40,14 +54,25 @@ import {
   ACTION_TIMEOUT_MAX_MS,
   ACTION_TIMEOUT_MIN_MS,
   DISCONNECT_GRACE_MS,
+  alarmCandidates,
+  isPausedRoom,
+  mayAutoPlay,
   nextDeadlines,
   resolveTimeoutMs,
   resolveTimingClass,
+  resumeOffsetMs,
   type DeadlineEntry,
 } from '../../../src/server/room-helpers';
+import { asLiveSocketCount, asSeatCount } from '../../../src/shared/retention';
 
 const T0 = 1_700_000_000_000;
 const MAX_ALARM_APPLIES = 32; // mirrors game-room.ts
+
+// Provable coverage: the random driver reaches connected==0 only occasionally,
+// so a green run does not by itself prove the pause/resume paths ran. Count them
+// and assert > 0 at the end (honest-reporting standard) — the named P2-P4 cases
+// are the deterministic guarantee; this proves the RANDOM contexts hit them too.
+const q3Coverage = { pauses: 0, resumes: 0 };
 
 function clamp(ms: number): number {
   return Math.min(ACTION_TIMEOUT_MAX_MS, Math.max(ACTION_TIMEOUT_MIN_MS, ms));
@@ -66,6 +91,12 @@ class VirtualRoom {
   disconnectedAt = new Map<Seat, number>();
   /** When each seat's current row was inserted (re-arm anchor for DL1). */
   armedAt = new Map<Seat, number>();
+  /** Q3: wall-clock the room's connected SEATS hit 0; NULL while any seat is
+   *  connected. The offset origin resume shifts frozen deadlines by (§2). */
+  pauseStartedAt: number | null = null;
+  /** Retention anchor (bumped on presence). Never affects a PLAYING room's alarm
+   *  (lazy TTL is null for 'playing'); tracked for the alarmCandidates call. */
+  lastActiveAt = T0;
 
   constructor(
     readonly game: AnyGameDefinition,
@@ -101,11 +132,29 @@ class VirtualRoom {
           reason,
           changedSeats,
         });
-    // scheduleAlarm, minus the unrelated hello probe.
-    this.alarmAt = this.rows.length > 0 ? Math.min(...this.rows.map((r) => r.dueAt)) : null;
+    // scheduleAlarm — the REAL alarmCandidates decision (minus the hello probe),
+    // so a paused room (0 connected seats) arms nothing even with frozen rows (P1)
+    // and the model tracks the product's scheduling exactly.
+    this.alarmAt = this.computeAlarmAt();
     const nowSeats = new Set(this.rows.map((r) => r.seat));
     for (const s of nowSeats) if (!prevSeats.has(s)) this.armedAt.set(s, this.now);
     for (const s of [...this.armedAt.keys()]) if (!nowSeats.has(s)) this.armedAt.delete(s);
+  }
+
+  /** The scheduleAlarm decision via the real alarmCandidates (no probe). For a
+   *  PLAYING harness game: a seat candidate iff a seat is connected; never a TTL
+   *  ('playing' arms none in lazy mode). liveSockets ≈ connected seats here — the
+   *  seatless-socket edge is a lobby concern, covered by retention.test.ts + e2e. */
+  private computeAlarmAt(): number | null {
+    const cands = alarmCandidates({
+      status: this.game.isTerminal(this.state) ? 'finished' : 'playing',
+      connectedSeatCount: asSeatCount(this.connected.size),
+      liveSocketCount: asLiveSocketCount(this.connected.size),
+      minSeatDeadlineDueAt: this.rows.length > 0 ? Math.min(...this.rows.map((r) => r.dueAt)) : null,
+      lastActiveAt: this.lastActiveAt,
+      probeDueAt: null,
+    });
+    return cands.length > 0 ? Math.min(...cands) : null;
   }
 
   apply(seat: Seat, action: unknown): void {
@@ -119,19 +168,54 @@ class VirtualRoom {
   disconnect(seat: Seat): void {
     if (!this.connected.delete(seat)) return; // mirrors the DO's newly-* gate
     this.disconnectedAt.set(seat, this.now);
+    this.lastActiveAt = this.now;
     this.recompute('presence', new Set([seat]));
+    // Q3 pause: if that emptied the room, stamp the offset origin — the SAME
+    // isPausedRoom predicate the DO uses at handleSocketGone + the constructor.
+    if (this.pauseStartedAt === null && isPausedRoom('playing', asSeatCount(this.connected.size))) {
+      this.pauseStartedAt = this.now;
+    }
   }
 
   reconnect(seat: Seat): void {
     if (this.connected.has(seat)) return;
+    // Q3 resume: if the room was paused, shift every frozen deadline AND its
+    // anchors forward by the paused duration BEFORE the presence reconcile, so
+    // each actor's REMAINING budget is preserved (no fresh clock — P2) and the
+    // DL1 arm-window relationship holds (anchors move by the same offset).
+    if (this.pauseStartedAt !== null) {
+      const offset = resumeOffsetMs(this.pauseStartedAt, this.now);
+      this.rows = this.rows.map((r) => ({
+        ...r,
+        dueAt: r.dueAt + offset,
+        baseDueAt: r.baseDueAt === null ? null : r.baseDueAt + offset,
+      }));
+      for (const [s, t] of this.armedAt) this.armedAt.set(s, t + offset);
+      for (const [s, t] of this.disconnectedAt) this.disconnectedAt.set(s, t + offset);
+      this.pauseStartedAt = null;
+    }
     this.connected.add(seat);
     this.disconnectedAt.delete(seat);
+    this.lastActiveAt = this.now;
     this.recompute('presence', new Set([seat]));
+  }
+
+  /** Mirrors the DO constructor's §3.2 deploy-transition lazy-stamp: on any wake,
+   *  a PLAYING room with 0 connected seats and no pause origin gets stamped NOW —
+   *  the SAME isPausedRoom predicate as every other stamp site, so a paused room
+   *  can never be left with a NULL offset for resume to divide by. */
+  simulateConstructorStamp(): void {
+    if (this.pauseStartedAt === null && isPausedRoom('playing', asSeatCount(this.connected.size))) {
+      this.pauseStartedAt = this.now;
+    }
   }
 
   /** The alarm loop (game-room.ts alarm(), path (b)) — DL3 asserted per
    *  iteration: seq strictly advances or a stale row is deleted. */
   fireAlarmIfDue(): void {
+    // Q3 pause guard: a room with no connected seat never auto-plays (and the DO
+    // arms no alarm for it, so it would never fire in the first place).
+    if (!mayAutoPlay(asSeatCount(this.connected.size))) return;
     for (let i = 0; i < MAX_ALARM_APPLIES; i++) {
       if (this.game.isTerminal(this.state)) break;
       const due = [...this.rows]
@@ -198,11 +282,13 @@ function assertInvariants(room: VirtualRoom): void {
     }
   }
 
-  // DL2: alarm parked at min(due) exactly when rows exist.
-  if (room.rows.length > 0) {
+  // DL2 + P1: the alarm is parked at min(due) when a seat is connected and rows
+  // exist; a PAUSED room (0 connected seats) arms NOTHING even with frozen rows
+  // (P1 — no seat candidate, and 'playing' arms no TTL in lazy mode).
+  if (room.rows.length > 0 && room.connected.size > 0) {
     expect(room.alarmAt).toBe(Math.min(...room.rows.map((r) => r.dueAt)));
   } else {
-    expect(room.alarmAt).toBeNull();
+    expect(room.alarmAt, 'P1: paused (or empty) ⇒ no alarm armed').toBeNull();
   }
 
   // I1.
@@ -236,6 +322,25 @@ function presenceWithChecks(room: VirtualRoom, seat: Seat, kind: 'disconnect' | 
         (JSON.parse(prev) as DeadlineEntry).dueAt,
       );
     }
+  }
+}
+
+/** P2 around a resume (0→1 from pause): the shift re-anchors every frozen row.
+ *  Assert each surviving row's base was SHIFTED by exactly the paused duration,
+ *  never reset to a fresh now+budget — the concrete "no fresh clock / no
+ *  timer-dodge". (DL1/P1, and P3 via DL1's grace-row coverage, are asserted by
+ *  assertInvariants after this returns.) */
+function resumeWithChecks(room: VirtualRoom, seat: Seat): void {
+  const pausedAt = room.pauseStartedAt!;
+  const offset = resumeOffsetMs(pausedAt, room.now);
+  const baseBefore = new Map(room.rows.map((r) => [r.seat, r.baseDueAt]));
+  room.reconnect(seat);
+  for (const r of room.rows) {
+    const b = baseBefore.get(r.seat);
+    if (b === undefined || b === null || r.baseDueAt === null) continue;
+    expect(r.baseDueAt, `P2: seat ${r.seat} base shifted by the paused duration, not reset`).toBe(
+      b + offset,
+    );
   }
 }
 
@@ -304,10 +409,25 @@ function runInterleaving(spec: GameSpec, timing: RoomTiming | null, seed: string
       room.apply(seat, action);
     } else if (roll < 65) {
       const pool = [...room.connected];
-      if (pool.length > 0) presenceWithChecks(room, pool[draw(pool.length)]!, 'disconnect');
+      if (pool.length > 0) {
+        const wasPaused = room.pauseStartedAt !== null;
+        presenceWithChecks(room, pool[draw(pool.length)]!, 'disconnect');
+        if (!wasPaused && room.pauseStartedAt !== null) q3Coverage.pauses++;
+      }
     } else if (roll < 80) {
       const pool = Array.from({ length: spec.seats }, (_, s) => s).filter((s) => !room.connected.has(s));
-      if (pool.length > 0) presenceWithChecks(room, pool[draw(pool.length)]!, 'reconnect');
+      if (pool.length > 0) {
+        const seat = pool[draw(pool.length)]!;
+        if (room.pauseStartedAt !== null) {
+          // RESUME from a paused room: the shift re-anchors ALL rows, so the M4
+          // I2/I3 (presence touches only the changed seat) do not apply — assert
+          // P2 (no fresh clock) here; DL1/P1/P3 fall out of assertInvariants below.
+          resumeWithChecks(room, seat);
+          q3Coverage.resumes++;
+        } else {
+          presenceWithChecks(room, seat, 'reconnect');
+        }
+      }
     } else if (roll < 90) {
       room.now += 1_000 + draw(30_000); // advanceClock
     } else {
@@ -327,6 +447,14 @@ describe('deadline liveness properties (room-timing.md §3): DL1-DL3 + I1-I4', (
       });
     }
   }
+
+  it('the random interleavings actually exercised Q3 pause AND resume (coverage not vacuous)', () => {
+    // Runs after the interleavings above (definition order) — proves the P1/P2
+    // assertions inside the driver were reached in random contexts, not just the
+    // deterministic named cases.
+    expect(q3Coverage.pauses, 'some interleaving reached connected==0 (pause)').toBeGreaterThan(0);
+    expect(q3Coverage.resumes, 'some interleaving resumed from a pause').toBeGreaterThan(0);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -429,6 +557,93 @@ describe('named liveness cases', () => {
     room.now += 5_000;
     presenceWithChecks(room, payerY, 'reconnect');
     expect(room.rows.find((r) => r.seat === payerY)!.dueAt).toBe(yBefore.baseDueAt);
+    assertInvariants(room);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Q3 pause/resume named cases (pause-and-retention.md §2, §3.2). Deterministic,
+// so they can never flake and GUARANTEE the pause/resume paths are exercised —
+// the random driver reaches connected==0 only occasionally, so green there does
+// not by itself prove P2-P4.
+// ---------------------------------------------------------------------------
+
+describe('Q3 pause/resume properties (P1-P4)', () => {
+  it('P1+P2: pause → 3-day wait → resume preserves the REMAINING budget, never a fresh clock (no dodge)', () => {
+    const spec = GAMES[0]!; // guandan: hand-1 opening lead, 'planning' = 90s standard
+    const room = new VirtualRoom(spec.game, TIMING_PRESETS.standard, spec.seats, spec.config, 'q3-p2-1');
+    const leader = room.actors()[0]!;
+    expect(room.rows.find((r) => r.seat === leader)!.baseDueAt).toBe(T0 + 90_000);
+
+    // Consume 30s of the leader's turn, then EVERYONE drops → PAUSE at T0+30s.
+    room.now = T0 + 30_000;
+    for (const s of [...room.connected]) room.disconnect(s);
+    expect(room.pauseStartedAt, 'paused when the room emptied').toBe(T0 + 30_000);
+    expect(room.alarmAt, 'P1: a paused room arms no alarm even with a frozen row').toBeNull();
+
+    // Wall clock advances THREE DAYS while frozen; the leader reconnects.
+    room.now = T0 + 30_000 + 3 * 86_400_000;
+    resumeWithChecks(room, leader); // asserts base shifted, not reset (P2)
+    const restored = room.rows.find((r) => r.seat === leader)!;
+    // The leader had 60s left at pause (base T0+90s − pause T0+30s); resume gives
+    // back EXACTLY that 60s re-anchored to now — never a fresh 90s.
+    expect(restored.dueAt - room.now, 'exactly the 60s that remained at pause').toBe(60_000);
+    expect(restored.dueAt - room.now, 'NOT a fresh 90s planning budget').not.toBe(90_000);
+    assertInvariants(room);
+  });
+
+  it('P3: a NON-actor reconnecting first still arms the ABSENT on-turn actor (no present-player stall)', () => {
+    const spec = GAMES[1]!; // guess-number: exactly one expected actor at a time
+    const room = new VirtualRoom(spec.game, TIMING_PRESETS.standard, spec.seats, spec.config, 'q3-p3-1');
+    const actor = room.actors()[0]!;
+    const nonActor = [0, 1, 2, 3].find((s) => s !== actor)!;
+
+    room.now = T0 + 5_000;
+    for (const s of [...room.connected]) room.disconnect(s);
+    expect(room.pauseStartedAt).not.toBeNull();
+
+    room.now = T0 + 5_000 + 2 * 86_400_000;
+    resumeWithChecks(room, nonActor); // a NON-actor returns; the actor stays absent
+    // The absent on-turn actor MUST still have a (shifted grace) row, so its alarm
+    // fires and the present non-actor is never stalled forever waiting on it.
+    expect(
+      room.rows.find((r) => r.seat === actor),
+      'P3: absent on-turn actor still armed after a non-actor resume',
+    ).toBeDefined();
+    expect(room.alarmAt, 'alarm armed (a seat is connected now)').not.toBeNull();
+    assertInvariants(room);
+  });
+
+  it('P4: a room paused BEFORE Q3 (NULL offset) is stamped on the next wake; guard-path resumes to exactly ONE auto-play', () => {
+    const spec = GAMES[1]!; // guess-number: single clear actor
+    const room = new VirtualRoom(spec.game, TIMING_PRESETS.standard, spec.seats, spec.config, 'q3-p4-1');
+    const actor = room.actors()[0]!;
+    const base = room.rows.find((r) => r.seat === actor)!.baseDueAt!;
+
+    // Advance to the deadline (it is exactly due), then everyone drops: the actor
+    // grace-clamps to min(base, now+60s) = base, so its frozen due == base == now.
+    room.now = base;
+    for (const s of [...room.connected]) room.disconnect(s);
+    expect(room.rows.find((r) => r.seat === actor)!.dueAt).toBe(base);
+
+    // Simulate the PRE-Q3 world: the old code left no pause origin.
+    room.pauseStartedAt = null;
+    // The constructor wakes and lazy-stamps NOW — before any resume math (§3.2).
+    room.simulateConstructorStamp();
+    expect(room.pauseStartedAt, 'constructor stamped the origin — no NULL offset').toBe(base);
+
+    // The actor reconnects 3s later. Guard-path: the frozen deadline was already
+    // due at stamp time, so it shifts to ≈now → exactly 0 remaining, NOT a fresh
+    // clock (§3.2 — no floor).
+    room.now = base + 3_000;
+    const seqBefore = room.seq;
+    resumeWithChecks(room, actor);
+    expect(room.rows.find((r) => r.seat === actor)!.dueAt - room.now, 'guard-path: 0 remaining').toBe(0);
+
+    // Exactly ONE default action auto-plays (the next actor's clock is fresh, not
+    // due) — a burst or a never-firing fresh clock would both be wrong.
+    room.fireAlarmIfDue();
+    expect(room.seq, 'exactly one 0-remaining default action auto-plays on reconnect').toBe(seqBefore + 1);
     assertInvariants(room);
   });
 });
