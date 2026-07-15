@@ -459,6 +459,15 @@ export class GameRoom extends DurableObject<Env> {
     return asLiveSocketCount(this.ctx.getWebSockets().length);
   }
 
+  /** TEST-ONLY retention window shrink (RETENTION_TEST_WINDOW_MS env) so the e2e
+   *  can drive a real self-purge without waiting 48h; undefined in production. */
+  private retentionWindowOverride(): number | undefined {
+    const raw = this.env.RETENTION_TEST_WINDOW_MS;
+    if (raw === undefined) return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : undefined;
+  }
+
   private setSeats(ws: WebSocket, seats: Set<Seat>): void {
     this.sessions.set(ws, seats);
     const attachment: SocketAttachment = { seats: [...seats].sort((a, b) => a - b) };
@@ -611,6 +620,9 @@ export class GameRoom extends DurableObject<Env> {
       actionType: 'create',
       outcome: 'applied',
     });
+    // Arm the lobby retention TTL now, so a room nobody ever joins still
+    // self-purges (an idle DO runs no code otherwise — it would orphan forever).
+    await this.scheduleAlarm();
     return Response.json({ ok: true }, { status: 201 });
   }
 
@@ -680,6 +692,10 @@ export class GameRoom extends DurableObject<Env> {
         status: room.status,
         code: room.code,
         timing: this.parseTiming(room),
+        // Q3/retention diagnostics (pause-and-retention.md): the offset origin
+        // (NULL while any seat is connected) and the TTL anchor.
+        pauseStartedAt: room.pause_started_at,
+        lastActiveAt: room.last_active_at,
       },
       seats: this.readSeatRows().map((r) => ({ seat: r.seat, name: r.name, tokenHash: r.token_hash })),
       snapshot: { seq: snapshot.seq, state: snapshot.state_json === null ? null : JSON.parse(snapshot.state_json) },
@@ -1525,6 +1541,7 @@ export class GameRoom extends DurableObject<Env> {
       // never `?? 0` which would read as epoch = infinitely-stale = purge-now.
       lastActiveAt: room ? (room.last_active_at ?? room.created_at) : null,
       probeDueAt,
+      overrideWindowMs: this.retentionWindowOverride(),
     });
 
     if (candidates.length > 0) {
@@ -1575,6 +1592,7 @@ export class GameRoom extends DurableObject<Env> {
         liveSocketCount,
         lastActiveAt: roomForTtl.last_active_at ?? roomForTtl.created_at,
         now,
+        overrideWindowMs: this.retentionWindowOverride(),
       })
     ) {
       logMutation({
@@ -1587,6 +1605,11 @@ export class GameRoom extends DurableObject<Env> {
       });
       await this.ctx.storage.deleteAll(); // reclaims all storage, incl. the alarm
       await this.ctx.storage.deleteAlarm(); // explicit (belt-and-braces across compat dates)
+      // deleteAll() drops the tables too. If this DO stays warm (no constructor
+      // re-run before the next request), a read would hit a missing table; restore
+      // an EMPTY schema so a subsequent GET reads no room → 404 (the match's rows
+      // stay reclaimed — only the empty table definitions come back).
+      this.ensureSchema();
       return; // the room is gone — nothing else to do
     }
 

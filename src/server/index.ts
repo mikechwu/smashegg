@@ -24,6 +24,10 @@ export interface Env {
    *  deploy time via `--var BUILD_VERSION:...`; absent under plain
    *  `wrangler dev`, where every consumer falls back to 'dev'. */
   BUILD_VERSION?: string;
+  /** TEST ONLY (pause-and-retention.md §7): shrinks the retention window to N ms
+   *  so the e2e can drive a real self-purge without waiting 48h. Never set in
+   *  production (`--var RETENTION_TEST_WINDOW_MS:...` only in the retention e2e). */
+  RETENTION_TEST_WINDOW_MS?: string;
 }
 
 // 6-char unambiguous room-code alphabet (no 0/O/1/I) — PLAN.md §8.

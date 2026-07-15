@@ -358,6 +358,8 @@ export interface AlarmCandidatesInput {
   /** The armed-and-unfired M0 probe's due time, or null. */
   probeDueAt: number | null;
   mode?: RetentionMode;
+  /** Test-only window shrink (RETENTION_TEST_WINDOW_MS); undefined in prod. */
+  overrideWindowMs?: number;
 }
 
 /** The candidate wake times for the DO's single alarm slot (the scheduleAlarm
@@ -372,7 +374,7 @@ export function alarmCandidates(input: AlarmCandidatesInput): number[] {
     out.push(input.minSeatDeadlineDueAt);
   }
   if (input.status !== null && input.liveSocketCount === 0 && input.lastActiveAt !== null) {
-    const ttl = ttlDueAt(input.status, input.lastActiveAt, input.mode);
+    const ttl = ttlDueAt(input.status, input.lastActiveAt, input.mode, input.overrideWindowMs);
     if (ttl !== null) out.push(ttl);
   }
   if (input.probeDueAt !== null) out.push(input.probeDueAt);

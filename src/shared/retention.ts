@@ -83,9 +83,10 @@ export function ttlDueAt(
   status: RoomStatus,
   lastActiveAt: number,
   mode: RetentionMode = RETENTION_MODE,
+  overrideWindowMs?: number,
 ): number | null {
   if (!shouldAutoPurge(status, mode)) return null;
-  return lastActiveAt + RETENTION_WINDOW_MS[status];
+  return lastActiveAt + (overrideWindowMs ?? RETENTION_WINDOW_MS[status]);
 }
 
 /** True iff an abandoned room is past its retention window AND its status
@@ -107,6 +108,9 @@ export function isAutoPurgeEligible(args: {
   lastActiveAt: number | null;
   now: number;
   mode?: RetentionMode;
+  /** Test-only window shrink (RETENTION_TEST_WINDOW_MS env) so the e2e can drive
+   *  a real purge without waiting 48h; undefined in production. */
+  overrideWindowMs?: number;
 }): boolean {
   // This is the LAST gate before an irreversible deleteAll() — so it is the most
   // paranoid function in the file: an unknowable status or anchor can never be
@@ -117,5 +121,6 @@ export function isAutoPurgeEligible(args: {
   if (args.liveSocketCount > 0) return false; // never purge an occupied room (T3)
   if (args.status === null || args.lastActiveAt === null) return false; // unknown → fail safe
   if (!shouldAutoPurge(args.status, mode)) return false;
-  return args.now - args.lastActiveAt >= RETENTION_WINDOW_MS[args.status];
+  const window = args.overrideWindowMs ?? RETENTION_WINDOW_MS[args.status];
+  return args.now - args.lastActiveAt >= window;
 }
