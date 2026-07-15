@@ -832,17 +832,23 @@ export class GameRoom extends DurableObject<Env> {
     // Q3 pause/resume (pause-and-retention.md §2). A hello can flip connectivity
     // EITHER way (reconnect, or a token-less/takeover hello that drops seats):
     if (room.status === 'playing') {
-      if (connectedAfter.size > 0) {
-        // Resume: shift frozen deadlines by the paused duration (preserving each
-        // actor's REMAINING budget — no fresh clock) BEFORE the reconcile below
-        // restores the reconnecting actor to its (now-shifted) base. No-op if the
-        // room was not paused.
+      if (connectedBefore.size === 0 && connectedAfter.size > 0) {
+        // TRUE 0→1 resume edge ONLY — not any hello with seats connected. Gating
+        // on the actual transition (not on "resumeFromPause no-ops when
+        // pause_started_at is NULL") makes the shift self-evidently safe: an
+        // ordinary mid-game hello (seats already connected) can never shift
+        // deadlines even if the pause_started_at invariant were ever violated
+        // (Codex audit). Shift the frozen deadlines by the paused duration
+        // (preserving each actor's REMAINING budget — no fresh clock) BEFORE the
+        // reconcile below restores the reconnecting actor to its shifted base.
         this.resumeFromPause(now);
-      } else {
+      } else if (connectedAfter.size === 0) {
         // This hello emptied the room → pause (record the offset origin so a
         // future resume can shift; the alarm won't auto-play while connected==0).
         this.stampPauseStart(now);
       }
+      // else (connectedBefore>0 && connectedAfter>0): an ordinary mid-game hello
+      // — neither a pause nor a resume; deadlines are untouched here.
     }
 
     // Reconcile deadlines BEFORE the welcome/resync sends, so they carry

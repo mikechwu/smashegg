@@ -91,6 +91,40 @@ describe('Q3 pause + retention TTL (e2e)', () => {
     back.close();
   }, 25_000);
 
+  test('an ordinary mid-game reconnect (room never emptied) never pauses or shifts (Codex audit regression)', async () => {
+    // Codex flagged that resumeFromPause was entered on ANY hello with seats
+    // connected. A partial disconnect (others still connected) must NEVER set
+    // pause_started_at, and the reconnect must not trigger a shift.
+    const code = await createRoomFor(server, 'guess-number', GN_CONFIG, SHORT_TURN);
+    const { client: a } = await connectAndWelcome(server, code, { label: 'A' });
+    const aTokens = [(await claimSeat(a, 'a0')).token, (await claimSeat(a, 'a1')).token];
+    const { client: b } = await connectAndWelcome(server, code, { label: 'B' });
+    await claimSeat(b, 'b2');
+    await claimSeat(b, 'b3');
+    a.start();
+    await sleep(400);
+    expect((await getDump(server, code)).room.status).toBe('playing');
+
+    // Drop socket A only: seats 0,1 gone, but B's seats 2,3 remain connected.
+    a.close();
+    await sleep(400);
+    expect(
+      (await getDump(server, code)).room.pauseStartedAt,
+      'a partial disconnect (others connected) never pauses',
+    ).toBeNull();
+
+    // Reconnect A: an ordinary mid-game hello (connectedBefore > 0) — the
+    // resume path must NOT be entered, so no pause origin, no shift.
+    const { client: a2 } = await connectAndWelcome(server, code, { label: 'A2', tokens: aTokens });
+    await sleep(300);
+    expect(
+      (await getDump(server, code)).room.pauseStartedAt,
+      'an ordinary reconnect leaves pause_started_at NULL',
+    ).toBeNull();
+    a2.close();
+    b.close();
+  }, 20_000);
+
   test('an abandoned lobby self-purges after the retention window (real deleteAll → 404)', async () => {
     const code = await createRoom(server, GN_CONFIG);
     expect(await roomInfoStatus(server, code), 'exists right after creation').toBe(200);
