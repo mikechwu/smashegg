@@ -138,11 +138,20 @@ UPDATE (was bumpSeq's seq UPDATE + a separate state UPDATE) — −1 row-write/a
   pass. METHODOLOGY self-correction: a design doc that asserts an unbuilt
   mitigation lets a real gap survive audits — the PLAN sweep is now a standing
   check when a milestone claims a mechanism.
-- **DO enumeration — first run returned junk ("test" placeholders, the recurring
-  subagent failure mode); re-running.** Strong prior: `idFromName` is one-way, so
-  even if the namespace-objects API lists object IDs, room CODES can't be
-  recovered → the cleanup script takes explicit codes and/or a cheap
-  write-once-at-creation registry. Confirming.
+- **DO enumeration — REFUTED for code-driven purge (re-run gave real data; first
+  run was junk).** The namespace-objects LIST API
+  (`GET .../durable_objects/namespaces/{id}/objects`) exists and returns hex `id`
+  + `hasStoredData`, but NOT the name — and `idFromName` is one-way (`ctx.id.name`
+  is `undefined` when rebuilt via `idFromString`, the only thing a listed hex ID
+  gives you). So enumeration can't recover room codes → it's only a coarse audit
+  ("does orphan storage exist my registry doesn't know?"). **§4 script model:**
+  explicit room codes (owner-supplied / STATUS-recorded) as primary input,
+  re-derived via `idFromName(code)`; the per-room self-purge TTL (§3) needs no
+  enumeration; an optional future "list all rooms" capability uses a
+  **write-once-at-creation KV registry** (1 KV write/create — the idle 1,000/day
+  KV meter, NOT the scarce rows-written meter; `expirationTtl` doubles as registry
+  retention). Registry is deferrable — the 3 known zombies + on-demand cleanup
+  need only explicit codes.
 
 **Then:** §3 TTL + Q3 designed+gated together (`scheduleAlarm` = min(TTL,
 seat-deadlines-when-connected>0, probe); Q3's `alarm()` guard scoped so a TTL wake
