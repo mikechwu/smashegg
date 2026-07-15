@@ -428,14 +428,18 @@ a {
   cursor: not-allowed;
 }
 
-/* --- lobby ring (pre-M5 §2): partners across the table, as in play ------- */
+/* --- lobby ring (pre-M5 §2): partners across the table, as in play -------
+   North/south span the FULL row (centered) so the claim form and seat
+   labels never inherit the narrow centre column's width — the true-390
+   find of the refinement round: at 390px the old middle column collapsed
+   to ~100px and 座位/暱稱 wrapped one character per line. */
 .lobby-ring {
   display: grid;
-  grid-template-columns: minmax(8.5rem, 1fr) minmax(1.5rem, 0.5fr) minmax(8.5rem, 1fr);
+  grid-template-columns: 1fr minmax(1.5rem, 0.6fr) 1fr;
   grid-template-areas:
-    '.    north  .'
-    'west center east'
-    '.    south  .';
+    'north north north'
+    'west  center east'
+    'south south south';
   gap: 0.5rem;
   align-items: stretch;
   margin: 0 0 1rem;
@@ -446,6 +450,11 @@ a {
 .lobby-ring__seat > .lobby-seat {
   flex: 1;
   margin: 0;
+}
+.lobby-ring__seat--north,
+.lobby-ring__seat--south {
+  justify-self: center;
+  width: min(100%, 15rem);
 }
 .lobby-ring__seat--north {
   grid-area: north;
