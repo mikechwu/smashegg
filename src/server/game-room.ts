@@ -56,7 +56,7 @@ import {
   type DeadlineEntry,
 } from './room-helpers';
 import { DEFAULT_ROOM_TIMING, validateRoomTiming, type RoomTiming } from '../shared/timing';
-import { isAutoPurgeEligible } from '../shared/retention';
+import { asLiveSocketCount, asSeatCount, isAutoPurgeEligible } from '../shared/retention';
 
 // Bare literal "ping" -> "pong" answered while hibernated, at zero cost
 // (PLAN.md §4). Matches exact literal strings only — clients ping OUTSIDE
@@ -225,7 +225,7 @@ export class GameRoom extends DurableObject<Env> {
     if (
       room !== null &&
       room.pause_started_at === null &&
-      isPausedRoom(room.status, this.connectedSeats().size) // SAME predicate as the 1→0 stamp
+      isPausedRoom(room.status, asSeatCount(this.connectedSeats().size)) // SAME predicate as the 1→0 stamp
     ) {
       this.ctx.storage.sql.exec('UPDATE room SET pause_started_at = ? WHERE id = 1', Date.now());
     }
@@ -1497,10 +1497,12 @@ export class GameRoom extends DurableObject<Env> {
 
     const candidates = alarmCandidates({
       status: room?.status ?? null, // null room (bare M0 probe DO) → no TTL candidate
-      connectedSeatCount: this.connectedSeats().size,
-      liveSocketCount: this.ctx.getWebSockets().length,
+      connectedSeatCount: asSeatCount(this.connectedSeats().size),
+      liveSocketCount: asLiveSocketCount(this.ctx.getWebSockets().length),
       minSeatDeadlineDueAt: minRow?.min_due ?? null,
-      lastActiveAt: room?.last_active_at ?? room?.created_at ?? 0,
+      // Anchor = last_active_at ?? created_at; NULL (no room) FAILS SAFE (no TTL),
+      // never `?? 0` which would read as epoch = infinitely-stale = purge-now.
+      lastActiveAt: room ? (room.last_active_at ?? room.created_at) : null,
       probeDueAt,
     });
 
@@ -1531,8 +1533,8 @@ export class GameRoom extends DurableObject<Env> {
       });
     }
 
-    const connectedSeatCount = this.connectedSeats().size;
-    const liveSocketCount = this.ctx.getWebSockets().length;
+    const connectedSeatCount = asSeatCount(this.connectedSeats().size);
+    const liveSocketCount = asLiveSocketCount(this.ctx.getWebSockets().length);
 
     // (b) Room-retention TTL self-purge (pause-and-retention.md §3.1). Runs
     // REGARDLESS of the Q3 seat-deadline guard below (a paused room past its
@@ -1666,7 +1668,7 @@ export class GameRoom extends DurableObject<Env> {
       // no auto-play burn accrues while nobody watches. Same isPausedRoom
       // predicate as the constructor stamp — so stamp ≡ pause, and a paused room
       // always has a non-NULL pause_started_at (invariant, pinned in the tests).
-      if (isPausedRoom(room.status, stillConnected.size)) this.stampPauseStart(now);
+      if (isPausedRoom(room.status, asSeatCount(stillConnected.size))) this.stampPauseStart(now);
       // Newly-disconnected expected actors pick up the disconnect-grace
       // clamp (PLAN §4 rule); other seats' rows are untouched (room-
       // timing.md §2 presence semantics). reconcileDeadlines re-schedules.

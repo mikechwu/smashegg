@@ -18,7 +18,12 @@ import {
   timeoutMsFor,
   type RoomTiming,
 } from '../shared/timing';
-import { ttlDueAt, type RetentionMode } from '../shared/retention';
+import {
+  ttlDueAt,
+  type ConnectedSeatCount,
+  type LiveSocketCount,
+  type RetentionMode,
+} from '../shared/retention';
 
 // ---------------------------------------------------------------------------
 // Hashing / token material (PLAN §8: 128-bit+ random seat tokens, SHA-256
@@ -316,14 +321,14 @@ export function timingSafeEqualStr(a: string, b: string): boolean {
  *  pause_started_at, so resume can never hit `now - NULL`. Keys on connected
  *  SEATS ("is there an actor?"), never sockets — contrast the TTL, which asks
  *  "is anyone here?" and keys on live sockets (isAutoPurgeEligible). */
-export function isPausedRoom(status: RoomStatus, connectedSeatCount: number): boolean {
+export function isPausedRoom(status: RoomStatus, connectedSeatCount: ConnectedSeatCount): boolean {
   return status === 'playing' && connectedSeatCount === 0;
 }
 
 /** Whether alarm() may auto-play a due seat deadline: only while a SEAT is
  *  connected (the Q3 pause guard — a room with no actor present is frozen).
  *  Exactly `!isPausedRoom` for a playing room, named for the alarm call site. */
-export function mayAutoPlay(connectedSeatCount: number): boolean {
+export function mayAutoPlay(connectedSeatCount: ConnectedSeatCount): boolean {
   return connectedSeatCount > 0;
 }
 
@@ -340,14 +345,16 @@ export interface AlarmCandidatesInput {
    *  room-less DO has no TTL candidate regardless of retention mode. */
   status: RoomStatus | null;
   /** Connected SEATS — gates the seat-deadline candidate (Q3). */
-  connectedSeatCount: number;
+  connectedSeatCount: ConnectedSeatCount;
   /** Live SOCKETS (ctx.getWebSockets().length) — gates the TTL candidate (T3:
    *  an occupied room is never purged, even a seatless/idle lobby visitor). */
-  liveSocketCount: number;
+  liveSocketCount: LiveSocketCount;
   /** MIN(due_at) over the deadlines table, or null when empty. */
   minSeatDeadlineDueAt: number | null;
-  /** room.last_active_at (the retention anchor). */
-  lastActiveAt: number;
+  /** The retention anchor (room.last_active_at ?? created_at), or null when it
+   *  cannot be determined — a null anchor FAILS SAFE (arms no TTL), never toward
+   *  an immediate purge (deleteAll is irreversible). */
+  lastActiveAt: number | null;
   /** The armed-and-unfired M0 probe's due time, or null. */
   probeDueAt: number | null;
   mode?: RetentionMode;
@@ -364,7 +371,7 @@ export function alarmCandidates(input: AlarmCandidatesInput): number[] {
   if (input.connectedSeatCount > 0 && input.minSeatDeadlineDueAt !== null) {
     out.push(input.minSeatDeadlineDueAt);
   }
-  if (input.status !== null && input.liveSocketCount === 0) {
+  if (input.status !== null && input.liveSocketCount === 0 && input.lastActiveAt !== null) {
     const ttl = ttlDueAt(input.status, input.lastActiveAt, input.mode);
     if (ttl !== null) out.push(ttl);
   }

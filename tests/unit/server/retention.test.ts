@@ -5,10 +5,16 @@
 // decision matrix is proven about the PRODUCT, not a re-implementation. The
 // integration of these decisions with the deadline layer over random playouts
 // (P1-P4) lives in deadline-liveness.property.test.ts; SQL/alarm delivery in e2e.
+//
+// The two counts are BRANDED (ConnectedSeatCount vs LiveSocketCount) so a swap
+// is a compile error; tests construct them via asSeatCount / asLiveSocketCount,
+// exactly as game-room.ts binds them at the source.
 
 import { describe, expect, it } from 'vitest';
 import {
   RETENTION_WINDOW_MS,
+  asLiveSocketCount,
+  asSeatCount,
   isAutoPurgeEligible,
   shouldAutoPurge,
   ttlDueAt,
@@ -46,7 +52,6 @@ describe('shouldAutoPurge — the lazy/eager policy (§3.1)', () => {
   });
 
   it('defaults to lazy (RETENTION_MODE)', () => {
-    // No explicit mode → the shipped default, which must be lazy.
     expect(shouldAutoPurge('finished')).toBe(false);
     expect(shouldAutoPurge('lobby')).toBe(true);
   });
@@ -70,7 +75,12 @@ describe('ttlDueAt — when (if ever) an abandoned room arms a self-purge', () =
 });
 
 describe('isAutoPurgeEligible — the exact test alarm() applies', () => {
-  const base = { status: 'lobby' as const, liveSocketCount: 0, lastActiveAt: NOW, now: NOW + 49 * HOUR };
+  const base = {
+    status: 'lobby' as const,
+    liveSocketCount: asLiveSocketCount(0),
+    lastActiveAt: NOW,
+    now: NOW + 49 * HOUR,
+  };
 
   it('lobby past 48h with 0 live sockets → eligible (lazy)', () => {
     expect(isAutoPurgeEligible({ ...base, mode: 'lazy' })).toBe(true);
@@ -83,22 +93,42 @@ describe('isAutoPurgeEligible — the exact test alarm() applies', () => {
   it('T3: a live socket makes it NEVER eligible — even a seatless idle lobby past its window', () => {
     // The load-bearing invariant: Q1's auto-response means an occupied lobby
     // leaves no last_active_at trace, so time alone is not enough.
-    expect(isAutoPurgeEligible({ ...base, liveSocketCount: 1 })).toBe(false);
-    expect(isAutoPurgeEligible({ ...base, liveSocketCount: 4, now: NOW + 100 * DAY })).toBe(false);
+    expect(isAutoPurgeEligible({ ...base, liveSocketCount: asLiveSocketCount(1) })).toBe(false);
+    expect(
+      isAutoPurgeEligible({ ...base, liveSocketCount: asLiveSocketCount(4), now: NOW + 100 * DAY }),
+    ).toBe(false);
   });
 
   it('finished/paused past window with 0 sockets → NOT eligible in lazy (manual via §4)', () => {
     expect(
-      isAutoPurgeEligible({ status: 'finished', liveSocketCount: 0, lastActiveAt: NOW, now: NOW + 8 * DAY, mode: 'lazy' }),
+      isAutoPurgeEligible({
+        status: 'finished',
+        liveSocketCount: asLiveSocketCount(0),
+        lastActiveAt: NOW,
+        now: NOW + 8 * DAY,
+        mode: 'lazy',
+      }),
     ).toBe(false);
     expect(
-      isAutoPurgeEligible({ status: 'playing', liveSocketCount: 0, lastActiveAt: NOW, now: NOW + 15 * DAY, mode: 'lazy' }),
+      isAutoPurgeEligible({
+        status: 'playing',
+        liveSocketCount: asLiveSocketCount(0),
+        lastActiveAt: NOW,
+        now: NOW + 15 * DAY,
+        mode: 'lazy',
+      }),
     ).toBe(false);
   });
 
   it('finished/paused past window with 0 sockets → eligible in EAGER (the measured-flat flip)', () => {
     expect(
-      isAutoPurgeEligible({ status: 'finished', liveSocketCount: 0, lastActiveAt: NOW, now: NOW + 8 * DAY, mode: 'eager' }),
+      isAutoPurgeEligible({
+        status: 'finished',
+        liveSocketCount: asLiveSocketCount(0),
+        lastActiveAt: NOW,
+        now: NOW + 8 * DAY,
+        mode: 'eager',
+      }),
     ).toBe(true);
   });
 
@@ -110,23 +140,24 @@ describe('isAutoPurgeEligible — the exact test alarm() applies', () => {
 
 describe('isPausedRoom — the Q3 pause predicate (= the stamp predicate)', () => {
   it('a playing room with no connected seat is paused', () => {
-    expect(isPausedRoom('playing', 0)).toBe(true);
+    expect(isPausedRoom('playing', asSeatCount(0))).toBe(true);
   });
   it('a playing room with >=1 connected seat is NOT paused', () => {
-    expect(isPausedRoom('playing', 1)).toBe(false);
-    expect(isPausedRoom('playing', 4)).toBe(false);
+    expect(isPausedRoom('playing', asSeatCount(1))).toBe(false);
+    expect(isPausedRoom('playing', asSeatCount(4))).toBe(false);
   });
   it('lobby/finished are never "paused" (pause is a playing-only concept)', () => {
-    expect(isPausedRoom('lobby', 0)).toBe(false);
-    expect(isPausedRoom('finished', 0)).toBe(false);
+    expect(isPausedRoom('lobby', asSeatCount(0))).toBe(false);
+    expect(isPausedRoom('finished', asSeatCount(0))).toBe(false);
   });
   it('stamp ≡ pause: the SAME predicate gates both stamp sites, so a paused room is always stamped', () => {
-    // game-room.ts calls isPausedRoom(status, connectedSeats().size) at BOTH the
-    // 1→0 handleSocketGone stamp and the constructor deploy-transition stamp; a
-    // room is paused iff this returns true, so paused ⇒ stamped by construction.
+    // game-room.ts calls isPausedRoom(status, asSeatCount(connectedSeats().size))
+    // at BOTH the 1→0 handleSocketGone stamp and the constructor deploy-transition
+    // stamp; a room is paused iff this returns true, so paused ⇒ stamped by
+    // construction.
     for (const seats of [0, 1, 2, 4]) {
-      const paused = isPausedRoom('playing', seats);
-      const wouldStamp = isPausedRoom('playing', seats); // identical call
+      const paused = isPausedRoom('playing', asSeatCount(seats));
+      const wouldStamp = isPausedRoom('playing', asSeatCount(seats)); // identical call
       expect(wouldStamp).toBe(paused);
     }
   });
@@ -134,12 +165,12 @@ describe('isPausedRoom — the Q3 pause predicate (= the stamp predicate)', () =
 
 describe('mayAutoPlay — the alarm() seat-deadline guard', () => {
   it('auto-plays only while a seat is connected', () => {
-    expect(mayAutoPlay(1)).toBe(true);
-    expect(mayAutoPlay(0)).toBe(false);
+    expect(mayAutoPlay(asSeatCount(1))).toBe(true);
+    expect(mayAutoPlay(asSeatCount(0))).toBe(false);
   });
   it('is exactly the negation of isPausedRoom for a playing room', () => {
     for (const seats of [0, 1, 3, 4]) {
-      expect(mayAutoPlay(seats)).toBe(!isPausedRoom('playing', seats));
+      expect(mayAutoPlay(asSeatCount(seats))).toBe(!isPausedRoom('playing', asSeatCount(seats)));
     }
   });
 });
@@ -178,8 +209,8 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
   it('P1: a paused playing room (0 connected seats) arms NO seat-deadline candidate', () => {
     const cands = alarmCandidates({
       status: 'playing',
-      connectedSeatCount: 0,
-      liveSocketCount: 0,
+      connectedSeatCount: asSeatCount(0),
+      liveSocketCount: asLiveSocketCount(0),
       minSeatDeadlineDueAt: NOW + 45_000, // a frozen row exists
       lastActiveAt: NOW,
       probeDueAt: null,
@@ -190,8 +221,8 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
   it('a connected playing room arms the seat deadline', () => {
     const cands = alarmCandidates({
       status: 'playing',
-      connectedSeatCount: 2,
-      liveSocketCount: 2,
+      connectedSeatCount: asSeatCount(2),
+      liveSocketCount: asLiveSocketCount(2),
       minSeatDeadlineDueAt: NOW + 45_000,
       lastActiveAt: NOW,
       probeDueAt: null,
@@ -203,8 +234,8 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
     expect(
       alarmCandidates({
         status: 'finished',
-        connectedSeatCount: 0,
-        liveSocketCount: 0,
+        connectedSeatCount: asSeatCount(0),
+        liveSocketCount: asLiveSocketCount(0),
         minSeatDeadlineDueAt: null,
         lastActiveAt: NOW,
         probeDueAt: null,
@@ -216,8 +247,8 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
     expect(
       alarmCandidates({
         status: 'lobby',
-        connectedSeatCount: 0,
-        liveSocketCount: 0,
+        connectedSeatCount: asSeatCount(0),
+        liveSocketCount: asLiveSocketCount(0),
         minSeatDeadlineDueAt: null,
         lastActiveAt: NOW,
         probeDueAt: null,
@@ -229,8 +260,8 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
     expect(
       alarmCandidates({
         status: 'lobby',
-        connectedSeatCount: 0, // no seat claimed
-        liveSocketCount: 1, // but someone is sitting there
+        connectedSeatCount: asSeatCount(0), // no seat claimed
+        liveSocketCount: asLiveSocketCount(1), // but someone is sitting there
         minSeatDeadlineDueAt: null,
         lastActiveAt: NOW,
         probeDueAt: null,
@@ -242,8 +273,8 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
     expect(
       alarmCandidates({
         status: null,
-        connectedSeatCount: 0,
-        liveSocketCount: 0,
+        connectedSeatCount: asSeatCount(0),
+        liveSocketCount: asLiveSocketCount(0),
         minSeatDeadlineDueAt: null,
         lastActiveAt: 0,
         probeDueAt,
@@ -251,11 +282,26 @@ describe('alarmCandidates — the scheduleAlarm decision (§1 unified model)', (
     ).toEqual([probeDueAt]);
   });
 
+  it('a NULL anchor fails SAFE — no TTL candidate even for an abandoned lobby', () => {
+    // Defense-in-depth: an unknown retention anchor must never read as "epoch =
+    // infinitely stale = purge now" for an irreversible deleteAll().
+    expect(
+      alarmCandidates({
+        status: 'lobby',
+        connectedSeatCount: asSeatCount(0),
+        liveSocketCount: asLiveSocketCount(0),
+        minSeatDeadlineDueAt: null,
+        lastActiveAt: null,
+        probeDueAt: null,
+      }),
+    ).toEqual([]);
+  });
+
   it('the probe rides alongside a seat deadline (arms the earliest via min)', () => {
     const cands = alarmCandidates({
       status: 'playing',
-      connectedSeatCount: 1,
-      liveSocketCount: 1,
+      connectedSeatCount: asSeatCount(1),
+      liveSocketCount: asLiveSocketCount(1),
       minSeatDeadlineDueAt: NOW + 45_000,
       lastActiveAt: NOW,
       probeDueAt,

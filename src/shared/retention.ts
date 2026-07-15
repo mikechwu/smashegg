@@ -22,6 +22,19 @@ import type { RoomStatus } from './protocol';
 export type RetentionMode = 'lazy' | 'eager';
 export const RETENTION_MODE: RetentionMode = 'lazy';
 
+// Branded counts. The two numbers that gate Q3/TTL answer OPPOSITE questions but
+// are both `number`, so a swap at a binding site is invisible — and a mis-bind
+// passes every pure decision test while silently killing T3 (an occupied lobby
+// gets deleteAll()'d). Branding makes the swap a COMPILE error. Construct once,
+// at the source, via asSeatCount / asLiveSocketCount — never re-cast downstream.
+/** Connected SEATS — "is there an ACTOR?" (gates pause / auto-play, M4). */
+export type ConnectedSeatCount = number & { readonly __brand: 'ConnectedSeatCount' };
+/** Live SOCKETS (ctx.getWebSockets().length) — "is ANYONE here?" (gates the TTL,
+ *  including a seatless/idle lobby visitor — T3). */
+export type LiveSocketCount = number & { readonly __brand: 'LiveSocketCount' };
+export const asSeatCount = (n: number): ConnectedSeatCount => n as ConnectedSeatCount;
+export const asLiveSocketCount = (n: number): LiveSocketCount => n as LiveSocketCount;
+
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
@@ -79,13 +92,13 @@ export function ttlDueAt(
  *  never purges a room with a live socket. */
 export function isAutoPurgeEligible(args: {
   status: RoomStatus;
-  liveSocketCount: number;
+  liveSocketCount: LiveSocketCount;
   lastActiveAt: number;
   now: number;
   mode?: RetentionMode;
 }): boolean {
   const mode = args.mode ?? RETENTION_MODE;
-  if (args.liveSocketCount > 0) return false; // never purge an occupied room
+  if (args.liveSocketCount > 0) return false; // never purge an occupied room (T3)
   if (!shouldAutoPurge(args.status, mode)) return false;
   return args.now - args.lastActiveAt >= RETENTION_WINDOW_MS[args.status];
 }
