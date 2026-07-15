@@ -10,6 +10,8 @@
 // is a compile error; tests construct them via asSeatCount / asLiveSocketCount,
 // exactly as game-room.ts binds them at the source.
 
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   RETENTION_WINDOW_MS,
@@ -160,15 +162,48 @@ describe('isPausedRoom — the Q3 pause predicate (= the stamp predicate)', () =
     expect(isPausedRoom('lobby', asSeatCount(0))).toBe(false);
     expect(isPausedRoom('finished', asSeatCount(0))).toBe(false);
   });
-  it('stamp ≡ pause: the SAME predicate gates both stamp sites, so a paused room is always stamped', () => {
-    // game-room.ts calls isPausedRoom(status, asSeatCount(connectedSeats().size))
-    // at BOTH the 1→0 handleSocketGone stamp and the constructor deploy-transition
-    // stamp; a room is paused iff this returns true, so paused ⇒ stamped by
-    // construction.
-    for (const seats of [0, 1, 2, 4]) {
-      const paused = isPausedRoom('playing', asSeatCount(seats));
-      const wouldStamp = isPausedRoom('playing', asSeatCount(seats)); // identical call
-      expect(wouldStamp).toBe(paused);
+  it('stamp ≡ pause wiring: every game-room.ts stamp site is guarded by isPausedRoom (source contract)', () => {
+    // The truth-table tests above pin WHAT the predicate says. Whether both DO
+    // stamp sites (the constructor deploy-transition and the socket-gone 1→0
+    // edge) actually consult THAT predicate is a wiring fact a unit test can
+    // only pin structurally — the earlier version of this test compared
+    // isPausedRoom to itself, which proved nothing (Grok/Codex audit). The
+    // behavioral proof is the stamp-ordering e2e; this pins the source shape:
+    // pause_started_at is only ever SET under an isPausedRoom(...) guard.
+    const src = readFileSync(
+      fileURLToPath(new URL('../../../src/server/game-room.ts', import.meta.url)),
+      'utf8',
+    );
+    const lines = src.split('\n');
+    // (1) Every caller of the stamp helper is isPausedRoom-guarded on the spot
+    // (same line or the guarding if/else-if within the preceding few lines).
+    const helperCallIdxs = lines
+      .map((l, i) => [l, i] as const)
+      .filter(([l]) => l.includes('this.stampPauseStart(') && !l.includes('private stampPauseStart'))
+      .map(([, i]) => i);
+    expect(
+      helperCallIdxs.length,
+      'exactly two stamp-helper call sites (socket-gone 1→0 + hello-empties)',
+    ).toBe(2);
+    for (const i of helperCallIdxs) {
+      const context = lines.slice(Math.max(0, i - 6), i + 1).join('\n');
+      expect(context, `the stamp call near line ${i + 1} is gated by the ONE pause predicate`).toMatch(
+        /if \(isPausedRoom\(/,
+      );
+    }
+    // (2) Raw pause_started_at WRITES exist only inside the helper itself and
+    // the constructor's deploy-transition block — the latter guarded by the
+    // same predicate within its enclosing condition.
+    const writes = lines
+      .map((l, i) => [l, i] as const)
+      .filter(([l]) => /UPDATE room SET pause_started_at = \?/.test(l));
+    expect(writes.length, 'exactly two raw stamp writes (helper body + constructor)').toBe(2);
+    for (const [, i] of writes) {
+      const context = lines.slice(Math.max(0, i - 8), i + 1).join('\n');
+      expect(
+        /isPausedRoom\(/.test(context) || /private stampPauseStart/.test(context),
+        `the stamp write near line ${i + 1} is either the guarded helper's body or isPausedRoom-gated`,
+      ).toBe(true);
     }
   });
 });

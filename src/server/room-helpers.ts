@@ -346,8 +346,10 @@ export interface AlarmCandidatesInput {
   status: RoomStatus | null;
   /** Connected SEATS — gates the seat-deadline candidate (Q3). */
   connectedSeatCount: ConnectedSeatCount;
-  /** Live SOCKETS (ctx.getWebSockets().length) — gates the TTL candidate (T3:
-   *  an occupied room is never purged, even a seatless/idle lobby visitor). */
+  /** Live SOCKETS (socketCount(), the sessions map — correct at close time,
+   *  unlike ctx.getWebSockets(), which still contains a closing socket) —
+   *  gates the TTL candidate (T3: an occupied room is never purged, even a
+   *  seatless/idle lobby visitor). */
   liveSocketCount: LiveSocketCount;
   /** MIN(due_at) over the deadlines table, or null when empty. */
   minSeatDeadlineDueAt: number | null;

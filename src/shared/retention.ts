@@ -40,8 +40,11 @@ export const RETENTION_MODE: RetentionMode = 'lazy';
 // at the source, via asSeatCount / asLiveSocketCount — never re-cast downstream.
 /** Connected SEATS — "is there an ACTOR?" (gates pause / auto-play, M4). */
 export type ConnectedSeatCount = number & { readonly __brand: 'ConnectedSeatCount' };
-/** Live SOCKETS (ctx.getWebSockets().length) — "is ANYONE here?" (gates the TTL,
- *  including a seatless/idle lobby visitor — T3). */
+/** Live SOCKETS — "is ANYONE here?" (gates the TTL, including a seatless/idle
+ *  lobby visitor — T3). Sourced from the DO's sessions map, NOT
+ *  ctx.getWebSockets().length: the runtime list still contains a closing
+ *  socket during webSocketClose, which would make close-time TTL re-arms
+ *  refuse themselves (see socketCount() in game-room.ts). */
 export type LiveSocketCount = number & { readonly __brand: 'LiveSocketCount' };
 export const asSeatCount = (n: number): ConnectedSeatCount => n as ConnectedSeatCount;
 export const asLiveSocketCount = (n: number): LiveSocketCount => n as LiveSocketCount;
@@ -92,8 +95,8 @@ export function ttlDueAt(
 /** True iff an abandoned room is past its retention window AND its status
  *  auto-purges in this mode — the exact test alarm() applies before deleteAll().
  *
- *  `liveSocketCount` MUST be `ctx.getWebSockets().length` — the LIVE SOCKET
- *  count, NOT the connected-SEAT count. This is load-bearing: Q1's edge
+ *  `liveSocketCount` MUST be the LIVE SOCKET count (socketCount() — the
+ *  sessions map), NOT the connected-SEAT count. This is load-bearing: Q1's edge
  *  auto-response answers pings WITHOUT waking the DO, so a client that opens a
  *  room and sits in the lobby waiting for family generates zero DO activity and
  *  `last_active_at` never moves — an occupied lobby and an abandoned one are

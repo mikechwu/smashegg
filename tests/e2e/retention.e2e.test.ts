@@ -11,14 +11,17 @@ import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 
 import type { RoomTiming } from '../../src/shared/timing';
 import {
+  awaitInitialView,
   claimSeat,
   connectAndWelcome,
   createRoom,
   createRoomFor,
+  driveToMatchEnd,
   getDump,
   startServer,
   stopAllServers,
   type DevServer,
+  type SeatHolder,
   type WelcomeMsg,
 } from './helpers';
 
@@ -163,6 +166,61 @@ describe('Q3 pause + retention TTL (e2e)', () => {
       await roomInfoStatus(server, code),
       'NOT purged: a live socket keeps an occupied lobby (T3)',
     ).toBe(200);
+
+    // G1 regression (Grok audit): during the lurker's stay the armed TTL fired,
+    // was refused (T3), and scheduleAlarm() found no candidates → deleteAlarm.
+    // The LAST live socket leaving must therefore re-arm the TTL — without the
+    // seatless-departure re-arm this abandoned lobby is IMMORTAL. touchActivity
+    // at close restarts the window, so the purge lands ~window after close.
+    client.close();
+    let purged = false;
+    for (let i = 0; i < 24 && !purged; i++) {
+      await sleep(500);
+      purged = (await roomInfoStatus(server, code)) === 404;
+    }
+    expect(purged, 'the seatless departure re-armed the TTL → self-purge → 404').toBe(true);
+  }, 25_000);
+
+  test('purge REFUSES a room with live sockets (409) unless forced (Codex audit)', async () => {
+    // The last gate before an irreversible delete must be the most defensive
+    // one: a typo'd code in the cleanup script must not deleteAll() a room out
+    // from under connected players.
+    const code = await createRoom(server, GN_CONFIG);
+    const { client } = await connectAndWelcome(server, code, { label: 'occupant', tokens: [] });
+    const refused = await fetch(`${server.url}/api/rooms/${code}/purge`, { method: 'POST' });
+    expect(refused.status, 'refused while a socket is attached').toBe(409);
+    const body = (await refused.json()) as { error: string; liveSockets: number };
+    expect(body.error).toBe('room.hasLiveSockets');
+    expect(body.liveSockets).toBe(1);
+    expect(await roomInfoStatus(server, code), 'room untouched after the refusal').toBe(200);
+    // The deliberate override (the script's --force) still works.
+    const forced = await fetch(`${server.url}/api/rooms/${code}/purge?force=1`, { method: 'POST' });
+    expect(forced.status, 'force purges despite the live socket').toBe(200);
+    expect(await roomInfoStatus(server, code), 'forced purge → 404').toBe(404);
     client.close();
   }, 15_000);
+
+  test('a FINISHED room in lazy mode never auto-purges (meter asymmetry on the wire)', async () => {
+    // The decision matrix pins this at the unit layer (ttlDueAt(finished,
+    // lazy) === null); this is the wire-level proof that a played-out match —
+    // the replay artifact — survives past the window with no sockets attached
+    // (Grok audit: previously decision-tested only).
+    const code = await createRoomFor(server, 'guess-number', GN_CONFIG, SHORT_TURN);
+    const { client } = await connectAndWelcome(server, code, { label: 'finisher' });
+    for (let i = 0; i < 4; i++) await claimSeat(client, `f${i}`);
+    const mark = client.mark();
+    client.start();
+    const started = await client.waitFor((m) => m.type === 'started', { from: mark });
+    const start = await awaitInitialView(client, started.seq);
+    const holders: SeatHolder[] = [{ client, seats: [0, 1, 2, 3] }];
+    const { view } = await driveToMatchEnd(holders, start);
+    expect(view.phase, 'match played to the end').toBe('matchEnd');
+    client.close();
+    await sleep(TINY_WINDOW_MS + 2_500); // 0 sockets, finished, well past the window
+    expect(
+      await roomInfoStatus(server, code),
+      'finished rooms arm NO TTL in lazy mode (replay preserved; manual reclaim only)',
+    ).toBe(200);
+    expect((await getDump(server, code)).room.status).toBe('finished');
+  }, 30_000);
 });

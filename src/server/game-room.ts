@@ -456,7 +456,15 @@ export class GameRoom extends DurableObject<Env> {
     return asSeatCount(this.connectedSeats().size);
   }
   private socketCount(): LiveSocketCount {
-    return asLiveSocketCount(this.ctx.getWebSockets().length);
+    // sessions.size, NOT ctx.getWebSockets().length: during webSocketClose the
+    // runtime's list STILL CONTAINS the closing socket (measured on workerd),
+    // so a close-time TTL re-arm would see itself and refuse — the last human
+    // leaving a lobby made it immortal (Grok audit + wire repro). sessions
+    // tracks every accepted socket (upgrade seeds it, the constructor
+    // rehydrates it from getWebSockets() on every wake) and handleSocketGone
+    // deletes the closing one FIRST, so it is the same set with the correct
+    // close-time edge.
+    return asLiveSocketCount(this.sessions.size);
   }
 
   /** TEST-ONLY retention window shrink (RETENTION_TEST_WINDOW_MS env) so the e2e
@@ -737,6 +745,18 @@ export class GameRoom extends DurableObject<Env> {
     const room = this.readRoomRow();
     if (!room) return Response.json({ error: 'notFound' }, { status: 404 });
 
+    // The last gate before an irreversible delete must be the MOST defensive
+    // one (Codex audit): refuse while anyone is attached, so a typo'd code in
+    // the cleanup script cannot deleteAll() a room out from under live
+    // players. ?force=1 (the script's --force) is the deliberate override.
+    const liveSockets: number = this.socketCount();
+    if (liveSockets > 0 && new URL(request.url).searchParams.get('force') !== '1') {
+      return Response.json(
+        { error: 'room.hasLiveSockets', liveSockets, connectedSeats: this.connectedSeats().size },
+        { status: 409 },
+      );
+    }
+
     const count = (table: 'events' | 'actions' | 'actions_seen' | 'deadlines' | 'seats'): number =>
       this.ctx.storage.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`).toArray()[0]?.n ?? 0;
     const summary = {
@@ -751,7 +771,7 @@ export class GameRoom extends DurableObject<Env> {
         seats: count('seats'),
       },
       connectedSeats: this.connectedSeats().size,
-      liveSockets: this.ctx.getWebSockets().length,
+      liveSockets,
       pauseStartedAt: room.pause_started_at,
       lastActiveAt: room.last_active_at,
     };
@@ -896,9 +916,12 @@ export class GameRoom extends DurableObject<Env> {
         // (preserving each actor's REMAINING budget — no fresh clock) BEFORE the
         // reconcile below restores the reconnecting actor to its shifted base.
         this.resumeFromPause(now);
-      } else if (connectedAfter.size === 0) {
+      } else if (isPausedRoom(room.status, this.seatCount())) {
         // This hello emptied the room → pause (record the offset origin so a
         // future resume can shift; the alarm won't auto-play while connected==0).
+        // The SAME named predicate as the socket-gone and constructor stamps —
+        // previously this site re-derived it as connectedAfter.size === 0
+        // (equivalent, but stamp≡pause should be structural, not coincidental).
         this.stampPauseStart(now);
       }
       // else (connectedBefore>0 && connectedAfter>0): an ordinary mid-game hello
@@ -1032,6 +1055,7 @@ export class GameRoom extends DurableObject<Env> {
     );
 
     const seq = this.bumpSeq();
+    this.touchActivity(Date.now());
 
     // The claiming connection now holds the seat.
     const held = this.heldSeats(ws);
@@ -1086,6 +1110,7 @@ export class GameRoom extends DurableObject<Env> {
       JSON.stringify(msg.config ?? null),
     );
     const seq = this.bumpSeq();
+    this.touchActivity(Date.now());
     const bySeat = Math.min(...held);
     this.broadcast({ v: 1, type: 'configChanged', seq, config: msg.config ?? null, bySeat });
 
@@ -1133,6 +1158,7 @@ export class GameRoom extends DurableObject<Env> {
 
     this.ctx.storage.sql.exec('UPDATE room SET timing_json = ? WHERE id = 1', JSON.stringify(timing));
     const seq = this.bumpSeq();
+    this.touchActivity(Date.now());
     const bySeat = Math.min(...held);
     // Re-read so the broadcast RoomInfo carries the just-written timing (the
     // in-memory `room` row predates the UPDATE).
@@ -1195,6 +1221,7 @@ export class GameRoom extends DurableObject<Env> {
     // the (seed, config, action log) replay triple (PLAN §6).
     this.ctx.storage.sql.exec("UPDATE room SET status = 'playing', seed = ? WHERE id = 1", seed);
     const seq = this.bumpSeq();
+    this.touchActivity(Date.now());
     this.ctx.storage.sql.exec(
       'UPDATE snapshot SET state_json = ? WHERE id = 1',
       JSON.stringify(init.state),
@@ -1468,10 +1495,11 @@ export class GameRoom extends DurableObject<Env> {
 
   // --- Retention activity clock + Q3 pause/resume (pause-and-retention.md §2-3) ---
 
-  /** Bump the retention TTL anchor on a HUMAN-interaction event (create /
-   *  seat-claim / config / start / connect / disconnect). NEVER called on a game
-   *  action — an auto-playing or paused room must not keep refreshing its own
-   *  clock (§3, and it avoids a per-action write). */
+  /** Bump the retention TTL anchor on a HUMAN-interaction event — every applied
+   *  lobby mutation (create / seat-claim / config / timing / start) plus
+   *  connect (hello) and disconnect (socket gone, seated or not). NEVER called
+   *  on a game action — an auto-playing or paused room must not keep refreshing
+   *  its own clock (§3, and it avoids a per-action write). */
   private touchActivity(now: number): void {
     this.ctx.storage.sql.exec('UPDATE room SET last_active_at = ? WHERE id = 1', now);
   }
@@ -1570,10 +1598,12 @@ export class GameRoom extends DurableObject<Env> {
   }
 
   /** One alarm slot per DO: the earliest of (a) the soonest seat deadline —
-   *  armed ONLY while connected (Q3: a paused room arms no turn alarm, so no
-   *  auto-play burn accrues); (b) the room-retention TTL — armed only while
-   *  ABANDONED (connected==0) for a status that auto-purges in the current mode
-   *  (lazy: lobby only); (c) the M0 hello probe. */
+   *  armed ONLY while a SEAT is connected (Q3: a paused room arms no turn
+   *  alarm, so no auto-play burn accrues); (b) the room-retention TTL — armed
+   *  only while NO LIVE SOCKET remains (T3: seats are the WRONG gate here — an
+   *  occupied-but-idle lobby has 0 connected seats yet a live socket and must
+   *  never purge) for a status that auto-purges in the current mode (lazy:
+   *  lobby only); (c) the M0 hello probe. */
   private async scheduleAlarm(): Promise<void> {
     // The DO gathers the raw inputs; alarmCandidates() makes the DECISION (same
     // pure function the property test drives). Seat deadlines key on connected
@@ -1750,7 +1780,18 @@ export class GameRoom extends DurableObject<Env> {
   private async handleSocketGone(ws: WebSocket): Promise<void> {
     const seats = this.sessions.get(ws);
     this.sessions.delete(ws);
-    if (!seats || seats.size === 0) return;
+    if (!seats || seats.size === 0) {
+      // No seat presence changed, but a SEATLESS departure can still be the
+      // last live socket leaving: while it was attached, any TTL wake was
+      // refused (T3) and scheduleAlarm() deleted the alarm (no candidates), so
+      // without this re-arm an abandoned lobby that ever hosted a seatless
+      // visitor would be immortal (Grok audit — the dual of the never-joined
+      // orphan). The human behind the socket also just left → bump the
+      // activity anchor, exactly like the seated path below.
+      this.touchActivity(Date.now());
+      await this.scheduleAlarm();
+      return;
+    }
 
     const stillConnected = this.connectedSeats();
     const gone = [...seats].filter((s) => !stillConnected.has(s)).sort((a, b) => a - b);

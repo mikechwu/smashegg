@@ -19,10 +19,12 @@
 // tsconfig.scripts.json.
 //
 // Usage:
-//   npx vite-node scripts/cleanup-rooms.ts -- <baseUrl> <code...> [--token <t>] [--delete] [--dump-dir <dir>]
+//   npx vite-node scripts/cleanup-rooms.ts -- <baseUrl> <code...> [--token <t>] [--delete] [--force] [--dump-dir <dir>]
 //
 //   default        DRY RUN — inspect only, delete nothing
 //   --delete       actually purge each room (dump-first, then POST /purge)
+//   --force        override the DO's live-socket refusal (409) — the server
+//                  refuses to purge a room with anyone attached otherwise
 //   --dump-dir     where to write the pre-purge dumps (default: current dir)
 
 interface RoomDump {
@@ -90,10 +92,25 @@ async function fetchDump(baseUrl: string, code: string, token?: string): Promise
   return (await res.json()) as RoomDump;
 }
 
-async function purge(baseUrl: string, code: string, token?: string): Promise<PurgeResult> {
+/** 409 body when the DO refuses a purge because sockets are still attached
+ *  (the server-side "last gate" — someone may be mid-game behind that code). */
+interface PurgeRefusal {
+  error: 'room.hasLiveSockets';
+  liveSockets: number;
+  connectedSeats: number;
+}
+
+async function purge(
+  baseUrl: string,
+  code: string,
+  token?: string,
+  force = false,
+): Promise<PurgeResult | PurgeRefusal> {
   const headers: Record<string, string> = {};
   if (token !== undefined) headers['x-debug-dump-token'] = token;
-  const res = await fetch(`${baseUrl}/api/rooms/${code}/purge`, { method: 'POST', headers });
+  const url = `${baseUrl}/api/rooms/${code}/purge${force ? '?force=1' : ''}`;
+  const res = await fetch(url, { method: 'POST', headers });
+  if (res.status === 409) return (await res.json()) as PurgeRefusal;
   if (!res.ok) throw new Error(`purge ${code}: ${res.status} ${await res.text()}`);
   return (await res.json()) as PurgeResult;
 }
@@ -103,9 +120,11 @@ async function runCli(args: string[]): Promise<number> {
   let token: string | undefined;
   let doDelete = false;
   let dumpDir = '.';
+  let force = false;
   for (let i = 0; i < args.length; i++) {
     const arg = args[i]!;
     if (arg === '--delete') doDelete = true;
+    else if (arg === '--force') force = true;
     else if (arg === '--token') token = args[++i];
     else if (arg === '--dump-dir') dumpDir = args[++i] ?? '.';
     else positional.push(arg);
@@ -113,7 +132,7 @@ async function runCli(args: string[]): Promise<number> {
   const [baseUrl, ...codes] = positional;
   if (!baseUrl || codes.length === 0) {
     console.error(
-      'Usage: npx vite-node scripts/cleanup-rooms.ts -- <baseUrl> <code...> [--token <t>] [--delete] [--dump-dir <dir>]',
+      'Usage: npx vite-node scripts/cleanup-rooms.ts -- <baseUrl> <code...> [--token <t>] [--delete] [--force] [--dump-dir <dir>]',
     );
     return 1;
   }
@@ -152,7 +171,17 @@ async function runCli(args: string[]): Promise<number> {
       return 1;
     }
     console.log(`    ✓ dumped → ${path} (replay preserved)`);
-    const result = await purge(base, code, token);
+    const result = await purge(base, code, token, force);
+    if ('error' in result) {
+      // The DO's own live-socket gate (the most defensive last gate): someone
+      // is attached to that room RIGHT NOW — a typo'd code, most likely.
+      console.error(
+        `    ✗ REFUSED ${code}: ${result.liveSockets} live socket(s), ` +
+          `${result.connectedSeats} connected seat(s) — is this the right room? ` +
+          `(re-run with --force to override)`,
+      );
+      continue;
+    }
     console.log(`    ✓ PURGED ${code}: reclaimed ${JSON.stringify(result.purged.rows)}`);
     purgedCount++;
   }
