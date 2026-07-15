@@ -39,12 +39,16 @@ import type {
   WireError,
 } from '../shared/protocol';
 import {
+  alarmCandidates,
   bytesToHex,
   deltaCoversGap,
+  isPausedRoom,
+  mayAutoPlay,
   nextDeadlines,
   redactEventsFor,
   resolveTimeoutMs,
   resolveTimingClass,
+  resumeOffsetMs,
   sha256Hex,
   timeoutActionId,
   timingSafeEqualStr,
@@ -52,7 +56,7 @@ import {
   type DeadlineEntry,
 } from './room-helpers';
 import { DEFAULT_ROOM_TIMING, validateRoomTiming, type RoomTiming } from '../shared/timing';
-import { isAutoPurgeEligible, ttlDueAt } from '../shared/retention';
+import { isAutoPurgeEligible } from '../shared/retention';
 
 // Bare literal "ping" -> "pong" answered while hibernated, at zero cost
 // (PLAN.md §4). Matches exact literal strings only — clients ping OUTSIDE
@@ -220,9 +224,8 @@ export class GameRoom extends DurableObject<Env> {
     const room = this.readRoomRow();
     if (
       room !== null &&
-      room.status === 'playing' &&
       room.pause_started_at === null &&
-      this.connectedSeats().size === 0
+      isPausedRoom(room.status, this.connectedSeats().size) // SAME predicate as the 1→0 stamp
     ) {
       this.ctx.storage.sql.exec('UPDATE room SET pause_started_at = ? WHERE id = 1', Date.now());
     }
@@ -1395,7 +1398,7 @@ export class GameRoom extends DurableObject<Env> {
   private resumeFromPause(now: number): void {
     const pausedAt = this.readRoomRow()?.pause_started_at ?? null;
     if (pausedAt === null) return;
-    const offset = Math.max(0, now - pausedAt);
+    const offset = resumeOffsetMs(pausedAt, now);
     if (offset > 0) {
       const sql = this.ctx.storage.sql;
       // due_at shifts for ALL rows (turn remainders AND grace-only rows);
@@ -1475,33 +1478,31 @@ export class GameRoom extends DurableObject<Env> {
    *  ABANDONED (connected==0) for a status that auto-purges in the current mode
    *  (lazy: lobby only); (c) the M0 hello probe. */
   private async scheduleAlarm(): Promise<void> {
-    const candidates: number[] = [];
-    // Seat deadlines key on connected SEATS (the actors to protect — M4); the
-    // TTL keys on live SOCKETS (whether the room is OCCUPIED at all — an idle
-    // lobby visitor has a live socket but 0 connected seats, and Q1's edge
-    // auto-response means they leave no time-axis trace; see retention.ts).
-    const connectedSeatCount = this.connectedSeats().size;
-    const liveSocketCount = this.ctx.getWebSockets().length;
-
-    if (connectedSeatCount > 0) {
-      const minRows = this.ctx.storage.sql
-        .exec<{ min_due: number | null; [c: string]: SqlStorageValue }>(
-          'SELECT MIN(due_at) AS min_due FROM deadlines',
-        )
-        .toArray();
-      if (minRows[0] && minRows[0].min_due !== null) candidates.push(minRows[0].min_due);
-    }
-
+    // The DO gathers the raw inputs; alarmCandidates() makes the DECISION (same
+    // pure function the property test drives). Seat deadlines key on connected
+    // SEATS (actors — M4); the TTL keys on live SOCKETS (is anyone here at all —
+    // an idle/seatless lobby visitor leaves no time-axis trace under Q1's edge
+    // auto-response; see retention.ts).
     const room = this.readRoomRow();
-    if (room !== null && liveSocketCount === 0) {
-      const ttl = ttlDueAt(room.status, room.last_active_at ?? room.created_at);
-      if (ttl !== null) candidates.push(ttl);
-    }
-
+    const minRow = this.ctx.storage.sql
+      .exec<{ min_due: number | null; [c: string]: SqlStorageValue }>(
+        'SELECT MIN(due_at) AS min_due FROM deadlines',
+      )
+      .toArray()[0];
     const probe = this.readHelloRow();
-    if (probe.alarm_set_at !== null && probe.alarm_fired_at === null) {
-      candidates.push(probe.alarm_set_at + ALARM_DELAY_MS);
-    }
+    const probeDueAt =
+      probe.alarm_set_at !== null && probe.alarm_fired_at === null
+        ? probe.alarm_set_at + ALARM_DELAY_MS
+        : null;
+
+    const candidates = alarmCandidates({
+      status: room?.status ?? null, // null room (bare M0 probe DO) → no TTL candidate
+      connectedSeatCount: this.connectedSeats().size,
+      liveSocketCount: this.ctx.getWebSockets().length,
+      minSeatDeadlineDueAt: minRow?.min_due ?? null,
+      lastActiveAt: room?.last_active_at ?? room?.created_at ?? 0,
+      probeDueAt,
+    });
 
     if (candidates.length > 0) {
       await this.ctx.storage.setAlarm(Math.min(...candidates));
@@ -1572,7 +1573,7 @@ export class GameRoom extends DurableObject<Env> {
     // actions go through the normal action path (same seq/idempotency/fan-out)
     // with the deterministic 'timeout:<seat>:<seq>' actionId, so an alarm retry
     // (at-least-once) dedups instead of double-applying.
-    for (let i = 0; connectedSeatCount > 0 && i < MAX_ALARM_APPLIES; i++) {
+    for (let i = 0; mayAutoPlay(connectedSeatCount) && i < MAX_ALARM_APPLIES; i++) {
       const room = this.readRoomRow();
       if (!room || room.status !== 'playing') break;
       const due = this.ctx.storage.sql
@@ -1662,8 +1663,10 @@ export class GameRoom extends DurableObject<Env> {
       // Q3: if this disconnect empties a playing room, PAUSE — record the offset
       // origin (a future resume shifts frozen deadlines by the paused duration);
       // scheduleAlarm will then omit the seat-deadline alarm (connected==0), so
-      // no auto-play burn accrues while nobody watches.
-      if (stillConnected.size === 0) this.stampPauseStart(now);
+      // no auto-play burn accrues while nobody watches. Same isPausedRoom
+      // predicate as the constructor stamp — so stamp ≡ pause, and a paused room
+      // always has a non-NULL pause_started_at (invariant, pinned in the tests).
+      if (isPausedRoom(room.status, stillConnected.size)) this.stampPauseStart(now);
       // Newly-disconnected expected actors pick up the disconnect-grace
       // clamp (PLAN §4 rule); other seats' rows are untouched (room-
       // timing.md §2 presence semantics). reconcileDeadlines re-schedules.

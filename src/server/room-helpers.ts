@@ -11,13 +11,14 @@
 
 import type { Seat, TimingClass } from '../engine/core/game';
 import type { AnyGameDefinition } from '../shared/games';
-import { ROOM_CODE_ALPHABET, type WireDeadline } from '../shared/protocol';
+import { ROOM_CODE_ALPHABET, type RoomStatus, type WireDeadline } from '../shared/protocol';
 import {
   ACTION_TIMEOUT_MAX_MS,
   ACTION_TIMEOUT_MIN_MS,
   timeoutMsFor,
   type RoomTiming,
 } from '../shared/timing';
+import { ttlDueAt, type RetentionMode } from '../shared/retention';
 
 // ---------------------------------------------------------------------------
 // Hashing / token material (PLAN §8: 128-bit+ random seat tokens, SHA-256
@@ -295,4 +296,78 @@ export function timingSafeEqualStr(a: string, b: string): boolean {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
+}
+
+// ---------------------------------------------------------------------------
+// Q3 pause / resume + retention TTL — the DO ORCHESTRATION DECISIONS as pure
+// functions (pause-and-retention.md §1-3). game-room.ts calls these AND the
+// deadline-liveness property test drives them, so the model IS the product
+// (same discipline as nextDeadlines / isCeremonyShowing): the properties are
+// proven about the real decision code, not a re-implementation. Only the SQL
+// application of these decisions (shifting rows, deleting storage, alarm
+// delivery timing) stays in the DO and is owned by the wire e2e.
+// ---------------------------------------------------------------------------
+
+/** Q3 pause predicate: a PLAYING room with no connected SEAT is paused — there
+ *  is no actor to protect (M4 semantics), so no turn alarm is armed and no
+ *  default action auto-plays. This SAME predicate gates the pause STAMP (both
+ *  handleSocketGone and the constructor deploy-transition stamp), which
+ *  GUARANTEES stamp ≡ pause: a room in the paused state always has a non-NULL
+ *  pause_started_at, so resume can never hit `now - NULL`. Keys on connected
+ *  SEATS ("is there an actor?"), never sockets — contrast the TTL, which asks
+ *  "is anyone here?" and keys on live sockets (isAutoPurgeEligible). */
+export function isPausedRoom(status: RoomStatus, connectedSeatCount: number): boolean {
+  return status === 'playing' && connectedSeatCount === 0;
+}
+
+/** Whether alarm() may auto-play a due seat deadline: only while a SEAT is
+ *  connected (the Q3 pause guard — a room with no actor present is frozen).
+ *  Exactly `!isPausedRoom` for a playing room, named for the alarm call site. */
+export function mayAutoPlay(connectedSeatCount: number): boolean {
+  return connectedSeatCount > 0;
+}
+
+/** Q3 resume shift (§2): the wall-clock duration a room was frozen, added to
+ *  every frozen deadline so each actor's REMAINING budget is preserved (never a
+ *  fresh clock — this is what kills the 0→1→0 timer-dodge). Clamped ≥ 0 so a
+ *  clock skew can never rewind a deadline. */
+export function resumeOffsetMs(pauseStartedAt: number, now: number): number {
+  return Math.max(0, now - pauseStartedAt);
+}
+
+export interface AlarmCandidatesInput {
+  /** Room status, or null when no room row exists yet (a bare M0 probe DO) — a
+   *  room-less DO has no TTL candidate regardless of retention mode. */
+  status: RoomStatus | null;
+  /** Connected SEATS — gates the seat-deadline candidate (Q3). */
+  connectedSeatCount: number;
+  /** Live SOCKETS (ctx.getWebSockets().length) — gates the TTL candidate (T3:
+   *  an occupied room is never purged, even a seatless/idle lobby visitor). */
+  liveSocketCount: number;
+  /** MIN(due_at) over the deadlines table, or null when empty. */
+  minSeatDeadlineDueAt: number | null;
+  /** room.last_active_at (the retention anchor). */
+  lastActiveAt: number;
+  /** The armed-and-unfired M0 probe's due time, or null. */
+  probeDueAt: number | null;
+  mode?: RetentionMode;
+}
+
+/** The candidate wake times for the DO's single alarm slot (the scheduleAlarm
+ *  DECISION, §1 unified model): (a) the soonest seat deadline — only while a
+ *  seat is connected (Q3 pause: a frozen room arms no turn alarm, so no
+ *  auto-play burn); (b) the retention TTL — only while NO live socket is
+ *  attached (T3); (c) the M0 hello probe. The DO arms `min(result)` or clears
+ *  the alarm when the result is empty. */
+export function alarmCandidates(input: AlarmCandidatesInput): number[] {
+  const out: number[] = [];
+  if (input.connectedSeatCount > 0 && input.minSeatDeadlineDueAt !== null) {
+    out.push(input.minSeatDeadlineDueAt);
+  }
+  if (input.status !== null && input.liveSocketCount === 0) {
+    const ttl = ttlDueAt(input.status, input.lastActiveAt, input.mode);
+    if (ttl !== null) out.push(ttl);
+  }
+  if (input.probeDueAt !== null) out.push(input.probeDueAt);
+  return out;
 }
