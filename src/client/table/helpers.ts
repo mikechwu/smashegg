@@ -597,24 +597,9 @@ export function placeKey(place: number): TranslationKey | null {
   return PLACE_KEYS[place] ?? null;
 }
 
-/** Semantic rejection codes with a dedicated localized line; everything
- *  else falls back to game.error.unknown with the raw code as a param. */
-const ERROR_KEYS: Record<string, TranslationKey> = {
-  'action.notYourTurn': 'game.error.notYourTurn',
-  'action.wrongPhase': 'game.error.wrongPhase',
-  'play.cannotPassLeading': 'game.error.cannotPassLeading',
-  'play.cardsNotInHand': 'game.error.cardsNotInHand',
-  'play.declRequired': 'game.error.declRequired',
-  'play.invalidCombination': 'game.error.invalidCombination',
-  'play.cannotBeatTop': 'game.error.cannotBeatTop',
-  'tribute.cardNotEligible': 'game.error.tributeCardNotEligible',
-  'tribute.cardNotInHand': 'game.error.cardsNotInHand',
-  'match.ended': 'game.error.matchEnded',
-};
-
-export function errorKeyFor(code: string): TranslationKey {
-  return ERROR_KEYS[code] ?? 'game.error.unknown';
-}
+// Rejection-code → human copy moved to src/client/errors.ts (describeError),
+// the single user-facing error mapper shared by the lobby banner and the
+// in-table toast (pre-M5 F3).
 
 // ---------------------------------------------------------------------------
 // Loose-cast guards for the opaque wire payloads.

@@ -1,8 +1,88 @@
 # STATUS
 
-## Current phase: pre-M5 must-dos COMPLETE (panel restored + socket liveness live); M5 next (owner gate)
+## Current phase: pre-M5 UX/UI polish — Phase B underway (Lacquer Ledger ring); F3 landed on feat/preM5-ux-ring
 
 **Last updated:** 2026-07-15
+
+## Pre-M5 UX/UI polish (2026-07-15) — AUDIT done; PLAN pending owner pick (strict AUDIT→PLAN→EXECUTE)
+
+Owner brief: fix the structural UX problems before four family members see it —
+"would someone who didn't build this know what to do?" Sequence is strict:
+audit (collect, don't fix) → plan WITH owner → execute. Deliverables:
+[docs/audits/preM5-ux-audit.md](docs/audits/preM5-ux-audit.md) (findings) +
+a visual proposal artifact (ring wireframes + 3 style directions):
+https://claude.ai/code/artifact/805c4d3a-4f93-44c8-a790-74dc52317d2d
+
+**Phase A method:** computer-use self-play on the deployed build (f6d6bc6), desktop
+1440px + TRUE 390px (the Chrome window clamps at innerWidth 606, so 390 was rendered
+via an injected same-origin iframe — shared localStorage → same seats). Companion
+research: an 11-agent workflow (design-system / four-handed layouts / small-screen
+legibility / CJK-a11y), journal spot-checked, no placeholder junk.
+
+**The framing finding:** `seatLayout(you)` already maps south=you, north=(you+2)=partner,
+E/W=opponents — the ring semantics EXIST but render as a 3-plates-across-top + hand-at-
+bottom stack with a dead center. Converting to the asymmetric ring is a LAYOUT change,
+not a seat-logic change, and is the canvas every other decision sits on → decided first.
+
+**Findings (full log in the audit doc):**
+- **P1 F3** — raw error codes leak to the player (`room.notSeated` etc.); pre-seat pickers
+  are rejected but look editable; the rejection never clears, follows you into the game,
+  renders on 2 surfaces and covers the hand. (a reload clears it — per-session client state.)
+- **P1 F4/F5** — partner invisible (3 identical top plates; 我隊/對方 only on the level rail).
+- **P2** — whose-turn is spectator-phrased on your own seat (F8); level 打幾 not headlined
+  (F7); wild 紅心級牌 never stated unless held (F6); no 報牌 ≤10 escalation (F11, confirmed
+  from SeatPlate.tsx — count chip is value-independent); no legal-play cue on a normal turn
+  (F9 — owner decision, per-card legality is genuinely ambiguous in Guandan).
+- **P3** — lobby 2×2 grid → lobby ring; 掼 vs Traditional 摜 glyph (confirm).
+- **Keep:** rule/timing pickers, ceremony, level rail, 配 marker, trick well, CCW order,
+  27-card hand legible in 2 rows @true-390 (no overflow), sort toggle, 3-locale integrity,
+  起手思考 planning-clock distinction.
+- **Not re-driven live (recently verified M3/M4; Phase-B re-verify vs the ring):** wild
+  multi-reading chooser, tribute/anti-tribute/接風, match-end overlay, live 1–2-card state.
+
+**Proposal:** the asymmetric ring (you bottom · partner top · opponents flanking a bounded
+center) on BOTH lobby and table, + shared information fixes (turn-in-words, level+wild
+headline, ≤10 escalation, two team badges, partner-by-position, human error copy). Three
+style directions to choose from — **Lacquer Ledger (recommended)** / Ink & Goldleaf /
+Table Around You — all on the same ring + fixes. Recommendation: Lacquer Ledger base +
+one bold move (a Songti 打幾 level headline). 5 owner decisions surfaced (style, clock
+placement, partner-hand visibility, 4-colour deck, legal-play cue). **No behaviour/engine/
+protocol/timing change** proposed — layout & presentation only.
+
+### Phase B APPROVED (owner, 2026-07-15) — Lacquer Ledger ring, F3 first + independent
+
+Owner picks: **Lacquer Ledger** + the one bold move (a Songti 打幾 headline, spent on the
+most under-served fact F7). Clock on the seat plate (escalate on your own seat when short;
+不限時 keeps no clock; keep the 起手思考 planning distinction). Partner/opponent hands
+**value-dependent** (2 cards must LOOK different from 27 — solves F11 structurally; take the
+idea from card-back arcs, leave the felt). Legal-play cue **binary** (「你有可以壓的牌」 vs
+「壓不過,只能過」, 過 prominent when no) — NOT per-card highlighting (legality is per-combo).
+4-colour deck = settings toggle default off, BUT ♥/♦ must be distinguishable at true 390px
+in the DEFAULT deck (verify + report). No behaviour/engine/protocol/timing change. Model
+dispatch: Opus layout/hierarchy, Sonnet CSS/components once the direction holds.
+
+**Sequencing:** F3 (independent, done) → ring skeleton 390px-first → info fixes
+(turn-in-words, 打幾+紅心級牌 headline, two team badges + partner-by-position, human error
+copy, lobby ring) → Songti bold move → visual re-verify incl. the not-re-driven list →
+cross-model panel (VISUAL-change brief) → deploy.
+
+**F3 SHIPPED (feat/preM5-ux-ring, first + independent).** The first-thirty-seconds chain
+fixed whole: pickers read as disabled-until-seated (Lobby.configEditable pure predicate) with
+a "先入座才能調整規則與計時" hint, so an unseated edit can't fire; a NEW `describeError`
+(src/client/errors.ts) is the single user-facing mapper for the lobby banner AND the in-table
+toast — every server rejection code → human copy in all 3 locales, unknown → generic human
+line, NEVER the raw code (retired errorKeyFor + the leaky room.rejected/game.error.unknown
+`{code}` keys); rejections clear on next action / lobby→game / dismiss, and the app-shell
+banner is lobby-only so one failure never renders on two surfaces. Regressions: errors.test.ts
+(no code leaks in any locale + dedicated copy), lobby.test.ts (configEditable), store.test.ts
+(clear-on-action/start). 670 unit + 4 typechecks green. Live-verified on wrangler dev:
+pre-seat pickers dimmed + hint + no rejection on click; seating enables them and clears the hint.
+
+**Methodology flag to close (owner):** Phase A found Chrome clamps at innerWidth 606, so true
+390 needs an injected same-origin iframe. What width were M3/M4's "390px verified" claims made
+at? To be recorded in this STATUS + the iframe recipe added to METHODOLOGY so 390 is never
+claimed loosely again. (Substance survives — this round confirms the 27-card hand is legible at
+true 390.)
 
 ## Pre-M5 must-dos (2026-07-14/15) — panel restored; socket-liveness gap measured, designed, shipped
 

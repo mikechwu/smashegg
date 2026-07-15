@@ -15,7 +15,6 @@ import {
   declJokerRank,
   declRunText,
   declSignature,
-  errorKeyFor,
   handRows,
   isCeremonyShowing,
   matchSelection,
@@ -395,14 +394,6 @@ describe('solo drivability (UI selection path × engine)', () => {
       expect(res.ok, `step ${step}: ${JSON.stringify(action)}`).toBe(true);
       if (res.ok) state = res.state;
     }
-  });
-});
-
-describe('error localization keys', () => {
-  it('maps known codes to dedicated keys and everything else to unknown', () => {
-    expect(errorKeyFor('action.notYourTurn')).toBe('game.error.notYourTurn');
-    expect(errorKeyFor('play.cannotBeatTop')).toBe('game.error.cannotBeatTop');
-    expect(errorKeyFor('protocol.tooLarge')).toBe('game.error.unknown');
   });
 });
 

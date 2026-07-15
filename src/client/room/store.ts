@@ -161,12 +161,26 @@ export class RoomStore {
   }
 
   // --- actions (thin delegates; the connection owns wire concerns) --------
+  //
+  // Every action first clears any shown rejection (pre-M5 F3): a rejection
+  // reports the LAST attempt, so doing anything else makes it stale. The UI's
+  // dismiss button and the lobby→game 'started' transition clear it too, so a
+  // rejection never lingers, duplicates across surfaces, or covers the hand.
+
+  /** Drop the shown rejection, if any (F3). No-op when already empty so the
+   *  common no-error path never triggers a needless re-render. */
+  clearRejections(): void {
+    if (this.state.rejections.length === 0) return;
+    this.commit({ ...this.state, rejections: [] });
+  }
 
   claim(name: string): void {
+    this.clearRejections();
     this.sender?.claimSeat(name);
   }
 
   setConfig(config: unknown): void {
+    this.clearRejections();
     this.sender?.setConfig(config);
   }
 
@@ -174,14 +188,17 @@ export class RoomStore {
    *  new value comes back on the existing roomChanged broadcast (RoomInfo
    *  carries timing), so no reducer case is needed. */
   setTiming(timing: RoomTiming): void {
+    this.clearRejections();
     this.sender?.setTiming(timing);
   }
 
   start(): void {
+    this.clearRejections();
     this.sender?.start();
   }
 
   act(seat: Seat, action: unknown): void {
+    this.clearRejections();
     this.sender?.act(seat, action);
   }
 
@@ -253,6 +270,9 @@ export class RoomStore {
           ...prev,
           room: prev.room === null ? null : { ...prev.room, status: 'playing' },
           seq,
+          // A lobby-phase rejection (e.g. a stale room.notSeated) must never
+          // render over the table (F3) — the game starts with a clean slate.
+          rejections: [],
         });
         this.persist();
         return;

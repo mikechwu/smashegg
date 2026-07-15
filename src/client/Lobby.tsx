@@ -19,6 +19,15 @@ export interface LobbyProps {
   store: RoomStore;
 }
 
+/** The rule & timing pickers are editable only in the lobby AND only once you
+ *  hold a seat (pre-M5 F3): an unseated player's edit is server-rejected, so
+ *  the pickers must READ as disabled-until-seated rather than look editable
+ *  and fail with a rejection. Pure + exported for the unit test (the client
+ *  suite is DOM-free, so this predicate is the testable gate). */
+export function configEditable(status: RoomInfo['status'], holdsSeat: boolean): boolean {
+  return status === 'lobby' && holdsSeat;
+}
+
 type CopyState = 'idle' | 'copied' | 'failed';
 
 export function Lobby({ snapshot, store }: LobbyProps) {
@@ -35,6 +44,7 @@ export function Lobby({ snapshot, store }: LobbyProps) {
   const freeSeats = room.seats.filter((s) => !s.claimed).length;
   const allClaimed = freeSeats === 0;
   const holdsSeat = snapshot.seats.size > 0;
+  const editable = configEditable(room.status, holdsSeat);
   const canClaim = snapshot.connected && freeSeats > 0 && name.trim().length > 0;
   // Start rule (PLAN §4): any seated player may start once all seats are
   // claimed. The server re-validates; this only gates the button.
@@ -166,9 +176,12 @@ export function Lobby({ snapshot, store }: LobbyProps) {
           (room.status !== 'lobby'). */}
       <section className="lobby-config" data-slot="config-panel">
         <h3>{t('lobby.configHeading')}</h3>
+        {room.status === 'lobby' && !holdsSeat && (
+          <p className="lobby-config__needSeat">{t('lobby.configNeedSeat')}</p>
+        )}
         <RulePicker
           config={room.config}
-          disabled={room.status !== 'lobby'}
+          disabled={!editable}
           onChange={(config) => store.setConfig(config)}
         />
       </section>
@@ -180,7 +193,7 @@ export function Lobby({ snapshot, store }: LobbyProps) {
       <section className="lobby-config" data-slot="timing-panel">
         <TimingPicker
           timing={room.timing}
-          disabled={room.status !== 'lobby'}
+          disabled={!editable}
           onChange={(timing) => store.setTiming(timing)}
         />
       </section>

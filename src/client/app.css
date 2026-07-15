@@ -124,6 +124,21 @@ a {
   opacity: 0.8;
   font-size: 0.8125rem;
 }
+.app-alert__dismiss {
+  align-self: flex-start;
+  margin-top: 0.4rem;
+  background: none;
+  border: 1px solid rgba(245, 239, 227, 0.35);
+  border-radius: 999px;
+  color: var(--ivory);
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 0.15rem 0.65rem;
+  cursor: pointer;
+}
+.app-alert__dismiss:hover {
+  background: rgba(245, 239, 227, 0.1);
+}
 .app-quiet {
   opacity: 0.75;
   font-size: 0.875rem;
@@ -439,6 +454,11 @@ a {
 .lobby-config h3 {
   margin: 0 0 0.5rem;
   font-size: 1rem;
+}
+.lobby-config__needSeat {
+  margin: 0 0 0.625rem;
+  font-size: 0.8125rem;
+  color: rgba(245, 239, 227, 0.7);
 }
 
 /* --- reduced motion (quality floor) --------------------------------------------- */

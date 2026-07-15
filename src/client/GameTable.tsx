@@ -31,7 +31,6 @@ import {
   asGuandanView,
   asRuleVariant,
   declJokerRank,
-  errorKeyFor,
   isCeremonyShowing,
   matchSelection,
   multisetKey,
@@ -44,6 +43,7 @@ import {
   type PlayMatch,
 } from './table/helpers';
 import { t } from './i18n';
+import { describeError } from './errors';
 import './table/table.css';
 
 export interface GameTableProps {
@@ -213,7 +213,6 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
   const [chooserOpen, setChooserOpen] = useState(false);
   const [ceremonyDone, setCeremonyDone] = useState(false);
-  const [dismissedRejections, setDismissedRejections] = useState(0);
   const [now, setNow] = useState(() => Date.now());
   const [handDescending, setHandDescending] = useState(() => readHandSortDescending());
   const toggleHandSort = () => {
@@ -350,8 +349,10 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     view.phase === 'tribute' || view.phase === 'returnTribute' || view.phase === 'antiTributeDecision';
   const showAnti = derived.anti !== null;
 
+  // A rejection clears on the next action (store.act/claim/…) or a start, so
+  // whatever's still here is the latest un-acted failure — show it, dismissible.
   const lastRejection = snapshot.rejections[snapshot.rejections.length - 1];
-  const showToast = snapshot.rejections.length > dismissedRejections && lastRejection !== undefined;
+  const showToast = lastRejection !== undefined;
 
   const committedSet = new Set<Seat>(view.tribute?.committed ?? []);
 
@@ -464,12 +465,8 @@ export function GameTable({ snapshot, store }: GameTableProps) {
 
       {showToast && lastRejection !== undefined && (
         <div className="gd-toast" role="alert">
-          <span>
-            {errorKeyFor(lastRejection.error.code) === 'game.error.unknown'
-              ? t('game.error.unknown', { code: lastRejection.error.code })
-              : t(errorKeyFor(lastRejection.error.code))}
-          </span>
-          <button type="button" onClick={() => setDismissedRejections(snapshot.rejections.length)}>
+          <span>{describeError(lastRejection.error.code)}</span>
+          <button type="button" onClick={() => store.clearRejections()}>
             {t('game.action.dismiss')}
           </button>
         </div>

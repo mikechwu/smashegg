@@ -8,6 +8,7 @@ import { RoomConnection } from './room/connection';
 import { RoomStore } from './room/store';
 import { GameTable } from './GameTable';
 import { Lobby } from './Lobby';
+import { describeError } from './errors';
 import { t } from './i18n';
 
 type RoomCheck = 'checking' | 'ok' | 'notFound' | 'error';
@@ -66,16 +67,6 @@ export function RoomPage({ code }: RoomPageProps) {
   }
 
   const lastRejection = snapshot.rejections[snapshot.rejections.length - 1];
-  // Rejection params (e.g. the thrown message on room.startFailed) surface
-  // as secondary text — the label stays localized; the raw values pass
-  // through so the player sees WHY, not just an opaque code.
-  const rejectionDetail =
-    lastRejection?.error.params !== undefined
-      ? Object.values(lastRejection.error.params)
-          .filter((v): v is string | number => typeof v === 'string' || typeof v === 'number')
-          .map(String)
-          .join(' · ')
-      : '';
 
   // Lobby (and pre-welcome) keeps the narrow reading column; the table gets
   // the wide column and keeps its own full-bleed internal layout.
@@ -88,14 +79,19 @@ export function RoomPage({ code }: RoomPageProps) {
           {t('room.statusDisconnected')}
         </p>
       )}
-      {lastRejection !== undefined && (
+      {/* Rejections show here only in the lobby; in-game the GameTable toast
+          owns them, so one failure never renders on two surfaces (F3). Copy
+          is human via describeError — never a raw code — and dismissible. */}
+      {inLobby && lastRejection !== undefined && (
         <div className="app-alert" role="alert">
-          <p>{t('room.rejected', { code: lastRejection.error.code })}</p>
-          {rejectionDetail !== '' && (
-            <p className="app-alert__detail">
-              {t('room.rejectedDetail', { detail: rejectionDetail })}
-            </p>
-          )}
+          <p>{describeError(lastRejection.error.code)}</p>
+          <button
+            type="button"
+            className="app-alert__dismiss"
+            onClick={() => store.clearRejections()}
+          >
+            {t('game.action.dismiss')}
+          </button>
         </div>
       )}
       {snapshot.room === null ? (

@@ -246,6 +246,44 @@ describe('RoomStore reducer', () => {
     expect(rej[19]?.error.code).toBe('e24');
   });
 
+  // --- F3 (pre-M5): a rejection must clear, never linger into the game -----
+
+  it('clearRejections empties the shown rejection (F3)', () => {
+    const store = new RoomStore(CODE, fakeStorage());
+    store.dispatch(rejected({ code: 'room.notSeated' }, 1));
+    expect(store.getSnapshot().rejections).toHaveLength(1);
+    store.clearRejections();
+    expect(store.getSnapshot().rejections).toHaveLength(0);
+  });
+
+  it('any action clears a stale rejection — it reports the LAST attempt (F3)', () => {
+    const noop: RoomSender = {
+      claimSeat: () => {},
+      setConfig: () => {},
+      setTiming: () => {},
+      start: () => {},
+      act: () => {},
+    };
+    const store = new RoomStore(CODE, fakeStorage());
+    store.bindSender(noop);
+    store.dispatch(rejected({ code: 'room.notSeated' }, 1));
+    store.claim('mike');
+    expect(store.getSnapshot().rejections).toHaveLength(0);
+    store.dispatch(rejected({ code: 'action.notYourTurn' }, 2));
+    store.act(0, { type: 'pass' });
+    expect(store.getSnapshot().rejections).toHaveLength(0);
+  });
+
+  it('starting the match clears a lobby-phase rejection so it never follows into the game (F3)', () => {
+    const store = new RoomStore(CODE, fakeStorage());
+    store.dispatch(welcome([], roomInfo()));
+    store.dispatch(rejected({ code: 'room.notSeated' }, 1));
+    expect(store.getSnapshot().rejections).toHaveLength(1);
+    store.dispatch({ v: 1, type: 'started', seq: 2 });
+    expect(store.getSnapshot().rejections).toHaveLength(0);
+    expect(store.getSnapshot().room?.status).toBe('playing');
+  });
+
   it('seq is monotonic: a late lower-seq message never regresses the cursor', () => {
     const store = new RoomStore(CODE, fakeStorage());
     store.dispatch(eventMsg(0, 9, { a: 1 }, []));
