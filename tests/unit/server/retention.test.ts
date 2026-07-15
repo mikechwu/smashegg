@@ -136,6 +136,16 @@ describe('isAutoPurgeEligible — the exact test alarm() applies', () => {
     expect(isAutoPurgeEligible({ ...base, now: NOW + 48 * HOUR })).toBe(true);
     expect(isAutoPurgeEligible({ ...base, now: NOW + 48 * HOUR - 1 })).toBe(false);
   });
+
+  it('the last gate is the most paranoid: a NULL anchor or NULL status FAILS SAFE (never purges)', () => {
+    // deleteAll() is irreversible, so an unknowable anchor/status must refuse —
+    // structural, not by convention. A NULL anchor as a bare `number` would read
+    // as epoch = past every window = purge; the guard forbids it.
+    expect(isAutoPurgeEligible({ ...base, lastActiveAt: null })).toBe(false);
+    expect(isAutoPurgeEligible({ ...base, status: null })).toBe(false);
+    // even well past the window and with 0 sockets, null anchor still refuses:
+    expect(isAutoPurgeEligible({ ...base, lastActiveAt: null, now: NOW + 1000 * DAY })).toBe(false);
+  });
 });
 
 describe('isPausedRoom — the Q3 pause predicate (= the stamp predicate)', () => {

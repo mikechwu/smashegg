@@ -11,14 +11,25 @@
 // EXPENSIVE room (finished/paused, ~1-23k rows) on a timer would spend the scarce
 // meter to reclaim the abundant one. Therefore, in the default LAZY mode only the
 // CHEAP case (lobby-abandoned, a few rows) auto-purges; played-out rooms are
-// reclaimed manually via scripts/cleanup-rooms.ts. `RETENTION_MODE='eager'` is a
-// one-constant flip once §6 measures deleteAll() as flat-billed.
+// reclaimed manually via scripts/cleanup-rooms.ts.
+//
+// `RETENTION_MODE='eager'` is a ONE-CONSTANT change once §6 measures deleteAll()
+// as flat-billed — but it is NOT RETROACTIVE, and the comment must not overstate
+// it (that overstatement is exactly the doc-vs-code drift the PLAN sweep exists to
+// catch — here in a fresh comment). A room paused under lazy armed NO alarm
+// (ttlDueAt('playing', …, 'lazy') → null → alarm cleared) and is fully inert:
+// nothing wakes it, so flipping the constant never arms it. The flip governs only
+// rooms that run scheduleAlarm AFTER the flip; the pre-existing BACKLOG (the
+// zombies, any finished/paused rooms accumulated under lazy) is reclaimed by
+// scripts/cleanup-rooms.ts, not by the flip.
 
 import type { RoomStatus } from './protocol';
 
 /** 'lazy' (default) = auto-purge only lobby-abandoned rooms; finished/paused are
  *  reclaimed manually (scripts/cleanup-rooms.ts). 'eager' = auto-purge every
- *  eligible room — safe only once deleteAll() is measured flat-billed (§6). */
+ *  eligible room that arms an alarm AFTER the flip (NOT retroactive — the
+ *  pre-existing backlog stays manual); safe only once deleteAll() is measured
+ *  flat-billed (§6). */
 export type RetentionMode = 'lazy' | 'eager';
 export const RETENTION_MODE: RetentionMode = 'lazy';
 
@@ -91,14 +102,20 @@ export function ttlDueAt(
  *  purge from deleting a room someone is actively sitting in. INVARIANT: TTL
  *  never purges a room with a live socket. */
 export function isAutoPurgeEligible(args: {
-  status: RoomStatus;
+  status: RoomStatus | null;
   liveSocketCount: LiveSocketCount;
-  lastActiveAt: number;
+  lastActiveAt: number | null;
   now: number;
   mode?: RetentionMode;
 }): boolean {
+  // This is the LAST gate before an irreversible deleteAll() — so it is the most
+  // paranoid function in the file: an unknowable status or anchor can never be
+  // COERCED into a purge (a NULL anchor as `number` would read as epoch = always
+  // past every window = purge). Structural impossibility beats convention here,
+  // exactly as with the branded counts.
   const mode = args.mode ?? RETENTION_MODE;
   if (args.liveSocketCount > 0) return false; // never purge an occupied room (T3)
+  if (args.status === null || args.lastActiveAt === null) return false; // unknown → fail safe
   if (!shouldAutoPurge(args.status, mode)) return false;
   return args.now - args.lastActiveAt >= RETENTION_WINDOW_MS[args.status];
 }
