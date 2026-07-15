@@ -8,6 +8,7 @@ import {
   DEAL_STAGGER_MS,
   DECK_SIZE,
   HAND_SIZE,
+  MARKER_FLY_MS,
   dealDurationMs,
   dealSchedule,
   deckDepthTier,
@@ -33,9 +34,15 @@ describe('dealSchedule (item 4)', () => {
     }
   });
 
-  it('the STATED budget pin: the full deal lands in ≤ 4.5s (planning window absorbs it)', () => {
+  it('the STATED budget pin: card landings ≤ 4.5s (planning window absorbs it)', () => {
     expect(dealDurationMs()).toBe((DECK_SIZE - 1) * DEAL_STAGGER_MS + DEAL_FLIGHT_MS);
     expect(dealDurationMs()).toBeLessThanOrEqual(4_500);
+  });
+
+  it('the FULL hand-1 choreography (landings + marker beat + settle) ≤ 5s (Grok panel pin)', () => {
+    // DealOverlay's marker branch finishes at total + MARKER_FLY_MS + 200 —
+    // the honest end-to-end number the 90s planning window absorbs (<6%).
+    expect(dealDurationMs() + MARKER_FLY_MS + 200).toBeLessThanOrEqual(5_000);
   });
 });
 

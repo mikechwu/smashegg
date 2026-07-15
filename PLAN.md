@@ -178,8 +178,9 @@ export interface GameDefinition<S, A, E, V, C> {
   /** OPTIONAL semantic timing class of a SEAT's pending decision (M4;
    *  PER-SEAT since the design-refinement round: each seat's FIRST action
    *  of a newly dealt hand is its own planning moment — tribute included).
-   *  Omitted ⇒ every state is 'turn'. The engine never sees milliseconds;
-   *  the room maps class → ms via RoomTiming. */
+   *  Omitted ⇒ every state is 'turn'. Classes are labels; the room maps
+   *  class → ms via RoomTiming (ms appear in the engine interface only as
+   *  the actionTimeoutMs SUGGESTION above, which the room may override). */
   timingClass?(state: S, seat: Seat): TimingClass;
 
   isTerminal(state: S): boolean;

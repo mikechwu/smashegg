@@ -11,8 +11,8 @@ release MUST invalidate the seat token, row-level hash delete + delivery-map pur
 stale-token starvation e2e]; (2) per-seat planning window [FULL: TIMING — actedThisHand
 per-seat flag replaces the fragile global held===108 predicate; timingClass(state, seat);
 tribute CONSUMES the window (owner lean adopted + justified); untimed stays moot];
-(3) REAL cut in 翻牌定先 [FULL: ENGINE — cutDeck action, deckOrder committed in S
-(redacted like PRNG), flips AND deal derive from the cut, defaultAction middle cut,
+(3) REAL cut in 翻牌定先 [FULL: ENGINE — cutDeck action, the committed deck in S
+(ceremonyCut.deck, redacted like PRNG), flips AND deal derive from the cut, defaultAction middle cut,
 uniformity re-proven]; (4) physical deal animation [presentation; ≤4s inside the 90s
 planning window; AFTER item 5]; (5) DeckTheme framework [presentation; framework owns the
 配 marker/selection/focus overlays so no theme can remove them; conformance ratchet].
@@ -32,7 +32,7 @@ Background research (deck depth / deal pacing / cut UX / theme architecture) lan
   obligations pin per-seat vs an independent tracker across the config grid; the owner
   scenario pinned on the wire (follower's first row = planning/45s under fast, leader's
   second = turn/20s); legacy persisted states read as not-yet-acted (named migration test).
-- **Item 3 (9dfebd5):** the REAL cut — deckOrder committed in S (redacted like the PRNG,
+- **Item 3 (9dfebd5):** the REAL cut — the shuffled deck committed in S (ceremonyCut.deck, redacted like the PRNG,
   no-card-token grammar pin on every ceremonyCut view), cutDeck 6..102 exact-set choice
   phase, flips AND the deal derive from the rotated deck (marker card REALLY lands at the
   leader; a different position REALLY changes every hand), default middle cut on the

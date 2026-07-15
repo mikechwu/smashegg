@@ -1,7 +1,12 @@
 # Design-refinement round — 5 items, proposal (PROPOSE stage; items 3–5 await owner pick)
 
-**Date:** 2026-07-15 · **Status:** PROPOSAL — items 1–2 decided-and-justified below (build
-authorized by the brief once stated); items 3/4/5 carry real forks and await the owner's pick.
+**Date:** 2026-07-15 · **Status:** PROPOSAL, since BUILT — kept as the design record. Where
+numbers drifted in implementation, the LANDED values win (panel catch): the cut's legal
+positions are CUT_MIN=6..CUT_MAX=102 (not 1..107 — the interior-cut 5-card packet rule from
+the research); the deal spine is 36ms stagger / 320ms flight (landings ≈4.17s; hand-1 adds a
+~0.7s marker beat, full choreography ≤5s — pinned in deal.test.ts), not ~120ms/card; the
+committed deck lives at state.ceremonyCut.deck (not a deckOrder field). Items 1–2 were
+decided-and-justified below; items 3/4/5's forks were owner-picked ("full-real, practical").
 Companion research (deck depth / deal animation / cut interaction / theme architecture) runs as
 a background workflow; its digest informs items 4–5 execution, not these decisions.
 

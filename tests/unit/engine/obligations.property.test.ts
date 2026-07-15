@@ -248,6 +248,22 @@ function checkViews(state: GuandanState, config: RuleVariant): void {
     // Obligation 3: the PRNG (it determines every future deal) must be
     // unreachable from any view, and the viewer's own hand must be honest.
     expect(containsKey(view, 'prng'), `obligation 3: no 'prng' key in seat ${viewer}'s view`).toBe(false);
+    // Item 3 (Grok panel catch — pin CONTINUOUSLY, not just in the named
+    // ceremony test): the committed cut deck is hidden info of the same
+    // strength as the PRNG. No view may carry it under any key…
+    expect(containsKey(view, 'deck'), `obligation 3: no 'deck' key in seat ${viewer}'s view`).toBe(false);
+    expect(
+      containsKey(view, 'ceremonyCut'),
+      `obligation 3: no 'ceremonyCut' object in seat ${viewer}'s view`,
+    ).toBe(false);
+    // …and while the deck is COMMITTED (phase ceremonyCut, nothing dealt),
+    // no card token of any encoding may appear in any view at all.
+    if (state.phase === 'ceremonyCut') {
+      const json = JSON.stringify(view);
+      expect(json, `obligation 3: card token in seat ${viewer}'s ceremonyCut view`).not.toMatch(
+        /"[2-9TJQKA][SHCD]"|"SJ"|"BJ"/,
+      );
+    }
     expect(
       sameMultiset(view.hand, state.hands[viewer]!),
       `obligation 3: view.hand is exactly seat ${viewer}'s hand`,

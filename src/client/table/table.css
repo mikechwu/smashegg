@@ -310,6 +310,13 @@
   display: inline-flex;
   line-height: 0;
   flex: none;
+  /* Isolated stacking context (panel hardening): the framework's state
+     overlays below always paint ABOVE anything a theme face renders,
+     whatever z-index games the theme plays inside its own subtree. */
+  isolation: isolate;
+}
+.gd-cardframe > .gd-card__wild {
+  z-index: 1;
 }
 .gd-card {
   --gd-cardw: 2.5rem;

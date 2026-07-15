@@ -8,8 +8,14 @@
 // provides ONLY face content, back art and metrics. Everything that encodes
 // GAME STATE is drawn by the framework (CardFace/GhostFace in CardFace.tsx)
 // OVER the theme's face — the 配 cinnabar wild marker, selection lift,
-// focus ring, tribute glow — so no theme has a code path to remove or
-// obscure a state indicator. The F11 value-dependent mini-fan reads the
+// focus ring, tribute glow. Precisely what that guarantees: the REAL marker
+// always renders (the framework appends it; a theme has no code path to
+// omit it) and always PAINTS ON TOP (.gd-cardframe is an isolated stacking
+// context with the marker on its own layer — CSS-pinned by the conformance
+// suite), and a theme emitting the marker's own markup fails conformance.
+// What it deliberately does NOT claim: code cannot detect a LOOKALIKE decoy
+// a hostile theme paints inside its face — that is the 390px eyes-gate's
+// job, like every other purely visual property. The F11 value-dependent mini-fan reads the
 // theme's back tokens from metrics, so 2-vs-27 legibility survives any
 // back design. TRUE-390px legibility is the hard gate a theme must pass
 // visually before shipping (conformance suite covers the code-checkable

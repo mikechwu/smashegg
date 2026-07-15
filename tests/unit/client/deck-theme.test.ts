@@ -6,6 +6,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { CardBack, CardFace, GhostFace } from '../../../src/client/table/CardFace';
 import { activeDeckTheme, deckThemes, DEFAULT_DECK_THEME_ID } from '../../../src/client/table/theme';
@@ -86,5 +88,20 @@ describe('the framework overlays (structural: no theme can remove them)', () => 
   it('CardBack routes through the active theme', () => {
     const html = renderToStaticMarkup(createElement(CardBack, { size: 'trick' }));
     expect(html).toContain('gd-cardframe');
+  });
+
+  it('the marker paints ABOVE any theme content (CSS stacking pin, panel hardening)', () => {
+    // The frame is an isolated stacking context and the framework marker
+    // sits on its own z layer — a theme's internal z-index games cannot
+    // cover it. Pinned from the stylesheet text (the chooser-faces CSS-token
+    // ratchet precedent).
+    const css = readFileSync(
+      join(__dirname, '../../../src/client/table/table.css'),
+      'utf8',
+    );
+    const frameRule = css.match(/^\.gd-cardframe\s*\{[^}]*\}/m)?.[0] ?? '';
+    expect(frameRule).toContain('isolation: isolate');
+    const markerRule = css.match(/\.gd-cardframe\s*>\s*\.gd-card__wild\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(markerRule).toContain('z-index: 1');
   });
 });

@@ -89,8 +89,12 @@ export interface GameDefinition<S, A, E, V, C> {
    *  may carry different classes (one tribute payer still planning while a
    *  co-payer who committed already classes 'turn'). Omitted ⇒ every state
    *  is 'turn' (the safe default — a game with no planning moment never
-   *  implements this). The engine never sees milliseconds; the room maps
-   *  class → ms via its RoomTiming config. */
+   *  implements this). Classes are LABELS: the room maps class → ms via its
+   *  RoomTiming config. (Precisely: the engine never CONSULTS clocks —
+   *  purity/determinism — and emits no ms here; the one place ms appear in
+   *  the interface is the legacy actionTimeoutMs SUGGESTION above, which
+   *  the room may clamp or override, and which a room with timing config
+   *  uses only as an untimed/timed signal.) */
   timingClass?(state: S, seat: Seat): TimingClass;
 
   isTerminal(state: S): boolean;
