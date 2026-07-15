@@ -162,16 +162,25 @@ export function ActionBar(props: ActionBarProps) {
   // — with a non-empty selection the primary action can never silently do
   // nothing, and 過 keeps its own two-tap confirm below.
   const playableCount = matches.reduce((n, m) => n + (m.playable ? 1 : 0), 0);
-  const showReason = selectionCount > 0 && playableCount === 0;
+  const canBeat = hints.some((h) => h.type === 'play');
+  const cannotBeat = passAvailable && !canBeat;
+  const showNoMatch = selectionCount > 0 && playableCount === 0;
+  const reason = cannotBeat
+    ? t('game.action.cannotBeat')
+    : showNoMatch
+      ? t('game.action.noMatch')
+      : passAvailable && canBeat && selectionCount === 0
+        ? t('game.action.canBeat')
+        : ' ';
   return (
     <div className="gd-actions">
       <p className="gd-actions__reason" aria-live="polite">
-        {showReason ? t('game.action.noMatch') : ' '}
+        {reason ? reason : ' '}
       </p>
       <div className="gd-actions__slots">
         <button
           type="button"
-          className="gd-actions__primary"
+          className={cannotBeat ? undefined : 'gd-actions__primary'}
           disabled={playableCount === 0}
           onClick={() => {
             if (matches.length === 1) props.onPlay(matches[0]!);
@@ -184,6 +193,7 @@ export function ActionBar(props: ActionBarProps) {
           {passArmed && <span className="gd-actions__confirm">{t('game.action.passConfirm')}</span>}
           <button
             type="button"
+            className={cannotBeat ? 'gd-actions__primary' : undefined}
             disabled={!passAvailable}
             onClick={() => {
               if (selectionCount > 0 && !passArmed) {

@@ -20,7 +20,7 @@ import { ActionBar } from './table/ActionBar';
 import { CeremonyOverlay } from './table/CeremonyOverlay';
 import { EventFeed, FEED_LIMIT, type FeedLine } from './table/EventFeed';
 import { HandFan } from './table/HandFan';
-import { LevelRail } from './table/LevelRail';
+import { TableHeadline } from './table/TableHeadline';
 import { ResultOverlay } from './table/ResultOverlay';
 import { SeatPlate } from './table/SeatPlate';
 import { TributePanel } from './table/TributePanel';
@@ -323,6 +323,10 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   const deadlineBySeat = new Map(deadlines.map((d) => [d.seat, d]));
   const ringSeats = new Set<Seat>(activeSeats(view));
   if (view.phase === 'antiTributeDecision') for (const d of deadlines) ringSeats.add(d.seat);
+  // Turn-in-words for the headline (F8): your turn, else name the first actor.
+  const yourTurn = ringSeats.has(activeSeat);
+  const actorSeats = [...ringSeats].sort((a, b) => a - b);
+  const actorName = yourTurn || actorSeats.length === 0 ? null : nameFor(actorSeats[0]!);
 
   // The hand-1 draw ceremony plays INSIDE the planning window (room-timing.md
   // §4 absorb decision); while its overlay is up the countdown is dimmed —
@@ -362,6 +366,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       name={nameFor(seat)}
       connected={room?.seats.find((s) => s.seat === seat)?.connected ?? false}
       isViewer={seat === activeSeat}
+      partner={teamOf(seat) === viewerTeam && seat !== activeSeat}
       cardCount={view.cardCounts[seat] ?? null}
       place={placeOf(view.finishOrder, seat)}
       active={ringSeats.has(seat)}
@@ -381,86 +386,91 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   };
 
   return (
-    <section className="gd-table">
+    <section className="gd-table gd-ring">
       <SeatTabs heldSeats={heldSeats} activeSeat={activeSeat} onSelect={setSelectedSeat} />
-      <div className="gd-layout">
-        <LevelRail
-          levels={view.levels}
-          aAttempts={view.aAttempts}
-          aAttemptsExhausted={view.aAttemptsExhausted}
-          currentLevel={view.currentLevel}
-          viewerTeam={viewerTeam}
-        />
-        <div className="gd-main">
-          <div className="gd-plates">
-            <div className="gd-plates__west">{plate(layout.west)}</div>
-            <div className="gd-plates__north">{plate(layout.north)}</div>
-            <div className="gd-plates__east">{plate(layout.east)}</div>
-          </div>
 
-          <div className="gd-center">
-            {inTributeCenter || showAnti ? (
-              <TributePanel view={view} nameFor={nameFor} antiReveals={derived.anti} />
-            ) : (
-              <TrickWell
-                trick={view.trick}
-                level={view.currentLevel}
-                nameFor={nameFor}
-                sweepKey={derived.sweep}
-                jiefeng={derived.jiefeng}
-              />
-            )}
-          </div>
+      <TableHeadline
+        currentLevel={view.currentLevel}
+        levels={view.levels}
+        aAttempts={view.aAttempts}
+        aAttemptsExhausted={view.aAttemptsExhausted}
+        viewerTeam={viewerTeam}
+        yourTurn={yourTurn}
+        actorName={actorName}
+      />
 
-          <EventFeed lines={derived.feed} />
-
-          <div className="gd-south">
-            {plate(layout.south)}
-            <button
-              type="button"
-              className="gd-handSort"
-              aria-label={t('game.sort.label')}
-              aria-pressed={handDescending}
-              onClick={toggleHandSort}
-            >
-              {handDescending ? t('game.sort.descending') : t('game.sort.ascending')}
-            </button>
-            <HandFan
-              hand={view.hand}
+      {/* The ring: you at the bottom, partner across the top, opponents left
+          and right flanking a bounded centre (trick / tribute). seatLayout
+          already maps the directions — this is the visual frame for them. */}
+      <div className="gd-ring__table">
+        <div className="gd-ring__seat gd-ring__seat--north">{plate(layout.north)}</div>
+        <div className="gd-ring__seat gd-ring__seat--west">{plate(layout.west)}</div>
+        <div className="gd-ring__center">
+          {inTributeCenter || showAnti ? (
+            <TributePanel view={view} nameFor={nameFor} antiReveals={derived.anti} />
+          ) : (
+            <TrickWell
+              trick={view.trick}
               level={view.currentLevel}
-              selected={selected}
-              onToggle={(i) =>
-                setSelected((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(i)) next.delete(i);
-                  else next.add(i);
-                  return next;
-                })
-              }
-              glow={eligible}
-              descending={handDescending}
+              nameFor={nameFor}
+              sweepKey={derived.sweep}
+              jiefeng={derived.jiefeng}
             />
-            <ActionBar
-              hints={hints}
-              phase={view.phase}
-              level={view.currentLevel}
-              matches={matches}
-              passAvailable={hints !== null && hints.some((h) => h.type === 'pass')}
-              selectionCount={selected.size}
-              tributeAction={tributeAction}
-              tributePhase={tributePhase}
-              chooserOpen={chooserOpen}
-              onPlay={(match) => act({ type: 'play', cards: match.cards, decl: match.decl })}
-              onOpenChooser={() => setChooserOpen(true)}
-              onCloseChooser={() => setChooserOpen(false)}
-              onPass={() => act({ type: 'pass' })}
-              onTribute={() => {
-                if (tributeAction !== null) act(tributeAction);
-              }}
-              onAntiDecision={(invoke) => act({ type: 'antiTributeDecision', invoke })}
-            />
-          </div>
+          )}
         </div>
+        <div className="gd-ring__seat gd-ring__seat--east">{plate(layout.east)}</div>
+        <div className="gd-ring__seat gd-ring__seat--south">{plate(layout.south)}</div>
+      </div>
+
+      {/* Your zone: game log, then your hand (full width) with its action bar
+          and sort toggle directly adjacent — never across the table. */}
+      <div className="gd-handzone">
+        <EventFeed lines={derived.feed} />
+        <div className="gd-handzone__sortrow">
+          <button
+            type="button"
+            className="gd-handSort"
+            aria-label={t('game.sort.label')}
+            aria-pressed={handDescending}
+            onClick={toggleHandSort}
+          >
+            {handDescending ? t('game.sort.descending') : t('game.sort.ascending')}
+          </button>
+        </div>
+        <HandFan
+          hand={view.hand}
+          level={view.currentLevel}
+          selected={selected}
+          onToggle={(i) =>
+            setSelected((prev) => {
+              const next = new Set(prev);
+              if (next.has(i)) next.delete(i);
+              else next.add(i);
+              return next;
+            })
+          }
+          glow={eligible}
+          descending={handDescending}
+        />
+        <ActionBar
+          hints={hints}
+          phase={view.phase}
+          level={view.currentLevel}
+          matches={matches}
+          passAvailable={hints !== null && hints.some((h) => h.type === 'pass')}
+          selectionCount={selected.size}
+          tributeAction={tributeAction}
+          tributePhase={tributePhase}
+          chooserOpen={chooserOpen}
+          onPlay={(match) => act({ type: 'play', cards: match.cards, decl: match.decl })}
+          onOpenChooser={() => setChooserOpen(true)}
+          onCloseChooser={() => setChooserOpen(false)}
+          onPass={() => act({ type: 'pass' })}
+          onTribute={() => {
+            if (tributeAction !== null) act(tributeAction);
+          }}
+          onAntiDecision={(invoke) => act({ type: 'antiTributeDecision', invoke })}
+        />
       </div>
 
       {showToast && lastRejection !== undefined && (

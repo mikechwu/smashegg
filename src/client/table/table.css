@@ -880,6 +880,322 @@
   }
 }
 
+/* ======================================================================== */
+/* Ring layout (pre-M5 Lacquer Ledger restyle) — 390px-first.               */
+/* You at the bottom, partner across the top, opponents flanking a bounded   */
+/* centre. The topbar headline carries the always-on facts; each remote seat */
+/* shows a value-dependent mini card-back fan so 2 cards LOOK unlike 27.     */
+/* ======================================================================== */
+
+.gd-ring {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* --- topbar headline: level 打幾 (Songti) · wild · teams · turn ---------- */
+.gd-headline {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem 0.7rem;
+  flex-wrap: wrap;
+  background: color-mix(in srgb, var(--rosewood) 60%, var(--lacquer));
+  border-radius: 10px;
+  padding: 0.4rem 0.7rem;
+}
+.gd-headline__level {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  line-height: 1;
+}
+.gd-headline__pre {
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+/* The one bold move: the hand level as a large Songti numeral in goldleaf
+   (goldleaf's reserved role — level and victory). */
+.gd-headline__rank {
+  font-family: var(--font-card);
+  font-size: 2.1rem;
+  font-weight: 600;
+  color: var(--goldleaf);
+  line-height: 0.9;
+}
+.gd-headline__wild {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: var(--lacquer);
+  border: 1px solid color-mix(in srgb, var(--cinnabar) 45%, transparent);
+  border-radius: 999px;
+  padding: 0.12rem 0.5rem;
+}
+.gd-headline__wildSuit {
+  color: var(--cinnabar);
+  font-size: 0.9rem;
+}
+.gd-headline__wildRank {
+  font-family: var(--font-card);
+  color: var(--cinnabar);
+  font-weight: 600;
+}
+.gd-headline__wildTag {
+  font-size: 0.62rem;
+  opacity: 0.8;
+  letter-spacing: 0.04em;
+  border-left: 1px solid rgba(245, 239, 227, 0.25);
+  padding-left: 0.3rem;
+}
+.gd-headline__teams {
+  display: flex;
+  gap: 0.375rem;
+  margin-left: auto;
+}
+.gd-headline__turn {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  opacity: 0.9;
+}
+.gd-headline__turn--you {
+  color: var(--cinnabar);
+  opacity: 1;
+}
+
+/* two anchored team badges (never one banner) */
+.gd-team {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 6px;
+  padding: 0.1rem 0.45rem;
+  font-size: 0.8rem;
+  border: 1px solid transparent;
+}
+.gd-team--us {
+  background: color-mix(in srgb, var(--cinnabar) 22%, var(--lacquer));
+  border-color: color-mix(in srgb, var(--cinnabar) 45%, transparent);
+}
+.gd-team--them {
+  background: var(--lacquer);
+  border-color: rgba(245, 239, 227, 0.25);
+}
+.gd-team__label {
+  font-size: 0.68rem;
+  opacity: 0.85;
+}
+.gd-team__rank {
+  font-family: var(--font-card);
+  font-weight: 600;
+}
+.gd-team__dots {
+  color: var(--cinnabar);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+}
+.gd-team--suspended .gd-team__rank {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.gd-team__susp {
+  font-size: 0.6rem;
+  opacity: 0.75;
+}
+
+/* --- the ring grid ------------------------------------------------------- */
+.gd-ring__table {
+  display: grid;
+  grid-template-columns: minmax(3.25rem, auto) 1fr minmax(3.25rem, auto);
+  grid-template-rows: auto minmax(6.5rem, 1fr) auto;
+  grid-template-areas:
+    '.    north  .'
+    'west center east'
+    '.    south  .';
+  gap: 0.375rem;
+  align-items: center;
+}
+.gd-ring__seat--north {
+  grid-area: north;
+  justify-self: center;
+}
+.gd-ring__seat--west {
+  grid-area: west;
+  justify-self: start;
+}
+.gd-ring__seat--east {
+  grid-area: east;
+  justify-self: end;
+}
+.gd-ring__seat--south {
+  grid-area: south;
+  justify-self: center;
+}
+.gd-ring__center {
+  grid-area: center;
+  min-width: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --- compact ring plate (supersedes the old flex-row plate) -------------- */
+.gd-ring .gd-plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  background: var(--rosewood);
+  border-radius: 8px;
+  border: 2px solid transparent;
+  padding: 0.3rem 0.45rem;
+  min-width: 0;
+  max-width: 9rem;
+  font-size: 0.8125rem;
+  text-align: center;
+  box-sizing: border-box;
+}
+.gd-ring__seat--west .gd-plate,
+.gd-ring__seat--east .gd-plate {
+  max-width: 6.5rem;
+}
+.gd-ring .gd-plate--active {
+  border-color: var(--cinnabar);
+  box-shadow: 0 0 0 1px var(--cinnabar);
+}
+.gd-plate__head {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+}
+.gd-ring .gd-plate__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 5rem;
+  min-width: 0;
+}
+.gd-plate__tag {
+  font-size: 0.6rem;
+  border-radius: 4px;
+  padding: 0 0.28rem;
+  flex: none;
+}
+.gd-plate__tag--you {
+  background: var(--ivory);
+  color: var(--ink);
+}
+/* Partner tag: quiet ivory — goldleaf stays reserved for level + victory. */
+.gd-plate__tag--partner {
+  background: rgba(245, 239, 227, 0.14);
+  color: var(--ivory);
+  border: 1px solid rgba(245, 239, 227, 0.4);
+}
+
+/* value-dependent hand: a mini card-back fan + the exact count. The count is
+   flex:none so it is NEVER clipped; the fan caps its own width and clips any
+   overflow, so a full hand + a 2-digit count always fit the side plate. */
+.gd-plate__hand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  max-width: 100%;
+}
+.gd-plate__fan {
+  display: inline-flex;
+  align-items: flex-end;
+  height: 0.95rem;
+  max-width: 2.9rem;
+  overflow: hidden;
+  flex: 0 1 auto;
+}
+.gd-plate__fanCard {
+  width: 0.34rem;
+  height: 0.9rem;
+  flex: none;
+  background: linear-gradient(160deg, #5a3a33, #35211d);
+  border: 0.5px solid rgba(245, 239, 227, 0.32);
+  border-radius: 2px;
+}
+.gd-plate__fanCard + .gd-plate__fanCard {
+  margin-left: -0.15rem;
+}
+.gd-ring .gd-plate__count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  background: none;
+  padding: 0;
+  flex: none;
+}
+/* ≤10 = 報牌 alert; ≤2 = critical (owner: 2 must look unlike 27, structurally) */
+.gd-plate__count--low {
+  color: var(--cinnabar);
+  font-weight: 600;
+}
+.gd-plate__count--critical {
+  color: var(--cinnabar);
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.gd-plate__state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex-wrap: wrap;
+  justify-content: center;
+  min-height: 0.85rem;
+}
+.gd-plate__timer--urgent {
+  box-shadow: 0 0 0 2px var(--cinnabar);
+  animation: gd-pulse 700ms ease-in-out infinite alternate;
+}
+
+/* --- your zone: log, hand (full width), action bar adjacent -------------- */
+.gd-handzone {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.gd-handzone__sortrow {
+  display: flex;
+  justify-content: flex-end;
+}
+/* the game log is secondary on a phone — keep it short here */
+.gd-ring .gd-feed {
+  max-height: 3.25rem;
+}
+
+/* --- desktop air (≥720px) ------------------------------------------------ */
+@media (min-width: 720px) {
+  .gd-ring__table {
+    grid-template-columns: minmax(6rem, 1fr) minmax(0, 2.2fr) minmax(6rem, 1fr);
+    grid-template-rows: auto minmax(9rem, 1fr) auto;
+    gap: 0.75rem;
+    max-width: 44rem;
+    margin: 0 auto;
+    width: 100%;
+  }
+  .gd-ring__seat--west .gd-plate,
+  .gd-ring__seat--east .gd-plate {
+    max-width: 9rem;
+  }
+  .gd-ring .gd-feed {
+    max-height: 5rem;
+  }
+  .gd-handzone {
+    max-width: 44rem;
+    margin: 0 auto;
+    width: 100%;
+  }
+}
+
 /* --- reduced motion (quality floor) ------------------------------------------------------ */
 @media (prefers-reduced-motion: reduce) {
   .gd-table *,

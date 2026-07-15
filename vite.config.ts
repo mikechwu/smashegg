@@ -9,6 +9,15 @@ import { fileURLToPath } from 'node:url';
 export default defineConfig({
   root: 'src/client',
   plugins: [react()],
+  // Dev-only: proxy the API + WebSocket to a local `wrangler dev` (port 8787)
+  // so `npm run dev:client` gives HMR-fast UI iteration against the real DO
+  // backend. Never affects `vite build`/deploy — the built Worker serves both
+  // the assets and /api from one origin in production.
+  server: {
+    proxy: {
+      '/api': { target: 'http://localhost:8787', ws: true, changeOrigin: true },
+    },
+  },
   // Build identity for the version-skew signal (M4): the deploy workflow
   // injects the git SHA; a bare local build gets the 'dev' sentinel —
   // deliberately NO git fallback here, so local `vite build` + `wrangler
