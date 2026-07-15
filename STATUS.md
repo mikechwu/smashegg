@@ -1,8 +1,46 @@
 # STATUS
 
-## Current phase: M4 closed out; free-tier efficiency research interlude before M5
+## Current phase: Q3 pause + retention-TTL implemented & gated (feat/q3-ttl → merging); then Q4, then M5
 
-**Last updated:** 2026-07-14
+**Last updated:** 2026-07-15
+
+## Q3 pause-on-idle + retention-TTL (2026-07-15) — GATE REACHED on feat/q3-ttl
+
+Free-tier action set (owner-approved Path A). Design:
+[pause-and-retention.md](docs/research/pause-and-retention.md); audit:
+[Q3TTL-audit.md](docs/audits/Q3TTL-audit.md). Built autonomously under the owner's
+run-to-completion grant, off `main` until the gate passed.
+
+| Gate criterion | Evidence | Verdict |
+|---|---|---|
+| Model = product (no virtual-model test) | The pause/resume/TTL DECISIONS extracted to pure fns (isPausedRoom / mayAutoPlay / resumeOffsetMs / alarmCandidates + retention.ts) that BOTH game-room.ts AND the tests call | ✅ |
+| Property test P1–P4 | deadline-liveness.property.test.ts: P1 (paused ⇒ no alarm), P2 (resume conserves remaining — exactly 60s not fresh 90s), P3 (non-actor resume leaves absent actor armed), P4 (deploy-transition stamp + one guard-path auto-play); coverage counter proves the random driver reached pause AND resume | ✅ |
+| Decision matrix T1–T3 | retention.test.ts (32): lazy=lobby-only auto-purge, T3 live-socket-never-purged, guard-path arithmetic, fail-safe NULL anchor, stamp≡pause | ✅ |
+| Wire e2e | retention.e2e.test.ts: stamp-ordering, no-auto-play-while-paused, resume, real deleteAll → 404, seatless-socket T3, ordinary-reconnect regression | ✅ |
+| Two counts unswappable | branded ConnectedSeatCount/LiveSocketCount, constructed only at seatCount()/socketCount() — swap = compile error | ✅ |
+| Suites | 645 unit + 29 e2e green, 4 typechecks | ✅ |
+
+**Owner catches folded in during build (6):** deploy-transition NULL-offset
+(constructor lazy-stamp); lazy-TTL contradiction (auto-purge lobby-only, meter
+asymmetry); live-socket TTL gate + T3; guard-path 0-remaining pin (no floor);
+paranoid purge gate (null → fail safe); branded counts + 2-accessor surface;
+honest eager-flip comment (not retroactive).
+
+**Bugs the gate caught + fixed autonomously (3):** never-joined-room orphan
+(arm TTL on create); warm-instance-after-deleteAll 500 (restore empty schema →
+404); Codex's resume-path fragility (gate resume on the true 0→1 edge).
+
+**Cross-model audit — partial, honestly weighted.** Codex (independent lineage)
+reviewed and contributed the resume-path fix — but its headless CLI hit the M4
+read-only-sandbox EPERM and never flushed a clean report (finding recovered from
+its trace; weighted as reasoned corroboration, not a green run). **Grok did NOT
+run** — headless `-p` cut after the preamble (TUI needs a real terminal). The
+independent-lineage panel the owner emphasized is therefore DEGRADED this round;
+a fuller external sweep would need the owner to run codex/grok interactively.
+The substantive review is the independent adversarial pass + the tests above.
+
+**Next:** merge → deploy (self-verifying; retroactively pauses the 3 live zombie
+rooms within ~60s) → §4 cleanup script → the 7 PLAN corrections → Q4.
 
 ## M4 (2026-07-14) — reconnection + timeouts + owner items A/B: implementation complete, gate report final
 

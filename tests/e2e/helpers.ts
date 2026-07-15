@@ -109,7 +109,7 @@ async function killProcessTree(child: ChildProcess): Promise<void> {
  * .dev.vars file).
  */
 export async function startServer(
-  opts: { persistDir?: string; buildVersion?: string } = {},
+  opts: { persistDir?: string; buildVersion?: string; retentionWindowMs?: number } = {},
 ): Promise<DevServer> {
   const persistDir = opts.persistDir ?? makePersistDir();
   const port = await getFreePort();
@@ -129,6 +129,11 @@ export async function startServer(
       // Same --var pattern as ENVIRONMENT: version-skew tests pin an exact
       // server build string; omitted = the 'dev' sentinel (skew-silent).
       ...(opts.buildVersion !== undefined ? ['--var', `BUILD_VERSION:${opts.buildVersion}`] : []),
+      // TEST ONLY: shrink the retention window so a self-purge can be observed
+      // in-test rather than after 48h (pause-and-retention.md §7).
+      ...(opts.retentionWindowMs !== undefined
+        ? ['--var', `RETENTION_TEST_WINDOW_MS:${opts.retentionWindowMs}`]
+        : []),
     ],
     {
       cwd: REPO_ROOT,
@@ -235,7 +240,14 @@ export async function getRoomInfo(server: DevServer, code: string): Promise<Room
 /** Room dump (PLAN §6, dev-gated — always open here because startServer
  *  forces ENVIRONMENT=dev). Contains token HASHES only, never raw tokens. */
 export async function getDump(server: DevServer, code: string): Promise<{
-  room: { gameId: string; config: unknown; status: string; code: string };
+  room: {
+    gameId: string;
+    config: unknown;
+    status: string;
+    code: string;
+    pauseStartedAt: number | null;
+    lastActiveAt: number | null;
+  };
   snapshot: { seq: number; state: Record<string, unknown> | null };
   events: { seq: number; events: unknown[] }[];
 }> {

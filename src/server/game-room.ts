@@ -39,12 +39,16 @@ import type {
   WireError,
 } from '../shared/protocol';
 import {
+  alarmCandidates,
   bytesToHex,
   deltaCoversGap,
+  isPausedRoom,
+  mayAutoPlay,
   nextDeadlines,
   redactEventsFor,
   resolveTimeoutMs,
   resolveTimingClass,
+  resumeOffsetMs,
   sha256Hex,
   timeoutActionId,
   timingSafeEqualStr,
@@ -52,6 +56,13 @@ import {
   type DeadlineEntry,
 } from './room-helpers';
 import { DEFAULT_ROOM_TIMING, validateRoomTiming, type RoomTiming } from '../shared/timing';
+import {
+  asLiveSocketCount,
+  asSeatCount,
+  isAutoPurgeEligible,
+  type ConnectedSeatCount,
+  type LiveSocketCount,
+} from '../shared/retention';
 
 // Bare literal "ping" -> "pong" answered while hibernated, at zero cost
 // (PLAN.md §4). Matches exact literal strings only — clients ping OUTSIDE
@@ -88,6 +99,15 @@ interface RoomRow {
   /** RoomTiming as JSON (M4); NULL = legacy room — the deadline path falls
    *  back to the game's actionTimeoutMs suggestion verbatim. */
   timing_json: string | null;
+  /** Last HUMAN-interaction event (create / seat-claim / config / start /
+   *  connect / disconnect — never a game action). The retention TTL anchor
+   *  (pause-and-retention.md §3); backfilled from created_at for pre-retention
+   *  rooms. */
+  last_active_at: number | null;
+  /** Wall-clock when this room's connected count hit 0 (Q3 pause); NULL while
+   *  connected > 0. The offset origin for resume (§3.2); the constructor
+   *  lazy-stamps it for a room already paused when this build deployed. */
+  pause_started_at: number | null;
   [column: string]: SqlStorageValue;
 }
 
@@ -193,6 +213,28 @@ export class GameRoom extends DurableObject<Env> {
       this.sessions.set(ws, new Set(attachment?.seats ?? []));
     }
     this.ctx.setWebSocketAutoResponse(PING_PONG);
+    this.stampPauseIfPreExisting();
+  }
+
+  /** §3.2 deploy-transition fix: a room already at connected==0 when this build
+   *  shipped never hit the 1→0 pause stamp under the new code, so its
+   *  `pause_started_at` is NULL and a later resume would compute
+   *  `now - NULL` = garbage. The constructor is the single choke point that runs
+   *  on every wake BEFORE any handler, and `getWebSockets()` does NOT yet include
+   *  an incoming reconnect (that socket is accepted later in fetch()), so a
+   *  resuming room is still seen as empty here. Stamp `now` as the pause origin —
+   *  we cannot recover the true pause instant for a pre-Q3 room, so "first wake
+   *  under this build" is the safe, bounded, non-exploitable proxy (it only
+   *  applies to a FULLY empty room, where there is no present player to dodge). */
+  private stampPauseIfPreExisting(): void {
+    const room = this.readRoomRow();
+    if (
+      room !== null &&
+      room.pause_started_at === null &&
+      isPausedRoom(room.status, this.seatCount()) // SAME predicate as the 1→0 stamp
+    ) {
+      this.ctx.storage.sql.exec('UPDATE room SET pause_started_at = ? WHERE id = 1', Date.now());
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -210,7 +252,9 @@ export class GameRoom extends DurableObject<Env> {
          code TEXT NOT NULL,
          created_at INTEGER NOT NULL,
          seed TEXT,  -- set at start: the exact seed passed to game.init (PLAN §6 replay)
-         timing_json TEXT  -- RoomTiming (M4); NULL = legacy actionTimeoutMs behavior
+         timing_json TEXT,  -- RoomTiming (M4); NULL = legacy actionTimeoutMs behavior
+         last_active_at INTEGER,  -- last HUMAN event (pause-and-retention.md §3); TTL anchor, never bumped by a game action
+         pause_started_at INTEGER  -- Q3: wall-clock when connected hit 0; NULL while connected>0 (§3.2)
        )`,
     );
     // Migrations for rooms created before newer columns existed: SQLite has
@@ -224,6 +268,17 @@ export class GameRoom extends DurableObject<Env> {
     if (!roomColumns.some((c) => c.name === 'timing_json')) {
       // NULL for every pre-M4 room — those keep the actionTimeoutMs path.
       sql.exec('ALTER TABLE room ADD COLUMN timing_json TEXT');
+    }
+    if (!roomColumns.some((c) => c.name === 'last_active_at')) {
+      // Pre-retention rooms: seed the TTL anchor from created_at (the only
+      // timestamp we have); real human events bump it forward from there.
+      sql.exec('ALTER TABLE room ADD COLUMN last_active_at INTEGER');
+      sql.exec('UPDATE room SET last_active_at = created_at WHERE last_active_at IS NULL');
+    }
+    if (!roomColumns.some((c) => c.name === 'pause_started_at')) {
+      // NULL by default; the constructor lazy-stamps it for a room already at
+      // connected==0 when this build deploys (§3.2 deploy-transition fix).
+      sql.exec('ALTER TABLE room ADD COLUMN pause_started_at INTEGER');
     }
     sql.exec(
       `CREATE TABLE IF NOT EXISTS seats (
@@ -303,7 +358,9 @@ export class GameRoom extends DurableObject<Env> {
 
   private readRoomRow(): RoomRow | null {
     const rows = this.ctx.storage.sql
-      .exec<RoomRow>('SELECT game_id, config_json, status, code, created_at, seed, timing_json FROM room WHERE id = 1')
+      .exec<RoomRow>(
+        'SELECT game_id, config_json, status, code, created_at, seed, timing_json, last_active_at, pause_started_at FROM room WHERE id = 1',
+      )
       .toArray();
     const row = rows[0] ?? null;
     if (row) this.roomCode = row.code;
@@ -385,6 +442,30 @@ export class GameRoom extends DurableObject<Env> {
     const connected = new Set<Seat>();
     for (const seats of this.sessions.values()) for (const s of seats) connected.add(s);
     return connected;
+  }
+
+  // The two Q3/TTL counts, each constructed from its CORRECT source in ONE place.
+  // Branding kills swapping two branded values at a call site; it does NOT stop
+  // constructing the wrong brand from the wrong source — so that residual surface
+  // is confined to exactly these two methods (the whole thing Codex's binding
+  // audit has to read). Connected SEATS answer "is there an ACTOR?" (pause /
+  // auto-play, M4); live SOCKETS answer "is ANYONE here?" (TTL / T3 — a seatless
+  // idle lobby visitor still counts, and leaves no last_active_at trace under
+  // Q1's edge auto-response, so time alone can't stand in).
+  private seatCount(): ConnectedSeatCount {
+    return asSeatCount(this.connectedSeats().size);
+  }
+  private socketCount(): LiveSocketCount {
+    return asLiveSocketCount(this.ctx.getWebSockets().length);
+  }
+
+  /** TEST-ONLY retention window shrink (RETENTION_TEST_WINDOW_MS env) so the e2e
+   *  can drive a real self-purge without waiting 48h; undefined in production. */
+  private retentionWindowOverride(): number | undefined {
+    const raw = this.env.RETENTION_TEST_WINDOW_MS;
+    if (raw === undefined) return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : undefined;
   }
 
   private setSeats(ws: WebSocket, seats: Set<Seat>): void {
@@ -516,14 +597,16 @@ export class GameRoom extends DurableObject<Env> {
     } catch {
       return Response.json({ error: 'timing.invalid' }, { status: 400 });
     }
+    const createdAt = Date.now();
     this.ctx.storage.sql.exec(
-      'INSERT INTO room (id, game_id, config_json, status, code, created_at, timing_json) VALUES (1, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO room (id, game_id, config_json, status, code, created_at, timing_json, last_active_at) VALUES (1, ?, ?, ?, ?, ?, ?, ?)',
       gameId,
       JSON.stringify(body.config ?? null),
       'lobby',
       code,
-      Date.now(),
+      createdAt,
       JSON.stringify(timing),
+      createdAt, // last_active_at seeded at creation (a human just made the room)
     );
     this.ctx.storage.sql.exec(
       'INSERT INTO snapshot (id, seq, state_json) VALUES (1, 0, NULL)',
@@ -537,6 +620,9 @@ export class GameRoom extends DurableObject<Env> {
       actionType: 'create',
       outcome: 'applied',
     });
+    // Arm the lobby retention TTL now, so a room nobody ever joins still
+    // self-purges (an idle DO runs no code otherwise — it would orphan forever).
+    await this.scheduleAlarm();
     return Response.json({ ok: true }, { status: 201 });
   }
 
@@ -606,6 +692,10 @@ export class GameRoom extends DurableObject<Env> {
         status: room.status,
         code: room.code,
         timing: this.parseTiming(room),
+        // Q3/retention diagnostics (pause-and-retention.md): the offset origin
+        // (NULL while any seat is connected) and the TTL anchor.
+        pauseStartedAt: room.pause_started_at,
+        lastActiveAt: room.last_active_at,
       },
       seats: this.readSeatRows().map((r) => ({ seat: r.seat, name: r.name, tokenHash: r.token_hash })),
       snapshot: { seq: snapshot.seq, state: snapshot.state_json === null ? null : JSON.parse(snapshot.state_json) },
@@ -735,12 +825,42 @@ export class GameRoom extends DurableObject<Env> {
     const newlyConnected = sortedSeats.filter((s) => !connectedBefore.has(s));
     const newlyDisconnected = [...connectedBefore].filter((s) => !connectedAfter.has(s));
 
+    // A hello is a human-interaction event → bump the retention TTL anchor.
+    const now = Date.now();
+    this.touchActivity(now);
+
+    // Q3 pause/resume (pause-and-retention.md §2). A hello can flip connectivity
+    // EITHER way (reconnect, or a token-less/takeover hello that drops seats):
+    if (room.status === 'playing') {
+      if (connectedBefore.size === 0 && connectedAfter.size > 0) {
+        // TRUE 0→1 resume edge ONLY — not any hello with seats connected. Gating
+        // on the actual transition (not on "resumeFromPause no-ops when
+        // pause_started_at is NULL") makes the shift self-evidently safe: an
+        // ordinary mid-game hello (seats already connected) can never shift
+        // deadlines even if the pause_started_at invariant were ever violated
+        // (Codex audit). Shift the frozen deadlines by the paused duration
+        // (preserving each actor's REMAINING budget — no fresh clock) BEFORE the
+        // reconcile below restores the reconnecting actor to its shifted base.
+        this.resumeFromPause(now);
+      } else if (connectedAfter.size === 0) {
+        // This hello emptied the room → pause (record the offset origin so a
+        // future resume can shift; the alarm won't auto-play while connected==0).
+        this.stampPauseStart(now);
+      }
+      // else (connectedBefore>0 && connectedAfter>0): an ordinary mid-game hello
+      // — neither a pause nor a resume; deadlines are untouched here.
+    }
+
     // Reconcile deadlines BEFORE the welcome/resync sends, so they carry
     // the restored (base) deadlines rather than stale disconnect-clamped
     // ones. Presence may only clamp/restore — never re-arm (room-timing.md
     // §2); the synchronous SQL lands before currentWireDeadlines() below.
     if ((newlyConnected.length > 0 || newlyDisconnected.length > 0) && room.status === 'playing') {
       await this.reconcileDeadlines(new Set([...newlyConnected, ...newlyDisconnected]));
+    } else if (newlyConnected.length > 0 || newlyDisconnected.length > 0) {
+      // Lobby/finished: no seat deadlines, but re-schedule so a reconnect to an
+      // abandoned lobby clears its pending TTL self-purge (connected>0 now).
+      await this.scheduleAlarm();
     }
 
     const currentDeadlines = this.currentWireDeadlines();
@@ -1292,6 +1412,46 @@ export class GameRoom extends DurableObject<Env> {
   // the changed seats).
   // -------------------------------------------------------------------------
 
+  // --- Retention activity clock + Q3 pause/resume (pause-and-retention.md §2-3) ---
+
+  /** Bump the retention TTL anchor on a HUMAN-interaction event (create /
+   *  seat-claim / config / start / connect / disconnect). NEVER called on a game
+   *  action — an auto-playing or paused room must not keep refreshing its own
+   *  clock (§3, and it avoids a per-action write). */
+  private touchActivity(now: number): void {
+    this.ctx.storage.sql.exec('UPDATE room SET last_active_at = ? WHERE id = 1', now);
+  }
+
+  /** Q3: record the wall-clock origin the moment a playing room's connected count
+   *  hits 0, so a future resume can shift frozen deadlines by the exact paused
+   *  duration. Idempotent — only stamps while NULL (a resume clears it). */
+  private stampPauseStart(now: number): void {
+    this.ctx.storage.sql.exec(
+      'UPDATE room SET pause_started_at = ? WHERE id = 1 AND pause_started_at IS NULL',
+      now,
+    );
+  }
+
+  /** Q3 resume (§2): shift every frozen deadline forward by the paused duration
+   *  so each actor's REMAINING budget is preserved (a 2s remainder stays 2s; a
+   *  grace remainder is preserved too — NO fresh clock, killing the timer-dodge),
+   *  then clear the pause origin. No-op if the room was not paused. Called on the
+   *  0→1 transition BEFORE the normal presence reconcile restores the reconnecting
+   *  actor to its (now-shifted) base. */
+  private resumeFromPause(now: number): void {
+    const pausedAt = this.readRoomRow()?.pause_started_at ?? null;
+    if (pausedAt === null) return;
+    const offset = resumeOffsetMs(pausedAt, now);
+    if (offset > 0) {
+      const sql = this.ctx.storage.sql;
+      // due_at shifts for ALL rows (turn remainders AND grace-only rows);
+      // base_due_at shifts only where it exists (grace-only rows have base NULL).
+      sql.exec('UPDATE deadlines SET due_at = due_at + ?', offset);
+      sql.exec('UPDATE deadlines SET base_due_at = base_due_at + ? WHERE base_due_at IS NOT NULL', offset);
+    }
+    this.ctx.storage.sql.exec('UPDATE room SET pause_started_at = NULL WHERE id = 1');
+  }
+
   /** Call sites: handleStart + applyGameAction (every state change). */
   private async recomputeDeadlines(reason: 'decision'): Promise<void> {
     this.applyNextDeadlines(reason, undefined);
@@ -1355,21 +1515,40 @@ export class GameRoom extends DurableObject<Env> {
     }
   }
 
-  /** One alarm slot per DO: schedule the earliest of (a) the soonest seat
-   *  deadline and (b) the M0 hello probe's due time (if armed, unfired). */
+  /** One alarm slot per DO: the earliest of (a) the soonest seat deadline —
+   *  armed ONLY while connected (Q3: a paused room arms no turn alarm, so no
+   *  auto-play burn accrues); (b) the room-retention TTL — armed only while
+   *  ABANDONED (connected==0) for a status that auto-purges in the current mode
+   *  (lazy: lobby only); (c) the M0 hello probe. */
   private async scheduleAlarm(): Promise<void> {
-    const candidates: number[] = [];
-    const minRows = this.ctx.storage.sql
+    // The DO gathers the raw inputs; alarmCandidates() makes the DECISION (same
+    // pure function the property test drives). Seat deadlines key on connected
+    // SEATS (actors — M4); the TTL keys on live SOCKETS (is anyone here at all —
+    // an idle/seatless lobby visitor leaves no time-axis trace under Q1's edge
+    // auto-response; see retention.ts).
+    const room = this.readRoomRow();
+    const minRow = this.ctx.storage.sql
       .exec<{ min_due: number | null; [c: string]: SqlStorageValue }>(
         'SELECT MIN(due_at) AS min_due FROM deadlines',
       )
-      .toArray();
-    if (minRows[0] && minRows[0].min_due !== null) candidates.push(minRows[0].min_due);
-
+      .toArray()[0];
     const probe = this.readHelloRow();
-    if (probe.alarm_set_at !== null && probe.alarm_fired_at === null) {
-      candidates.push(probe.alarm_set_at + ALARM_DELAY_MS);
-    }
+    const probeDueAt =
+      probe.alarm_set_at !== null && probe.alarm_fired_at === null
+        ? probe.alarm_set_at + ALARM_DELAY_MS
+        : null;
+
+    const candidates = alarmCandidates({
+      status: room?.status ?? null, // null room (bare M0 probe DO) → no TTL candidate
+      connectedSeatCount: this.seatCount(),
+      liveSocketCount: this.socketCount(),
+      minSeatDeadlineDueAt: minRow?.min_due ?? null,
+      // Anchor = last_active_at ?? created_at; NULL (no room) FAILS SAFE (no TTL),
+      // never `?? 0` which would read as epoch = infinitely-stale = purge-now.
+      lastActiveAt: room ? (room.last_active_at ?? room.created_at) : null,
+      probeDueAt,
+      overrideWindowMs: this.retentionWindowOverride(),
+    });
 
     if (candidates.length > 0) {
       await this.ctx.storage.setAlarm(Math.min(...candidates));
@@ -1398,12 +1577,55 @@ export class GameRoom extends DurableObject<Env> {
       });
     }
 
-    // (b) Seat deadlines: stale-alarm guard by re-reading the table and only
-    // acting on rows that are actually due NOW. Default actions go through
-    // the normal action path (same seq/idempotency/fan-out machinery) with
-    // the deterministic 'timeout:<seat>:<seq>' actionId, so an alarm retry
-    // (at-least-once semantics) dedups instead of double-applying.
-    for (let i = 0; i < MAX_ALARM_APPLIES; i++) {
+    const connectedSeatCount = this.seatCount();
+    const liveSocketCount = this.socketCount();
+
+    // (b) Room-retention TTL self-purge (pause-and-retention.md §3.1). Runs
+    // REGARDLESS of the Q3 seat-deadline guard below (a paused room past its
+    // window must still be able to purge). Gated on LIVE SOCKETS, never on
+    // connected seats — an occupied-but-idle lobby has 0 connected seats yet a
+    // live socket, and must NOT be purged (retention.ts invariant). An abandoned
+    // room past its window whose status auto-purges in the current mode (lazy:
+    // lobby only) reclaims ALL its storage via deleteAll() — the only op that
+    // frees a DO's storage. Lobby rooms hold no replayable game, so no dump is
+    // needed; played-out rooms never reach here in lazy mode (they arm no TTL
+    // alarm), preserving replay.
+    const roomForTtl = this.readRoomRow();
+    if (
+      roomForTtl !== null &&
+      isAutoPurgeEligible({
+        status: roomForTtl.status,
+        liveSocketCount,
+        lastActiveAt: roomForTtl.last_active_at ?? roomForTtl.created_at,
+        now,
+        overrideWindowMs: this.retentionWindowOverride(),
+      })
+    ) {
+      logMutation({
+        room: roomForTtl.code,
+        seq: this.currentSeq(),
+        actionId: null,
+        seat: null,
+        actionType: 'roomPurged',
+        outcome: 'applied',
+      });
+      await this.ctx.storage.deleteAll(); // reclaims all storage, incl. the alarm
+      await this.ctx.storage.deleteAlarm(); // explicit (belt-and-braces across compat dates)
+      // deleteAll() drops the tables too. If this DO stays warm (no constructor
+      // re-run before the next request), a read would hit a missing table; restore
+      // an EMPTY schema so a subsequent GET reads no room → 404 (the match's rows
+      // stay reclaimed — only the empty table definitions come back).
+      this.ensureSchema();
+      return; // the room is gone — nothing else to do
+    }
+
+    // (c) Seat deadlines: AUTO-PLAY ONLY WHILE CONNECTED (Q3 pause guard — a room
+    // at connected==0 is frozen; no default actions apply, so no burn). The
+    // stale-alarm guard re-reads the table and acts only on rows due NOW; default
+    // actions go through the normal action path (same seq/idempotency/fan-out)
+    // with the deterministic 'timeout:<seat>:<seq>' actionId, so an alarm retry
+    // (at-least-once) dedups instead of double-applying.
+    for (let i = 0; mayAutoPlay(connectedSeatCount) && i < MAX_ALARM_APPLIES; i++) {
       const room = this.readRoomRow();
       if (!room || room.status !== 'playing') break;
       const due = this.ctx.storage.sql
@@ -1484,12 +1706,28 @@ export class GameRoom extends DurableObject<Env> {
     for (const s of gone) {
       this.broadcast({ v: 1, type: 'presence', seq, seat: s, connected: false });
     }
+    // A disconnect is a human-interaction event → bump the retention TTL anchor
+    // (also the anchor a lobby room's TTL keys on once its creator's tab closes).
+    const now = Date.now();
+    this.touchActivity(now);
     const room = this.readRoomRow();
     if (room && room.status === 'playing') {
+      // Q3: if this disconnect empties a playing room, PAUSE — record the offset
+      // origin (a future resume shifts frozen deadlines by the paused duration);
+      // scheduleAlarm will then omit the seat-deadline alarm (connected==0), so
+      // no auto-play burn accrues while nobody watches. Same isPausedRoom
+      // predicate as the constructor stamp — so stamp ≡ pause, and a paused room
+      // always has a non-NULL pause_started_at (invariant, pinned in the tests).
+      if (isPausedRoom(room.status, this.seatCount())) this.stampPauseStart(now);
       // Newly-disconnected expected actors pick up the disconnect-grace
       // clamp (PLAN §4 rule); other seats' rows are untouched (room-
-      // timing.md §2 presence semantics).
+      // timing.md §2 presence semantics). reconcileDeadlines re-schedules.
       await this.reconcileDeadlines(new Set(gone));
+    } else if (room) {
+      // Lobby/finished: no seat deadlines, but a presence change updates the TTL
+      // candidate — e.g. a lobby room whose creator just closed their tab is now
+      // abandoned and should arm its 48h self-purge (retention §4).
+      await this.scheduleAlarm();
     }
   }
 

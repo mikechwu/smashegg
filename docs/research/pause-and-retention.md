@@ -147,10 +147,59 @@ pause instant for a pre-Q3 room, so we treat "first wake under Q3" as the pause
 start — safe (bounded; non-exploitable, since it only applies to rooms that were
 *fully* empty at deploy, where there is no present player to dodge) and slightly
 generous (the pre-Q3 paused interval is not charged). Resume then always sees a
-non-NULL `pause_started_at`. **Named test (property + a targeted unit):** "room
-already paused at deploy time (playing, 0 sockets, `pause_started_at` NULL) →
-constructor stamps → reconnect → remaining budget sane (no NaN, no fresh clock, no
-auto-play burst, no mass immediate-timeout)."
+non-NULL `pause_started_at`. **Why "first observe" is the RIGHT boundary (not
+merely non-NULL):** it defines "paused" as the moment the new code first sees
+`connected==0`, and deliberately does NOT back-date the real disconnect. That is
+correct — the pre-Q3 interval was the *old* code auto-playing, and the frozen
+deadlines already reflect that world, so no time should be credited for it.
+
+**Pinned decision — the guard path always freezes at exactly 0 remaining (owner
+catch).** There are two ways into pause with different profiles: the normal 1→0
+(handleSocketGone) freezes whatever remained (0–45s); the constructor guard fires
+only on the deploy transition, and since a pre-Q3 room's alarm fired *because a
+deadline was due*, the frozen `due_at ≈ pause_started_at`, so remaining ≈ 0.
+Consequence: the first player to reconnect into a guard-paused room has that
+0-remaining deadline shifted to ≈now → it auto-plays ONE default action almost
+immediately. **This is intended and correct** — it manufactures no budget (the
+deadline was already due; it's exactly what the old code would have done) — but it
+is a *distinguishable* path, so the named test states it **explicitly** rather than
+letting it fall out by accident. **Do NOT add a resume floor / minimum grace to
+soften it:** a floor would re-introduce the very 0→1→0 timer-dodge the skeptic
+found (cycle a reconnect to refresh budget). Post-Q3 there is no guard-path pause
+for normally-paused rooms — the 1→0 path cancels the alarm, so no alarm ever fires
+on a 0-connected room.
+
+### 3.3 The TTL must gate on LIVE SOCKETS, not elapsed time (owner catch — Q1 interaction)
+
+Q1's edge auto-response (already live) answers pings WITHOUT waking the DO, so a
+player who creates a room and sits in the lobby waiting for family generates ZERO
+DO activity — `last_active_at` never moves. On the time axis an *occupied* lobby
+and an *abandoned* one are identical, so a purely elapsed-time TTL would
+`deleteAll()` a room someone is actively sitting in (the exact trickle-in-from-a-
+group-chat scenario; raising the 48h threshold only postpones it). Worse,
+`connectedSeats()` counts CLAIMED seats, so a lobby visitor who hasn't claimed a
+seat yet has 0 connected seats even with a live socket. **Fix:** the TTL branch
+(and its scheduleAlarm candidate) require `ctx.getWebSockets().length === 0` — the
+live SOCKET count, not the seat count — so an occupied room is never purged. The
+Q3 seat-deadline pause keeps keying on connected *seats* (it protects actors, the
+M4 semantics); only the retention TTL keys on live sockets. **INVARIANT (T3, for
+Grok's sweep): the TTL never purges a room with a live socket.**
+
+**Known limitation (accepted, recorded so nobody assumes TTL is exhaustive):**
+because T3 is unconditional, a **half-open socket** (client gone, edge still
+holds the connection) keeps a lobby room immortal — the TTL never fires. The
+consequence is trivial: a few rows in the abundant storage meter, and lobby rooms
+never auto-play, so there is no burn. Q1's `setWebSocketAutoResponse` + the
+client's onOpen resync are the mitigation for half-open detection elsewhere;
+here we deliberately prefer "never purge something that might be occupied" over
+"reclaim a few rows." If half-open lobby accumulation ever mattered, the §4
+manual script reclaims them by explicit code.
+
+**Two-questions/two-predicates, enforced by the type system:** the counts are
+BRANDED — `ConnectedSeatCount` ("is there an actor?" → pause/auto-play) and
+`LiveSocketCount` ("is anyone here?" → TTL) — so a swap at any binding site is a
+compile error, not a silent T3 death (retention.ts). The `as`-cast is confined to
+`asSeatCount`/`asLiveSocketCount` at the source; Codex audits those bindings (§7).
 
 ## 4. Retention windows (proposed, justified) — ELIGIBILITY floors
 
@@ -205,15 +254,22 @@ New/undamaged invariants, on top of room-timing.md I1–I4 / DL1–DL3:
   (lobby in lazy; any eligible in eager), and stops arming once purged — cleanup
   never becomes a burn source, and a played-out room in lazy mode arms no TTL alarm
   at all (it just persists until §4).
+- **T3 (never purge an occupied room — §3.3):** the TTL keys on
+  `ctx.getWebSockets().length === 0` (live sockets), NOT on connected seats or
+  elapsed time, so a lobby with a live-but-idle/seatless socket — which leaves no
+  `last_active_at` trace because Q1's auto-response never wakes the DO — is never
+  purged.
 
 The `deadline-liveness.property.test.ts` gains a **connected-count dimension** and
 a **wall-clock-advance/TTL dimension**: random interleavings of action / connect /
 disconnect / alarm-fire / clock-advance across all presets (incl. untimed) and
-hot-seat, asserting P1–P4 + T1–T2 after every event, and specifically the 1→0
+hot-seat, asserting P1–P4 + T1–T3 after every event, and specifically the 1→0
 freeze, the 0→1 remaining-budget conservation, "alarm never advances a paused
-room," and — the case the clean-state harness cannot generate on its own — a
-**seeded pre-paused room** (`pause_started_at` forced NULL with 0 sockets mid-play)
-that is then reconnected, asserting P4.
+room," a **live-but-seatless socket → TTL never fires** case (T3), and — the case
+the clean-state harness cannot generate on its own — a **seeded pre-paused room**
+(`pause_started_at` forced NULL with 0 sockets mid-play) that is then reconnected,
+asserting P4 **and stating explicitly that exactly one 0-remaining default action
+auto-plays on reconnect** (the guard-path pin, §3.2 — not softened by any floor).
 
 ## 6. `deleteAll()` billing — the one measured unknown (owner-assisted)
 
@@ -259,19 +315,35 @@ because it caught the first bug):
    → sane remainder, no burst**).
 2. **TTL retention** — implement §3–§4 with `RETENTION_MODE='lazy'` (auto-purge
    lobby-abandoned only; played-out via §4); extend the property test (TTL
-   dimension: T1–T2); e2e (fast-clock lobby room past a tiny test window →
+   dimension: T1–T3); e2e (fast-clock lobby room past a tiny test window →
    self-purges → GET /info → 404; a `connected>0` room never purges; a
    within-window room never purges; **a finished room in lazy mode is NOT
-   auto-purged**).
+   auto-purged**; **a genuinely SEATLESS live socket — a client that connects to a
+   lobby and never claims a seat, held past the window — is NOT purged and armed
+   no TTL alarm** [the only test that catches a mis-bound count]).
 3. **Cross-model audit** — Codex on resync/liveness continuity (the 1→0 / 0→1
-   transitions, the alarm-guard scoping, purge-vs-replay, **and the §3.2
-   deploy-transition stamp — verify no reachable NULL-offset resume**) + Grok on
-   the invariant sweep (I1–I4 / DL1–DL3 / P1–P4 / T1–T2 under pause + TTL, **and
-   whether §3.1's lazy policy ever spends the scarce meter to reclaim abundant
-   storage**). Then a live drill. Audit brief MUST call out both owner catches
-   explicitly: (a) the deploy-transition `pause_started_at`-NULL case the
-   clean-state tests miss; (b) that no time-triggered purge of an expensive room
-   runs in lazy mode.
+   transitions, the alarm-guard scoping, purge-vs-replay, **the §3.2
+   deploy-transition stamp — verify no reachable NULL-offset resume — the
+   guard-path 0-remaining reconnect behavior — verify exactly one default action
+   auto-plays and no fresh budget is manufactured — AND the ARGUMENT-BINDING SEAM:
+   the brands make swapping two branded values a compile error, so the ENTIRE
+   residual surface is the SOURCE CHOICE at the two construction accessors
+   (`seatCount()` / `socketCount()`) — audit that those two lines bind
+   seats↔`connectedSeats()` and sockets↔`getWebSockets()`, and that no other site
+   re-constructs a brand — AND the fail-safe NULL anchor/status in the purge
+   gate**) + Grok on the invariant sweep
+   (I1–I4 / DL1–DL3 / P1–P4 / T1–T3 under pause + TTL, **whether §3.1's lazy policy
+   ever spends the scarce meter to reclaim abundant storage, stamp≡pause, whether
+   any new COMMENT overstates what the code delivers (the eager-flip lesson), and
+   T3:
+   that no reachable state purges a room with a live socket**). Then a live drill.
+   Audit brief MUST call out all owner catches explicitly: (a) the deploy-transition
+   `pause_started_at`-NULL case the clean-state tests miss; (b) that no
+   time-triggered purge of an expensive room runs in lazy mode; (c) the
+   live-socket TTL gate (an idle/seatless-but-connected lobby is never purged);
+   (d) the guard-path 0-remaining pin (intended, no floor); (e) the branded-count
+   argument-binding seam; (f) the fail-safe NULL anchor (an undeterminable
+   retention anchor arms no TTL, never an immediate `deleteAll()`).
 4. **PLAN corrections folded in** — replace the false TTL claim (§4/§1.6/§8) with
    the real §3.1 mechanism (lazy: lobby-only auto-purge; played-out manual; eager
    gated on the measurement), and fix the five descriptive drifts R3 found, in one
