@@ -25,6 +25,11 @@ export interface HandFanProps {
    *  card simply lands wherever reversal puts it (never re-sorted by a
    *  second scheme). Defaults to the current ascending display. */
   descending?: boolean;
+  /** Item 4 (deal animation): how many DISPLAY slots (left to right) are
+   *  revealed so far — undealt slots keep their layout (visibility only,
+   *  so the deal overlay can measure every slot rect) but show nothing.
+   *  undefined = not dealing, everything visible. */
+  revealed?: number;
 }
 
 /** Split an index sequence into at most two balanced rows, same arithmetic
@@ -37,20 +42,33 @@ function splitIndexRows(indices: readonly number[], maxPerRow: number): number[]
   return [indices.slice(0, first), indices.slice(first)];
 }
 
-export function HandFan({ hand, level, selected, onToggle, glow, descending = false }: HandFanProps) {
+export function HandFan({
+  hand,
+  level,
+  selected,
+  onToggle,
+  glow,
+  descending = false,
+  revealed,
+}: HandFanProps) {
   const order = hand.map((_, i) => i);
   if (descending) order.reverse();
   const rows = splitIndexRows(order, MAX_PER_ROW);
+  let displayIndex = -1;
   return (
     <div className="gd-fan" role="group" aria-label={t('game.hand.label')}>
       {rows.map((row, rowIdx) => (
         <div className="gd-fan__row" key={rowIdx}>
           {row.map((i) => {
+            displayIndex++;
             const card = hand[i]!;
             const isSelected = selected.has(i);
             const classes = ['gd-fan__card'];
             if (isSelected) classes.push('gd-fan__card--selected');
             if (glow.has(card)) classes.push('gd-fan__card--glow');
+            if (revealed !== undefined && displayIndex >= revealed) {
+              classes.push('gd-fan__card--undealt');
+            }
             return (
               <button
                 key={i}

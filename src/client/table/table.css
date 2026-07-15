@@ -210,6 +210,10 @@
   font-size: 0.8125rem;
   opacity: 0.85;
 }
+.gd-cut__deck {
+  align-self: center;
+  padding: 0.25rem 0.5rem 0.5rem;
+}
 .gd-cut__slider {
   width: 100%;
   accent-color: var(--cinnabar);
@@ -640,6 +644,93 @@
 .gd-chooser__note {
   font-size: 0.75rem;
   opacity: 0.8;
+}
+
+/* --- the physical deal (item 4) ------------------------------------------- */
+.gd-deal {
+  position: absolute;
+  inset: 0;
+  z-index: 9; /* over the table, under the ceremony overlay (10) / toast (20) */
+  cursor: pointer;
+}
+.gd-deal__flights {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9;
+}
+.gd-deal__flight {
+  position: fixed;
+  margin: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+.gd-deal__backTemplate {
+  display: none;
+}
+.gd-deal__deck {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  transform: translate(-50%, -50%);
+}
+.gd-deal__marker {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+}
+.gd-deal__marker--flying {
+  opacity: 1;
+  z-index: 2;
+}
+.gd-deal__skip {
+  position: absolute;
+  bottom: 0.5rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.6875rem;
+  opacity: 0.6;
+  margin: 0;
+}
+/* Deck depth (research recipe): offset+negative-spread shadow slab pairs;
+   discrete depletion tiers ARE the animation (shadows can't interpolate
+   layer counts). Shared by the deal pile and the cut panel's pile. */
+.gd-deal__deck .gd-card,
+.gd-cut__deck .gd-card {
+  transition: box-shadow 150ms linear;
+}
+.gd-deal__deck[data-depth-tier='3'] .gd-card,
+.gd-cut__deck[data-depth-tier='3'] .gd-card {
+  box-shadow:
+    2px 2px 0 -1px var(--ivory), 2px 2px 0 0 var(--rosewood),
+    4px 4px 0 -1px var(--ivory), 4px 4px 0 0 var(--rosewood),
+    6px 6px 0 -1px var(--ivory), 6px 6px 0 0 var(--rosewood),
+    0 6px 10px rgba(0, 0, 0, 0.35);
+}
+.gd-deal__deck[data-depth-tier='2'] .gd-card {
+  box-shadow:
+    2px 2px 0 -1px var(--ivory), 2px 2px 0 0 var(--rosewood),
+    4px 4px 0 -1px var(--ivory), 4px 4px 0 0 var(--rosewood),
+    0 5px 8px rgba(0, 0, 0, 0.35);
+}
+.gd-deal__deck[data-depth-tier='1'] .gd-card {
+  box-shadow:
+    2px 2px 0 -1px var(--ivory), 2px 2px 0 0 var(--rosewood),
+    0 4px 7px rgba(0, 0, 0, 0.35);
+}
+.gd-deal__deck[data-depth-tier='0'] .gd-card {
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35);
+}
+
+/* Undealt fan slots keep their LAYOUT (the overlay measures every slot
+   rect) but show nothing until their card lands. */
+.gd-fan__card--undealt {
+  visibility: hidden;
 }
 
 /* --- overlays (ceremony / result) --------------------------------------------------- */

@@ -7,6 +7,7 @@
 import { useState } from 'react';
 import type { Seat } from '../../engine/core/game';
 import { CUT_MIN, CUT_MAX, DEFAULT_CUT_POSITION } from '../../engine/guandan';
+import { CardBack } from './CardFace';
 import { t } from '../i18n';
 
 export interface CutPanelProps {
@@ -24,6 +25,9 @@ export function CutPanel({ cutter, isCutter, nameFor, onCut }: CutPanelProps) {
     return (
       <div className="gd-cut" role="status">
         <p className="gd-cut__title">{t('game.ceremony.title')}</p>
+        <div className="gd-cut__deck" data-depth-tier="3">
+          <CardBack size="trick" />
+        </div>
         <p className="gd-well__waiting">{t('game.cut.waiting', { name: nameFor(cutter) })}</p>
       </div>
     );
@@ -32,6 +36,9 @@ export function CutPanel({ cutter, isCutter, nameFor, onCut }: CutPanelProps) {
   return (
     <div className="gd-cut">
       <p className="gd-cut__title">{t('game.ceremony.title')}</p>
+      <div className="gd-cut__deck" data-depth-tier="3">
+        <CardBack size="trick" />
+      </div>
       <p className="gd-cut__prompt">{t('game.cut.prompt')}</p>
       <input
         className="gd-cut__slider"

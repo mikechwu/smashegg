@@ -21,6 +21,7 @@ import type { RoomSnapshot, RoomStore } from './room/store';
 import { ActionBar } from './table/ActionBar';
 import { CeremonyOverlay } from './table/CeremonyOverlay';
 import { CutPanel } from './table/CutPanel';
+import { DealOverlay } from './table/DealOverlay';
 import { EventFeed, FEED_LIMIT, type FeedLine } from './table/EventFeed';
 import { HandFan } from './table/HandFan';
 import { TableHeadline } from './table/TableHeadline';
@@ -94,6 +95,10 @@ export interface SeatDerived {
   ceremony: Ceremony | null;
   level: Rank;
   sweep: number;
+  /** Item 4: bumped on every handStarted fold — each new deal plays the
+   *  physical deal animation exactly once (reconnect resyncs fold no
+   *  events, so a rejoin never replays it). */
+  dealNo: number;
 }
 
 export const EMPTY_DERIVED: SeatDerived = {
@@ -104,6 +109,7 @@ export const EMPTY_DERIVED: SeatDerived = {
   ceremony: null,
   level: '2',
   sweep: 0,
+  dealNo: 0,
 };
 
 // Exported (not just used internally) so a unit test can fold real events
@@ -128,7 +134,7 @@ export function foldEvents(
         push('game.feed.cutStarted', { name: nameFor(ev.cutter) });
         break;
       case 'handStarted':
-        d = { ...d, passed: [], jiefeng: null, anti: null, level: ev.currentLevel };
+        d = { ...d, passed: [], jiefeng: null, anti: null, level: ev.currentLevel, dealNo: d.dealNo + 1 };
         if (ev.ceremony !== undefined) d.ceremony = ev.ceremony;
         push('game.feed.handStarted', { hand: ev.handNo, rank: rankText(ev.currentLevel) });
         break;
@@ -220,6 +226,10 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
   const [chooserOpen, setChooserOpen] = useState(false);
   const [ceremonyDone, setCeremonyDone] = useState(false);
+  // Item 4: which dealNo has finished animating + how many own slots have
+  // landed so far (null = not dealing, the whole fan shows).
+  const [dealShown, setDealShown] = useState(0);
+  const [dealRevealed, setDealRevealed] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [handDescending, setHandDescending] = useState(() => readHandSortDescending());
   const toggleHandSort = () => {
@@ -351,6 +361,22 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     handNo: view.handNo,
     matchWinner: view.matchWinner,
   });
+
+  // Item 4: play the physical deal once per fold-observed deal — after the
+  // hand-1 ceremony overlay (flips/count) finishes, immediately on later
+  // hands. Purely presentational: the clock is already running (the 90s
+  // per-seat planning window absorbs the ≤4.5s animation, deal.ts).
+  const dealing =
+    derived.dealNo > dealShown && !ceremonyShowing && view.phase !== 'ceremonyCut' && view.hand.length > 0;
+  const dirFor = (seat: Seat): 'south' | 'east' | 'north' | 'west' =>
+    seat === layout.south ? 'south' : seat === layout.east ? 'east' : seat === layout.north ? 'north' : 'west';
+  const dealMarker =
+    dealing && derived.ceremony !== null && view.handNo === 1
+      ? {
+          card: derived.ceremony.flips[derived.ceremony.flips.length - 1]!,
+          targetDir: dirFor(derived.ceremony.markerSeat),
+        }
+      : null;
 
   const tributePhase = tributeKind(hints ?? []);
   const eligible = tributeEligibleCards(hints ?? []);
@@ -486,6 +512,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           }
           glow={eligible}
           descending={handDescending}
+          revealed={dealing ? (dealRevealed ?? 0) : undefined}
         />
         {view.phase !== 'ceremonyCut' && (
         <ActionBar
@@ -525,6 +552,19 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           level={view.currentLevel}
           nameFor={nameFor}
           onDone={() => setCeremonyDone(true)}
+        />
+      )}
+
+      {dealing && (
+        <DealOverlay
+          key={derived.dealNo}
+          marker={dealMarker}
+          level={view.currentLevel}
+          onOwnLanded={setDealRevealed}
+          onDone={() => {
+            setDealShown(derived.dealNo);
+            setDealRevealed(null);
+          }}
         />
       )}
 
