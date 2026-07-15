@@ -1175,12 +1175,20 @@
 /* --- desktop air (≥720px) ------------------------------------------------ */
 @media (min-width: 720px) {
   .gd-ring__table {
-    grid-template-columns: minmax(6rem, 1fr) minmax(0, 2.2fr) minmax(6rem, 1fr);
+    grid-template-columns: minmax(7rem, 1fr) minmax(0, 1.5fr) minmax(7rem, 1fr);
     grid-template-rows: auto minmax(9rem, 1fr) auto;
     gap: 0.75rem;
-    max-width: 44rem;
+    max-width: 38rem;
     margin: 0 auto;
     width: 100%;
+    /* Ground the ring as a felt table rather than elements floating in void. */
+    padding: 1rem 0.75rem;
+    border-radius: 20px;
+    background: radial-gradient(
+      ellipse 70% 60% at 50% 50%,
+      color-mix(in srgb, var(--rosewood) 26%, transparent),
+      transparent 72%
+    );
   }
   .gd-ring__seat--west .gd-plate,
   .gd-ring__seat--east .gd-plate {

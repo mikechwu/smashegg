@@ -1,9 +1,11 @@
 // <GameTable/> — the M3 Guandan table UI. The shell contract is unchanged:
 // per-seat views/hints come from the RoomSnapshot, the active-seat tab bar
 // drives multi-seat self-play (PLAN §4), and every panel renders the ACTIVE
-// seat's view. Internals: lacquer table layout (design system), LevelRail
-// signature element, HandFan selection → hint matching → ActionBar, trick
-// well / tribute panel, hand-1 draw ceremony, result overlay, event feed.
+// seat's view. Internals: the Lacquer Ledger seat RING (you bottom, partner
+// across, opponents flanking a bounded centre), a TableHeadline topbar
+// (level 打幾 / wild / whose-turn) as the signature, value-dependent seat
+// plates, HandFan selection → hint matching → ActionBar, trick well /
+// tribute panel, hand-1 draw ceremony, result overlay, event feed.
 //
 // The store keeps only each seat's LATEST event batch (view-carrying
 // events, PLAN §5) — so trick-local presentation state (pass markers,
