@@ -10,12 +10,9 @@
 // partner = a text tag, count = a length + a numeral.
 
 import type { Seat } from '../../engine/core/game';
-import { placeKey, remainingSeconds } from './helpers';
+import { handSizeTier, placeKey, remainingSeconds } from './helpers';
 import { t } from '../i18n';
 
-/** ≤ this many cards is the rule-defined 報牌 alert line — the numeral
- *  escalates here, sharper again at 1–2 (docs/research digest). */
-const ALERT_AT = 10;
 /** Mini-fan sliver cap: 2..27 must read differently, but the fan needn't grow
  *  past a phone-friendly width — the numeral carries the exact count above the
  *  cap, and every count in the danger zone (≤ cap) shows its true width. Kept
@@ -89,8 +86,9 @@ export function SeatPlate(props: SeatPlateProps) {
   // A count is shown only for a remote seat that still holds cards (no finish
   // badge) and whose count is visible; your own hand carries your count.
   const showCount = !isViewer && badge === null && cardCount !== null;
-  const low = cardCount !== null && cardCount <= ALERT_AT;
-  const critical = cardCount !== null && cardCount <= 2;
+  const tier = cardCount === null ? 'normal' : handSizeTier(cardCount);
+  const low = tier === 'low' || tier === 'critical';
+  const critical = tier === 'critical';
 
   const countClasses = ['gd-plate__count'];
   if (low) countClasses.push('gd-plate__count--low');

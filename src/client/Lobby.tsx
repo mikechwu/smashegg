@@ -7,10 +7,12 @@
 // localized disabled-reason line), and the rule-picker panel beneath.
 
 import { useEffect, useState } from 'react';
+import type { Seat } from '../engine/core/game';
 import type { RoomInfo } from '../shared/protocol';
 import type { RoomSnapshot, RoomStore } from './room/store';
 import { RulePicker } from './RulePicker';
 import { TimingPicker } from './TimingPicker';
+import { seatLayout } from './table/helpers';
 import { roomHash } from './router';
 import { t } from './i18n';
 
@@ -70,6 +72,69 @@ export function Lobby({ snapshot, store }: LobbyProps) {
     }
   };
 
+  // Ring layout: anchor the viewer's first held seat at the bottom (south),
+  // partner across the top (north), opponents left/right — the SAME seatLayout
+  // convention as the table, so partnership reads identically in the lobby and
+  // in play (§2). With no seat held yet, seat 1 anchors the bottom and the ring
+  // still shows the team structure spatially (1&3 across, 2&4 across).
+  const anchor: Seat = [...snapshot.seats.keys()].sort((a, b) => a - b)[0] ?? 0;
+  const ring = seatLayout(anchor);
+
+  const seatCell = (s: Seat) => {
+    const seat = room.seats.find((x) => x.seat === s);
+    if (seat === undefined) return null;
+    const isYou = snapshot.seats.has(s);
+    const isPartner = holdsSeat && s === ring.north && !isYou;
+    return (
+      <div className={seat.claimed ? 'lobby-seat' : 'lobby-seat lobby-seat--empty'}>
+        <span className="lobby-seat__label">{t('lobby.seatLabel', { seat: s + 1 })}</span>
+        {seat.claimed ? (
+          <span className="lobby-seat__row">
+            <span
+              className={
+                seat.connected
+                  ? 'lobby-seat__dot lobby-seat__dot--on'
+                  : 'lobby-seat__dot lobby-seat__dot--off'
+              }
+              role="img"
+              aria-label={seat.connected ? t('lobby.seatConnected') : t('lobby.seatDisconnected')}
+            />
+            <span className="lobby-seat__name">{seat.name ?? ''}</span>
+            {isYou && <span className="lobby-seat__you">{t('lobby.seatYou')}</span>}
+            {isPartner && <span className="lobby-seat__partner">{t('game.seat.partner')}</span>}
+          </span>
+        ) : s === firstEmptySeat ? (
+          // The claim flow lives inside the first empty seat; it disappears
+          // entirely once every seat is claimed.
+          <form
+            className="lobby-claim"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!canClaim) return;
+              store.claim(name.trim());
+            }}
+          >
+            <label>
+              {t('lobby.nameLabel')}
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder={t('lobby.namePlaceholder')}
+                maxLength={32}
+              />
+            </label>
+            <button type="submit" disabled={!canClaim}>
+              {t('lobby.claimButton')}
+            </button>
+          </form>
+        ) : (
+          <span className="lobby-seat__empty">{t('lobby.seatEmpty')}</span>
+        )}
+      </div>
+    );
+  };
+
   return (
     <section className="lobby">
       <h2 className="lobby-heading">{t('lobby.heading')}</h2>
@@ -99,64 +164,13 @@ export function Lobby({ snapshot, store }: LobbyProps) {
         </p>
       </div>
 
-      <ul className="lobby-seats">
-        {room.seats.map((seat) => (
-          <li
-            key={seat.seat}
-            className={seat.claimed ? 'lobby-seat' : 'lobby-seat lobby-seat--empty'}
-          >
-            <span className="lobby-seat__label">
-              {t('lobby.seatLabel', { seat: seat.seat + 1 })}
-            </span>
-            {seat.claimed ? (
-              <span className="lobby-seat__row">
-                <span
-                  className={
-                    seat.connected
-                      ? 'lobby-seat__dot lobby-seat__dot--on'
-                      : 'lobby-seat__dot lobby-seat__dot--off'
-                  }
-                  role="img"
-                  aria-label={
-                    seat.connected ? t('lobby.seatConnected') : t('lobby.seatDisconnected')
-                  }
-                />
-                <span className="lobby-seat__name">{seat.name ?? ''}</span>
-                {snapshot.seats.has(seat.seat) && (
-                  <span className="lobby-seat__you">{t('lobby.seatYou')}</span>
-                )}
-              </span>
-            ) : seat.seat === firstEmptySeat ? (
-              // The claim flow lives inside the first empty plate; it
-              // disappears entirely once every seat is claimed.
-              <form
-                className="lobby-claim"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!canClaim) return;
-                  store.claim(name.trim());
-                }}
-              >
-                <label>
-                  {t('lobby.nameLabel')}
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder={t('lobby.namePlaceholder')}
-                    maxLength={32}
-                  />
-                </label>
-                <button type="submit" disabled={!canClaim}>
-                  {t('lobby.claimButton')}
-                </button>
-              </form>
-            ) : (
-              <span className="lobby-seat__empty">{t('lobby.seatEmpty')}</span>
-            )}
-          </li>
-        ))}
-      </ul>
+      <div className="lobby-ring" role="group" aria-label={t('lobby.heading')}>
+        <div className="lobby-ring__seat lobby-ring__seat--north">{seatCell(ring.north)}</div>
+        <div className="lobby-ring__seat lobby-ring__seat--west">{seatCell(ring.west)}</div>
+        <div className="lobby-ring__center" aria-hidden="true" />
+        <div className="lobby-ring__seat lobby-ring__seat--east">{seatCell(ring.east)}</div>
+        <div className="lobby-ring__seat lobby-ring__seat--south">{seatCell(ring.south)}</div>
+      </div>
 
       <button
         type="button"

@@ -396,6 +396,54 @@ a {
   opacity: 0.55;
   font-size: 0.875rem;
 }
+.lobby-seat__partner {
+  background: rgba(245, 239, 227, 0.14);
+  color: var(--ivory);
+  border: 1px solid rgba(245, 239, 227, 0.4);
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  padding: 0 0.3125rem;
+}
+
+/* --- lobby ring (pre-M5 §2): partners across the table, as in play ------- */
+.lobby-ring {
+  display: grid;
+  grid-template-columns: minmax(8.5rem, 1fr) minmax(1.5rem, 0.5fr) minmax(8.5rem, 1fr);
+  grid-template-areas:
+    '.    north  .'
+    'west center east'
+    '.    south  .';
+  gap: 0.5rem;
+  align-items: stretch;
+  margin: 0 0 1rem;
+}
+.lobby-ring__seat {
+  display: flex;
+}
+.lobby-ring__seat > .lobby-seat {
+  flex: 1;
+  margin: 0;
+}
+.lobby-ring__seat--north {
+  grid-area: north;
+}
+.lobby-ring__seat--west {
+  grid-area: west;
+}
+.lobby-ring__seat--east {
+  grid-area: east;
+}
+.lobby-ring__seat--south {
+  grid-area: south;
+}
+.lobby-ring__center {
+  grid-area: center;
+  align-self: center;
+  min-height: 3rem;
+  border-radius: 50%;
+  border: 1px dashed rgba(245, 239, 227, 0.2);
+  background: color-mix(in srgb, var(--rosewood) 25%, transparent);
+}
 
 .lobby-claim {
   display: flex;

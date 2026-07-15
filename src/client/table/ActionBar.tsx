@@ -24,6 +24,7 @@ import { useEffect, useState } from 'react';
 import type { GuandanAction } from '../../engine/guandan/types';
 import { rankOf, suitOf, type Rank } from '../../engine/guandan/cards';
 import {
+  beatState,
   comboKey,
   declRunText,
   rankText,
@@ -162,8 +163,9 @@ export function ActionBar(props: ActionBarProps) {
   // — with a non-empty selection the primary action can never silently do
   // nothing, and 過 keeps its own two-tap confirm below.
   const playableCount = matches.reduce((n, m) => n + (m.playable ? 1 : 0), 0);
-  const canBeat = hints.some((h) => h.type === 'play');
-  const cannotBeat = passAvailable && !canBeat;
+  const beat = beatState(hints, passAvailable);
+  const canBeat = beat === 'canBeat';
+  const cannotBeat = beat === 'cannotBeat';
   const showNoMatch = selectionCount > 0 && playableCount === 0;
   const reason = cannotBeat
     ? t('game.action.cannotBeat')
