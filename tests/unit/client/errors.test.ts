@@ -9,12 +9,13 @@ import { describeError } from '../../../src/client/errors';
 import { getLocale, setLocale, t } from '../../../src/client/i18n';
 import type { Locale } from '../../../src/client/config';
 
-// Every WireError.code the server can put on the wire (grepped from
-// src/server, 2026-07-15). The no-leak assertion holds for ALL of them — an
-// unmapped code still falls to error.generic (human, never a code). Separately,
-// GENERIC_OK below lists the codes that are ALLOWED to be generic (unexpected /
-// internal); every OTHER code must get DEDICATED copy, so a new user-actionable
-// code with no mapping fails the dedicated-copy test (that is the real ratchet).
+// The COMPLETE Guandan-reachable RuleError inventory (grepped from src/engine +
+// src/server, 2026-07-15; guess-number's guess.* excluded — never rendered by
+// this Guandan client). Leak-safety is STRUCTURAL: describeError's fallback is a
+// static human key, so it can never return the input code — a leak is impossible
+// for ANY code, listed or not (the forged-code test proves it). This list makes
+// that concrete AND asserts DEDICATED copy for every non-GENERIC_OK code, so a
+// new user-actionable code without a mapping fails the dedicated-copy test.
 const SERVER_CODES: readonly string[] = [
   'action.notYourTurn',
   'action.wrongPhase',
@@ -38,6 +39,17 @@ const SERVER_CODES: readonly string[] = [
   'timing.invalid',
   'action.applyThrew',
   'action.reservedActionId',
+  'action.invalidSeat',
+  'action.unknownType',
+  'tribute.alreadyCommitted',
+  'tribute.alreadyPaid',
+  'tribute.alreadyReturned',
+  'tribute.noPairingForSeat',
+  'tribute.notAPayer',
+  'tribute.notAReceiver',
+  'tribute.notPaidYet',
+  'config.invalidSuddenDeath',
+  'config.notImplemented',
   'protocol.malformed',
   'protocol.missingActionId',
   'protocol.tooLarge',
@@ -48,9 +60,25 @@ const SERVER_CODES: readonly string[] = [
 
 const LOCALES: readonly Locale[] = ['zh-Hant', 'zh-Hans', 'en'];
 
-// Codes allowed to fall to the generic human line — unexpected / internal, not
-// user-actionable. Every OTHER server code must map to dedicated copy.
-const GENERIC_OK = new Set(['action.applyThrew', 'action.reservedActionId']);
+// Codes allowed to fall to the generic human line — unexpected/internal (forged
+// or engine-threw) and rare double-submit / wrong-role tribute edges the UI
+// prevents. "Try again" is the right copy for these; every OTHER emitted code
+// must map to dedicated copy. (config.* / protocol.* get dedicated copy via the
+// prefix rules; guess.* codes belong to the guess-number dummy game and never
+// reach this Guandan client, so they are out of scope.)
+const GENERIC_OK = new Set([
+  'action.applyThrew',
+  'action.reservedActionId',
+  'action.invalidSeat',
+  'action.unknownType',
+  'tribute.alreadyCommitted',
+  'tribute.alreadyPaid',
+  'tribute.alreadyReturned',
+  'tribute.noPairingForSeat',
+  'tribute.notAPayer',
+  'tribute.notAReceiver',
+  'tribute.notPaidYet',
+]);
 
 describe('describeError — F3: never leak a raw code', () => {
   const original = getLocale();
@@ -70,12 +98,14 @@ describe('describeError — F3: never leak a raw code', () => {
     });
   }
 
-  it('an unknown code falls back to the generic human line, not the code', () => {
+  it('leak-safe by construction: ANY forged/future code → generic human, never the code', () => {
     setLocale('en');
-    const msg = describeError('brand.new.unmapped.code');
-    expect(msg).toBe(t('error.generic'));
-    expect(msg).not.toContain('brand');
-    expect(msg).not.toContain('unmapped');
+    const generic = t('error.generic');
+    for (const code of ['brand.new.unmapped.code', 'engine.someFutureError', 'FORGEDCODE']) {
+      const msg = describeError(code);
+      expect(msg).toBe(generic); // static human key — no path returns the input
+      expect(msg).not.toContain(code);
+    }
   });
 
   it('known room/lobby codes get DEDICATED copy (not the generic fallback)', () => {
