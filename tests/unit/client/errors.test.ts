@@ -36,6 +36,7 @@ const SERVER_CODES: readonly string[] = [
   'room.notFound',
   'lobby.invalidName',
   'seat.notHeld',
+  'seat.taken',
   'timing.invalid',
   'action.applyThrew',
   'action.reservedActionId',

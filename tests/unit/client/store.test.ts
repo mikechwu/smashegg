@@ -259,6 +259,8 @@ describe('RoomStore reducer', () => {
   it('any action clears a stale rejection — it reports the LAST attempt (F3)', () => {
     const noop: RoomSender = {
       claimSeat: () => {},
+      releaseSeat: () => {},
+      renameSeat: () => {},
       setConfig: () => {},
       setTiming: () => {},
       start: () => {},
@@ -282,6 +284,42 @@ describe('RoomStore reducer', () => {
     store.dispatch({ v: 1, type: 'started', seq: 2 });
     expect(store.getSnapshot().rejections).toHaveLength(0);
     expect(store.getSnapshot().room?.status).toBe('playing');
+  });
+
+  // --- item 1: seat release — the client side of the token-invalidation line
+
+  it('seatReleased prunes our credential + per-seat data and un-claims the roster seat (item 1)', () => {
+    const store = new RoomStore(CODE, fakeStorage());
+    store.dispatch(welcome([], roomInfo()));
+    store.dispatch(seatClaimedOwn(1, 'mike', 'tok-1', 1));
+    expect(store.getSnapshot().seats.has(1)).toBe(true);
+    store.dispatch({ v: 1, type: 'seatReleased', seq: 3, seat: 1 });
+    const snap = store.getSnapshot();
+    expect(snap.seats.has(1)).toBe(false);
+    expect(snap.perSeat.has(1)).toBe(false);
+    expect(snap.room?.seats[1]).toMatchObject({ claimed: false, name: null, connected: false });
+    expect(snap.seq).toBe(3);
+  });
+
+  it("seatReleased for ANOTHER player's seat leaves our credentials untouched", () => {
+    const store = new RoomStore(CODE, fakeStorage());
+    store.dispatch(welcome([], roomInfo()));
+    store.dispatch(seatClaimedOwn(0, 'me', 'tok-a', 1));
+    store.dispatch(seatClaimedOther(2, 'ana', 2));
+    store.dispatch({ v: 1, type: 'seatReleased', seq: 3, seat: 2 });
+    const snap = store.getSnapshot();
+    expect(snap.seats.has(0)).toBe(true);
+    expect(snap.room?.seats[2]).toMatchObject({ claimed: false });
+  });
+
+  it('seatReleased persists the prune — a tab reload must NOT resurrect a dead token (item 1)', () => {
+    const storage = fakeStorage();
+    const store = new RoomStore(CODE, storage);
+    store.dispatch(welcome([], roomInfo()));
+    store.dispatch(seatClaimedOwn(1, 'mike', 'tok-1', 1));
+    store.dispatch({ v: 1, type: 'seatReleased', seq: 2, seat: 1 });
+    const reloaded = new RoomStore(CODE, storage);
+    expect(reloaded.heldTokens()).toEqual([]);
   });
 
   it('seq is monotonic: a late lower-seq message never regresses the cursor', () => {
@@ -369,6 +407,8 @@ describe('RoomStore actions delegate to the bound sender', () => {
     const calls: unknown[][] = [];
     const sender: RoomSender = {
       claimSeat: (...a) => calls.push(['claimSeat', ...a]),
+      releaseSeat: (...a) => calls.push(['releaseSeat', ...a]),
+      renameSeat: (...a) => calls.push(['renameSeat', ...a]),
       setConfig: (...a) => calls.push(['setConfig', ...a]),
       setTiming: (...a) => calls.push(['setTiming', ...a]),
       start: () => calls.push(['start']),
@@ -377,12 +417,18 @@ describe('RoomStore actions delegate to the bound sender', () => {
     const store = new RoomStore(CODE, fakeStorage());
     store.bindSender(sender);
     store.claim('mike');
+    store.claim('mike', 2); // choose-your-seat rides the same sender (item 1)
+    store.release(2);
+    store.rename(2, 'ana');
     store.setConfig({ x: 1 });
     store.setTiming({ perTurnMs: 20_000, planningMs: 45_000 });
     store.start();
     store.act(2, { type: 'pass' });
     expect(calls).toEqual([
-      ['claimSeat', 'mike'],
+      ['claimSeat', 'mike', undefined],
+      ['claimSeat', 'mike', 2],
+      ['releaseSeat', 2],
+      ['renameSeat', 2, 'ana'],
       ['setConfig', { x: 1 }],
       ['setTiming', { perTurnMs: 20_000, planningMs: 45_000 }],
       ['start'],

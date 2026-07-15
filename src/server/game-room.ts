@@ -910,6 +910,10 @@ export class GameRoom extends DurableObject<Env> {
         return this.handleHelloMsg(ws, room, msg);
       case 'claimSeat':
         return this.handleClaimSeat(ws, room, msg);
+      case 'releaseSeat':
+        return this.handleReleaseSeat(ws, room, msg);
+      case 'renameSeat':
+        return this.handleRenameSeat(ws, room, msg);
       case 'setConfig':
         return this.handleSetConfig(ws, room, msg);
       case 'setTiming':
@@ -1126,13 +1130,25 @@ export class GameRoom extends DurableObject<Env> {
     const game = this.gameFor(room);
     const claimed = new Set(this.readSeatRows().map((r) => r.seat));
     let seat: Seat | null = null;
-    for (let i = 0; i < game.maxSeats; i++) {
-      if (!claimed.has(i)) {
-        seat = i;
-        break;
+    if (msg.seat !== undefined) {
+      // Choose-your-seat (item 1): claim a SPECIFIC empty seat. The DO
+      // serialises messages, so a stale pick (someone sat down first) is a
+      // pure ordering outcome — rejected with its own code so the UI can say
+      // exactly what happened.
+      if (!Number.isInteger(msg.seat) || msg.seat < 0 || msg.seat >= game.maxSeats) {
+        return reject(wireError('protocol.malformed'));
       }
+      if (claimed.has(msg.seat)) return reject(wireError('seat.taken'));
+      seat = msg.seat;
+    } else {
+      for (let i = 0; i < game.maxSeats; i++) {
+        if (!claimed.has(i)) {
+          seat = i;
+          break;
+        }
+      }
+      if (seat === null) return reject(wireError('room.full'));
     }
-    if (seat === null) return reject(wireError('room.full'));
 
     // Mint the seat token: 32 random bytes → hex; only its SHA-256 hash is
     // ever persisted, and the raw token is NEVER logged (PLAN §8).
@@ -1170,6 +1186,107 @@ export class GameRoom extends DurableObject<Env> {
       actionId: null,
       seat,
       actionType: 'claimSeat',
+      outcome: 'applied',
+    });
+  }
+
+  /** Release a held seat (item 1). THE HARD LINE, enforced at the source:
+   *  releasing INVALIDATES the seat's token by deleting its row — authority
+   *  is resolved by token-hash lookup (hello) and by the held-seats delivery
+   *  map (fan-out/actions), so the row delete kills every holder's authority
+   *  and the map purge below kills every holder's delivery, multi-tab
+   *  included. The next claim mints a fresh token; the stale one matches
+   *  nothing. Lobby-only: mid-match a seat owns a dealt hand — leaving is
+   *  modelled by the disconnect machinery, never by un-seating. */
+  private handleReleaseSeat(
+    ws: WebSocket,
+    room: RoomRow,
+    msg: Extract<ClientMessage, { type: 'releaseSeat' }>,
+  ): void {
+    const reject = (error: WireError): void => {
+      this.sendRejected(ws, error);
+      logMutation({
+        room: room.code,
+        seq: this.currentSeq(),
+        actionId: null,
+        seat: typeof msg.seat === 'number' ? msg.seat : null,
+        actionType: 'releaseSeat',
+        outcome: 'rejected',
+        error: error.code,
+      });
+    };
+
+    if (room.status !== 'lobby') return reject(wireError('room.notLobby'));
+    const seat = msg.seat;
+    if (!Number.isInteger(seat) || seat < 0) return reject(wireError('protocol.malformed'));
+    if (!this.heldSeats(ws).has(seat)) return reject(wireError('seat.notHeld'));
+
+    // Invalidate: the row (and its token hash) is gone; a later hello
+    // presenting the stale token finds no matching row and is granted
+    // nothing.
+    this.ctx.storage.sql.exec('DELETE FROM seats WHERE seat = ?', seat);
+
+    const seq = this.bumpSeq();
+    this.touchActivity(Date.now());
+
+    // Purge the seat from EVERY socket's delivery map (not just the
+    // sender): per-seat event/resync fan-out iterates held seats, so after
+    // this no socket can receive the seat's view until a fresh claim.
+    for (const sock of this.sessions.keys()) {
+      const held = this.heldSeats(sock);
+      if (held.delete(seat)) this.setSeats(sock, held);
+    }
+
+    this.broadcast({ v: 1, type: 'seatReleased', seq, seat });
+    this.broadcast({ v: 1, type: 'roomChanged', seq, room: this.buildRoomInfo(room) });
+    logMutation({
+      room: room.code,
+      seq,
+      actionId: null,
+      seat,
+      actionType: 'releaseSeat',
+      outcome: 'applied',
+    });
+  }
+
+  /** Rename a held seat (item 1). Allowed ANYTIME (lobby + in-game): names
+   *  are cosmetic — they live only in the seats row / RoomInfo, the engine
+   *  never sees them, and feed lines capture names at fold time (old lines
+   *  keep the old name, like a chat log). Same validation as claim. */
+  private handleRenameSeat(
+    ws: WebSocket,
+    room: RoomRow,
+    msg: Extract<ClientMessage, { type: 'renameSeat' }>,
+  ): void {
+    const reject = (error: WireError): void => {
+      this.sendRejected(ws, error);
+      logMutation({
+        room: room.code,
+        seq: this.currentSeq(),
+        actionId: null,
+        seat: typeof msg.seat === 'number' ? msg.seat : null,
+        actionType: 'renameSeat',
+        outcome: 'rejected',
+        error: error.code,
+      });
+    };
+
+    const seat = msg.seat;
+    if (!Number.isInteger(seat) || seat < 0) return reject(wireError('protocol.malformed'));
+    if (!this.heldSeats(ws).has(seat)) return reject(wireError('seat.notHeld'));
+    const name = typeof msg.name === 'string' ? msg.name.trim().slice(0, MAX_NAME_LENGTH) : '';
+    if (name.length === 0) return reject(wireError('lobby.invalidName'));
+
+    this.ctx.storage.sql.exec('UPDATE seats SET name = ? WHERE seat = ?', name, seat);
+    const seq = this.bumpSeq();
+    this.touchActivity(Date.now());
+    this.broadcast({ v: 1, type: 'roomChanged', seq, room: this.buildRoomInfo(room) });
+    logMutation({
+      room: room.code,
+      seq,
+      actionId: null,
+      seat,
+      actionType: 'renameSeat',
       outcome: 'applied',
     });
   }

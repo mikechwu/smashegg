@@ -92,8 +92,20 @@ export class RoomConnection {
 
   // --- RoomSender (the store's transport interface) ------------------------
 
-  claimSeat(name: string): void {
-    this.sendMsg({ v: 1, type: 'claimSeat', name });
+  claimSeat(name: string, seat?: Seat): void {
+    this.sendMsg(
+      seat === undefined
+        ? { v: 1, type: 'claimSeat', name }
+        : { v: 1, type: 'claimSeat', name, seat },
+    );
+  }
+
+  releaseSeat(seat: Seat): void {
+    this.sendMsg({ v: 1, type: 'releaseSeat', seat });
+  }
+
+  renameSeat(seat: Seat, name: string): void {
+    this.sendMsg({ v: 1, type: 'renameSeat', seat, name });
   }
 
   setConfig(config: unknown): void {

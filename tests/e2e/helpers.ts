@@ -381,8 +381,20 @@ export class WsClient {
     this.ws.send('ping');
   }
 
-  claimSeat(name: string): void {
-    this.sendMsg({ v: 1, type: 'claimSeat', name });
+  claimSeat(name: string, seat?: number): void {
+    this.sendMsg(
+      seat === undefined
+        ? { v: 1, type: 'claimSeat', name }
+        : { v: 1, type: 'claimSeat', name, seat },
+    );
+  }
+
+  releaseSeat(seat: Seat): void {
+    this.sendMsg({ v: 1, type: 'releaseSeat', seat });
+  }
+
+  renameSeat(seat: Seat, name: string): void {
+    this.sendMsg({ v: 1, type: 'renameSeat', seat, name });
   }
 
   setConfig(config: unknown): void {
@@ -432,11 +444,16 @@ export async function connectAndWelcome(
   return { client, welcome };
 }
 
-/** Claim the next free seat and return {seat, token}. The claimer's own
- *  copy of seatClaimed is the one carrying the minted token. */
-export async function claimSeat(client: WsClient, name: string): Promise<{ seat: Seat; token: string }> {
+/** Claim the next free seat (or a SPECIFIC one — item 1 choose-your-seat)
+ *  and return {seat, token}. The claimer's own copy of seatClaimed is the
+ *  one carrying the minted token. */
+export async function claimSeat(
+  client: WsClient,
+  name: string,
+  seat?: number,
+): Promise<{ seat: Seat; token: string }> {
   const mark = client.mark();
-  client.claimSeat(name);
+  client.claimSeat(name, seat);
   const claimed = await client.waitFor<SeatClaimedMsg>(
     (m) => m.type === 'seatClaimed' && m.token !== undefined,
     { from: mark },

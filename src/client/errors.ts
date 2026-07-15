@@ -34,6 +34,7 @@ const MESSAGE_KEY: Record<string, TranslationKey> = {
   'room.full': 'error.roomFull',
   'room.notEnoughSeats': 'error.notEnoughSeats',
   'lobby.invalidName': 'error.invalidName',
+  'seat.taken': 'error.seatTaken',
   'seat.notHeld': 'error.seatNotHeld',
   'timing.invalid': 'error.timingInvalid',
   // The WS hello path can reject with room.notFound; reuse the existing

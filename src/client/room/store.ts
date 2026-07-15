@@ -59,7 +59,9 @@ export interface RoomSnapshot {
  *  tests substitute a recorder. Kept minimal so the store never touches a
  *  socket (or actionIds — the connection owns idempotency, PLAN §5). */
 export interface RoomSender {
-  claimSeat(name: string): void;
+  claimSeat(name: string, seat?: Seat): void;
+  releaseSeat(seat: Seat): void;
+  renameSeat(seat: Seat, name: string): void;
   setConfig(config: unknown): void;
   setTiming(timing: RoomTiming): void;
   start(): void;
@@ -174,9 +176,21 @@ export class RoomStore {
     this.commit({ ...this.state, rejections: [] });
   }
 
-  claim(name: string): void {
+  claim(name: string, seat?: Seat): void {
     this.clearRejections();
-    this.sender?.claimSeat(name);
+    this.sender?.claimSeat(name, seat);
+  }
+
+  /** Release a held seat (item 1) — the server invalidates its token; our
+   *  credential is dropped when the seatReleased broadcast arrives. */
+  release(seat: Seat): void {
+    this.clearRejections();
+    this.sender?.releaseSeat(seat);
+  }
+
+  rename(seat: Seat, name: string): void {
+    this.clearRejections();
+    this.sender?.renameSeat(seat, name);
   }
 
   setConfig(config: unknown): void {
@@ -311,6 +325,34 @@ export class RoomStore {
         this.commit({
           ...prev,
           room: patchSeat(prev.room, msg.seat, { connected: msg.connected }),
+          seq,
+        });
+        this.persist();
+        return;
+      }
+
+      case 'seatReleased': {
+        // The seat's token is now DEAD at the source (row-level invalidation,
+        // item 1) — drop our credential if we held it (keeping it would only
+        // present a dead token at the next hello) and clear the seat's game
+        // data; the roster shows the seat unclaimed until a fresh claim.
+        let seats = prev.seats;
+        if (seats.has(msg.seat)) {
+          const nextSeats = new Map(prev.seats);
+          nextSeats.delete(msg.seat);
+          seats = nextSeats;
+        }
+        let perSeat = prev.perSeat;
+        if (perSeat.has(msg.seat)) {
+          const nextPerSeat = new Map(prev.perSeat);
+          nextPerSeat.delete(msg.seat);
+          perSeat = nextPerSeat;
+        }
+        this.commit({
+          ...prev,
+          seats,
+          perSeat,
+          room: patchSeat(prev.room, msg.seat, { claimed: false, name: null, connected: false }),
           seq,
         });
         this.persist();

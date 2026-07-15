@@ -35,6 +35,9 @@ type CopyState = 'idle' | 'copied' | 'failed';
 export function Lobby({ snapshot, store }: LobbyProps) {
   const [name, setName] = useState('');
   const [copyState, setCopyState] = useState<CopyState>('idle');
+  // Inline rename (item 1): which of MY seats has its rename form open.
+  const [renamingSeat, setRenamingSeat] = useState<Seat | null>(null);
+  const [renameValue, setRenameValue] = useState('');
   const room = snapshot.room as RoomInfo; // RoomPage only renders Lobby with a room
 
   useEffect(() => {
@@ -89,29 +92,72 @@ export function Lobby({ snapshot, store }: LobbyProps) {
       <div className={seat.claimed ? 'lobby-seat' : 'lobby-seat lobby-seat--empty'}>
         <span className="lobby-seat__label">{t('lobby.seatLabel', { seat: s + 1 })}</span>
         {seat.claimed ? (
-          <span className="lobby-seat__row">
-            <span
-              className={
-                seat.connected
-                  ? 'lobby-seat__dot lobby-seat__dot--on'
-                  : 'lobby-seat__dot lobby-seat__dot--off'
-              }
-              role="img"
-              aria-label={seat.connected ? t('lobby.seatConnected') : t('lobby.seatDisconnected')}
-            />
-            <span className="lobby-seat__name">{seat.name ?? ''}</span>
-            {isYou && <span className="lobby-seat__you">{t('lobby.seatYou')}</span>}
-            {isPartner && <span className="lobby-seat__partner">{t('game.seat.partner')}</span>}
-          </span>
+          <>
+            <span className="lobby-seat__row">
+              <span
+                className={
+                  seat.connected
+                    ? 'lobby-seat__dot lobby-seat__dot--on'
+                    : 'lobby-seat__dot lobby-seat__dot--off'
+                }
+                role="img"
+                aria-label={seat.connected ? t('lobby.seatConnected') : t('lobby.seatDisconnected')}
+              />
+              <span className="lobby-seat__name">{seat.name ?? ''}</span>
+              {isYou && <span className="lobby-seat__you">{t('lobby.seatYou')}</span>}
+              {isPartner && <span className="lobby-seat__partner">{t('game.seat.partner')}</span>}
+            </span>
+            {isYou && renamingSeat === s && (
+              <form
+                className="lobby-claim"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const v = renameValue.trim();
+                  if (v.length === 0) return;
+                  store.rename(s, v);
+                  setRenamingSeat(null);
+                }}
+              >
+                <input
+                  type="text"
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  maxLength={32}
+                  aria-label={t('lobby.nameLabel')}
+                />
+                <button type="submit" disabled={renameValue.trim().length === 0}>
+                  {t('lobby.renameSave')}
+                </button>
+              </form>
+            )}
+            {isYou && (
+              <span className="lobby-seat__controls">
+                <button
+                  type="button"
+                  className="lobby-seat__ctl"
+                  onClick={() => {
+                    setRenamingSeat(renamingSeat === s ? null : s);
+                    setRenameValue(seat.name ?? '');
+                  }}
+                >
+                  {t('lobby.rename')}
+                </button>
+                <button type="button" className="lobby-seat__ctl" onClick={() => store.release(s)}>
+                  {t('lobby.leaveSeat')}
+                </button>
+              </span>
+            )}
+          </>
         ) : s === firstEmptySeat ? (
-          // The claim flow lives inside the first empty seat; it disappears
-          // entirely once every seat is claimed.
+          // The full claim flow (name input) lives in the first empty seat;
+          // it claims THIS seat explicitly, so what you click is where you
+          // sit (item 1 choose-your-seat).
           <form
             className="lobby-claim"
             onSubmit={(e) => {
               e.preventDefault();
               if (!canClaim) return;
-              store.claim(name.trim());
+              store.claim(name.trim(), s);
             }}
           >
             <label>
@@ -129,7 +175,19 @@ export function Lobby({ snapshot, store }: LobbyProps) {
             </button>
           </form>
         ) : (
-          <span className="lobby-seat__empty">{t('lobby.seatEmpty')}</span>
+          // Any other empty seat is claimable directly with the name typed
+          // in the form — sit exactly where you want (item 1).
+          <span className="lobby-seat__row">
+            <span className="lobby-seat__empty">{t('lobby.seatEmpty')}</span>
+            <button
+              type="button"
+              className="lobby-seat__ctl"
+              disabled={!canClaim}
+              onClick={() => store.claim(name.trim(), s)}
+            >
+              {t('lobby.claimButton')}
+            </button>
+          </span>
         )}
       </div>
     );

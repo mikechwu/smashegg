@@ -405,6 +405,29 @@ a {
   padding: 0 0.3125rem;
 }
 
+/* item 1: quiet per-seat controls (rename / leave / sit-here) */
+.lobby-seat__controls {
+  display: flex;
+  gap: 0.375rem;
+}
+.lobby-seat__ctl {
+  background: none;
+  border: 1px solid rgba(245, 239, 227, 0.35);
+  border-radius: 999px;
+  color: var(--ivory);
+  font-family: inherit;
+  font-size: 0.75rem;
+  padding: 0.125rem 0.6rem;
+  cursor: pointer;
+}
+.lobby-seat__ctl:hover:not(:disabled) {
+  background: rgba(245, 239, 227, 0.1);
+}
+.lobby-seat__ctl:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 /* --- lobby ring (pre-M5 §2): partners across the table, as in play ------- */
 .lobby-ring {
   display: grid;

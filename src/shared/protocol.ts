@@ -58,7 +58,32 @@ export type ClientMessage =
       tokens: string[];
       lastSeenSeq: number;
     }
-  | { v: 1; type: 'claimSeat'; name: string } // lobby only; mints that seat's token
+  | {
+      v: 1;
+      type: 'claimSeat';
+      name: string;
+      /** Choose-your-seat (design-refinement item 1): claim THIS empty seat.
+       *  Omitted = first free seat (the pre-item-1 behavior, so old clients
+       *  stay compatible). A stale pick — someone sat down first — rejects
+       *  with seat.taken; the DO serialises, so the race is pure ordering. */
+      seat?: number;
+    } // lobby only; mints that seat's token
+  | {
+      v: 1;
+      type: 'releaseSeat';
+      /** Lobby-only, holder-only (item 1). Releasing INVALIDATES the seat's
+       *  token at the row level (the redaction hard line): every holder
+       *  loses authority and delivery; the next claim mints a fresh token. */
+      seat: Seat;
+    }
+  | {
+      v: 1;
+      type: 'renameSeat';
+      /** Anytime, holder-only (item 1). Cosmetic: names live only in the
+       *  roster (seats row / RoomInfo); the engine never sees them. */
+      seat: Seat;
+      name: string;
+    }
   | { v: 1; type: 'setConfig'; config: unknown } // lobby only; any seated player
   | { v: 1; type: 'setTiming'; timing: RoomTiming } // lobby only; any seated player
   | { v: 1; type: 'start' } // lobby only; any seated player, all seats claimed
@@ -161,6 +186,10 @@ export type ServerMessage =
       deadlines?: WireDeadline[];
     }
   | { v: 1; type: 'presence'; seq: number; seat: Seat; connected: boolean }
+  /** A seat was released (item 1): its token is DEAD at the source. Clients
+   *  holding a credential for it must drop it; the roster (also re-broadcast
+   *  as roomChanged) shows the seat unclaimed. */
+  | { v: 1; type: 'seatReleased'; seq: number; seat: Seat }
   | { v: 1; type: 'rejected'; seq: number; actionId?: string; error: WireError };
 
 export const PROTOCOL_VERSION = 1 as const;
