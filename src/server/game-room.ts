@@ -1476,9 +1476,14 @@ export class GameRoom extends DurableObject<Env> {
    *  (lazy: lobby only); (c) the M0 hello probe. */
   private async scheduleAlarm(): Promise<void> {
     const candidates: number[] = [];
-    const connectedCount = this.connectedSeats().size;
+    // Seat deadlines key on connected SEATS (the actors to protect — M4); the
+    // TTL keys on live SOCKETS (whether the room is OCCUPIED at all — an idle
+    // lobby visitor has a live socket but 0 connected seats, and Q1's edge
+    // auto-response means they leave no time-axis trace; see retention.ts).
+    const connectedSeatCount = this.connectedSeats().size;
+    const liveSocketCount = this.ctx.getWebSockets().length;
 
-    if (connectedCount > 0) {
+    if (connectedSeatCount > 0) {
       const minRows = this.ctx.storage.sql
         .exec<{ min_due: number | null; [c: string]: SqlStorageValue }>(
           'SELECT MIN(due_at) AS min_due FROM deadlines',
@@ -1488,7 +1493,7 @@ export class GameRoom extends DurableObject<Env> {
     }
 
     const room = this.readRoomRow();
-    if (room !== null && connectedCount === 0) {
+    if (room !== null && liveSocketCount === 0) {
       const ttl = ttlDueAt(room.status, room.last_active_at ?? room.created_at);
       if (ttl !== null) candidates.push(ttl);
     }
@@ -1525,21 +1530,25 @@ export class GameRoom extends DurableObject<Env> {
       });
     }
 
-    const connectedCount = this.connectedSeats().size;
+    const connectedSeatCount = this.connectedSeats().size;
+    const liveSocketCount = this.ctx.getWebSockets().length;
 
     // (b) Room-retention TTL self-purge (pause-and-retention.md §3.1). Runs
     // REGARDLESS of the Q3 seat-deadline guard below (a paused room past its
-    // window must still be able to purge). An abandoned room past its window
-    // whose status auto-purges in the current mode (lazy: lobby only) reclaims
-    // ALL its storage via deleteAll() — the only op that frees a DO's storage.
-    // Lobby rooms hold no replayable game, so no dump is needed; played-out rooms
-    // never reach here in lazy mode (they arm no TTL alarm), preserving replay.
+    // window must still be able to purge). Gated on LIVE SOCKETS, never on
+    // connected seats — an occupied-but-idle lobby has 0 connected seats yet a
+    // live socket, and must NOT be purged (retention.ts invariant). An abandoned
+    // room past its window whose status auto-purges in the current mode (lazy:
+    // lobby only) reclaims ALL its storage via deleteAll() — the only op that
+    // frees a DO's storage. Lobby rooms hold no replayable game, so no dump is
+    // needed; played-out rooms never reach here in lazy mode (they arm no TTL
+    // alarm), preserving replay.
     const roomForTtl = this.readRoomRow();
     if (
       roomForTtl !== null &&
       isAutoPurgeEligible({
         status: roomForTtl.status,
-        connectedCount,
+        liveSocketCount,
         lastActiveAt: roomForTtl.last_active_at ?? roomForTtl.created_at,
         now,
       })
@@ -1563,7 +1572,7 @@ export class GameRoom extends DurableObject<Env> {
     // actions go through the normal action path (same seq/idempotency/fan-out)
     // with the deterministic 'timeout:<seat>:<seq>' actionId, so an alarm retry
     // (at-least-once) dedups instead of double-applying.
-    for (let i = 0; connectedCount > 0 && i < MAX_ALARM_APPLIES; i++) {
+    for (let i = 0; connectedSeatCount > 0 && i < MAX_ALARM_APPLIES; i++) {
       const room = this.readRoomRow();
       if (!room || room.status !== 'playing') break;
       const due = this.ctx.storage.sql

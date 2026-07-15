@@ -66,17 +66,26 @@ export function ttlDueAt(
 
 /** True iff an abandoned room is past its retention window AND its status
  *  auto-purges in this mode — the exact test alarm() applies before deleteAll().
- *  `connectedCount` MUST be 0 (a connected room is never eligible); passing a
- *  non-zero count returns false. */
+ *
+ *  `liveSocketCount` MUST be `ctx.getWebSockets().length` — the LIVE SOCKET
+ *  count, NOT the connected-SEAT count. This is load-bearing: Q1's edge
+ *  auto-response answers pings WITHOUT waking the DO, so a client that opens a
+ *  room and sits in the lobby waiting for family generates zero DO activity and
+ *  `last_active_at` never moves — an occupied lobby and an abandoned one are
+ *  indistinguishable on the time axis. And `connectedSeats()` counts CLAIMED
+ *  seats, so a lobby visitor who hasn't claimed a seat yet has 0 connected seats
+ *  but a live socket. Gating on the live socket is the only thing that keeps the
+ *  purge from deleting a room someone is actively sitting in. INVARIANT: TTL
+ *  never purges a room with a live socket. */
 export function isAutoPurgeEligible(args: {
   status: RoomStatus;
-  connectedCount: number;
+  liveSocketCount: number;
   lastActiveAt: number;
   now: number;
   mode?: RetentionMode;
 }): boolean {
   const mode = args.mode ?? RETENTION_MODE;
-  if (args.connectedCount > 0) return false;
+  if (args.liveSocketCount > 0) return false; // never purge an occupied room
   if (!shouldAutoPurge(args.status, mode)) return false;
   return args.now - args.lastActiveAt >= RETENTION_WINDOW_MS[args.status];
 }
