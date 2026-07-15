@@ -34,7 +34,8 @@ not a seat-logic change, and is the canvas every other decision sits on → deci
   from SeatPlate.tsx — count chip is value-independent); no legal-play cue on a normal turn
   (F9 — owner decision, per-card legality is genuinely ambiguous in Guandan).
 - **P3** — lobby 2×2 grid → lobby ring; 掼 vs Traditional 摜 glyph (confirm).
-- **Keep:** rule/timing pickers, ceremony, level rail, 配 marker, trick well, CCW order,
+- **Keep:** rule/timing pickers, ceremony, level STATE (Phase B folded it into the
+  headline badges; the LevelRail ladder was retired), 配 marker, trick well, CCW order,
   27-card hand legible in 2 rows @true-390 (no overflow), sort toggle, 3-locale integrity,
   起手思考 planning-clock distinction.
 - **Not re-driven live (recently verified M3/M4; Phase-B re-verify vs the ring):** wild
@@ -75,7 +76,8 @@ line, NEVER the raw code (retired errorKeyFor + the leaky room.rejected/game.err
 `{code}` keys); rejections clear on next action / lobby→game / dismiss, and the app-shell
 banner is lobby-only so one failure never renders on two surfaces. Regressions: errors.test.ts
 (no code leaks in any locale + dedicated copy), lobby.test.ts (configEditable), store.test.ts
-(clear-on-action/start). 670 unit + 4 typechecks green. Live-verified on wrangler dev:
+(clear-on-action/start). Unit suite green (670 at F3; 680+ after the ring predicates
+and the panel-fix regressions). Live-verified on wrangler dev:
 pre-seat pickers dimmed + hint + no rejection on click; seating enables them and clears the hint.
 
 **Methodology flag to close (owner):** Phase A found Chrome clamps at innerWidth 606, so true
@@ -83,6 +85,49 @@ pre-seat pickers dimmed + hint + no rejection on click; seating enables them and
 at? To be recorded in this STATUS + the iframe recipe added to METHODOLOGY so 390 is never
 claimed loosely again. (Substance survives — this round confirms the 27-card hand is legible at
 true 390.)
+
+### Phase B BUILD — ring shipped-ready (feat/preM5-ux-ring); panel running
+
+The M3 3-plates-across-top table is now the asymmetric RING in Lacquer Ledger: you bottom,
+partner across the top, opponents flanking a bounded centre (seatLayout already mapped the
+directions → a rendering change, not seat logic). Commits: b51e7ed (audit) → 96b5726 (F3) →
+54b92e2 (ring + F9) → 0ae25ac (lobby ring + ratchet) → 61d8e56 (cleanup + desktop).
+
+**Info fixes shipped + LIVE-VERIFIED** (dev server, real states driven to via a hints-only bot):
+- **F7** 打幾: a large Songti goldleaf level headline (the one bold move).
+- **F6** wild: the 紅心級牌 stated ALWAYS (♥{rank} 配 chip), not only when held.
+- **F8** turn-in-words: 輪到你 / 輪到 X on your own seat, not spectator-phrased.
+- **F5** partner: a 隊友 tag (ivory, non-colour cue) + partner-across-the-top position.
+- **F11** 報牌: a value-dependent mini card-back fan — 2 cards LOOK unlike 27 (verified 13 vs 3 vs
+  2 at true 390) — + numeral escalation at the ≤10 / ≤2 lines (handSizeTier).
+- **F9** legal-play: binary cue 「壓不過,只能過」 with 過 promoted when you can't beat; 「你有可以壓的牌」
+  otherwise (beatState).
+- Lobby ring: the same partners-across layout (§2).
+- Ratchet: beatState + handSizeTier extracted as pure predicates, pinned in ring.test.ts (the
+  client suite is DOM-free — the visual gates live as testable decisions).
+
+**Edge states re-verified in the ring** (all render correctly, undisturbed): the wild
+multi-reading chooser (opens over the centre, NOT clipped, both readings + substitution chips),
+the match-end result overlay, the hand-1 ceremony, the tribute panel, the trick well, low-card
+divergence; 3-locale integrity (zh-Hant/zh-Hans/en, no break, endonyms verbatim; 配→Wild,
+隊友→Partner, 打幾→LEVEL, 輪到→'s turn). Suits distinguish by GLYPH SHAPE (♥ vs ♦), not colour
+alone. Anti-tribute / 接風 are seed-dependent center-panel/banner content (TributePanel /
+TrickWell verified) — to confirm in the post-deploy live pass.
+
+**True-390** verified via an injected same-origin iframe (Chrome clamps at innerWidth 606): no
+horizontal overflow, the 27-card hand legible, fans read. Method + iframe recipe to be added to
+METHODOLOGY (closes the "what width was 390?" flag).
+
+**Deferred (flagged for owner):** the full 2..A level LADDER visualisation — the LevelRail
+component was deleted; its STATE (team levels, A-attempts, suspension) is carried by the
+headline + team badges, but the climbing-ladder view is gone (re-addable as an expandable).
+4-colour deck stays a settings toggle default-off; default ♥/♦ separation rests on the glyph
+shape (confirm crispness in the post-deploy pass).
+
+**Cross-model panel:** running headless (Codex + Grok, a scratch clone each) with a VISUAL-change
+brief — behaviour-sneak / info-leakage (the ring renders 3 other seats — the key risk) /
+claims-match-code / i18n parity / colour-only a11y / comment overstatement. 677 unit + 4
+typechecks green. Deploy after the panel + any fixes.
 
 ## Pre-M5 must-dos (2026-07-14/15) — panel restored; socket-liveness gap measured, designed, shipped
 

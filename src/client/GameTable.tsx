@@ -325,8 +325,15 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   const deadlineBySeat = new Map(deadlines.map((d) => [d.seat, d]));
   const ringSeats = new Set<Seat>(activeSeats(view));
   if (view.phase === 'antiTributeDecision') for (const d of deadlines) ringSeats.add(d.seat);
-  // Turn-in-words for the headline (F8): your turn, else name the first actor.
-  const yourTurn = ringSeats.has(activeSeat);
+  // Turn-in-words for the headline (F8): "your turn" keys on hints — the
+  // authoritative "this seat is an expected actor" signal (PLAN §5), robust
+  // across every phase/timing, INCLUDING untimed anti-tribute where the
+  // engine marks a payer as an expected actor and sends hints but there is no
+  // deadline row and activeSeats() returns [] (Codex catch). The other-seat
+  // actor name still comes from the ring set — a spectator can only be shown
+  // the anti-tribute actor via an expected-actors field in the view, a
+  // protocol change that is out of this presentation-only scope.
+  const yourTurn = hints !== null;
   const actorSeats = [...ringSeats].sort((a, b) => a - b);
   const actorName = yourTurn || actorSeats.length === 0 ? null : nameFor(actorSeats[0]!);
 
@@ -371,7 +378,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       partner={teamOf(seat) === viewerTeam && seat !== activeSeat}
       cardCount={view.cardCounts[seat] ?? null}
       place={placeOf(view.finishOrder, seat)}
-      active={ringSeats.has(seat)}
+      active={ringSeats.has(seat) || (seat === activeSeat && yourTurn)}
       dueAt={deadlineBySeat.get(seat)?.dueAt ?? null}
       planning={deadlineBySeat.get(seat)?.timingClass === 'planning'}
       dimTimer={ceremonyShowing}
@@ -417,6 +424,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
               nameFor={nameFor}
               sweepKey={derived.sweep}
               jiefeng={derived.jiefeng}
+              viewerSeat={activeSeat}
             />
           )}
         </div>

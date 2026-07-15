@@ -623,6 +623,17 @@ export function handSizeTier(count: number): 'normal' | 'low' | 'critical' {
   return 'normal';
 }
 
+/** F8 (pre-M5): the centre well's waiting-for-lead prompt. Your OWN lead must
+ *  read "輪到你出牌", never the spectator "等 [你的名字] 領出" — that centre line
+ *  was the ORIGINAL F8 defect (the headline turn cue is a separate signal).
+ *  Pure + exported so the DOM-free suite pins it. */
+export function leadPromptKey(
+  toAct: Seat,
+  viewerSeat: Seat,
+): 'game.trick.yourLead' | 'game.trick.waitingLead' {
+  return toAct === viewerSeat ? 'game.trick.yourLead' : 'game.trick.waitingLead';
+}
+
 // ---------------------------------------------------------------------------
 // Loose-cast guards for the opaque wire payloads.
 // ---------------------------------------------------------------------------

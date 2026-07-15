@@ -7,7 +7,7 @@ import type { Seat } from '../../engine/core/game';
 import type { Rank } from '../../engine/guandan/cards';
 import type { TrickState } from '../../engine/guandan/types';
 import { CardFace, comboRankLabel } from './CardFace';
-import { comboKey } from './helpers';
+import { comboKey, leadPromptKey } from './helpers';
 import { t } from '../i18n';
 
 export interface TrickWellProps {
@@ -18,9 +18,12 @@ export interface TrickWellProps {
   sweepKey: number;
   /** Set while a 接風 is pending/being granted. */
   jiefeng: { finisher: Seat; leader: Seat } | null;
+  /** The viewer's active seat — so "waiting for X to lead" becomes "your lead"
+   *  when it is the viewer's own turn (F8). */
+  viewerSeat: Seat;
 }
 
-export function TrickWell({ trick, level, nameFor, sweepKey, jiefeng }: TrickWellProps) {
+export function TrickWell({ trick, level, nameFor, sweepKey, jiefeng, viewerSeat }: TrickWellProps) {
   const top = trick?.top ?? null;
   return (
     <div className="gd-well" key={sweepKey}>
@@ -34,7 +37,9 @@ export function TrickWell({ trick, level, nameFor, sweepKey, jiefeng }: TrickWel
       )}
       {top === null ? (
         trick !== null && (
-          <p className="gd-well__waiting">{t('game.trick.waitingLead', { name: nameFor(trick.toAct) })}</p>
+          <p className="gd-well__waiting">
+            {t(leadPromptKey(trick.toAct, viewerSeat), { name: nameFor(trick.toAct) })}
+          </p>
         )
       ) : (
         <div className="gd-well__top">

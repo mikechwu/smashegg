@@ -164,6 +164,7 @@
   "game.combo.jokerBomb": "四大天王",
   "game.trick.jiefeng": "接風:{leader} 替 {finisher} 領出",
   "game.trick.waitingLead": "等 {name} 領出",
+  "game.trick.yourLead": "輪到你出牌",
   "game.tribute.payBanner": "進貢",
   "game.tribute.returnBanner": "還貢",
   "game.tribute.antiBanner": "抗貢!雙大王在手,免貢",

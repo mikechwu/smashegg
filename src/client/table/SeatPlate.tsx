@@ -6,8 +6,10 @@
 //    partner tag (a non-colour team cue, F5).
 //  • self seat (you): name + you tag + the active-turn ring/clock; your own
 //    hand fan shows your count, so no mini-fan here.
-// Meaning is never colour-only: turn = ring + label, connection = dot + label,
-// partner = a text tag, count = a length + a numeral.
+// Meaning is never colour-only: the active turn = an active ring on the plate
+// PLUS the turn-in-words line on TableHeadline (the plate itself carries no turn
+// label); connection = dot + aria label; partner = a text tag; count = a fan
+// length + a numeral.
 
 import type { Seat } from '../../engine/core/game';
 import { handSizeTier, placeKey, remainingSeconds } from './helpers';

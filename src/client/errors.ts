@@ -36,6 +36,9 @@ const MESSAGE_KEY: Record<string, TranslationKey> = {
   'lobby.invalidName': 'error.invalidName',
   'seat.notHeld': 'error.seatNotHeld',
   'timing.invalid': 'error.timingInvalid',
+  // The WS hello path can reject with room.notFound; reuse the existing
+  // human copy the RoomPage existence check already shows.
+  'room.notFound': 'room.notFound',
 };
 
 /** Prefix rules for codes that carry a dynamic suffix (e.g.

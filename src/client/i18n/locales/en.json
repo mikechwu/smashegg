@@ -164,6 +164,7 @@
   "game.combo.jokerBomb": "Joker bomb",
   "game.trick.jiefeng": "Jiefeng — {leader} leads for {finisher}",
   "game.trick.waitingLead": "Waiting for {name} to lead",
+  "game.trick.yourLead": "Your lead",
   "game.tribute.payBanner": "Tribute",
   "game.tribute.returnBanner": "Return tribute",
   "game.tribute.antiBanner": "Tribute resisted — both big jokers!",

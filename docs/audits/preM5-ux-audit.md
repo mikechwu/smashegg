@@ -79,8 +79,10 @@ sits on, so it must be decided in the plan first.
 ## Keep (don't break in the restyle)
 Home hero + create CTA; room-code hero + copy-link; the **rule picker** (titled group +
 plain-language explanation + segmented pills + selected-option description) and timing
-picker; the ceremony (翻牌定先, clear + tappable skip); the **level rail** (encodes real
-state); the wild **配 marker** (legible, localizes 配/w); card counts on every plate; the
+picker; the ceremony (翻牌定先, clear + tappable skip); the level STATE — real levels /
+A-attempts / suspension (NOTE: Phase B RETIRED the LevelRail ladder and folded this into the
+headline team badges; the ladder visualisation is deferred); the wild **配 marker** (legible,
+localizes 配/w); card counts on every plate; the
 trick well ("名字・牌型"); **CCW turn order** (south→east→north→west, correct); the hand fan
 (27 cards ≤2 rows, legible at true 390px, no overflow, clear selection lift); descending-sort
 toggle; **3-locale integrity** (no reflow, natural copy, names verbatim); the planning-vs-turn

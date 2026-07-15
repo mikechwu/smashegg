@@ -10,9 +10,11 @@ import { getLocale, setLocale, t } from '../../../src/client/i18n';
 import type { Locale } from '../../../src/client/config';
 
 // Every WireError.code the server can put on the wire (grepped from
-// src/server, 2026-07-15). A future server code with no mapping will FAIL the
-// no-leak assertion below — which is the point: the ratchet forces human copy
-// for it before it can reach a player.
+// src/server, 2026-07-15). The no-leak assertion holds for ALL of them — an
+// unmapped code still falls to error.generic (human, never a code). Separately,
+// GENERIC_OK below lists the codes that are ALLOWED to be generic (unexpected /
+// internal); every OTHER code must get DEDICATED copy, so a new user-actionable
+// code with no mapping fails the dedicated-copy test (that is the real ratchet).
 const SERVER_CODES: readonly string[] = [
   'action.notYourTurn',
   'action.wrongPhase',
@@ -30,6 +32,7 @@ const SERVER_CODES: readonly string[] = [
   'room.notPlaying',
   'room.full',
   'room.notEnoughSeats',
+  'room.notFound',
   'lobby.invalidName',
   'seat.notHeld',
   'timing.invalid',
@@ -44,6 +47,10 @@ const SERVER_CODES: readonly string[] = [
 ];
 
 const LOCALES: readonly Locale[] = ['zh-Hant', 'zh-Hans', 'en'];
+
+// Codes allowed to fall to the generic human line — unexpected / internal, not
+// user-actionable. Every OTHER server code must map to dedicated copy.
+const GENERIC_OK = new Set(['action.applyThrew', 'action.reservedActionId']);
 
 describe('describeError — F3: never leak a raw code', () => {
   const original = getLocale();
@@ -77,6 +84,17 @@ describe('describeError — F3: never leak a raw code', () => {
     expect(describeError('room.notSeated')).not.toBe(t('error.generic'));
     expect(describeError('room.startFailed')).toBe(t('error.startFailed'));
     expect(describeError('lobby.invalidName')).toBe(t('error.invalidName'));
+  });
+
+  it('EVERY user-actionable server code gets dedicated copy (the real ratchet)', () => {
+    setLocale('en');
+    const generic = t('error.generic');
+    for (const code of SERVER_CODES) {
+      if (GENERIC_OK.has(code)) continue;
+      expect(describeError(code), `${code} must have dedicated copy, not the generic fallback`).not.toBe(
+        generic,
+      );
+    }
   });
 
   it('prefix families map without the dynamic suffix (config.* / protocol.*)', () => {
