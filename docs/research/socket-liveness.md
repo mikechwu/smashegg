@@ -215,7 +215,11 @@ disconnected player", within a bounded time instead of never. (Industry fact
 - **When the sweep runs:** at the top of every wake that already happens —
   `alarm()` (before the TTL check and the auto-play loop, so both see
   post-sweep truth), and the hello path (before the presence delta). Plus the
-  one wake the platform does NOT give us for free: **a fourth alarm candidate**
+  one wake the platform does NOT give us for free: **a fourth alarm candidate**,
+  ARMED AT THE ATTACH ITSELF (the upgrade handler and every hello exit call
+  scheduleAlarm — the first panel pass on this change caught that computing
+  the candidate without arming it on attach left an idle lobby's phantom
+  waiting for the 48h TTL wake; the decoupled-window e2e now pins the arming)
   in `alarmCandidates` — armed iff any live socket exists, due at
   `oldestLastSeen + STALE`. Without it, an all-phantom LOBBY (no seat
   deadlines, TTL refused under T3) would never wake again — the same

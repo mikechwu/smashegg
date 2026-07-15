@@ -192,7 +192,11 @@ one for us: measured 30 min on production) used to keep a lobby room immortal.
 The sweep now reaps any socket whose ping-silence reaches `STALE_SOCKET_MS`
 (a fourth alarm candidate guarantees the wake while sockets are attached), the
 seatless departure re-arms the TTL, and the room self-purges — proven on the
-wire by the liveness e2e's phantom-lobby case. T3 itself is unchanged: the TTL
+wire by the liveness e2e: the phantom-lobby case for the full reap→TTL→404
+chain, and the decoupled-window case (production 48h retention, so the TTL
+cannot provide the wake) for the arming itself — the attach parks the sweep
+wake, per both auditors' catch that the shrunk-window tests alone could
+bootstrap off the create-time TTL alarm. T3 itself is unchanged: the TTL
 still never purges a room with a live socket; "live" now has a deadline.
 
 **Two-questions/two-predicates, enforced by the type system:** the counts are

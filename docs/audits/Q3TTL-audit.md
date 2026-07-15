@@ -89,3 +89,26 @@ deleteAll purge → 404, seatless-socket T3, and the ordinary-reconnect regressi
 The PLAN-drift standing check now extends to **load-bearing comments in new code**,
 not only PLAN.md — the "eager flip is not retroactive" correction was a fresh
 comment overstating the code, caught this round.
+
+---
+
+## ADDENDUM (2026-07-14) — superseded in part by the restored-panel re-sweep
+
+The headless-CLI nulls above were **called too early** (owner catch): both
+tools run cleanly from the harness — the failures were invocation errors
+(recipes now in METHODOLOGY's tool ladder). The restored panel re-ran this
+exact brief to two clean executed verdicts, and the outcome header above
+("no surviving defect") did NOT survive it:
+
+- **Grok: 5 findings (1 HIGH)** — the seatless/last-leaver socket departure
+  never re-armed the TTL once a live-socket wake had cleared the alarm
+  (abandoned lobby → immortal; root cause measured on workerd:
+  `ctx.getWebSockets()` still contains the closing socket during
+  `webSocketClose`, so the ordinary last-tab-closes lobby was ALSO immortal).
+- **Codex: 3 findings (1 medium)** — `/purge` had no live-socket refusal;
+  plus the touchActivity comment overstatement (both lineages) and the
+  tautological stamp≡pause unit test (both lineages).
+
+All fixed with wire regressions in commit 2b61c9c; the fix diff was itself
+re-audited by both lineages (Codex: 0 findings; Grok: 1 low + 1 nit, both
+fixed). Full record: docs/audits/preM5-liveness-audit.md.

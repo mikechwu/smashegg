@@ -113,4 +113,25 @@ describe('socket liveness — staleness sweep (e2e)', () => {
     expect(client.closeInfo, 'the phantom was closed by the SERVER').not.toBeNull();
     expect(client.closeInfo!.code).toBe(4002);
   }, 25_000);
+
+  test('the sweep wake is armed BY THE ATTACH ITSELF (no TTL crutch: production 48h window)', async () => {
+    // Both auditors flagged that the tests above could bootstrap off the tiny
+    // TTL wake (retention and stale shrunk to the same 1.5s) — a 4002 there
+    // does not prove the ATTACH armed anything. This server keeps the
+    // PRODUCTION 48h retention window, so within this test's lifetime the
+    // create-time TTL alarm can never fire: the ONLY thing that can reap the
+    // frozen client in seconds is the sweep candidate parked at accept/hello.
+    const isolated = await startServer({ staleSocketMs: TINY_STALE_MS });
+    const code = await createRoom(isolated, GN_CONFIG);
+    const { client } = await connectAndWelcome(isolated, code, { label: 'frozen-at-join', tokens: [] });
+    await claimSeat(client, 'froze-after-claim');
+    // Total silence from here (no pings, no close) — the phone froze.
+    await sleep(3 * TINY_STALE_MS);
+    expect(client.closeInfo, 'reaped by the attach-armed sweep alone').not.toBeNull();
+    expect(client.closeInfo!.code).toBe(4002);
+    const info = (await (await fetch(`${isolated.url}/api/rooms/${code}`)).json()) as {
+      seats: { seat: number; connected: boolean }[];
+    };
+    expect(info.seats[0]!.connected, 'the DO saw the disconnect').toBe(false);
+  }, 30_000);
 });

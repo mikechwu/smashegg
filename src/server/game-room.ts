@@ -538,11 +538,17 @@ export class GameRoom extends DurableObject<Env> {
 
   private setSeats(ws: WebSocket, seats: Set<Seat>): void {
     this.sessions.set(ws, seats);
+    // Preserve the accept time across every seat rewrite — the attachment is
+    // replaced wholesale, and losing it would reset the staleness baseline.
+    // The ?? arm is unreachable today (every caller seeds the map first) but
+    // must BACKFILL the map if ever hit (Grok audit): otherwise
+    // socketLastSeenFor's own `?? now` would keep that socket forever young
+    // while the instance stays warm.
+    const acceptedAt = this.acceptedAt.get(ws) ?? Date.now();
+    this.acceptedAt.set(ws, acceptedAt);
     const attachment: SocketAttachment = {
       seats: [...seats].sort((a, b) => a - b),
-      // Preserve the accept time across every seat rewrite — the attachment is
-      // replaced wholesale, and losing it would reset the staleness baseline.
-      acceptedAt: this.acceptedAt.get(ws) ?? Date.now(),
+      acceptedAt,
     };
     ws.serializeAttachment(attachment);
   }
@@ -708,7 +714,7 @@ export class GameRoom extends DurableObject<Env> {
     return Response.json(this.buildRoomInfo(room));
   }
 
-  private handleWebSocketUpgrade(): Response {
+  private async handleWebSocketUpgrade(): Promise<Response> {
     if (this.readRoomRow() === null) {
       return Response.json({ error: 'notFound' }, { status: 404 });
     }
@@ -721,6 +727,13 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.acceptWebSocket(server);
     this.acceptedAt.set(server, Date.now()); // BEFORE setSeats, which persists it
     this.setSeats(server, new Set());
+
+    // Park the sweep wake THE MOMENT a socket attaches (Grok/Codex audit —
+    // both lineages): without this, an idle lobby's next wake is its 48h TTL,
+    // not acceptedAt + STALE_SOCKET_MS, so a phone that froze right after
+    // connecting held its phantom for 48h — the exact immortal-phantom hole
+    // the sweep candidate exists to close. Every later wake re-arms it.
+    await this.scheduleAlarm();
 
     return new Response(null, { status: 101, webSocket: client });
   }
@@ -1010,6 +1023,12 @@ export class GameRoom extends DurableObject<Env> {
     } else if (newlyConnected.length > 0 || newlyDisconnected.length > 0) {
       // Lobby/finished: no seat deadlines, but re-schedule so a reconnect to an
       // abandoned lobby clears its pending TTL self-purge (connected>0 now).
+      await this.scheduleAlarm();
+    } else {
+      // No presence delta — the COMMON tokenless first hello. The attach must
+      // still park the sweep wake (Grok/Codex audit): the upgrade path arms it
+      // too, but this keeps "socket attached ⇒ sweep wake armed" true at every
+      // exit of every attach-adjacent handler, not by call-graph coincidence.
       await this.scheduleAlarm();
     }
 

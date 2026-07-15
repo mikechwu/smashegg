@@ -452,3 +452,24 @@ describe('socket liveness — the staleness-sweep decisions (socket-liveness.md 
     expect(cands).toEqual([NOW - 100_000 + 1_500]);
   });
 });
+
+describe('socket liveness — one quiet peer among healthy ones (Grok audit)', () => {
+  it('the QUIETEST socket pulls the sweep wake ahead of a farther seat deadline', () => {
+    // Two sockets: one pinged just now, one silent for 100s. The sweep keys on
+    // the min last-seen, so the armed wake is quiet+180s = NOW+80s — BEFORE a
+    // 120s turn deadline. The property model (healthy-world: all lastSeen=now)
+    // cannot reach this ordering; this named case pins it at the decision
+    // layer, and the decoupled-window e2e drives the arming on the wire.
+    const cands = alarmCandidates({
+      status: 'playing',
+      connectedSeatCount: asSeatCount(2),
+      liveSocketCount: asLiveSocketCount(2),
+      minSeatDeadlineDueAt: NOW + 120_000, // ACTION_TIMEOUT_MAX budget
+      lastActiveAt: NOW,
+      probeDueAt: null,
+      oldestSocketLastSeenAt: NOW - 100_000, // the quiet peer
+    });
+    expect(cands).toEqual([NOW + 120_000, NOW - 100_000 + STALE_SOCKET_MS]);
+    expect(Math.min(...cands), 'the quiet peer is reaped before the turn expires').toBe(NOW + 80_000);
+  });
+});
