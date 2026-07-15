@@ -185,6 +185,22 @@ Q3 seat-deadline pause keeps keying on connected *seats* (it protects actors, th
 M4 semantics); only the retention TTL keys on live sockets. **INVARIANT (T3, for
 Grok's sweep): the TTL never purges a room with a live socket.**
 
+**Known limitation (accepted, recorded so nobody assumes TTL is exhaustive):**
+because T3 is unconditional, a **half-open socket** (client gone, edge still
+holds the connection) keeps a lobby room immortal — the TTL never fires. The
+consequence is trivial: a few rows in the abundant storage meter, and lobby rooms
+never auto-play, so there is no burn. Q1's `setWebSocketAutoResponse` + the
+client's onOpen resync are the mitigation for half-open detection elsewhere;
+here we deliberately prefer "never purge something that might be occupied" over
+"reclaim a few rows." If half-open lobby accumulation ever mattered, the §4
+manual script reclaims them by explicit code.
+
+**Two-questions/two-predicates, enforced by the type system:** the counts are
+BRANDED — `ConnectedSeatCount` ("is there an actor?" → pause/auto-play) and
+`LiveSocketCount` ("is anyone here?" → TTL) — so a swap at any binding site is a
+compile error, not a silent T3 death (retention.ts). The `as`-cast is confined to
+`asSeatCount`/`asLiveSocketCount` at the source; Codex audits those bindings (§7).
+
 ## 4. Retention windows (proposed, justified) — ELIGIBILITY floors
 
 Windows are the **floor** before a room is even *eligible*; whether eligibility
@@ -299,23 +315,30 @@ because it caught the first bug):
    → sane remainder, no burst**).
 2. **TTL retention** — implement §3–§4 with `RETENTION_MODE='lazy'` (auto-purge
    lobby-abandoned only; played-out via §4); extend the property test (TTL
-   dimension: T1–T2); e2e (fast-clock lobby room past a tiny test window →
+   dimension: T1–T3); e2e (fast-clock lobby room past a tiny test window →
    self-purges → GET /info → 404; a `connected>0` room never purges; a
    within-window room never purges; **a finished room in lazy mode is NOT
-   auto-purged**).
+   auto-purged**; **a genuinely SEATLESS live socket — a client that connects to a
+   lobby and never claims a seat, held past the window — is NOT purged and armed
+   no TTL alarm** [the only test that catches a mis-bound count]).
 3. **Cross-model audit** — Codex on resync/liveness continuity (the 1→0 / 0→1
    transitions, the alarm-guard scoping, purge-vs-replay, **the §3.2
-   deploy-transition stamp — verify no reachable NULL-offset resume — and the
+   deploy-transition stamp — verify no reachable NULL-offset resume — the
    guard-path 0-remaining reconnect behavior — verify exactly one default action
-   auto-plays and no fresh budget is manufactured**) + Grok on the invariant sweep
+   auto-plays and no fresh budget is manufactured — AND the ARGUMENT-BINDING SEAM:
+   audit every call site that passes a seat/socket count against the intended
+   predicate, not just the pure logic; the brands make a swap a compile error but
+   confirm no `as`-cast binds the wrong source**) + Grok on the invariant sweep
    (I1–I4 / DL1–DL3 / P1–P4 / T1–T3 under pause + TTL, **whether §3.1's lazy policy
-   ever spends the scarce meter to reclaim abundant storage, and T3: that no
-   reachable state purges a room with a live socket**). Then a live drill. Audit
-   brief MUST call out all owner catches explicitly: (a) the deploy-transition
+   ever spends the scarce meter to reclaim abundant storage, stamp≡pause, and T3:
+   that no reachable state purges a room with a live socket**). Then a live drill.
+   Audit brief MUST call out all owner catches explicitly: (a) the deploy-transition
    `pause_started_at`-NULL case the clean-state tests miss; (b) that no
    time-triggered purge of an expensive room runs in lazy mode; (c) the
    live-socket TTL gate (an idle/seatless-but-connected lobby is never purged);
-   (d) the guard-path 0-remaining pin (intended, no floor).
+   (d) the guard-path 0-remaining pin (intended, no floor); (e) the branded-count
+   argument-binding seam; (f) the fail-safe NULL anchor (an undeterminable
+   retention anchor arms no TTL, never an immediate `deleteAll()`).
 4. **PLAN corrections folded in** — replace the false TTL claim (§4/§1.6/§8) with
    the real §3.1 mechanism (lazy: lobby-only auto-purge; played-out manual; eager
    gated on the measurement), and fix the five descriptive drifts R3 found, in one
