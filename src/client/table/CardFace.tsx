@@ -1,19 +1,23 @@
-// CardFace — ivory face, rosewood border, serif corner index (design
-// system). Sizes: 'hand' (large, the fan) / 'trick' (medium, the well) /
-// 'mini' (the decl chooser's chips and result rows).
-// The current-level HEART wild carries a solid cinnabar corner triangle
-// with a 配 glyph at the BOTTOM-LEFT — the fan overlaps each card's right
-// side, so only the left strip is reliably visible; the joker's vertical
-// name sits in that same strip (left-anchored, not centered) for the same
-// reason. 小王 is ink, 大王 cinnabar.
+// CardFace — the card-rendering FRAMEWORK (item 5). Face/back CONTENT comes
+// from the active DeckTheme; everything that encodes GAME STATE is drawn
+// HERE, over the theme, so no theme has a code path to remove it:
+//  • the 配 cinnabar wild marker (a game-state indicator, never decoration)
+//    — appended as a frame-level overlay AFTER the theme face;
+//  • the ghost faces (the identity a wild plays as) with the same marker.
+// Selection lift / focus ring / tribute glow are framework CSS on the
+// wrapping buttons, likewise outside any theme. Sizes: 'hand' / 'trick' /
+// 'mini' — the frame carries the size class, so the marker's --gd-cardw
+// arithmetic works regardless of what the theme renders inside.
 
 import { isJoker, isWild, rankOf, suitOf, type Card, type Rank, type Suit } from '../../engine/guandan/cards';
 import type { JokerRank } from '../../engine/guandan/combos';
 import type { CanonicalForm } from '../../engine/guandan/types';
 import { declJokerRank, isRedSuit, rankText, suitGlyph } from './helpers';
+import { activeDeckTheme, type CardFaceSize } from './theme';
+import './themes/lacquer'; // registers the default theme
 import { t } from '../i18n';
 
-export type CardFaceSize = 'hand' | 'trick' | 'mini';
+export type { CardFaceSize } from './theme';
 
 export interface CardFaceProps {
   card: Card;
@@ -58,29 +62,28 @@ export function comboRankLabel(decl: CanonicalForm): string {
 }
 
 export function CardFace({ card, level, size }: CardFaceProps) {
-  const classes = [`gd-card`, `gd-card--${size}`];
-  if (isJoker(card)) {
-    classes.push('gd-card--joker', card === 'BJ' ? 'gd-card--red' : 'gd-card--black');
-    return (
-      <span className={classes.join(' ')} aria-hidden="true">
-        <span className="gd-card__joker">{card === 'BJ' ? t('game.card.bj') : t('game.card.sj')}</span>
-      </span>
-    );
-  }
-  const suit = suitOf(card)!;
-  const rank = rankOf(card)!;
-  classes.push(isRedSuit(suit) ? 'gd-card--red' : 'gd-card--black');
+  const theme = activeDeckTheme();
   return (
-    <span className={classes.join(' ')} aria-hidden="true">
-      <span className="gd-card__index">
-        <span className="gd-card__rank">{rankText(rank)}</span>
-        <span className="gd-card__suit">{suitGlyph(suit)}</span>
-      </span>
+    <span className={`gd-cardframe gd-card--${size}`} aria-hidden="true">
+      <theme.Face card={card} level={level} size={size} />
+      {/* The wild marker is FRAMEWORK-drawn over the theme (contract): a
+          theme has no code path to remove or obscure it. */}
       {isWild(card, level) && (
         <span className="gd-card__wild">
           <span className="gd-card__wildGlyph">{t('game.card.wildBadge')}</span>
         </span>
       )}
+    </span>
+  );
+}
+
+/** A face-down card in the active theme — the deck pile, deal flights, any
+ *  hidden card. Framework-level like CardFace. */
+export function CardBack({ size }: { size: CardFaceSize }) {
+  const theme = activeDeckTheme();
+  return (
+    <span className={`gd-cardframe gd-card--${size}`} aria-hidden="true">
+      <theme.Back size={size} />
     </span>
   );
 }

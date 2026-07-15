@@ -230,5 +230,6 @@
   "game.error.invalidCombination": "Not a valid combination",
   "game.error.cannotBeatTop": "That doesn't beat the current play",
   "game.error.tributeCardNotEligible": "That card isn't eligible for tribute",
-  "game.error.matchEnded": "The match is over"
+  "game.error.matchEnded": "The match is over",
+  "theme.lacquer.name": "Classic lacquer"
 }

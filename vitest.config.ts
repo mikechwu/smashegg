@@ -6,6 +6,10 @@ import { defineConfig } from 'vitest/config';
 // with the repo root as its root, so tests/unit is found regardless of
 // the client app's Vite root.
 export default defineConfig({
+  // Automatic JSX runtime, matching the app build (@vitejs/plugin-react):
+  // the DeckTheme conformance suite renders real components via
+  // react-dom/server (still DOM-free), which needs jsx transforms here.
+  esbuild: { jsx: 'automatic' },
   test: {
     include: ['tests/unit/**/*.test.{ts,tsx}'],
     environment: 'node',

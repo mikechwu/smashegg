@@ -230,5 +230,6 @@
   "game.error.invalidCombination": "这不是合法牌型",
   "game.error.cannotBeatTop": "压不过目前台面上的牌",
   "game.error.tributeCardNotEligible": "这张牌不符合贡牌规定",
-  "game.error.matchEnded": "比赛已结束"
+  "game.error.matchEnded": "比赛已结束",
+  "theme.lacquer.name": "经典漆案"
 }

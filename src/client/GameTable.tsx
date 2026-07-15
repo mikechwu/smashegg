@@ -12,7 +12,7 @@
 // 接風 banner, 抗貢 reveals, the ceremony payload, the feed) is folded
 // here from batches as they arrive.
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { Seat } from '../engine/core/game';
 import { teamOf } from '../engine/guandan/types';
 import type { GuandanAction, GuandanEvent } from '../engine/guandan/types';
@@ -47,6 +47,7 @@ import {
 } from './table/helpers';
 import { t } from './i18n';
 import { describeError } from './errors';
+import { activeDeckTheme } from './table/theme';
 import './table/table.css';
 
 export interface GameTableProps {
@@ -398,8 +399,20 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     setChooserOpen(false);
   };
 
+  // Item 5: the active theme's back tokens ride CSS vars, so the F11
+  // mini-fan (framework-owned geometry) renders any theme's back colors.
+  const themeMetrics = activeDeckTheme().metrics;
+
   return (
-    <section className="gd-table gd-ring">
+    <section
+      className="gd-table gd-ring"
+      style={
+        {
+          '--theme-back-edge': themeMetrics.backEdge,
+          '--theme-back-gradient': themeMetrics.backGradient,
+        } as CSSProperties
+      }
+    >
       <SeatTabs heldSeats={heldSeats} activeSeat={activeSeat} onSelect={setSelectedSeat} />
 
       <TableHeadline

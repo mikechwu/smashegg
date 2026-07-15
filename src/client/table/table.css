@@ -156,7 +156,7 @@
   flex-wrap: wrap;
   gap: 0;
 }
-.gd-well__cards .gd-card + .gd-card {
+.gd-well__cards .gd-cardframe + .gd-cardframe {
   margin-left: calc(var(--gd-cardw, 2.5rem) * -0.55);
 }
 .gd-well__meta {
@@ -297,6 +297,16 @@
 }
 
 /* --- cards ------------------------------------------------------------------ */
+/* The FRAMEWORK frame (item 5): wraps the active theme's face/back and
+   anchors the framework-drawn overlays (the 配 wild marker) OVER it. The
+   frame carries the size class, so --gd-cardw resolves for the overlay
+   regardless of the theme's internals. */
+.gd-cardframe {
+  position: relative;
+  display: inline-flex;
+  line-height: 0;
+  flex: none;
+}
 .gd-card {
   --gd-cardw: 2.5rem;
   display: inline-flex;
@@ -392,6 +402,21 @@
  * the CSS-token ratchet test. */
 .gd-card--mini .gd-card__wildGlyph {
   font-size: calc(var(--gd-cardw) * 0.32);
+}
+
+/* The lacquer theme's back (themes/lacquer.tsx): flat rosewood field with a
+   goldleaf hairline inset — cheap by construction (research: an ornate back
+   at 100+ nodes is the classic deal-animation jank source). */
+.gd-cardback--lacquer {
+  background: linear-gradient(160deg, #5a3a33, var(--rosewood));
+  border-color: color-mix(in srgb, var(--ivory) 30%, var(--rosewood));
+}
+.gd-cardback--lacquer::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid color-mix(in srgb, var(--goldleaf) 55%, transparent);
+  border-radius: 5px;
 }
 
 /* --- hand fan ----------------------------------------------------------------- */
@@ -1008,8 +1033,11 @@
   width: 0.34rem;
   height: 0.9rem;
   flex: none;
-  background: linear-gradient(160deg, #5a3a33, #35211d);
-  border: 0.5px solid rgba(245, 239, 227, 0.32);
+  /* Theme tokens (item 5): the active DeckTheme's back colors, set as CSS
+     vars on .gd-table by GameTable — any back design keeps 2-vs-27 legible
+     because the sliver GEOMETRY is framework-owned. */
+  background: var(--theme-back-gradient, linear-gradient(160deg, #5a3a33, #35211d));
+  border: 0.5px solid var(--theme-back-edge, rgba(245, 239, 227, 0.32));
   border-radius: 2px;
 }
 .gd-plate__fanCard + .gd-plate__fanCard {
