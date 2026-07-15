@@ -1,6 +1,6 @@
 # STATUS
 
-## Current phase: pre-M5 UX/UI polish — Phase B underway (Lacquer Ledger ring); F3 landed on feat/preM5-ux-ring
+## Current phase: pre-M5 UX/UI polish COMPLETE — Lacquer Ledger ring DEPLOYED (main 6bc63e9); M5 next (owner gate)
 
 **Last updated:** 2026-07-15
 
@@ -124,10 +124,28 @@ headline + team badges, but the climbing-ladder view is gone (re-addable as an e
 4-colour deck stays a settings toggle default-off; default ♥/♦ separation rests on the glyph
 shape (confirm crispness in the post-deploy pass).
 
-**Cross-model panel:** running headless (Codex + Grok, a scratch clone each) with a VISUAL-change
-brief — behaviour-sneak / info-leakage (the ring renders 3 other seats — the key risk) /
-claims-match-code / i18n parity / colour-only a11y / comment overstatement. 677 unit + 4
-typechecks green. Deploy after the panel + any fixes.
+**Cross-model panel (Codex + Grok, a scratch clone each, VISUAL-change brief).** Round 1: 6
+findings (0 high, 2 medium, 4 low). Both mediums were F8-completeness — the headline turn cue
+keyed on ring/deadline data (empty for untimed anti-tribute → `yourTurn = hints !== null`), and
+the CENTRE well still spectator-phrased YOUR own lead (the original F8 defect → `leadPromptKey`
+→ 輪到你出牌). Lows: the error-ratchet comment overstated + missing room.notFound; dead
+.gd-rail/.gd-layout/… CSS orphaned by the LevelRail delete; a stale test count; a SeatPlate
+comment. All fixed + regressioned. Fix re-audit: **Grok 0 findings**; **Codex 1 medium** — the
+error ratchet's code list was an incomplete subset (engine forwards more codes); fixed by listing
+the COMPLETE Guandan-reachable inventory + a structural forged-code test proving leak-safety by
+construction. BOTH auditors' checked-clean, twice, independently confirmed the two correctness
+gates: **no engine/server/redaction/timing change**, and **the ring exposes no other seat's hand**
+(the mini-fan/count read only view.cardCounts). 680 unit + 4 typechecks green.
+
+**DEPLOYED (main 6bc63e9, 2026-07-15).** Fast-forward merge feat/preM5-ux-ring → main → push;
+CI + Deploy green; live build == 6bc63e9 confirmed; the lobby ring verified rendering on
+production. Revertible by redeploying main@f6d6bc6 if the aesthetic needs a change for M5.
+
+**Deferred / for M5 (flagged):** the full 2..A level LADDER (state kept in the headline badges;
+ladder viz re-addable as an expandable); a real-device iOS/Android matrix; anti-tribute / 接風
+seed-dependent center-panel states (TributePanel/TrickWell verified — confirm live in M5); the
+4-colour-deck default is off (♥/♦ separate by glyph shape). Next: M5 — 4 real people on different
+networks, ≥1 mid-game reconnect, live language switch, free tier only (OWNER GATE to start).
 
 ## Pre-M5 must-dos (2026-07-14/15) — panel restored; socket-liveness gap measured, designed, shipped
 
