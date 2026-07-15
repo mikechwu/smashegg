@@ -103,17 +103,56 @@ UPDATE (was bumpSeq's seq UPDATE + a separate state UPDATE) — −1 row-write/a
 (~12%). Behavior-preserving (609 unit + 25 e2e green; e2e covers seq advancement
 + resync). game-room.ts ~1197.
 
-**In progress (read-only gating research, workflow):** delete-metering cost (the
-§3 gotcha — DELETE counts per row, so a naive purge of a 10–20k-row match could
-cost 10–20% of the daily cap; is bulk deletion cheaper?), DO enumeration
-feasibility (can we even LIST rooms? idFromName is one-way), and a PLAN drift
-sweep (the verified example: PLAN §4 asserts a room-TTL alarm that does NOT
-exist — the documentation-level twin of Grok's M3 no-op-config catch).
+**Gating research landed (read-only workflow):**
+- **Delete-metering (the §3 gotcha) — MIXED, one decision-critical UNCERTAIN.**
+  Row-wise DELETE is billed per row (+ index entries), so purging a 10–20k-row
+  match row-by-row costs a comparable chunk of the 100k/day cap — the disease is
+  real. `ctx.storage.deleteAll()` is the ONLY op that reclaims a DO's storage,
+  and is a Storage-API primitive (not a SQL query) so it MIGHT be flat-billed —
+  but Cloudflare documents no carve-out, so its cost is genuinely UNKNOWN and
+  **must be measured on the live Free account.** DROP TABLE doesn't reclaim
+  storage; a DO never self-deletes. **Reframe:** Q3 stops the URGENT compute burn;
+  retention only reclaims ALREADY-accumulated STORAGE (abundant 5GB, tiny/room) —
+  purging spends the SCARCE meter to save the ABUNDANT one, so if `deleteAll()`
+  is per-row, retention should be LAZY/storage-pressure-gated, not eager. The
+  design forks on the `deleteAll()` measurement; the conservative (lazy) branch is
+  safe either way and is the default until measured.
+- **PLAN documentation-drift sweep — 7 findings (the process win the owner asked
+  for).** The known one is worse than thought: "A room-TTL alarm also self-purges
+  abandoned rooms" appears in **§4, §1.6 AND §8** (a reader hits the false claim
+  three times) — and STATUS already recorded the gap under Q2 but PLAN was never
+  corrected (exactly the drift-survives-audit failure mode). Five more are
+  descriptive text that fell behind a MORE-capable implementation: §4 hibernation
+  (claims seat-tagged sockets + `{seat,tokenHash}` attachment → really no tags +
+  `{seats: Seat[]}`), §6 dump route (`/api/debug/rooms/:code/dump` + `players` →
+  really `/api/rooms/:code/dump` + `seats` + an `actions` array), §5 reconnection
+  step 4 ("returns the recorded event" → really sends `resync`, never re-applies),
+  §4 deadline recompute (still describes the pre-M4 fresh-clock mechanism = the
+  M2 bug the code was redesigned to kill), §5 hello (`token` → `tokens[]`, action
+  missing `seat`), §4 schema (`players` w/ connected/last_seen_seq → really
+  `seats` w/o them). Everything load-bearing else CHECKED-CLEAN (dump gating,
+  redaction, idempotency ledger + reserved namespace, single-writer, advisory
+  expectedSeq, version-skew, agnosticism, ping-pong). **Correction plan:** fold
+  the TTL-claim fix into the §3 TTL implementation (so PLAN describes the real new
+  mechanism, not just "none"); correct the 6 descriptive drifts in the same PLAN
+  pass. METHODOLOGY self-correction: a design doc that asserts an unbuilt
+  mitigation lets a real gap survive audits — the PLAN sweep is now a standing
+  check when a milestone claims a mechanism.
+- **DO enumeration — first run returned junk ("test" placeholders, the recurring
+  subagent failure mode); re-running.** Strong prior: `idFromName` is one-way, so
+  even if the namespace-objects API lists object IDs, room CODES can't be
+  recovered → the cleanup script takes explicit codes and/or a cheap
+  write-once-at-creation registry. Confirming.
 
-**Then:** §3 TTL + Q3 designed+gated together (property test w/ connected-count
-dimension + wire e2e + Codex resync/liveness + Grok invariant sweep + live
-drill) → §4 script (dump-then-delete, token-gated, dry-run default) → §2 PLAN
-correction folded in → Q4 last (after a Free-plan smoke test of the binding).
+**Then:** §3 TTL + Q3 designed+gated together (`scheduleAlarm` = min(TTL,
+seat-deadlines-when-connected>0, probe); Q3's `alarm()` guard scoped so a TTL wake
+still fires; conservative/lazy purge via `deleteAll()`+`deleteAlarm()`, replay
+preserved by a retention window) → property test w/ connected-count dimension +
+wire e2e + Codex resync/liveness + Grok invariant sweep + live drill → §4 script
+(dump-then-delete, token-gated, dry-run default) + PLAN corrections folded in →
+Q4 last (after a Free-plan smoke test of the binding). `deleteAll()` billing
+measured with owner meter-access to optionally unlock eager purge; the 3 live
+zombie rooms stopped once the §4 purge path exists.
 
 ## Process: model dispatch policy change (owner mission, 2026-07-14)
 
