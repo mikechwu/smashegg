@@ -34,6 +34,22 @@
     ]
   },
 
+  // Q4 (free-tier-efficiency.md): a native Workers rate limiter guarding the
+  // unauthenticated POST /api/rooms against an accidental client retry loop (the
+  // likelier vector than an attacker; the plan already fails closed at $0). "The
+  // Rate Limiting API is permissive, eventually consistent, and intentionally
+  // designed to not be an accurate accounting system" — right shape for this.
+  // 15 creates / 60s per IP. If this binding turns out to require Workers Paid,
+  // the deploy rejects it and the fallback is a DO-backed counter (the code
+  // treats env.CREATE_LIMITER as optional, so it degrades to no-limit gracefully).
+  "ratelimits": [
+    {
+      "name": "CREATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": { "limit": 15, "period": 60 }
+    }
+  ],
+
   // Declares GameRoom as a NEW Durable Object class backed by the free-plan
   // SQLite storage backend (as opposed to the legacy key-value backend).
   // Every future schema-affecting change to GameRoom gets its own tagged

@@ -28,6 +28,17 @@ export interface Env {
    *  so the e2e can drive a real self-purge without waiting 48h. Never set in
    *  production (`--var RETENTION_TEST_WINDOW_MS:...` only in the retention e2e). */
   RETENTION_TEST_WINDOW_MS?: string;
+  /** Q4 (free-tier-efficiency.md): native Workers rate limiter over POST
+   *  /api/rooms. OPTIONAL — absent under `wrangler dev` and degrades to no-limit,
+   *  so the app never depends on it (and a paid-gating deploy failure is the only
+   *  signal it's unavailable). */
+  CREATE_LIMITER?: RateLimiter;
+}
+
+/** The `ratelimits` binding surface we use (Workers runtime). Minimal by hand so
+ *  we don't depend on a specific @cloudflare/workers-types version. */
+interface RateLimiter {
+  limit(options: { key: string }): Promise<{ success: boolean }>;
 }
 
 // 6-char unambiguous room-code alphabet (no 0/O/1/I) — PLAN.md §8.
@@ -48,6 +59,15 @@ function generateRoomCode(): string {
  *  untouched (PLAN.md §4 lobby phase); timing is forwarded as-is and
  *  validated authoritatively in the DO (absent = the standard preset). */
 async function handleCreateRoom(request: Request, env: Env, origin: string): Promise<Response> {
+  // Q4: rate-limit creates per client IP — defense-in-depth against an accidental
+  // retry loop spinning up thousands of lobby DOs (the UI already debounces the
+  // button; this guards non-UI callers and future bugs). Permissive + eventually
+  // consistent by design; absent binding (dev) → no limit.
+  if (env.CREATE_LIMITER !== undefined) {
+    const ip = request.headers.get('cf-connecting-ip') ?? 'unknown';
+    const { success } = await env.CREATE_LIMITER.limit({ key: ip });
+    if (!success) return Response.json({ error: 'rate.limited' }, { status: 429 });
+  }
   let body: { gameId?: unknown; config?: unknown; timing?: unknown };
   try {
     body = (await request.json()) as { gameId?: unknown; config?: unknown; timing?: unknown };
