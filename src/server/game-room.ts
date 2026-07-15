@@ -559,6 +559,9 @@ export class GameRoom extends DurableObject<Env> {
     if (leaf === 'dump' && request.method === 'GET') {
       return this.handleDump(request);
     }
+    if (leaf === 'purge' && request.method === 'POST') {
+      return this.handlePurge(request);
+    }
     // M0 G-ALARM probe endpoints — kept verbatim (PLAN §9).
     if (leaf === 'hello' && request.method === 'GET') {
       return this.handleHello(codeFromPath);
@@ -653,17 +656,24 @@ export class GameRoom extends DurableObject<Env> {
    *  ENVIRONMENT === 'dev'; otherwise requires the DEBUG_DUMP_TOKEN secret
    *  to be configured AND presented — else an indistinguishable 404. Token
    *  HASHES only, never raw tokens. */
-  private handleDump(request: Request): Response {
-    const devMode = this.env.ENVIRONMENT === 'dev';
+  /** The dump/purge debug gate (PLAN §6): open when ENVIRONMENT==='dev', else the
+   *  request must present the DEBUG_DUMP_TOKEN secret in x-debug-dump-token
+   *  (constant-time compared). An unauthorized request is INDISTINGUISHABLE from a
+   *  missing route (404), never a 401 — no oracle about whether the token exists. */
+  private debugAuthorized(request: Request): boolean {
     const configuredToken = this.env.DEBUG_DUMP_TOKEN;
     const presented = request.headers.get('x-debug-dump-token');
-    const allowed =
-      devMode ||
+    return (
+      this.env.ENVIRONMENT === 'dev' ||
       (configuredToken !== undefined &&
         configuredToken !== '' &&
         presented !== null &&
-        timingSafeEqualStr(presented, configuredToken));
-    if (!allowed) return Response.json({ error: 'notFound' }, { status: 404 });
+        timingSafeEqualStr(presented, configuredToken))
+    );
+  }
+
+  private handleDump(request: Request): Response {
+    if (!this.debugAuthorized(request)) return Response.json({ error: 'notFound' }, { status: 404 });
 
     const room = this.readRoomRow();
     if (!room) return Response.json({ error: 'notFound' }, { status: 404 });
@@ -714,6 +724,50 @@ export class GameRoom extends DurableObject<Env> {
         timingClass: r.timing_class,
       })),
     });
+  }
+
+  /** Manual on-demand purge (scripts/cleanup-rooms.ts): the SAME token-gated debug
+   *  affordance as dump, for reclaiming an abandoned room's storage (the lazy-mode
+   *  §4 path for played-out/paused rooms). Returns the pre-purge summary — what is
+   *  being destroyed — so the caller can log/confirm it, then deleteAll()s.
+   *  IRREVERSIBLE: the script dumps first, defaults to dry-run, and only POSTs here
+   *  on an explicit --delete. */
+  private async handlePurge(request: Request): Promise<Response> {
+    if (!this.debugAuthorized(request)) return Response.json({ error: 'notFound' }, { status: 404 });
+    const room = this.readRoomRow();
+    if (!room) return Response.json({ error: 'notFound' }, { status: 404 });
+
+    const count = (table: 'events' | 'actions' | 'actions_seen' | 'deadlines' | 'seats'): number =>
+      this.ctx.storage.sql.exec<{ n: number }>(`SELECT COUNT(*) AS n FROM ${table}`).toArray()[0]?.n ?? 0;
+    const summary = {
+      code: room.code,
+      status: room.status,
+      seq: this.currentSeq(),
+      rows: {
+        events: count('events'),
+        actions: count('actions'),
+        actionsSeen: count('actions_seen'),
+        deadlines: count('deadlines'),
+        seats: count('seats'),
+      },
+      connectedSeats: this.connectedSeats().size,
+      liveSockets: this.ctx.getWebSockets().length,
+      pauseStartedAt: room.pause_started_at,
+      lastActiveAt: room.last_active_at,
+    };
+
+    logMutation({
+      room: room.code,
+      seq: summary.seq,
+      actionId: null,
+      seat: null,
+      actionType: 'roomPurgedManual',
+      outcome: 'applied',
+    });
+    await this.ctx.storage.deleteAll();
+    await this.ctx.storage.deleteAlarm();
+    this.ensureSchema(); // empty schema so a later GET reads no room (404), not 500
+    return Response.json({ ok: true, purged: summary });
   }
 
   // -------------------------------------------------------------------------

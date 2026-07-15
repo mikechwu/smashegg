@@ -133,6 +133,24 @@ describe('Q3 pause + retention TTL (e2e)', () => {
     expect(await roomInfoStatus(server, code), 'self-purged: GET /info is 404').toBe(404);
   }, 15_000);
 
+  test('the manual purge route reclaims a room on demand (§4 script path: dump → purge → 404)', async () => {
+    const code = await createRoom(server, GN_CONFIG);
+    // What the script's dry-run inspects (dump-first, replay preserved).
+    const dump = await getDump(server, code);
+    expect(dump.room.status).toBe('lobby');
+    // Explicit manual purge (dev-mode gate open here; production needs the
+    // x-debug-dump-token — same gate as dump). Immediate, so the tiny-window TTL
+    // can't race it.
+    const res = await fetch(`${server.url}/api/rooms/${code}/purge`, { method: 'POST' });
+    expect(res.status, 'purge authorized in dev').toBe(200);
+    const body = (await res.json()) as { ok: boolean; purged: { code: string; rows: Record<string, number> } };
+    expect(body.ok).toBe(true);
+    expect(body.purged.code).toBe(code);
+    expect(await roomInfoStatus(server, code), 'purged → 404').toBe(404);
+    // Re-purge is idempotent-ish: the room is gone → 404, never a 500.
+    expect((await fetch(`${server.url}/api/rooms/${code}/purge`, { method: 'POST' })).status).toBe(404);
+  }, 15_000);
+
   test('T3: a SEATLESS live socket keeps a lobby alive past the window (never purged)', async () => {
     // The ONLY test that catches a mis-bound seat/socket count: this client
     // connects but never claims a seat → 0 connected SEATS, 1 live SOCKET. A
