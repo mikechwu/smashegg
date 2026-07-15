@@ -326,11 +326,16 @@ because it caught the first bug):
    deploy-transition stamp — verify no reachable NULL-offset resume — the
    guard-path 0-remaining reconnect behavior — verify exactly one default action
    auto-plays and no fresh budget is manufactured — AND the ARGUMENT-BINDING SEAM:
-   audit every call site that passes a seat/socket count against the intended
-   predicate, not just the pure logic; the brands make a swap a compile error but
-   confirm no `as`-cast binds the wrong source**) + Grok on the invariant sweep
+   the brands make swapping two branded values a compile error, so the ENTIRE
+   residual surface is the SOURCE CHOICE at the two construction accessors
+   (`seatCount()` / `socketCount()`) — audit that those two lines bind
+   seats↔`connectedSeats()` and sockets↔`getWebSockets()`, and that no other site
+   re-constructs a brand — AND the fail-safe NULL anchor/status in the purge
+   gate**) + Grok on the invariant sweep
    (I1–I4 / DL1–DL3 / P1–P4 / T1–T3 under pause + TTL, **whether §3.1's lazy policy
-   ever spends the scarce meter to reclaim abundant storage, stamp≡pause, and T3:
+   ever spends the scarce meter to reclaim abundant storage, stamp≡pause, whether
+   any new COMMENT overstates what the code delivers (the eager-flip lesson), and
+   T3:
    that no reachable state purges a room with a live socket**). Then a live drill.
    Audit brief MUST call out all owner catches explicitly: (a) the deploy-transition
    `pause_started_at`-NULL case the clean-state tests miss; (b) that no
