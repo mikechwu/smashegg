@@ -473,6 +473,22 @@ export function placeOf(finishOrder: readonly Seat[], seat: Seat): number | null
   return i < 0 ? null : i + 1;
 }
 
+/** The hand-1 draw-ceremony overlay is up (and the countdown behind it is
+ *  dimmed, room-timing.md §4) iff a ceremony payload exists, the viewer has
+ *  not yet dismissed it, we are on the very first hand, and the match is not
+ *  already decided. Extracted pure so all four gating conditions are
+ *  unit-pinned — this predicate drives BOTH the ceremony overlay and the
+ *  dimTimer cosmetic, so a regression here (overlay on hand 2, or lingering
+ *  past match end) is a visible bug, not just a cosmetic one. */
+export function isCeremonyShowing(args: {
+  hasCeremony: boolean;
+  ceremonyDone: boolean;
+  handNo: number;
+  matchWinner: 0 | 1 | null;
+}): boolean {
+  return args.hasCeremony && !args.ceremonyDone && args.handNo === 1 && args.matchWinner === null;
+}
+
 /** Seats currently expected to act, derived from the view (the cinnabar
  *  active-turn ring). antiTributeDecision exposes no pending set in the
  *  view — callers union in the deadline seats for that phase. */

@@ -32,6 +32,7 @@ import {
   asRuleVariant,
   declJokerRank,
   errorKeyFor,
+  isCeremonyShowing,
   matchSelection,
   multisetKey,
   placeOf,
@@ -327,8 +328,12 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // The hand-1 draw ceremony plays INSIDE the planning window (room-timing.md
   // §4 absorb decision); while its overlay is up the countdown is dimmed —
   // client-only cosmetics, the DO's alarm remains the sole enforcer.
-  const ceremonyShowing =
-    derived.ceremony !== null && !ceremonyDone && view.handNo === 1 && view.matchWinner === null;
+  const ceremonyShowing = isCeremonyShowing({
+    hasCeremony: derived.ceremony !== null,
+    ceremonyDone,
+    handNo: view.handNo,
+    matchWinner: view.matchWinner,
+  });
 
   const tributePhase = tributeKind(hints ?? []);
   const eligible = tributeEligibleCards(hints ?? []);

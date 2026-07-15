@@ -17,6 +17,7 @@ import {
   declSignature,
   errorKeyFor,
   handRows,
+  isCeremonyShowing,
   matchSelection,
   multisetKey,
   placeOf,
@@ -607,5 +608,30 @@ describe('joker-keyed combo labels (regression: BJ/SJ singles & pairs)', () => {
     const events: GuandanEvent[] = [{ type: 'played', seat: 0, cards: ['9S', '9C'], decl: plainPair }];
     const derived = foldEvents(EMPTY_DERIVED, events, 0, nameFor, idGen);
     expect(derived.feed[0]!.params?.combo).toEqual({ kind: 'combo', comboType: 'pair', keyRank: '9' });
+  });
+});
+
+describe('isCeremonyShowing (hand-1 ceremony overlay + dimTimer gate)', () => {
+  const base = { hasCeremony: true, ceremonyDone: false, handNo: 1, matchWinner: null as 0 | 1 | null };
+
+  it('shows during hand 1 with an undismissed ceremony and no match winner', () => {
+    expect(isCeremonyShowing(base)).toBe(true);
+  });
+
+  it('hides once the viewer dismisses the ceremony (tap-to-skip)', () => {
+    expect(isCeremonyShowing({ ...base, ceremonyDone: true })).toBe(false);
+  });
+
+  it('hides on any hand past the first — the window is hand-1 only', () => {
+    expect(isCeremonyShowing({ ...base, handNo: 2 })).toBe(false);
+  });
+
+  it('hides when there is no ceremony payload', () => {
+    expect(isCeremonyShowing({ ...base, hasCeremony: false })).toBe(false);
+  });
+
+  it('hides the instant the match is decided, even mid-hand-1', () => {
+    expect(isCeremonyShowing({ ...base, matchWinner: 0 })).toBe(false);
+    expect(isCeremonyShowing({ ...base, matchWinner: 1 })).toBe(false);
   });
 });

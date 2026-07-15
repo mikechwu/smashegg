@@ -1,12 +1,18 @@
 # STATUS
 
-## Current phase: M4 (reconnection + timeouts + owner items A/B) — in progress
+## Current phase: M4 closed out; free-tier efficiency research interlude before M5
 
 **Last updated:** 2026-07-14
 
-## M4 (2026-07-14) — reconnection + timeouts + owner items A/B: implementation complete, gate in progress
+## M4 (2026-07-14) — reconnection + timeouts + owner items A/B: implementation complete, gate report final
 
-### M4 GATE REPORT (draft — audits in flight)
+### M4 GATE REPORT — all criteria green; audits resolved
+
+Owner did not approve the gate outright — instead redirected to a close-out
+pass (below) plus a question-first free-tier-efficiency research interlude
+([docs/research/free-tier-efficiency.md](docs/research/free-tier-efficiency.md),
+propose-then-implement) before the M5 decision. This report is final: every
+criterion is green and both cross-model audits are archived and resolved.
 
 | Gate criterion | Evidence | Verdict |
 |---|---|---|
@@ -17,15 +23,60 @@
 | Fresh-clock fix (M2 item) | base_due_at decision table (doc §2) implemented in pure nextDeadlines; every table row unit-pinned by name; wire-level e2e regression: drop + reconnect on the clock → dueAt restored EXACTLY to base, never re-armed; presence isolation (seat X blip leaves seat Y byte-identical) | ✅ |
 | Wild chooser card faces (owner item A) | docs/research/wild-chooser-ux.md (data-availability verdict: derivable client-side, zero engine change — obligation 4 untouched); wildSubstitutions/resolveComboFaces unit-tested against validatePlay reconstruction; 390px fit pinned by CSS-token arithmetic ratchet; LIVE: one-wild chooser ({10,10,Q,Q,配} → 三帶二 Q / 三帶二 10, weaker picked and bound), TWO-WILD chooser hunted onto production ({A,A,Q,配,配} → mixed chips W→A + W→Q vs collapsed ×2 W→Q, single row height, weaker picked and bound), 390px multi-option chooser verified in a true 390px viewport | ✅ |
 | Boundaries | Engine pure/time-free (timingClass is a pure state→label); DO game-agnostic (grep: zero game imports; timing map is opaque); RuleVariant 25 keys untouched; legacy rooms bit-identical (timing_json NULL → actionTimeoutMs path) | ✅ |
-| Suites | 598 unit + 25 e2e green ×(independent verification), 4 typechecks; CI + versioned Deploy green | ✅ |
+| Suites | 609 unit + 25 e2e green ×(independent verification), 4 typechecks; CI + versioned Deploy green | ✅ |
 
-**Visual-round findings (ratchet):** (1) big-joker single labeled 單張 A (client renders keyRank, which is a frozen placeholder for joker-keyed forms; jokerRank carries the identity) — regression + fix dispatched, in flight; (2) mid-ceremony countdown-dim implemented but not captured in a screenshot this round (the ceremony finished before the capture; behavior code-reviewed only — honest note, not a blocker). UX note: seat tabs reset to 座位 1 after hash re-entry — cosmetic, M5 polish list.
+**Visual-round findings (ratchet), both closed:** (1) big-joker single labeled 單張 A (client renders keyRank, a frozen placeholder for joker-keyed forms; jokerRank carries the identity) — regression pinned then fixed, LANDED (commit cb21c24; the fix's non-vacuity was proven by temporary revert). (2) mid-ceremony countdown-dim: no live screenshot was taken this round (the ~4.6s ceremony window closed before capture; cosmetic). Closed the ratchet the durable way instead of chasing a flaky screenshot — the gating logic was extracted to a pure `isCeremonyShowing` predicate (client suite is DOM-free, `environment: 'node'`, so a className swap has no logic to isolate, but the four-condition gate that drives BOTH the ceremony overlay and the dimTimer does) and unit-pinned across all four conditions (hand-1-only, undismissed, ceremony-present, not-past-match-end). UX note carried to M5 polish: seat tabs reset to 座位 1 after hash re-entry (cosmetic); hot-seat leader-clock grace.
 
 **Cross-model audits** (Codex → [docs/audits/M4-codex.md](docs/audits/M4-codex.md); Grok → [docs/audits/M4-grok.md](docs/audits/M4-grok.md); Gemini skipped — same partitioning rationale as M1–M3, the two primary lineages fully covered the split surface):
-- **Codex: ZERO majors, 2 minors, both fixed.** (1) The doc's I2 invariant wording ("never increases") contradicted the intended restore-to-base semantics the code and tests correctly implement — doc reworded to the never-above-base bound. (2) Property-test fidelity honestly bounded (pure-layer only; DO SQL/ordering owned by e2e — scope note added to the test header) and the alarm loop now asserts it DRAINS all currently-due rows within MAX_ALARM_APPLIES instead of tolerating exhaustion. Checked-clean: full §2 decision table (hunted for uncovered inputs — none), presence semantics, fire-and-forget SQL-before-await boundary, hello reconcile-before-welcome, takeover no-delta path, alarm termination + class re-arming, timeout: namespace, exactly-once seq-gap proof validity, resync/skew field additions (no redaction leak). Sandbox caveat: reasoned-only again (EPERM on test execution); CI executes the same suites green incl. today's strict run.
+- **Codex: ZERO majors, 2 minors, both fixed.** (1) The doc's I2 invariant wording ("never increases") contradicted the intended restore-to-base semantics the code and tests correctly implement — doc reworded to the never-above-base bound. (2) Property-test fidelity honestly bounded (pure-layer only; DO SQL/ordering owned by e2e — scope note added to the test header) and the alarm loop now asserts it DRAINS all currently-due rows within MAX_ALARM_APPLIES instead of tolerating exhaustion. Checked-clean: full §2 decision table (hunted for uncovered inputs — none), presence semantics, fire-and-forget SQL-before-await boundary, hello reconcile-before-welcome, takeover no-delta path, alarm termination + class re-arming, timeout: namespace, exactly-once seq-gap proof validity, resync/skew field additions (no redaction leak). Sandbox caveat (weighted, owner §0): Codex ran reasoned-only again — an EPERM blocked test execution in its sandbox — so its ZERO-majors is an **inspection** verdict (it read the code, decision table, and tests and found no major defect by reasoning), NOT an independent green run. The executable guarantee comes from OUR CI (the same suites, green, including today's strict E2E_REQUIRE_WIRE=1 dispatch); Codex corroborates that by inspection rather than re-proving it. Read the two together, not the inspection alone.
 - **Grok: 1 medium + 2 low, all fixed.** Medium (the genuine catch): the manual `npm run build && npm run deploy` path shipped a 'dev'-sentinel client bundle with a SHA-versioned Worker — permanently suppressing the skew banner for those clients; the deploy script now captures ONE SHA and feeds both the client build and the Worker var. Low: chooser aria strings said 配牌 while the rest of the product says 逢人配 (aligned); the planning label could sit on a disconnect-grace countdown, promising a budget the clock wasn't giving (label now shown only while connected). Checked-clean: game-agnosticism sweep found ZERO leakage (imports, opaque config/timing, no hardcoded seats, class map opacity), the 108-card 'planning' predicate verified sound across ALL hand-opening paths and rule variants with the obligations pin confirmed independent, guess-number omission verified at every DO call site, version-skew CI path/dev-suppression/dismissal-rekeying/non-destructive guarantees, i18n parity + script correctness + preset-number consistency across all 18 new keys, picker freeze/aria/authority.
 
 **Pre-gate strict e2e (CI, workflow_dispatch):** green — all three rare paths reached wire level under E2E_REQUIRE_WIRE=1 with 3× hunt budgets on the runner.
+
+## Free-tier efficiency research interlude (owner mission §1, 2026-07-14) — PROPOSE, awaiting sign-off
+
+Question-first research pass on a batch of free-tier proposals; deliverable
+[docs/research/free-tier-efficiency.md](docs/research/free-tier-efficiency.md).
+Research-only — **no efficiency code has landed; the action set awaits owner
+sign-off** (§0 M4 close-out changes below did land). Method: framing before
+findings (METHODOLOGY practice 5), 5 Cloudflare-docs verifiers (VERIFIED with
+source URLs + 2026-07-14 fetch dates), 1 empirical rows/match measurement, and
+2 Opus adversarial skeptics — **both the load-bearing Q3 design and the Q2
+arithmetic were found wrong on first pass and corrected** (the value of the
+adversarial pass). Two of the owner's premises were contradicted by the source
+and reported plainly.
+
+- **Q1 (auto-response): ALREADY DONE.** `setWebSocketAutoResponse('ping','pong')`
+  is live (game-room.ts:195); VERIFIED it answers without waking the DO / no
+  duration; presence is close-event-driven so the no-wake behavior can't touch
+  liveness. No action.
+- **Q2 (zombie/TTL): NO TTL exists; the real risk is bigger than estimated.** The
+  binding meter is **rows-written**, not requests: an abandoned mid-match room
+  auto-plays the *entire* remaining match at ~1 wake/60s ≈ **~11.5k rows/day per
+  room** for possibly multiple days; **~8–9 concurrent abandoned rooms approach
+  the 100k rows/day cap** (corrects the request-axis "dozens" estimate). Rows/
+  action corrected to ~8 (missed the `actions_seen` TEXT-PK auto-index; DELETE
+  and setAlarm both count). Measured ~9–23k rows/match (degenerate defaultAction
+  baseline — real play differs).
+- **Q3 (pause on connected==0): right direction, first design BROKEN, corrected.**
+  Skeptic found a timer-dodge (HIGH) + a permanent-stall (HIGH) + 2 medium. Fix:
+  preserve *remaining* budget as a duration at pause, re-arm *all* actors on
+  resume (not the changedSeats path), guard `alarm()` with connected==0 — M4/I2/
+  I4-consistent. Load-bearing → property-test + wire e2e + Codex/Grok audit at
+  implementation. Strictly better than the pre-rejected purge (preserves room +
+  replay).
+- **Q4 (rate limiting): cheap easy-yes, low urgency.** Vector confirmed
+  (unauthenticated `POST /api/rooms`); zone WAF/rate-limit rules don't apply to
+  `*.workers.dev`; the fit is the native Workers `ratelimits` binding (~10 lines,
+  $0) + a client retry-loop guard — pending a Free-plan availability smoke test.
+- **Q5 (rejections): both UPHELD (verified).** Hibernation discards in-memory
+  state after ~10s idle → batching unsafe under 45s clocks; static-asset requests
+  are already free/unlimited off the Worker meter → caching saves nothing and
+  would reintroduce the skew bug. The one safe row-reduction kept: merge the two
+  per-action snapshot UPDATEs (−1 row/action).
+- **Recommended sequence (awaiting sign-off):** (1) trivial snapshot-UPDATE
+  merge; (2) Q3 corrected design, gated; (3) Q4 binding after a smoke test;
+  no-ops Q1/Q5-batch/Q5-cache; defer a SQLite retention sweep to M5+.
 
 ## Process: model dispatch policy change (owner mission, 2026-07-14)
 
