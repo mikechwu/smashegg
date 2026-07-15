@@ -1194,11 +1194,17 @@ export class GameRoom extends DurableObject<Env> {
 
     // Single-writer guarantee (PLAN §4): seq++ + snapshot + events +
     // actions_seen happen atomically within this one handler invocation.
-    const newSeq = this.bumpSeq();
+    // seq and state_json are written in ONE combined UPDATE (not bumpSeq()'s
+    // separate seq UPDATE + a second state UPDATE) — Cloudflare bills each
+    // UPDATE's affected row toward rows-written, so merging the two saves one
+    // row-write per applied action (~12% of the per-action write set; see
+    // docs/research/free-tier-efficiency.md Q5). Identical data; the read-back
+    // of the new seq is a metered READ, not a write.
     this.ctx.storage.sql.exec(
-      'UPDATE snapshot SET state_json = ? WHERE id = 1',
+      'UPDATE snapshot SET seq = seq + 1, state_json = ? WHERE id = 1',
       JSON.stringify(applied.state),
     );
+    const newSeq = this.currentSeq();
     this.ctx.storage.sql.exec(
       'INSERT INTO events (seq, events_json) VALUES (?, ?)',
       newSeq,

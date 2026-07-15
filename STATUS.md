@@ -74,9 +74,46 @@ and reported plainly.
   are already free/unlimited off the Worker meter → caching saves nothing and
   would reintroduce the skew bug. The one safe row-reduction kept: merge the two
   per-action snapshot UPDATEs (−1 row/action).
-- **Recommended sequence (awaiting sign-off):** (1) trivial snapshot-UPDATE
-  merge; (2) Q3 corrected design, gated; (3) Q4 binding after a smoke test;
-  no-ops Q1/Q5-batch/Q5-cache; defer a SQLite retention sweep to M5+.
+- **Recommended sequence:** (1) trivial snapshot-UPDATE merge; (2) Q3 corrected
+  design, gated; (3) Q4 binding after a smoke test; no-ops Q1/Q5-batch/Q5-cache;
+  defer a SQLite retention sweep to M5+.
+
+### Sign-off + expansion (owner, 2026-07-15) — APPROVED + retention/TTL + cleanup script
+
+All three approved (Q3 pause corrected / Q5-merge / Q4 ratelimits). Owner pulled
+retention/TTL forward from M5+ (it is the other half of Q3 — Q3 makes abandoned
+rooms *inert but immortal*, so it removes the burn and creates accumulation;
+design+gate them together) and added an owner-facing cleanup/inspection script.
+
+**§1 live-burn check — CONFIRMED, and it validates Q2's arithmetic.** The likely
+zombie generator is our own dev process, not the family. Direct per-room probe
+(GET /api/rooms/CODE, no auth) found THREE M4-drill rooms still auto-playing,
+0 connected: **P2FFYD (seq 109→110), YM2C72 (133→134), M74D3N (105→107)** over
+81s — the ~1 action/60s disconnect-grace cadence, i.e. ~11.5k rows/day EACH
+(~34.5k/day for all three, ~⅓ of the 100k/day cap) and climbing until each match
+auto-completes (~1–2 more days at seq ~110). This is the live-data validation the
+owner wanted — the model was right. NULL result: the account-wide rows-written
+aggregate could not be pulled programmatically (wrangler's OAuth token is
+rejected by the GraphQL analytics API, 9106); the per-room probe is the direct
+evidence instead. These 3 rooms are to be stopped via the §4 cleanup script once
+it lands (burn is slow — ~24 rows/min total — so no hasty destructive purge).
+
+**Q5-merge: LANDED.** applyGameAction now writes seq+state_json in ONE combined
+UPDATE (was bumpSeq's seq UPDATE + a separate state UPDATE) — −1 row-write/action
+(~12%). Behavior-preserving (609 unit + 25 e2e green; e2e covers seq advancement
++ resync). game-room.ts ~1197.
+
+**In progress (read-only gating research, workflow):** delete-metering cost (the
+§3 gotcha — DELETE counts per row, so a naive purge of a 10–20k-row match could
+cost 10–20% of the daily cap; is bulk deletion cheaper?), DO enumeration
+feasibility (can we even LIST rooms? idFromName is one-way), and a PLAN drift
+sweep (the verified example: PLAN §4 asserts a room-TTL alarm that does NOT
+exist — the documentation-level twin of Grok's M3 no-op-config catch).
+
+**Then:** §3 TTL + Q3 designed+gated together (property test w/ connected-count
+dimension + wire e2e + Codex resync/liveness + Grok invariant sweep + live
+drill) → §4 script (dump-then-delete, token-gated, dry-run default) → §2 PLAN
+correction folded in → Q4 last (after a Free-plan smoke test of the binding).
 
 ## Process: model dispatch policy change (owner mission, 2026-07-14)
 
