@@ -90,8 +90,13 @@ a {
 .app-locale,
 .app-theme {
   display: flex;
+  /* A single nav must also wrap (panel residual, 2026-07-16): without this,
+     one nav that outgrows the 390px column would extend the page sideways
+     even though .app-controls wraps the navs against each other. */
+  flex-wrap: wrap;
   gap: 0.25rem;
   flex: none;
+  max-width: 100%;
 }
 .app-locale button,
 .app-theme button {

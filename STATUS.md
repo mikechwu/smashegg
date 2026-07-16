@@ -59,11 +59,28 @@ structurally (flex-wrap on .app-header/.app-controls, max-width 100%) and re-mea
 (scrollWidth 390, zero elements past the viewport); layout has no browser-test pin — the
 390 eyes-gate checklist now carries the header check.
 
-Suite: 787/787 green, 36 files; typecheck clean; lint:hooks clean. Image-gen research filed
-(docs/research/image-generation-options.md, sources + fetch dates 2026-07-16; Codex CLI
-image_generation VERIFIED reachable at $0 marginal — null option stands, five owner images
-suffice). NEXT: contract-compliance panel (Codex clean as auditor — different artifact from
-aesthetics), then owner review; push only on the owner's word.
+Image-gen research filed (docs/research/image-generation-options.md, sources + fetch dates
+2026-07-16; Codex CLI image_generation VERIFIED reachable at $0 marginal — null option
+stands, five owner images suffice).
+
+PANEL (contract compliance, Codex + Grok on scratch clones, identical briefs; Codex clean as
+auditor — compliance is a different artifact from the aesthetics it once proposed): verdicts
+CLEAN on engine/protocol/DO theme-ignorance, switching isolation, locale/aria handling,
+english-only coverage, and both ratchets' wiring. Four findings, ALL FIXED with pins:
+(1) MED, found INDEPENDENTLY by both — the stacking pin overclaimed: .gd-card
+(position:relative, z-index auto) created no stacking context, so a positioned theme
+descendant with a large z-index could paint over the sibling wild seal; fixed with
+z-index: 0 on .gd-card (traps the theme subtree) + the pin now requires the DECLARATION with
+comments stripped — the first pin version passed on the explanatory comment's prose, caught
+by ITS OWN mutation check, then re-verified (delete declaration → fails; restore → 789/789).
+(2) LOW (both): the wild-seal pin lacked the joker pins' fixed-px/margin/transform
+horizontal ban — parity added. (3) LOW (Grok): the reactive suite never asserted a switch to
+a NON-default id — test added (lacquer round-trip with restore). (4) LOW-SUSPECTED (Grok):
+single-nav growth could still widen the page at 390 — .app-theme/.app-locale now wrap too.
+Codex's clone saw one unrelated property-test timeout under 3-way machine contention
+(obligations.property.test.ts, 5s budget); green in Grok's clone and locally x4 — not a
+round defect. Final: suite 789/789, 36 files; typecheck clean; lint:hooks clean. Committed
+locally; push only on the owner's word.
 
 ## Card face redesign (2026-07-16) — verified, researched, three proposals — OWNER PICKED (see above)
 

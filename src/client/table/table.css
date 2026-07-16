@@ -367,6 +367,13 @@
   border: 2px solid var(--rosewood);
   border-radius: 8px;
   position: relative;
+  /* Stacking TRAP (panel finding 2026-07-16): position: relative alone
+     creates NO stacking context, so a positioned theme descendant with a
+     large z-index would join the FRAME's context and paint over the sibling
+     wild seal (z-index: 1). z-index: 0 seals the theme's whole subtree into
+     its own context — no internal z-index can escape past the marker.
+     Conformance-pinned together with the isolation rule. */
+  z-index: 0;
   flex: none;
   box-sizing: border-box;
 }

@@ -126,10 +126,14 @@ describe('the framework overlays (structural: no theme can remove them)', () => 
   });
 
   it('the marker paints ABOVE any theme content (CSS stacking pin, panel hardening)', () => {
-    // The frame is an isolated stacking context and the framework marker
-    // sits on its own z layer — a theme's internal z-index games cannot
-    // cover it. Pinned from the stylesheet text (the chooser-faces CSS-token
-    // ratchet precedent).
+    // Three tokens TOGETHER make "a theme's internal z-index games cannot
+    // cover the marker" structurally true, and all three are pinned:
+    // (1) the frame is an isolated stacking context; (2) the marker sits at
+    // z-index: 1 in that context; (3) the theme root .gd-card carries
+    // z-index: 0 — position: relative alone creates NO stacking context, so
+    // without (3) a positioned theme descendant with a large z-index would
+    // join the frame's context and beat the marker's z-index: 1 (panel
+    // finding, 2026-07-16, independently verified by both auditors).
     const css = readFileSync(
       join(__dirname, '../../../src/client/table/table.css'),
       'utf8',
@@ -138,6 +142,17 @@ describe('the framework overlays (structural: no theme can remove them)', () => 
     expect(frameRule).toContain('isolation: isolate');
     const markerRule = css.match(/\.gd-cardframe\s*>\s*\.gd-card__wild\s*\{[^}]*\}/)?.[0] ?? '';
     expect(markerRule).toContain('z-index: 1');
+    // Strip comments before matching: the rule's own explanatory comment
+    // names the token, so a bare substring check would pass on prose with
+    // the declaration deleted (caught by this pin's own mutation check).
+    const cardRule = (css.match(/^\.gd-card\s*\{[^}]*\}/m)?.[0] ?? '').replace(
+      /\/\*[\s\S]*?\*\//g,
+      '',
+    );
+    expect(
+      cardRule,
+      '.gd-card must trap its subtree in its own stacking context (z-index: 0 declaration)',
+    ).toMatch(/(?:^|[\s;{])z-index:\s*0\s*;/);
   });
 
   it('the physical-deal deck slabs apply only to the deck back, not the marker face', () => {
@@ -198,6 +213,22 @@ describe('wild seal geometry (CSS-token pin)', () => {
     const wildRule = tableCss.match(/^\.gd-card__wild\s*\{[^}]*\}/m)?.[0] ?? '';
     expect(wildRule.length).toBeGreaterThan(0);
     expect(wildRule).not.toContain('clip-path');
+  });
+
+  it('no fixed-px/rem horizontal offset and no margin/transform drift (panel finding parity with the joker pins)', () => {
+    // The joker-emblem pins already banned fixed-px horizontal offsets; the
+    // seal pin did not, so a future `margin-left: 4px` or `translateX(8px)`
+    // on .gd-card__wild would drift it out of the sliver at small sizes
+    // without failing anything. Same scan, same target class.
+    const wildRule = tableCss.match(/^\.gd-card__wild\s*\{[^}]*\}/m)?.[0] ?? '';
+    expect(wildRule.length).toBeGreaterThan(0);
+    expect(wildRule).not.toContain('margin');
+    expect(wildRule).not.toContain('transform');
+    const horizontalDecls = wildRule.match(/(?:^|[\s{])(?:left|right|width)\s*:[^;]*;/gm) ?? [];
+    expect(horizontalDecls.length, 'no left/right/width declarations found').toBeGreaterThan(0);
+    for (const decl of horizontalDecls) {
+      expect(decl, `fixed-px/rem horizontal offset in "${decl.trim()}"`).not.toMatch(/\d(?:px|rem)\b/);
+    }
   });
 });
 
@@ -392,6 +423,28 @@ describe('reactive deck-theme preference (item 2)', () => {
       expect(seen).toEqual([]);
       expect(store.has('pref:deckTheme')).toBe(false);
     } finally {
+      unsubscribe();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('switching to a NON-default registered theme takes effect, persists and notifies (panel finding)', () => {
+    // Every earlier test in this block only ever set the DEFAULT id, so a
+    // regression that "works" solely for the default would have passed.
+    // 'lacquer' is the non-default registered theme as of this round.
+    expect(DEFAULT_DECK_THEME_ID).not.toBe('lacquer');
+    const store = stubStorage();
+    const seen: string[] = [];
+    const unsubscribe = subscribeDeckTheme(() => seen.push(activeDeckTheme().id));
+    try {
+      setDeckTheme('lacquer');
+      expect(activeDeckTheme().id).toBe('lacquer');
+      expect(seen).toEqual(['lacquer']);
+      expect(store.get('pref:deckTheme')).toBe('lacquer');
+    } finally {
+      // Restore the default so the in-memory override never leaks into
+      // later tests (this suite shares module state by design).
+      setDeckTheme(DEFAULT_DECK_THEME_ID);
       unsubscribe();
       vi.unstubAllGlobals();
     }
