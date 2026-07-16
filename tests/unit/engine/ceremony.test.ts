@@ -280,6 +280,25 @@ describe('real cut — redaction (obligation 3: the deck is everyone\'s future h
     }
   });
 
+  it('obs 1: the cutter learns NO outcome pre-commit — no firstDrawer/markerSeat/flips/cutPosition', () => {
+    // The fairness hard line behind obs 1: if the cutter could see who gets the
+    // marker for a candidate position, they could slide until they liked it,
+    // and the ceremony would be theatre. The outcome is a function of the
+    // HIDDEN deck and is computed only at the cutDeck commit, so no view — the
+    // cutter's included — may carry any outcome field while phase==='ceremonyCut'.
+    const { state } = GuandanGame.init(DRAW_CFG, 4, 'cut-outcome-redact');
+    const cutter = state.ceremonyCut!.cutter;
+    const json = JSON.stringify(GuandanGame.playerView(state, cutter));
+    // (not 'ceremonyCut' as a substring — the public 'ceremonyCutter' actor
+    // field legitimately contains it; the KEY-level ceremonyCut/deck checks
+    // live in obligations.property.test.ts checkViews.)
+    for (const leak of ['firstDrawer', 'markerSeat', 'flips', 'cutPosition']) {
+      expect(json, `cutter's ceremonyCut view must not carry '${leak}'`).not.toContain(leak);
+    }
+    // What it MAY carry: the public actor, nothing more outcome-bearing.
+    expect(JSON.parse(json).ceremonyCutter).toBe(cutter);
+  });
+
   it('the ceremonyCutStarted event is public and card-free for every seat', () => {
     const { events } = GuandanGame.init(DRAW_CFG, 4, 'cut-event-redact');
     const started = events.find((e) => e.type === 'ceremonyCutStarted')!;

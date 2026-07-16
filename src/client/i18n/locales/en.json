@@ -192,7 +192,6 @@
   "game.cut.waiting": "Waiting for {name} to cut the deck",
   "game.cut.prompt": "Choose where to cut — the deck splits here",
   "game.cut.sliderLabel": "Cut position",
-  "game.cut.position": "Cut after card {position}",
   "game.cut.confirm": "Cut",
   "game.feed.cutStarted": "{name} cuts the deck",
   "game.ceremony.shuffling": "Shuffling...",

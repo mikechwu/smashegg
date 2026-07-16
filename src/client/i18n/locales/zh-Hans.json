@@ -192,7 +192,6 @@
   "game.cut.waiting": "等 {name} 切牌",
   "game.cut.prompt": "请选择切牌位置——把牌叠从这里分开",
   "game.cut.sliderLabel": "切牌位置",
-  "game.cut.position": "从第 {position} 张切开",
   "game.cut.confirm": "切牌",
   "game.feed.cutStarted": "轮到 {name} 切牌",
   "game.ceremony.shuffling": "洗牌中…",

@@ -210,20 +210,41 @@
   font-size: 0.8125rem;
   opacity: 0.85;
 }
-.gd-cut__deck {
+/* The spread ribbon (obs 1): CUT_RIBBON_SLIVERS overlapping mini backs
+   distributed across the SAME width as the slider below, so the spatial
+   mapping is obvious. Each sliver past the split shifts right by --gap; the
+   transition slides the split along the ribbon as the slider drags — the deck
+   visibly parting into two packets. The gap (1.4rem) is clearly wider than the
+   per-sliver pitch (~0.7rem at 390px), never a numeric index. */
+.gd-cut__ribbon {
+  --slivers: 24;
+  --sliver-w: 2rem;
+  --gap: 1.4rem;
+  position: relative;
   align-self: center;
-  padding: 0.25rem 0.5rem 0.5rem;
+  width: 100%;
+  max-width: 18rem;
+  height: calc(var(--sliver-w) * 1.45);
+  margin: 0.25rem auto 0.35rem;
+}
+.gd-cut__sliver {
+  position: absolute;
+  top: 0;
+  left: calc((100% - var(--sliver-w) - var(--gap)) * var(--i) / (var(--slivers) - 1));
+  z-index: var(--i);
+  transition: transform 160ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.gd-cut__sliver[data-side='right'] {
+  transform: translateX(var(--gap));
+}
+@media (prefers-reduced-motion: reduce) {
+  .gd-cut__sliver {
+    transition: none;
+  }
 }
 .gd-cut__slider {
   width: 100%;
   accent-color: var(--cinnabar);
-}
-.gd-cut__pos {
-  margin: 0;
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.8125rem;
-  opacity: 0.9;
 }
 .gd-cut__confirm {
   align-self: center;
@@ -706,13 +727,11 @@
 }
 /* Deck depth (research recipe): offset+negative-spread shadow slab pairs;
    discrete depletion tiers ARE the animation (shadows can't interpolate
-   layer counts). Shared by the deal pile and the cut panel's pile. */
-.gd-deal__deck .gd-card,
-.gd-cut__deck .gd-card {
+   layer counts). The deal pile depletes as it deals. */
+.gd-deal__deck .gd-card {
   transition: box-shadow 150ms linear;
 }
-.gd-deal__deck[data-depth-tier='3'] .gd-card,
-.gd-cut__deck[data-depth-tier='3'] .gd-card {
+.gd-deal__deck[data-depth-tier='3'] .gd-card {
   box-shadow:
     2px 2px 0 -1px var(--ivory), 2px 2px 0 0 var(--rosewood),
     4px 4px 0 -1px var(--ivory), 4px 4px 0 0 var(--rosewood),

@@ -22,6 +22,7 @@ import { ActionBar } from './table/ActionBar';
 import { CeremonyOverlay } from './table/CeremonyOverlay';
 import { CutPanel } from './table/CutPanel';
 import { DealOverlay } from './table/DealOverlay';
+import { dealDirOrder, markerDealBeat } from './table/deal';
 import { EventFeed, FEED_LIMIT, type FeedLine } from './table/EventFeed';
 import { HandFan } from './table/HandFan';
 import { TableHeadline } from './table/TableHeadline';
@@ -370,13 +371,18 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     derived.dealNo > dealShown && !ceremonyShowing && view.phase !== 'ceremonyCut' && view.hand.length > 0;
   const dirFor = (seat: Seat): 'south' | 'east' | 'north' | 'west' =>
     seat === layout.south ? 'south' : seat === layout.east ? 'east' : seat === layout.north ? 'north' : 'west';
-  const dealMarker =
-    dealing && derived.ceremony !== null && view.handNo === 1
-      ? {
-          card: derived.ceremony.flips[derived.ceremony.flips.length - 1]!,
-          targetDir: dirFor(derived.ceremony.markerSeat),
-        }
-      : null;
+  // Obs 2: hand 1 deals FROM the first drawer (public, from the ceremony) so
+  // the marker lands at its true beat; hands 2+ keep the default south-first
+  // order. The marker card + beat are derived purely from the public flips
+  // array — no new server field (see deal.ts markerDealBeat).
+  const dealCeremony = dealing && derived.ceremony !== null && view.handNo === 1 ? derived.ceremony : null;
+  const dealDir = dealCeremony ? dealDirOrder(dirFor(dealCeremony.firstDrawer)) : undefined;
+  const dealMarker = dealCeremony
+    ? {
+        card: dealCeremony.flips[dealCeremony.flips.length - 1]!,
+        beat: markerDealBeat(dealCeremony.flips.length),
+      }
+    : null;
 
   const tributePhase = tributeKind(hints ?? []);
   const eligible = tributeEligibleCards(hints ?? []);
@@ -558,6 +564,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       {dealing && (
         <DealOverlay
           key={derived.dealNo}
+          dirOrder={dealDir}
           marker={dealMarker}
           level={view.currentLevel}
           onOwnLanded={setDealRevealed}
