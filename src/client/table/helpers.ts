@@ -179,7 +179,7 @@ export interface ResolvedFace {
   /** null ⇒ suit-blind ghost face (no suit glyph); set for naturals, SF
    *  targets and wilds-as-themselves. */
   displaySuit: Suit | null;
-  /** true ⇒ this slot is wild-backed (drives the 配 corner marker). */
+  /** true ⇒ this slot is wild-backed (drives the wild corner marker). */
   viaWild: boolean;
 }
 
@@ -586,8 +586,8 @@ export function comboKey(decl: CanonicalForm): TranslationKey {
  *  path (mirrors formProjectionKey's identical cast above) — a joker-keyed
  *  single/pair carries keyRank 'A' as a never-compared placeholder (same
  *  convention as jokerBomb) with jokerRank as the REAL identity, so any
- *  label built from keyRank alone is wrong for these two forms (the M4 "單
- *  張 A" bug). Undefined for every other decl, including jokerBomb, which
+ *  label built from keyRank alone is wrong for these two forms (the M4 "Single
+ *  A" bug). Undefined for every other decl, including jokerBomb, which
  *  has no ambiguity to resolve (comboKey alone names it). */
 export function declJokerRank(decl: CanonicalForm): JokerRank | undefined {
   return (decl as CanonicalForm & { jokerRank?: JokerRank }).jokerRank;
@@ -624,7 +624,7 @@ export function placeKey(place: number): TranslationKey | null {
 /** F9 (pre-M5): the binary "can I act?" state for the action bar, derived
  *  purely from the server's hints. Leading (no pass offered) needs no cue —
  *  you may play anything. Following (pass offered) with at least one legal
- *  play → canBeat; with none → cannotBeat (surface it and promote 過). Pure +
+ *  play → canBeat; with none → cannotBeat (surface it and promote Pass). Pure +
  *  exported so the DOM-free client suite can pin it. */
 export function beatState(
   hints: readonly { type: string }[],
@@ -634,7 +634,7 @@ export function beatState(
   return hints.some((h) => h.type === 'play') ? 'canBeat' : 'cannotBeat';
 }
 
-/** Remaining-count urgency tier for a seat plate (F11 / 報牌): the rule-defined
+/** Remaining-count urgency tier for a seat plate (F11 / low-card alert): the rule-defined
  *  alert line is ≤10, sharpening at 1–2 (about to go out). Drives both the
  *  numeral escalation and its aria wording. Pure + exported for the unit test. */
 export function handSizeTier(count: number): 'normal' | 'low' | 'critical' {
@@ -644,7 +644,7 @@ export function handSizeTier(count: number): 'normal' | 'low' | 'critical' {
 }
 
 /** F8 (pre-M5): the centre well's waiting-for-lead prompt. Your OWN lead must
- *  read "輪到你出牌", never the spectator "等 [你的名字] 領出" — that centre line
+ *  read "your turn to play", never the spectator "wait for [your name] to lead" — that centre line
  *  was the ORIGINAL F8 defect (the headline turn cue is a separate signal).
  *  Pure + exported so the DOM-free suite pins it. */
 export function leadPromptKey(

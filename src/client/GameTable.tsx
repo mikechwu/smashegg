@@ -3,13 +3,13 @@
 // drives multi-seat self-play (PLAN §4), and every panel renders the ACTIVE
 // seat's view. Internals: the Lacquer Ledger seat RING (you bottom, partner
 // across, opponents flanking a bounded centre), a TableHeadline topbar
-// (level 打幾 / wild / whose-turn) as the signature, value-dependent seat
+// (the level (rank) / wild / whose-turn) as the signature, value-dependent seat
 // plates, HandFan selection → hint matching → ActionBar, trick well /
 // tribute panel, hand-1 draw ceremony, result overlay, event feed.
 //
 // The store keeps only each seat's LATEST event batch (view-carrying
 // events, PLAN §5) — so trick-local presentation state (pass markers,
-// 接風 banner, 抗貢 reveals, the ceremony payload, the feed) is folded
+// jiefeng banner, anti-tribute reveals, the ceremony payload, the feed) is folded
 // here from batches as they arrive.
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
@@ -170,7 +170,7 @@ export function foldEvents(
       case 'played':
         d.passed = d.passed.filter((s) => s !== ev.seat);
         d.jiefeng = null;
-        d.anti = null; // the 抗貢 reveal yields the center back to the trick
+        d.anti = null; // the anti-tribute reveal yields the center back to the trick
         push('game.feed.played', {
           name: nameFor(ev.seat),
           combo: {

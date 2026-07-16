@@ -53,7 +53,7 @@ for (const theme of deckThemes()) {
     it('a theme Face never emits the wild-marker markup itself (framework-owned)', () => {
       // The marker is game state: it must come from the FRAMEWORK overlay,
       // never the theme — otherwise a theme could also STYLE it away.
-      const wild: Card = '2H'; // level '2' ⇒ 紅心2 is the wild
+      const wild: Card = '2H'; // level '2' => heart 2 is the wild
       expect(isWild(wild, '2')).toBe(true);
       for (const size of SIZES) {
         const html = renderToStaticMarkup(
@@ -66,7 +66,7 @@ for (const theme of deckThemes()) {
 }
 
 describe('the framework overlays (structural: no theme can remove them)', () => {
-  it('the composed CardFace carries the 配 marker for the wild, and only the wild', () => {
+  it('the composed CardFace carries the wild marker for the wild, and only the wild', () => {
     for (const size of SIZES) {
       const wildHtml = renderToStaticMarkup(createElement(CardFace, { card: '2H', level: '2', size }));
       expect(wildHtml).toContain('gd-card__wild');

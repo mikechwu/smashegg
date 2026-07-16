@@ -41,7 +41,7 @@ export interface RulePickerPicks {
  *  so this file never re-states a value docs/rules/guandan.md already
  *  pins — a profile change moves the picker's default automatically.
  *  ONE deliberate exception: firstLeadMethod defaults to 'drawCard' — the
- *  PRODUCT default for created rooms (the 翻牌定先 opening ceremony must be
+ *  PRODUCT default for created rooms (the draw ceremony (flip-to-lead) opening must be
  *  visible by default); the engine-spec default stays 'random'. HomePage
  *  creates rooms with assembleConfig(CURATED_DEFAULT_PICKS), so what the
  *  picker displays is exactly what a fresh room carries. */

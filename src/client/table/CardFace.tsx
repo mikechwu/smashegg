@@ -1,7 +1,7 @@
 // CardFace — the card-rendering FRAMEWORK (item 5). Face/back CONTENT comes
 // from the active DeckTheme; everything that encodes GAME STATE is drawn
 // HERE, over the theme, so no theme has a code path to remove it:
-//  • the 配 cinnabar wild marker (a game-state indicator, never decoration)
+//  • the cinnabar wild marker (a game-state indicator, never decoration)
 //    — appended as a frame-level overlay AFTER the theme face;
 //  • the ghost faces (the identity a wild plays as) with the same marker.
 // Selection lift / focus ring / tribute glow are framework CSS on the
@@ -26,10 +26,10 @@ export interface CardFaceProps {
   size: CardFaceSize;
 }
 
-/** Localized joker name (小王/大王, Joker/Big Joker) — level-independent
+/** Localized joker name (small joker/big joker, Joker/Big Joker) — level-independent
  *  (jokers are never wild), so it needs no card/level context. Factored out
  *  of {@link cardLabel} so combo labels can name a joker-keyed single/pair
- *  (bug: playing a lone BJ rendered as "單張 A" — the FROZEN-TYPES keyRank
+ *  (bug: playing a lone BJ rendered as "single A" — the FROZEN-TYPES keyRank
  *  'A' placeholder leaking into the label instead of jokerRank, the real
  *  identity — see {@link comboRankLabel}) without needing a Card/level. */
 export function jokerLabel(rank: JokerRank): string {
@@ -97,7 +97,7 @@ export interface GhostFaceProps {
 }
 
 /** The identity a wild plays as (the chooser's substituted faces). Always
- *  carries the same cinnabar 配 corner marker the wild's own face uses —
+ *  carries the same cinnabar wild corner marker the wild's own face uses —
  *  one convention, one meaning: the wild is at work on this card (§2.3). */
 export function GhostFace({ rank, suit, size }: GhostFaceProps) {
   const classes = ['gd-card', `gd-card--${size}`, 'gd-card--ghost'];

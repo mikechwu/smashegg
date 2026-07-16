@@ -20,7 +20,7 @@ table watched them); each failed attempt emits public ceremonyCutFlipped. LIVENE
 EN ROUTE: the room's decision table preserved base for a seat that "remained an actor", so an
 alarm-fired default cut flipping uncountable left an EXPIRED base → the alarm would refire the
 same deterministic middle cut in a tight infinite loop. Two-part fix: (a) nextDeadlines gains
-actedSeat — the seat that just ACTED and remains an actor re-arms FRESH (the owner's 重新計時;
+actedSeat — the seat that just ACTED and remains an actor re-arms FRESH (the owner's restart timer;
 preserve-base stays scoped to co-actor actions, i.e. the second tribute payer); (b) defaultAction
 varies its position with attempts, so the AFK path terminates in ≤13 alarm cuts (only 12
 uncountables exist in a double deck) — both pinned (decision-table cases; a named hunted-seed
@@ -74,7 +74,7 @@ Owner report: the draw ceremony is deterministic ~89% of the time; the marker is
 **Diagnosed (confirmed):** `runCutRitual` sets `markerSeat = stepSeats(firstDrawer, (flips.length-1)%4)`
 and deals the marker at deal index `flips.length-1`. `flips.length` is 1 unless a joker/level card
 forces a re-flip (~11%: 4 jokers + 8 level cards / 108), so ~89% of hands `markerSeat = firstDrawer`
-— the first drawer always draws the marker and always leads. `數到 X` / `明牌落在 X` / `該家先出 X`
+— the first drawer always draws the marker and always leads. `count reaches X` / `the marker card lands in X` / `that seat leads X`
 collapse to ONE seat. **cutPosition never enters the marker's deal index at all** — the cut only
 shifts who leads via which card sits on top (the count). This is the theatre we rejected for the
 cut, reintroduced in a plausible formula (the "NO new field" constraint drove the semantics).
@@ -85,14 +85,14 @@ proving "the first drawer is uniform via the uniform cutter," NOT "the marker dr
 the leader." A correct placement makes `markerSeat` depend on cutPosition too (still uniform via the
 cutter, but genuinely varying from firstDrawer).
 
-**Rule research (WebSearch; BCTA/竞技掼蛋 sources):** the OFFICIAL rule is ONE card — South cuts,
-flips one 明牌, jokers/红心2 re-flip, count from the cutter by its value CCW to the first DRAWER, and
-**whoever draws that 明牌 leads** (one card, two jobs). The 明牌 sits at the CUT POSITION (owner: "cut
+**Rule research (WebSearch; BCTA/competitive Guandan sources):** the OFFICIAL rule is ONE card — South cuts,
+flips one the marker card, jokers/heart 2 re-flip, count from the cutter by its value CCW to the first DRAWER, and
+**whoever draws that the marker card leads** (one card, two jobs). The the marker card sits at the CUT POSITION (owner: "cut
 at 15 ⇒ 15th card dealt"), so the marker's deal index must be a function of cutPosition — correct
 under BOTH the one-card and the owner's two-card house rule. The two-card form is NOT in the
 competition rules reached (cert/403 on some) — tag UNCERTAIN, likely the owner's table/regional
 variant. "Sometimes two cards appear" = the joker/level RE-FLIP sequence (rejected + accepted card
-with 重翻 labels), NOT the two-card marker — confirmed in code.
+with re-flip labels), NOT the two-card marker — confirmed in code.
 
 **OWNER ANSWERED (prose brief) — BUILT.** ceremonyCardCount: 2 default (1 = official form,
 reachable as config; the UNCERTAIN tag on the two-card form is an honest null); count card =
@@ -134,14 +134,14 @@ everywhere); public-exception redaction pin (per seat: visible tokens outside ow
 marker beat now FROM THE PAYLOAD (markerDealBeat = defensive clamp only); the 2× slow window
 (MARKER_SLOW_TICKS=6 starting 2 before the beat, clipped at deck end) with budgets honestly
 re-derived and re-pinned (landings+slow ≤4.5s; full incl. sort ≤5s); CeremonyOverlay restyled
-into Lacquer Ledger (ritual order: who cut → flips + 明牌 (labeled, cinnabar-edged, both public)
-→ count with its VALUE → 明牌落在 → goldleaf 該家先出; reduced-motion summary kept); i18n
-counting→count/countLabel/markerLabel ×3 locales. Bot-name convention fixed (阿明/阿美/阿華/阿強;
+into Lacquer Ledger (ritual order: who cut → flips + the marker card (labeled, cinnabar-edged, both public)
+→ count with its VALUE → the marker card lands in → goldleaf that seat leads; reduced-motion summary kept); i18n
+counting→count/countLabel/markerLabel ×3 locales. Bot-name convention fixed (A-Ming/A-Mei/A-Hua/A-Qiang;
 [[visual-verify-room-adoption]]). CUT panel untouched (praised).
 
 **Visual verification (desktop + TRUE 390, iframe recipe):** the defect fix is VISIBLE — two live
-rooms showed 數到 and 該家先出 as DIFFERENT seats (阿明→阿美 at cut 41; 阿強→阿華 at cut 39, where
-the 明牌 was even a level-2 card, demonstrating any-card markers); the restyled panel reads in
+rooms showed count reaches and that seat leads as DIFFERENT seats (A-Ming→A-Mei at cut 41; A-Qiang→A-Hua at cut 39, where
+the marker card was even a level-2 card, demonstrating any-card markers); the restyled panel reads in
 ritual order with the goldleaf banner (caught ivory in the first pass — fixed d6f45fb) and is
 legible at innerWidth=390 with no H-overflow; a runtime probe confirmed the marker's animation
 delay = 1584ms = 41×36 + 3 slow ticks, bit-for-bit the pinned schedule.
@@ -193,10 +193,10 @@ pre-sorted); dealToHandIndices bijection incl. duplicates; HandFan deal-order re
 
 **Visual verification (state-driver + Chrome, desktop AND true 390px):**
 - Obs 3 at DESKTOP: froze a deal mid-flight — 11 own cards landed in genuine unsorted arrival
-  order (梅花4 黑桃4 紅心J 紅心6 紅心4 梅花J … — NOT the 11 lowest a pre-sorted deal would show);
-  after completion the fan settled fully rank-sorted (3,3,3,4,4,4 … A,A,2,小王). Sort beat works.
+  order (clubs4 spades4 heartsJ hearts6 hearts4 clubsJ … — NOT the 11 lowest a pre-sorted deal would show);
+  after completion the fan settled fully rank-sorted (3,3,3,4,4,4 … A,A,2,small joker). Sort beat works.
 - Item 1: deck back keeps 7 shadow-slab layers; the marker card's computed box-shadow is 'none'
-  (single card). Item 2: the "等 X 領出" prompt is legible above the deck (well z-10).
+  (single card). Item 2: the "wait for X to lead" prompt is legible above the deck (well z-10).
 - TRUE 390px (iframe, innerWidth=390, no H-overflow): the 27-card sorted fan is legible in 2 rows
   and the prompt reads clearly. (The obs-3 sort + items 1-2 fixes are width-independent; the
   mid-deal freeze was captured at desktop, the settled/390 render confirmed via the iframe.)
@@ -273,7 +273,7 @@ surface, grammar pins unchanged.
   at 390 by construction (flights verified at desktop; cut UI verified at true 390).
 
 **Owner decision to raise (not smuggled):** the CeremonyOverlay pre-announces the leader
-(「該家先出」) BEFORE the deal, which softens obs 2's "watch it come to you" suspense. Trimming the
+(「that seat leads」) BEFORE the deal, which softens obs 2's "watch it come to you" suspense. Trimming the
 overlay to end at the count (letting the deal reveal the marker landing) is a connected design
 change to a DIFFERENT component than obs 2 named — flagged for the owner, left unchanged.
 
@@ -307,11 +307,11 @@ release MUST invalidate the seat token, row-level hash delete + delivery-map pur
 stale-token starvation e2e]; (2) per-seat planning window [FULL: TIMING — actedThisHand
 per-seat flag replaces the fragile global held===108 predicate; timingClass(state, seat);
 tribute CONSUMES the window (owner lean adopted + justified); untimed stays moot];
-(3) REAL cut in 翻牌定先 [FULL: ENGINE — cutDeck action, the committed deck in S
+(3) REAL cut in the draw ceremony (flip-to-lead) [FULL: ENGINE — cutDeck action, the committed deck in S
 (ceremonyCut.deck, redacted like PRNG), flips AND deal derive from the cut, defaultAction middle cut,
 uniformity re-proven]; (4) physical deal animation [presentation; proposal said ≤4s, landed
 at ≈4.2s landings / ≤5s full choreography inside the 90s planning window; AFTER item 5]; (5) DeckTheme framework [presentation; framework owns the
-配 marker/selection/focus overlays so no theme can remove them; conformance ratchet].
+wild marker/selection/focus overlays so no theme can remove them; conformance ratchet].
 Buckets stated per the brief; full proposal:
 [design-refinement-preM5.md](docs/research/design-refinement-preM5.md).
 Background research (deck depth / deal pacing / cut UX / theme architecture) landed
@@ -339,7 +339,7 @@ Background research (deck depth / deal pacing / cut UX / theme architecture) lan
   cutter; the real mechanics follow physical rank arithmetic (absolute uniformity holds via
   the PRNG-uniform cutter — the real table's distribution, deliberately).
 - **Item 5 (f674289):** DeckTheme contract — themes provide ONLY Face/Back/metrics; the
-  框架 (CardFace.tsx) draws every game-state indicator OVER the theme (配 marker et al — no
+  framework (CardFace.tsx) draws every game-state indicator OVER the theme (wild marker et al — no
   code path to remove them); F11 mini-fan reads theme back tokens; conformance ratchet runs
   per registered theme (incl. renderToStaticMarkup of every card at every size).
 - **Item 4 (37ceca7 + 792a446):** the physical deal — 36ms stagger / 320ms flight round-robin
@@ -360,7 +360,7 @@ all — ceremonyCut/cutDeck/actedThisHand, release/rename protocol + lobby seman
 **PANEL EXECUTED (both lineages, scratch clones, headless; both ran the full 718-test suite
 green independently).** Codex: 2 findings (med: timingClass JSDoc overstated "engine never
 sees ms" — actionTimeoutMs exists as a legacy suggestion; low: a theme could z-index over
-the 配 marker). Grok: 4 (med: same marker occlusion; med: deck redaction pinned only in the
+the wild marker). Grok: 4 (med: same marker occlusion; med: deck redaction pinned only in the
 named ceremony tests, not continuously in the property walk; low: STATUS/design-doc numbers
 drifted from landed values; low: the ≤4.5s pin silently covered landings only, not the full
 4.87s choreography). Both checked-clean lists independently confirmed the redaction hard
@@ -400,48 +400,48 @@ not a seat-logic change, and is the canvas every other decision sits on → deci
 - **P1 F3** — raw error codes leak to the player (`room.notSeated` etc.); pre-seat pickers
   are rejected but look editable; the rejection never clears, follows you into the game,
   renders on 2 surfaces and covers the hand. (a reload clears it — per-session client state.)
-- **P1 F4/F5** — partner invisible (3 identical top plates; 我隊/對方 only on the level rail).
-- **P2** — whose-turn is spectator-phrased on your own seat (F8); level 打幾 not headlined
-  (F7); wild 紅心級牌 never stated unless held (F6); no 報牌 ≤10 escalation (F11, confirmed
+- **P1 F4/F5** — partner invisible (3 identical top plates; our team/opponents only on the level rail).
+- **P2** — whose-turn is spectator-phrased on your own seat (F8); the level (rank) not headlined
+  (F7); wild the wild (heart level card) never stated unless held (F6); no low-card alert ≤10 escalation (F11, confirmed
   from SeatPlate.tsx — count chip is value-independent); no legal-play cue on a normal turn
   (F9 — owner decision, per-card legality is genuinely ambiguous in Guandan).
-- **P3** — lobby 2×2 grid → lobby ring; 掼 vs Traditional 摜 glyph (confirm).
+- **P3** — lobby 2×2 grid → lobby ring; Guan vs Traditional Guan glyph (confirm).
 - **Keep:** rule/timing pickers, ceremony, level STATE (Phase B folded it into the
-  headline badges; the LevelRail ladder was retired), 配 marker, trick well, CCW order,
+  headline badges; the LevelRail ladder was retired), wild marker, trick well, CCW order,
   27-card hand legible in 2 rows @true-390 (no overflow), sort toggle, 3-locale integrity,
-  起手思考 planning-clock distinction.
+  opening-hand thinking planning-clock distinction.
 - **Not re-driven live (recently verified M3/M4; Phase-B re-verify vs the ring):** wild
-  multi-reading chooser, tribute/anti-tribute/接風, match-end overlay, live 1–2-card state.
+  multi-reading chooser, tribute/anti-tribute/jiefeng, match-end overlay, live 1–2-card state.
 
 **Proposal:** the asymmetric ring (you bottom · partner top · opponents flanking a bounded
 center) on BOTH lobby and table, + shared information fixes (turn-in-words, level+wild
 headline, ≤10 escalation, two team badges, partner-by-position, human error copy). Three
 style directions to choose from — **Lacquer Ledger (recommended)** / Ink & Goldleaf /
 Table Around You — all on the same ring + fixes. Recommendation: Lacquer Ledger base +
-one bold move (a Songti 打幾 level headline). 5 owner decisions surfaced (style, clock
+one bold move (a Songti the level (rank) level headline). 5 owner decisions surfaced (style, clock
 placement, partner-hand visibility, 4-colour deck, legal-play cue). **No behaviour/engine/
 protocol/timing change** proposed — layout & presentation only.
 
 ### Phase B APPROVED (owner, 2026-07-15) — Lacquer Ledger ring, F3 first + independent
 
-Owner picks: **Lacquer Ledger** + the one bold move (a Songti 打幾 headline, spent on the
+Owner picks: **Lacquer Ledger** + the one bold move (a Songti the level (rank) headline, spent on the
 most under-served fact F7). Clock on the seat plate (escalate on your own seat when short;
-不限時 keeps no clock; keep the 起手思考 planning distinction). Partner/opponent hands
+untimed keeps no clock; keep the opening-hand thinking planning distinction). Partner/opponent hands
 **value-dependent** (2 cards must LOOK different from 27 — solves F11 structurally; take the
-idea from card-back arcs, leave the felt). Legal-play cue **binary** (「你有可以壓的牌」 vs
-「壓不過,只能過」, 過 prominent when no) — NOT per-card highlighting (legality is per-combo).
+idea from card-back arcs, leave the felt). Legal-play cue **binary** (「you have a playable beating hand」 vs
+「cannot beat, must pass」, Pass prominent when no) — NOT per-card highlighting (legality is per-combo).
 4-colour deck = settings toggle default off, BUT ♥/♦ must be distinguishable at true 390px
 in the DEFAULT deck (verify + report). No behaviour/engine/protocol/timing change. Model
 dispatch: Opus layout/hierarchy, Sonnet CSS/components once the direction holds.
 
 **Sequencing:** F3 (independent, done) → ring skeleton 390px-first → info fixes
-(turn-in-words, 打幾+紅心級牌 headline, two team badges + partner-by-position, human error
+(turn-in-words, the level (rank)+the wild (heart level card) headline, two team badges + partner-by-position, human error
 copy, lobby ring) → Songti bold move → visual re-verify incl. the not-re-driven list →
 cross-model panel (VISUAL-change brief) → deploy.
 
 **F3 SHIPPED (feat/preM5-ux-ring, first + independent).** The first-thirty-seconds chain
 fixed whole: pickers read as disabled-until-seated (Lobby.configEditable pure predicate) with
-a "先入座才能調整規則與計時" hint, so an unseated edit can't fire; a NEW `describeError`
+a "sit before changing rules and timing" hint, so an unseated edit can't fire; a NEW `describeError`
 (src/client/errors.ts) is the single user-facing mapper for the lobby banner AND the in-table
 toast — every server rejection code → human copy in all 3 locales, unknown → generic human
 line, NEVER the raw code (retired errorKeyFor + the leaky room.rejected/game.error.unknown
@@ -466,13 +466,13 @@ directions → a rendering change, not seat logic). Commits: b51e7ed (audit) →
 54b92e2 (ring + F9) → 0ae25ac (lobby ring + ratchet) → 61d8e56 (cleanup + desktop).
 
 **Info fixes shipped + LIVE-VERIFIED** (dev server, real states driven to via a hints-only bot):
-- **F7** 打幾: a large Songti goldleaf level headline (the one bold move).
-- **F6** wild: the 紅心級牌 stated ALWAYS (♥{rank} 配 chip), not only when held.
-- **F8** turn-in-words: 輪到你 / 輪到 X on your own seat, not spectator-phrased.
-- **F5** partner: a 隊友 tag (ivory, non-colour cue) + partner-across-the-top position.
-- **F11** 報牌: a value-dependent mini card-back fan — 2 cards LOOK unlike 27 (verified 13 vs 3 vs
+- **F7** the level (rank): a large Songti goldleaf level headline (the one bold move).
+- **F6** wild: the wild (heart level card) stated ALWAYS (♥{rank} wild chip), not only when held.
+- **F8** turn-in-words: your turn / turn: X on your own seat, not spectator-phrased.
+- **F5** partner: a Partner tag (ivory, non-colour cue) + partner-across-the-top position.
+- **F11** low-card alert: a value-dependent mini card-back fan — 2 cards LOOK unlike 27 (verified 13 vs 3 vs
   2 at true 390) — + numeral escalation at the ≤10 / ≤2 lines (handSizeTier).
-- **F9** legal-play: binary cue 「壓不過,只能過」 with 過 promoted when you can't beat; 「你有可以壓的牌」
+- **F9** legal-play: binary cue 「cannot beat, must pass」 with Pass promoted when you can't beat; 「you have a playable beating hand」
   otherwise (beatState).
 - Lobby ring: the same partners-across layout (§2).
 - Ratchet: beatState + handSizeTier extracted as pure predicates, pinned in ring.test.ts (the
@@ -481,9 +481,9 @@ directions → a rendering change, not seat logic). Commits: b51e7ed (audit) →
 **Edge states re-verified in the ring** (all render correctly, undisturbed): the wild
 multi-reading chooser (opens over the centre, NOT clipped, both readings + substitution chips),
 the match-end result overlay, the hand-1 ceremony, the tribute panel, the trick well, low-card
-divergence; 3-locale integrity (zh-Hant/zh-Hans/en, no break, endonyms verbatim; 配→Wild,
-隊友→Partner, 打幾→LEVEL, 輪到→'s turn). Suits distinguish by GLYPH SHAPE (♥ vs ♦), not colour
-alone. Anti-tribute / 接風 are seed-dependent center-panel/banner content (TributePanel /
+divergence; 3-locale integrity (zh-Hant/zh-Hans/en, no break, endonyms verbatim; wild→Wild,
+Partner→Partner, the level (rank)→LEVEL, turn:→'s turn). Suits distinguish by GLYPH SHAPE (♥ vs ♦), not colour
+alone. Anti-tribute / jiefeng are seed-dependent center-panel/banner content (TributePanel /
 TrickWell verified) — to confirm in the post-deploy live pass.
 
 **True-390** verified via an injected same-origin iframe (Chrome clamps at innerWidth 606): no
@@ -500,7 +500,7 @@ shape (confirm crispness in the post-deploy pass).
 findings (0 high, 2 medium, 4 low). Both mediums were F8-completeness — the headline turn cue
 keyed on ring/deadline data (empty for untimed anti-tribute → `yourTurn = hints !== null`), and
 the CENTRE well still spectator-phrased YOUR own lead (the original F8 defect → `leadPromptKey`
-→ 輪到你出牌). Lows: the error-ratchet comment overstated + missing room.notFound; dead
+→ your turn to play). Lows: the error-ratchet comment overstated + missing room.notFound; dead
 .gd-rail/.gd-layout/… CSS orphaned by the LevelRail delete; a stale test count; a SeatPlate
 comment. All fixed + regressioned. Fix re-audit: **Grok 0 findings**; **Codex 1 medium** — the
 error ratchet's code list was an incomplete subset (engine forwards more codes); fixed by listing
@@ -514,7 +514,7 @@ CI + Deploy green; live build == 6bc63e9 confirmed; the lobby ring verified rend
 production. Revertible by redeploying main@f6d6bc6 if the aesthetic needs a change for M5.
 
 **Deferred / for M5 (flagged):** the full 2..A level LADDER (state kept in the headline badges;
-ladder viz re-addable as an expandable); a real-device iOS/Android matrix; anti-tribute / 接風
+ladder viz re-addable as an expandable); a real-device iOS/Android matrix; anti-tribute / jiefeng
 seed-dependent center-panel states (TributePanel/TrickWell verified — confirm live in M5); the
 4-colour-deck default is off (♥/♦ separate by glyph shape). Next: M5 — 4 real people on different
 networks, ≥1 mid-game reconnect, live language switch, free tier only (OWNER GATE to start).
@@ -666,18 +666,18 @@ criterion is green and both cross-model audits are archived and resolved.
 |---|---|---|
 | Reconnection acceptance (PLAN §5) | e2e reconnection suite: mid-hand drop → reconnect(token, lastSeenSeq) → delta resync with exact contiguous events + per-seat redaction + presence recovery + game continues; snapshot fallback FORCED via lobby-era lastSeenSeq (resync.events === undefined asserted, then plays from the snapshot); no duplicated action across a drop (same actionId resent → resync-not-reapply + witness seq-gap proof) | ✅ |
 | Deadlock-freedom property | tests/unit/server/deadline-liveness.property.test.ts: virtual clock over the REAL pure helpers, both games × {fast, standard, untimed, legacy-null}, DL1–DL3 + I1–I4 after every event; named cases incl. untimed + sole-actor disconnect → grace row in the same event → alarm resolves (the PLAN §4 null-timeout case), double tribute co-actor preservation, reconnect-restores-base | ✅ |
-| Version skew vs actual redeploy | LIVE DRILL on production (rooms P2FFYD, build bd505e6→7f5744d): tab on old bundle + real deploy → no banner while socket persists (documented limitation observed) → reconnect → 「已有新版本…」 banner over the INTACT mid-hand table; played an action (the wild chooser!) with the banner up (non-blocking proven); 稍後 dismissal survives further reconnects (keyed by build); reload restored the same seat/hand on the new bundle (console: old build ×4 → new build). Every future deploy self-verifies: the smoke check asserts /api/health build == pushed SHA (retry loop after the first versioned deploy raced edge propagation — diagnosed, fixed) | ✅ |
-| Timing config (owner item B) | TimingPicker live (快棋/標準/悠閒/不限時, frozen after start, seated-only authority observed rejecting over the wire); defaults standard 45s/90s justified in docs/research/room-timing.md §5 against an honest research null result; untimed preset live (no clocks connected; hint discloses the 60s grace); planning window OBSERVED live: leader's plate showed 起手思考 82s after the ceremony — the 90s window armed at start and absorbed the ~5s ceremony per design; e2e pins preset→wire deadline windows, timeout auto-play observed end to end (~5s custom timing), untimed grace row on disconnect | ✅ |
+| Version skew vs actual redeploy | LIVE DRILL on production (rooms P2FFYD, build bd505e6→7f5744d): tab on old bundle + real deploy → no banner while socket persists (documented limitation observed) → reconnect → 「new version available…」 banner over the INTACT mid-hand table; played an action (the wild chooser!) with the banner up (non-blocking proven); later dismissal survives further reconnects (keyed by build); reload restored the same seat/hand on the new bundle (console: old build ×4 → new build). Every future deploy self-verifies: the smoke check asserts /api/health build == pushed SHA (retry loop after the first versioned deploy raced edge propagation — diagnosed, fixed) | ✅ |
+| Timing config (owner item B) | TimingPicker live (fast chess/standard/relaxed/untimed, frozen after start, seated-only authority observed rejecting over the wire); defaults standard 45s/90s justified in docs/research/room-timing.md §5 against an honest research null result; untimed preset live (no clocks connected; hint discloses the 60s grace); planning window OBSERVED live: leader's plate showed opening-hand thinking 82s after the ceremony — the 90s window armed at start and absorbed the ~5s ceremony per design; e2e pins preset→wire deadline windows, timeout auto-play observed end to end (~5s custom timing), untimed grace row on disconnect | ✅ |
 | Fresh-clock fix (M2 item) | base_due_at decision table (doc §2) implemented in pure nextDeadlines; every table row unit-pinned by name; wire-level e2e regression: drop + reconnect on the clock → dueAt restored EXACTLY to base, never re-armed; presence isolation (seat X blip leaves seat Y byte-identical) | ✅ |
-| Wild chooser card faces (owner item A) | docs/research/wild-chooser-ux.md (data-availability verdict: derivable client-side, zero engine change — obligation 4 untouched); wildSubstitutions/resolveComboFaces unit-tested against validatePlay reconstruction; 390px fit pinned by CSS-token arithmetic ratchet; LIVE: one-wild chooser ({10,10,Q,Q,配} → 三帶二 Q / 三帶二 10, weaker picked and bound), TWO-WILD chooser hunted onto production ({A,A,Q,配,配} → mixed chips W→A + W→Q vs collapsed ×2 W→Q, single row height, weaker picked and bound), 390px multi-option chooser verified in a true 390px viewport | ✅ |
+| Wild chooser card faces (owner item A) | docs/research/wild-chooser-ux.md (data-availability verdict: derivable client-side, zero engine change — obligation 4 untouched); wildSubstitutions/resolveComboFaces unit-tested against validatePlay reconstruction; 390px fit pinned by CSS-token arithmetic ratchet; LIVE: one-wild chooser ({10,10,Q,Q,wild} → full house Q / full house 10, weaker picked and bound), TWO-WILD chooser hunted onto production ({A,A,Q,wild,wild} → mixed chips W→A + W→Q vs collapsed ×2 W→Q, single row height, weaker picked and bound), 390px multi-option chooser verified in a true 390px viewport | ✅ |
 | Boundaries | Engine pure/time-free (timingClass is a pure state→label); DO game-agnostic (grep: zero game imports; timing map is opaque); RuleVariant 25 keys untouched; legacy rooms bit-identical (timing_json NULL → actionTimeoutMs path) | ✅ |
 | Suites | 609 unit + 25 e2e green ×(independent verification), 4 typechecks; CI + versioned Deploy green | ✅ |
 
-**Visual-round findings (ratchet), both closed:** (1) big-joker single labeled 單張 A (client renders keyRank, a frozen placeholder for joker-keyed forms; jokerRank carries the identity) — regression pinned then fixed, LANDED (commit cb21c24; the fix's non-vacuity was proven by temporary revert). (2) mid-ceremony countdown-dim: no live screenshot was taken this round (the ~4.6s ceremony window closed before capture; cosmetic). Closed the ratchet the durable way instead of chasing a flaky screenshot — the gating logic was extracted to a pure `isCeremonyShowing` predicate (client suite is DOM-free, `environment: 'node'`, so a className swap has no logic to isolate, but the four-condition gate that drives BOTH the ceremony overlay and the dimTimer does) and unit-pinned across all four conditions (hand-1-only, undismissed, ceremony-present, not-past-match-end). UX note carried to M5 polish: seat tabs reset to 座位 1 after hash re-entry (cosmetic); hot-seat leader-clock grace.
+**Visual-round findings (ratchet), both closed:** (1) big-joker single labeled single A (client renders keyRank, a frozen placeholder for joker-keyed forms; jokerRank carries the identity) — regression pinned then fixed, LANDED (commit cb21c24; the fix's non-vacuity was proven by temporary revert). (2) mid-ceremony countdown-dim: no live screenshot was taken this round (the ~4.6s ceremony window closed before capture; cosmetic). Closed the ratchet the durable way instead of chasing a flaky screenshot — the gating logic was extracted to a pure `isCeremonyShowing` predicate (client suite is DOM-free, `environment: 'node'`, so a className swap has no logic to isolate, but the four-condition gate that drives BOTH the ceremony overlay and the dimTimer does) and unit-pinned across all four conditions (hand-1-only, undismissed, ceremony-present, not-past-match-end). UX note carried to M5 polish: seat tabs reset to seat 1 after hash re-entry (cosmetic); hot-seat leader-clock grace.
 
 **Cross-model audits** (Codex → [docs/audits/M4-codex.md](docs/audits/M4-codex.md); Grok → [docs/audits/M4-grok.md](docs/audits/M4-grok.md); Gemini skipped — same partitioning rationale as M1–M3, the two primary lineages fully covered the split surface):
 - **Codex: ZERO majors, 2 minors, both fixed.** (1) The doc's I2 invariant wording ("never increases") contradicted the intended restore-to-base semantics the code and tests correctly implement — doc reworded to the never-above-base bound. (2) Property-test fidelity honestly bounded (pure-layer only; DO SQL/ordering owned by e2e — scope note added to the test header) and the alarm loop now asserts it DRAINS all currently-due rows within MAX_ALARM_APPLIES instead of tolerating exhaustion. Checked-clean: full §2 decision table (hunted for uncovered inputs — none), presence semantics, fire-and-forget SQL-before-await boundary, hello reconcile-before-welcome, takeover no-delta path, alarm termination + class re-arming, timeout: namespace, exactly-once seq-gap proof validity, resync/skew field additions (no redaction leak). Sandbox caveat (weighted, owner §0): Codex ran reasoned-only again — an EPERM blocked test execution in its sandbox — so its ZERO-majors is an **inspection** verdict (it read the code, decision table, and tests and found no major defect by reasoning), NOT an independent green run. The executable guarantee comes from OUR CI (the same suites, green, including today's strict E2E_REQUIRE_WIRE=1 dispatch); Codex corroborates that by inspection rather than re-proving it. Read the two together, not the inspection alone.
-- **Grok: 1 medium + 2 low, all fixed.** Medium (the genuine catch): the manual `npm run build && npm run deploy` path shipped a 'dev'-sentinel client bundle with a SHA-versioned Worker — permanently suppressing the skew banner for those clients; the deploy script now captures ONE SHA and feeds both the client build and the Worker var. Low: chooser aria strings said 配牌 while the rest of the product says 逢人配 (aligned); the planning label could sit on a disconnect-grace countdown, promising a budget the clock wasn't giving (label now shown only while connected). Checked-clean: game-agnosticism sweep found ZERO leakage (imports, opaque config/timing, no hardcoded seats, class map opacity), the 108-card 'planning' predicate verified sound across ALL hand-opening paths and rule variants with the obligations pin confirmed independent, guess-number omission verified at every DO call site, version-skew CI path/dev-suppression/dismissal-rekeying/non-destructive guarantees, i18n parity + script correctness + preset-number consistency across all 18 new keys, picker freeze/aria/authority.
+- **Grok: 1 medium + 2 low, all fixed.** Medium (the genuine catch): the manual `npm run build && npm run deploy` path shipped a 'dev'-sentinel client bundle with a SHA-versioned Worker — permanently suppressing the skew banner for those clients; the deploy script now captures ONE SHA and feeds both the client build and the Worker var. Low: chooser aria strings said wild card while the rest of the product says the wild rule (aligned); the planning label could sit on a disconnect-grace countdown, promising a budget the clock wasn't giving (label now shown only while connected). Checked-clean: game-agnosticism sweep found ZERO leakage (imports, opaque config/timing, no hardcoded seats, class map opacity), the 108-card 'planning' predicate verified sound across ALL hand-opening paths and rule variants with the obligations pin confirmed independent, guess-number omission verified at every DO call site, version-skew CI path/dev-suppression/dismissal-rekeying/non-destructive guarantees, i18n parity + script correctness + preset-number consistency across all 18 new keys, picker freeze/aria/authority.
 
 **Pre-gate strict e2e (CI, workflow_dispatch):** green — all three rare paths reached wire level under E2E_REQUIRE_WIRE=1 with 3× hunt budgets on the runner.
 
@@ -873,18 +873,18 @@ subsequent dispatch follows the new ladder.
 |---|---|---|
 | §1 research doc | docs/research/wild-disambiguation.md — 5 formalized sub-rules, 47-row probe-verified enumeration, gap analysis (classifyPlays sound+complete; deltas G1/G2), algorithm ≤76 template validations, oracle'd test plan; post-implementation Corrections (FH-9/SF-8 — the oracle beat manual enumeration) | ✅ |
 | §1 implementation + tests | Spec v1.4 (owner mission §1 = the G1 sign-off); G1 in validatePlay (all call sites inherit), G2 compareComboStrength; 54 named rows + 4 properties vs an independent brute-force oracle (2,768 selections, ZERO engine disagreements) | ✅ |
-| §1 chooser over the wire | e2e (client's own matchSelection round-trip) AND live on production: {8,8,9,9,配} → chooser 「选择宣告的牌型」 larger-on-top (三带二 9 / 三带二 8) → picked the WEAKER → well shows 阿福・三带二 8 with the wild as the third 8 | ✅ |
+| §1 chooser over the wire | e2e (client's own matchSelection round-trip) AND live on production: {8,8,9,9,wild} → chooser 「choose the declared combination」 larger-on-top (full house 9 / full house 8) → picked the WEAKER → well shows A-Fu・full house 8 with the wild as the third 8 | ✅ |
 | §2 QA ratchet | 5 product-path e2e: UI-literal creation payload + config:null loud contract (stays lobby, asserted); feature defaults (ceremony on); wild path via client matcher; anti-tribute + aMaxAttempts:1 suspension — all three rare paths hit WIRE level every verification run; METHODOLOGY standing rule + title-honesty addendum | ✅ |
 | §3 sort toggle | Exact-reverse descending (unit-pinned index stability), persisted client pref, localized ×3; verified live both directions | ✅ |
-| §4 zh-Hans + auto-locale | Hand-adapted simplified locale (mainland terminology), 3-way parity, detectLocale (languages + language fallback, zh-MO→Hant), saved-choice precedence; verified live (natural 创建房间/房号 copy; the visual round's switcher self-labeling nit fixed per the ratchet — endonym constants replace per-locale translated language names, glyphs regression-pinned) | ✅ |
+| §4 zh-Hans + auto-locale | Hand-adapted simplified locale (mainland terminology), 3-way parity, detectLocale (languages + language fallback, zh-MO→Hant), saved-choice precedence; verified live (natural create room/room code copy; the visual round's switcher self-labeling nit fixed per the ratchet — endonym constants replace per-locale translated language names, glyphs regression-pinned) | ✅ |
 | §5 cache watch-item | index.html revalidates correctly; real skew vector = long-lived SPA sessions → M4 version-signal item | ✅ closed |
 | Boundaries | Engine pure/locale-free, DO game-agnostic, 3-locale parity; 523 unit + 16 e2e green, 4 typechecks | ✅ |
 
 **Cross-model audit** (Codex: §1 algorithm → [docs/audits/M3H-codex.md](docs/audits/M3H-codex.md); Grok: i18n/sort/§2 coverage → [docs/audits/M3H-grok.md](docs/audits/M3H-grok.md)):
 - **Codex: ZERO findings** — suppression both call paths, obligation-4 agreement, ordering incl. variants, oracle independence (verified non-circular), FH-9/SF-8 corrections covered. Caveat recorded: its sandbox blocked test execution (reasoned-only); our CI executes the same suites green.
-- **Grok: 2 majors + 4 minors, all fixed.** M1/M2 (the genuine catch): rare-path e2e titles advertised "full wire stack" while the wire phase was optional and proof level console-only — CI could green while proving less. Fixed: honest retitles ("engine-guaranteed, wire-verified when seed-huntable"), machine-readable proof-level record asserted by a dedicated summary test, opt-in E2E_REQUIRE_WIRE=1 strict mode (passed 16/16 on its verification run), METHODOLOGY title-honesty rule. Minors: event feed re-localizes at render time (semantic params — a mid-game language switch no longer mixes locales in history); detectLocale consults navigator.language and maps zh-MO→zh-Hant; fallback-chain comment corrected to what is implemented. Checked-clean: full i18n mapping/parity/terminology sweep (进贡/还贡/抗贡/接风/逢人配 correct, no Taiwan-isms), sort reverse/index-stability/pref isolation, tests 1–2 path honesty.
+- **Grok: 2 majors + 4 minors, all fixed.** M1/M2 (the genuine catch): rare-path e2e titles advertised "full wire stack" while the wire phase was optional and proof level console-only — CI could green while proving less. Fixed: honest retitles ("engine-guaranteed, wire-verified when seed-huntable"), machine-readable proof-level record asserted by a dedicated summary test, opt-in E2E_REQUIRE_WIRE=1 strict mode (passed 16/16 on its verification run), METHODOLOGY title-honesty rule. Minors: event feed re-localizes at render time (semantic params — a mid-game language switch no longer mixes locales in history); detectLocale consults navigator.language and maps zh-MO→zh-Hant; fallback-chain comment corrected to what is implemented. Checked-clean: full i18n mapping/parity/terminology sweep (tribute/return tribute/anti-tribute/jiefeng/the wild rule correct, no Taiwan-isms), sort reverse/index-stability/pref isolation, tests 1–2 path honesty.
 
-**Visual re-check log (production, desktop + 390px):** three-locale switcher works with auto-detect; zh-Hans natural throughout; the wild chooser demo took three attempts against the 45s turn clock (the leader's deadline starts at trick-win and my slow multi-seat passing consumed it — the alarm auto-leading each time is itself the timeout system visibly working); succeeded with all-in-one-batch input; descending sort verified; no overflow. UX note for M5 polish: consider pausing/longer grace on the leader clock for hot-seat self-play. The round's other find — locale options translated instead of self-labeled (簡體中文 shown under zh-Hant) — was fixed in-round: endonyms are now constants outside the locale files, with a unit regression pinning the glyphs.
+**Visual re-check log (production, desktop + 390px):** three-locale switcher works with auto-detect; zh-Hans natural throughout; the wild chooser demo took three attempts against the 45s turn clock (the leader's deadline starts at trick-win and my slow multi-seat passing consumed it — the alarm auto-leading each time is itself the timeout system visibly working); succeeded with all-in-one-batch input; descending sort verified; no overflow. UX note for M5 polish: consider pausing/longer grace on the leader clock for hot-seat self-play. The round's other find — locale options translated instead of self-labeled (Simplified Chinese self-label shown under zh-Hant) — was fixed in-round: endonyms are now constants outside the locale files, with a unit regression pinning the glyphs.
 
 ## M3 (2026-07-14) — Guandan into the table UI: GATE REPORT
 
@@ -892,9 +892,9 @@ subsequent dispatch follows the new ladder.
 |---|---|---|
 | Full Guandan match, 4 clients, over the wire | e2e `guandan.e2e.test.ts`: full match (~1–2k actions) to `matchEnded`, room `finished`; multi-run stability across 5 server-minted seeds | ✅ |
 | Multi-seat / self-play | e2e: one socket drives all 4 seats to a hand end with per-seat redaction proven; visually driven live (rounds 2–3) | ✅ |
-| Tribute / anti-tribute / 接风 / A-attempt / suspension reachable & correct | Tribute + 接风 observed over the wire every run; anti-tribute & suspension reachability is seed-dependent over the wire — owned by named engine tests (house-rules, tribute suites), documented in the e2e header | ✅ (honest split) |
+| Tribute / anti-tribute / jiefeng / A-attempt / suspension reachable & correct | Tribute + jiefeng observed over the wire every run; anti-tribute & suspension reachability is seed-dependent over the wire — owned by named engine tests (house-rules, tribute suites), documented in the e2e header | ✅ (honest split) |
 | Lobby rule-picker alters play | e2e: `cardCountVisibility` change → opponents' counts numeric vs hidden | ✅ |
-| drawCard ceremony on hand 1, engine-seeded | e2e: ceremony payload public + identical across seats, markerSeat leads; visually verified live (owner counting rule animating: 切牌 → 重翻 → count → 先出) | ✅ |
+| drawCard ceremony on hand 1, engine-seeded | e2e: ceremony payload public + identical across seats, markerSeat leads; visually verified live (owner counting rule animating: the cut → re-flip → count → lead) | ✅ |
 | Dump→replay reproduces a full Guandan match (config incl.) | e2e: seq-tagged snapshot verification post-matchEnd | ✅ |
 | Visual gate (owner-required) | 3 computer-use rounds on production, 8-point checklist PASS (see iteration log below) — caught a start-blocking config bug, frozen ceremony, play-becomes-pass matcher bug | ✅ |
 | Boundaries intact | game-room.ts zero game imports (grep+compile); engine purity guard clean; i18n parity green; 431 unit + 10 e2e | ✅ |
@@ -907,32 +907,32 @@ subsequent dispatch follows the new ladder.
 **M3 (2026-07-14, build log) — Guandan into the table UI
 
 - **M2 gate approved by owner.** M3 target bar: playable, clean, clearly usable — not final-pixel polish (that is M5/polish scope). Two gates: functional (e2e) AND visual (computer-use iteration on the deployed URL against a UX checklist — required, logged per pass).
-- **Owner feature now fully specified — 翻牌定先 (drawCard ceremony):** engine-side seeded ceremony data in `handStarted` (hand 1 only): cutter (PRNG), counting flips with re-flip on joker/level-rank, **counting rule pinned: rank counts CCW with the cutter as position 1 (A=self, 2=next, 3=partner, 4=remaining; (rank−1) mod 4)**, marker draw = leader; UI animates exactly the event data. Uniformity preserved (statistical test) — flavor, not fairness. This resolves the previously-UNCERTAIN first-lead offset; `turnDirection` stays a config key with CCW default, and a consistency sweep of all seat-progression sites is part of the engine task.
+- **Owner feature now fully specified — the draw ceremony (flip-to-lead) (drawCard ceremony):** engine-side seeded ceremony data in `handStarted` (hand 1 only): cutter (PRNG), counting flips with re-flip on joker/level-rank, **counting rule pinned: rank counts CCW with the cutter as position 1 (A=self, 2=next, 3=partner, 4=remaining; (rank−1) mod 4)**, marker draw = leader; UI animates exactly the event data. Uniformity preserved (statistical test) — flavor, not fairness. This resolves the previously-UNCERTAIN first-lead offset; `turnDirection` stays a config key with CCW default, and a consistency sweep of all seat-progression sites is part of the engine task.
 - Build plan: engine (ceremony + guandan registration + CCW sweep) ∥ client infra (partysocket RoomConnection, multi-seat store, routing, lobby shell) → table UI + rule-picker → Guandan e2e → deploy → computer-use visual iteration rounds → Codex/Grok audits (integration+ceremony determinism / CCW sweep+picker wiring).
 
 ### Visual iteration log (computer use on the deployed URL — owner-required gate)
 
 **Round 1 (2026-07-14, desktop 1568px):** walked home → create → lobby → claim ×4 (self-play) → start. Findings:
-1. **BUG (blocker, caught only by live walkthrough):** room creation sent `config: null` (HomePage comment wrongly assumed init defaults it) → `開始遊戲` rejected with `room.startFailed`. Every e2e run passed because they all send explicit configs — this is precisely the class of gap the owner's visual-iteration requirement exists for.
-2. Ceremony would NEVER appear in the product: created rooms used the engine default `firstLeadMethod:'random'` and the picker didn't expose it. Product default for created rooms → `drawCard`; picker gains the 翻牌定先 toggle.
+1. **BUG (blocker, caught only by live walkthrough):** room creation sent `config: null` (HomePage comment wrongly assumed init defaults it) → `Start game` rejected with `room.startFailed`. Every e2e run passed because they all send explicit configs — this is precisely the class of gap the owner's visual-iteration requirement exists for.
+2. Ceremony would NEVER appear in the product: created rooms used the engine default `firstLeadMethod:'random'` and the picker didn't expose it. Product default for created rooms → `drawCard`; picker gains the draw ceremony (flip-to-lead) toggle.
 3. App shell (home/room/lobby) completely unstyled — default browser look (blue underlined header link, raw buttons, bullet-list seats, white background) while table/picker carry the design system; jarring clash.
-4. Lobby primary action (開始遊戲) was the least visible element (tiny unstyled button below the fold); room code shown as plain heading text instead of the shareable hero it should be for a friends-and-family flow.
+4. Lobby primary action (Start game) was the least visible element (tiny unstyled button below the fold); room code shown as plain heading text instead of the shareable hero it should be for a friends-and-family flow.
 5. Claim input stayed active after all 4 seats were filled.
 6. Rejection toast showed only the raw error code, no explanatory params.
 Positives: rule-picker panel already reads well (rosewood/segmented, natural zh-Hant labels); zh-Hant copy natural; language switch works; multi-claim self-play flow works. Fix batch dispatched (round-1 fixes workflow); table itself not yet reachable — inspected in round 2 after the start bug fix.
 
-**Round 2 (2026-07-14, desktop, after round-1 fixes deployed):** home/lobby transformed and on-system (lacquer shell, hero create, serif room-code chip + copy link, seat plates with claim-form-in-plate and prefilled name, start button with live disabled-reason, 首局先手 toggle present with drawCard product default). Reached the real table. Findings:
-1. **Ceremony overlay stuck on 洗牌中… indefinitely** (never advances stages; tap-skip works) — and the first actor's 45s clock drains behind it: 阿蘭's opening turn was consumed by the alarm (the timeout auto-play visibly worked in production, which is its own positive).
-2. **小王 card faces render nearly blank** (vertical 王 text invisible; 大王 correct).
+**Round 2 (2026-07-14, desktop, after round-1 fixes deployed):** home/lobby transformed and on-system (lacquer shell, hero create, serif room-code chip + copy link, seat plates with claim-form-in-plate and prefilled name, start button with live disabled-reason, first-hand leader toggle present with drawCard product default). Reached the real table. Findings:
+1. **Ceremony overlay stuck on shuffling… indefinitely** (never advances stages; tap-skip works) — and the first actor's 45s clock drains behind it: A-Lan's opening turn was consumed by the alarm (the timeout auto-play visibly worked in production, which is its own positive).
+2. **small joker card faces render nearly blank** (vertical joker text invisible; big joker correct).
 3. **2♥ wild ribbon not distinguishable** at hand size.
-4. **PLAY-BECOMES-PASS (major, reproduced ×2):** with a legal beating single selected and lifted, clicking the primary action logged a pass — suspected hint-matcher demanding multiset equality against the engine's single wild-frugal representative (4♦ selection vs 4♠ hint) leaving 出牌 dead and 過 catching the click; no pass-with-selection guard.
+4. **PLAY-BECOMES-PASS (major, reproduced ×2):** with a legal beating single selected and lifted, clicking the primary action logged a pass — suspected hint-matcher demanding multiset equality against the engine's single wild-frugal representative (4♦ selection vs 4♠ hint) leaving Play dead and Pass catching the click; no pass-with-selection guard.
 5. Selection persists after the turn resolves.
-Positives: level rail + goldleaf 打2 with 我隊/對方 markers reads immediately; turn ring + countdown unmistakable and moves correctly; seat-tab self-play works with correct per-seat rotation and redacted hands; trick well labels plays (阿蘭・單張 3); event feed localized and clear; pass badges on plates. Round-2 fix batch dispatched with mandated root-cause reporting.
+Positives: level rail + goldleaf playing 2 with our team/opponents markers reads immediately; turn ring + countdown unmistakable and moves correctly; seat-tab self-play works with correct per-seat rotation and redacted hands; trick well labels plays (A-Lan・single 3); event feed localized and clear; pass badges on plates. Round-2 fix batch dispatched with mandated root-cause reporting.
 
 **Round 3 (2026-07-14, desktop + 390px phone width, after round-2 fixes deployed): CHECKLIST PASS.**
-- Root causes confirmed fixed live: ceremony animates the full owner sequence (老王 切牌 → grey '2' flip labeled 重翻 → 'J' counted → (11−1) mod 4 = 2 CCW steps → 數到 阿福 → marker leads) in ~5s and unmounts; a selected 4♣ PLAYED as 單張 4 (select→出牌→trick well, selection cleared, turn advanced) — play-becomes-pass dead; 小王 legible; 2♥/4♥ wilds carry the visible cinnabar 配 corner. Note: one "still stuck" false alarm during verification was my browser's cached pre-fix bundle (hard reload resolved; normal users revalidate index.html — not a product defect, logged for honesty).
-- Phone width (390×844): level rail collapses to the 我隊/對方/打幾 strip, three plates fit, hand wraps to two clean rows, zero horizontal overflow, CJK wraps correctly.
-- Tribute phase inspected live (local room driven to hand-2 tribute by a 147-action bot, seats adopted via localStorage): panel reads without instruction — 老王 進貢給 小美 with the actual 小王 card public, 還貢 pending with the receiver on the clock; the eligible-return glow highlights exactly the levelValue≤10 cards (no 4s at level 4 — the owner's rule made visible); strip shows 打4 with per-viewer team perspective correct.
+- Root causes confirmed fixed live: ceremony animates the full owner sequence (Lao Wang the cut → grey '2' flip labeled re-flip → 'J' counted → (11−1) mod 4 = 2 CCW steps → count reaches A-Fu → marker leads) in ~5s and unmounts; a selected 4♣ PLAYED as single 4 (select→Play→trick well, selection cleared, turn advanced) — play-becomes-pass dead; small joker legible; 2♥/4♥ wilds carry the visible cinnabar wild corner. Note: one "still stuck" false alarm during verification was my browser's cached pre-fix bundle (hard reload resolved; normal users revalidate index.html — not a product defect, logged for honesty).
+- Phone width (390×844): level rail collapses to the our team/opponents/the level (rank) strip, three plates fit, hand wraps to two clean rows, zero horizontal overflow, CJK wraps correctly.
+- Tribute phase inspected live (local room driven to hand-2 tribute by a 147-action bot, seats adopted via localStorage): panel reads without instruction — Lao Wang paid tribute to Xiao Mei with the actual small joker card public, return tribute pending with the receiver on the clock; the eligible-return glow highlights exactly the levelValue≤10 cards (no 4s at level 4 — the owner's rule made visible); strip shows playing 4 with per-viewer team perspective correct.
 - Visual/UX exit checklist: hand legible+sorted ✓ · current player unmistakable ✓ · legal hints visible ✓ · tribute understandable without instruction ✓ · ceremony reads clearly ✓ · no phone-width overflow ✓ · CJK rendering ✓ · joker/wild legibility ✓.
 
 ## M2 (2026-07-14) — GameRoom DO + session/room plumbing: GATE REACHED
@@ -974,7 +974,7 @@ Build shape: foundations (PRNG/cards/config/types) by the orchestrator; five mod
 
 Obligation → test mapping: (1) determinism, (2) serializability, (3) zero-trust views incl. no-PRNG-leak + redaction under every visibility config, (4) legalActions⇔applyAction (canonical-form for plays, exact for choice phases — plus generate.test.ts's brute-force completeness property), (5) liveness incl. defaultAction-applies-ok in every phase, (6) locale-free error/event grammar — all in `obligations.property.test.ts`, cross-covered by `integration.test.ts` (seeded bot playouts to natural matchEnd, bit-identical same-seed replays).
 
-Owner house rules: `tests/unit/engine/house-rules.test.ts` — 14 named engine-driven tests: 1-2/1-3 win at A, 1-4 does not; K+3 clamps to A; the full suspension lifecycle (exhaust → opponents' level with `suspensionApplied` → win clears flag → fresh counter → A window reopens); return-tribute `levelValue ≤ 10` at level T incl. fallback; mixed SJ+BJ never a pair anywhere (validator + 120-combination generator sweep); 接风 both branches.
+Owner house rules: `tests/unit/engine/house-rules.test.ts` — 14 named engine-driven tests: 1-2/1-3 win at A, 1-4 does not; K+3 clamps to A; the full suspension lifecycle (exhaust → opponents' level with `suspensionApplied` → win clears flag → fresh counter → A window reopens); return-tribute `levelValue ≤ 10` at level T incl. fallback; mixed SJ+BJ never a pair anywhere (validator + 120-combination generator sweep); jiefeng both branches.
 
 ### Cross-model audit (panel: Codex + Grok primary; Gemini fallback)
 
@@ -1004,32 +1004,32 @@ Spec ambiguity logged (Grok, not scored a defect): `aceFinishDemotes` × `suspen
 - **M0 scaffold built and locally verified** (4 scaffold agents + orchestrator verification pass):
   - Green: all 3 typechecks (engine purity guard / server strict + workers-types v5 / client), 5/5 unit tests (i18n key parity, default zh-Hant, interpolation), vite build, and a full `wrangler dev` smoke: `/api/health` JSON; static SPA served with `lang="zh-Hant"`; DO SQLite counter; **alarm armed and fired at +15.003s (G-ALARM local sanity — real gate is the free-tier deploy)**; hibernation-API WebSocket echo (raw-socket handshake + frame test); invalid room codes and unknown `/api/*` paths → JSON 404.
   - Fixes found by verification (all applied): `@cloudflare/workers-types` pin didn't exist on the registry and wrangler 4.110 requires the v5 major (→ `^5.20260708.1`); `GameRoom` wasn't re-exported from the Worker entrypoint (wrangler refuses to boot); demo room code `HELLO2A` was 7 chars against a 6-char route regex (orchestrator's own prompt bug → `TABLE2`); unknown `/api/*` fell through to the SPA fallback and answered API calls with HTML (→ explicit 404 guard).
-  - **aFailConsequence research (light) — clean null result:** the exact suspend/never-demote/resume-on-win combination is not documented anywhere as a named variant; closest analogues are 联众's "继续打A不会降级" room toggle and pagat's David Wu demote-to-opponents'-level. Tagged house VARIANT, owner-specified. → docs/research/afail-consequence-research.md; spec §6.4 notes it.
+  - **aFailConsequence research (light) — clean null result:** the exact suspend/never-demote/resume-on-win combination is not documented anywhere as a named variant; closest analogues are Lianzhong's "continue playing A without demotion" room toggle and pagat's David Wu demote-to-opponents'-level. Tagged house VARIANT, owner-specified. → docs/research/afail-consequence-research.md; spec §6.4 notes it.
   - **Ops constraint (owner, 2026-07-13): Firecrawl disabled** (credit limit reached) — all research agents now use built-in WebSearch/WebFetch + curl + `gh`; recorded in METHODOLOGY.md's tool ladder.
   - **Live gates PASSED (2026-07-13, free tier):** first deploy succeeded — `https://smashegg.mikechwu-iams.workers.dev`. **G-COMPOSE ✅**: one deploy serves the zh-Hant SPA + Worker API + Durable Object (SQLite counter persisted). **G-ALARM ✅**: DO alarm armed at epoch-ms 1783991776736 and fired at 1783991791736 — exactly +15.000s — on the deployed free plan. API hardening verified live (unknown `/api/*` → JSON 404). Note: a freshly registered workers.dev subdomain returned Cloudflare `error 1042` for the first ~1 minute — plain propagation delay, recovered on retry; logged so nobody debugs it as a code bug later.
   - **GitHub live (2026-07-14):** repo `mikechwu/smashegg` (public, owner-created), both commits pushed. **CI workflow: green** on GitHub runners (typecheck ×3, unit tests, build, dist assertions). `CLOUDFLARE_ACCOUNT_ID` secret and `WORKER_URL` variable set via `gh`. **Deploy workflow: red, expected** — fails precisely at wrangler auth because `CLOUDFLARE_API_TOKEN` is not yet set (verified in the run log; nothing else is wrong).
   - **M0 CLOSED (2026-07-14).** CI API token `smashegg-ci` created in the dashboard via browser automation (Workers-edit template; Account Resources = the single account; Zone Resources = all zones of that account; a distinct name so the pre-existing similarly-templated token used elsewhere stays untouched). Token verified active against `/user/tokens/verify`, stored only as the `CLOUDFLARE_API_TOKEN` GitHub secret, then the Deploy workflow re-ran **green** (run 29298708261: typecheck → tests → build → dist assertions → `wrangler deploy` → post-deploy smoke against WORKER_URL). M0 exit gate fully satisfied: push-to-main auto-deploys the localized hello page; PLAN/STATUS/SETUP in repo; CI green; **G-COMPOSE ✅ G-ALARM ✅** on the deployed free tier.
 
 ### Next: M1 — pure Guandan rules engine + deterministic replay harness
-Per PLAN §9: combination detection/comparison, the 逢人配 template-matching validator (spec §4.4), legal-move generation, tribute state machine, level/A-attempt logic incl. `aFailConsequence=suspendPlayOpponentLevel`, 25-key RuleVariant config, property tests for the six interface obligations, spec-§9 edge cases as named tests, `scripts/replay.ts`. Cross-model audit (Codex + Gemini) at the gate.
+Per PLAN §9: combination detection/comparison, the wild rule template-matching validator (spec §4.4), legal-move generation, tribute state machine, level/A-attempt logic incl. `aFailConsequence=suspendPlayOpponentLevel`, 25-key RuleVariant config, property tests for the six interface obligations, spec-§9 edge cases as named tests, `scripts/replay.ts`. Cross-model audit (Codex + Gemini) at the gate.
 
 ## Round 2 (2026-07-13) — owner feedback incorporated
 
 **Cross-model usage this round** (per PLAN §9 panel policy): web-research fan-out + synthesis by Claude-family agents (2 researchers: research-methodology extraction, Guandan tribute verification); **Codex CLI** ran the anchoring-free consistency review of the revised tribute/anti-tribute spec sections (load-bearing rules change → independent lineage required). **Codex result: 0 rule errors, 13 areas checked-clean (coverage documented), 4 blocking ambiguities found and fixed** — `seatOrder` direction now bound to `turnDirection` (not absolute clockwise); double-tribute payment staging + atomic reveal defined (was only defined for returns); `returnNoLowCardPolicy: anyCard` semantics scoped; `antiTributeMode: optional` state machine specified (decide-before-reveal, unanimity for split jokers, decline reveals nothing, default-action = invoke). Gemini/Grok not run this round — no large-context or third-lineage-corroboration task met the budget bar; both verified installed for milestone gates.
 
 ### Done (verified)
-- **Rules corrections (owner + official-source verification).** Located the official 《竞技掼蛋竞赛规则（试行）》 tribute clause verbatim (two agreeing copies); full per-question verification: [docs/research/guandan-tribute-verification.md](docs/research/guandan-tribute-verification.md). Spec bumped to v1.2:
+- **Rules corrections (owner + official-source verification).** Located the official the official Competitive Guandan Rules (Trial) tribute clause verbatim (two agreeing copies); full per-question verification: [docs/research/guandan-tribute-verification.md](docs/research/guandan-tribute-verification.md). Spec bumped to v1.2:
   - Tribute/return are **choices over eligible sets** (rank forced, card chosen); `legalActions` exposes the sets for UI hinting; `applyAction` validates membership.
   - Tribute and return cards **public to all four players** (owner-pinned; official + pagat concordant); double-tribute returns revealed simultaneously → engine applies both `tributeReturned` events atomically.
   - Anti-tribute: condition verified verbatim; **mandatory public reveal** of the qualifying big jokers with holder attribution, nothing else; `antiTributeMode: auto|optional` (default `auto`).
-  - `equalTributeAssignment: seatOrder|random|winnersChoose` replaces `doubleTributeTieAward` (three-way source conflict: official/唐人游/pagat); `doubleTributeTieLead` **removed** (lead rule unanimous & derivable); `returnNoLowCardPolicy` fallback now CORE-backed by official text. Table now 23 keys, each tagged house-rules-sensitive (✓) or technical (—).
+  - `equalTributeAssignment: seatOrder|random|winnersChoose` replaces `doubleTributeTieAward` (three-way source conflict: official/Tangrenyou/pagat); `doubleTributeTieLead` **removed** (lead rule unanimous & derivable); `returnNoLowCardPolicy` fallback now CORE-backed by official text. Table now 23 keys, each tagged house-rules-sensitive (✓) or technical (—).
 - **PLAN.md rev 2:** new §6 Debuggability (deterministic replay harness, gated room-dump affordance, structured per-mutation logs — required deliverables in the M1/M2 gates); per-seat `hints` in the wire protocol; obligations delta stated (ob. 4 split combination/choice scope, ob. 3 gains reveal-scope assertions); named gate checks **G-COMPOSE / G-ALARM / G-WSMETER** promoted from the risk register into M0/M2 exit gates; audit panel = Codex + Gemini + optional Grok (all three CLIs verified installed).
 - **Research methodology adopted from an internal reference research project** → [docs/research/METHODOLOGY.md](docs/research/METHODOLOGY.md) (full extraction with file-level provenance kept in local notes, not pushed). Adopted: research-over-memory with fetch dates; ≥2-source corroboration with low-trust-source discarding; per-claim VERIFIED/UNCERTAIN tags; null results headlined with diagnosis; question-first research prompts; anchoring-free cross-checks; "checked, no finding" coverage lists; named pre-declared gates; dated supersession markers; self-correction logging. Not adopted (domain-specific): backtesting conventions, walk-forward/purged CV, DSR/PBO, market-data hygiene, conformal gating, trading metrics, cost modeling.
 
 ### Null results / dead ends (this round)
-- **No decline flow for 抗贡 exists anywhere.** Targeted searches (放弃抗贡 / 可以不抗贡 / 选择进贡) found nothing across official rules, platforms, and explainers; the option is also strategically dominated. Diagnosis: genuinely unspecified because unwanted — `antiTributeMode:'optional'` is retained as future-proofing only.
+- **No decline flow for anti-tribute exists anywhere.** Targeted searches (decline anti-tribute / can decline anti-tribute / choose tribute) found nothing across official rules, platforms, and explainers; the option is also strategically dominated. Diagnosis: genuinely unspecified because unwanted — `antiTributeMode:'optional'` is retained as future-proofing only.
 - **The official clause text does not spell out the anti-tribute reveal step** — platform practice and physical necessity make it standard; tagged UNCERTAIN (narrow sense) in spec §7.6 while the reveal remains required behavior here.
-- **Equal-tribute assignment is a genuine three-way source conflict** (official seat-order / 唐人游 random / pagat winners-choose) — documented as such and made a config key rather than resolved.
+- **Equal-tribute assignment is a genuine three-way source conflict** (official seat-order / Tangrenyou random / pagat winners-choose) — documented as such and made a config key rather than resolved.
 - (Carried from round 1) No Cloudflare-endorsed "event log + seq resync" recipe; no documented per-DO WS-connection or session-duration caps beyond the 32,768 ceiling.
 
 ### Corrections log

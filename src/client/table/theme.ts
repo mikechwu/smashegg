@@ -7,7 +7,7 @@
 // Contract boundary (enforced structurally, not by convention): a theme
 // provides ONLY face content, back art and metrics. Everything that encodes
 // GAME STATE is drawn by the framework (CardFace/GhostFace in CardFace.tsx)
-// OVER the theme's face — the 配 cinnabar wild marker, selection lift,
+// OVER the theme's face — the cinnabar wild marker, selection lift,
 // focus ring, tribute glow. Precisely what that guarantees: the REAL marker
 // always renders (the framework appends it; a theme has no code path to
 // omit it) and always PAINTS ON TOP (.gd-cardframe is an isolated stacking

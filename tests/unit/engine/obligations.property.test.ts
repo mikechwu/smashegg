@@ -63,7 +63,7 @@ const ERROR_CODE_RE = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)+$/;
 const EVENT_TYPE_RE = /^[a-z][a-zA-Z0-9]*$/;
 // CJK unified ideographs + extensions A / compatibility block — the engine
 // must never emit Chinese prose (or any prose; CJK is the greppable tell).
-const CJK_RE = /[⺀-鿿豈-﫿]/;
+const CJK_RE = /[\u2e80-\u9fff\uf900-\ufaff]/;
 
 // ---------------------------------------------------------------------------
 // Small helpers.
@@ -763,8 +763,8 @@ describe('PLAN §3 interface obligations 1-6 (seeded property playouts)', () => 
 const OPTIONAL_ANTI_CONFIG: RuleVariant = { ...BASE, antiTributeMode: 'optional' };
 
 /** INTENT: hand 2 of a match under antiTributeMode='optional', previous hand
- *  a 1-2 (双上) for team 0 with finish order [0,2,3,1] ⇒ double tribute,
- *  payers = [1 (末游), 3 (三游)], receivers = [0, 2]. The unshuffled double
+ *  a 1-2 (1-2 finish) for team 0 with finish order [0,2,3,1] ⇒ double tribute,
+ *  payers = [1 (4th finisher), 3 (3rd finisher)], receivers = [0, 2]. The unshuffled double
  *  deck deals BJ copies (deck indices 53 and 107) to seats 1 and 3 — one big
  *  joker per payer — so the optional-mode decision machine is pending with
  *  BOTH payers as deciders (unanimity required, spec §7.6). All 108 cards
@@ -815,7 +815,7 @@ describe('antiTributeDecision phase obligations (constructed state, optional mod
     expect(a).toEqual(b);
   });
 
-  it('unanimous invoke fires the public two-big-joker reveal and 头游 leads', () => {
+  it('unanimous invoke fires the public two-big-joker reveal and 1st finisher leads', () => {
     const state = constructedAntiTributeDecisionState();
     const step1 = GuandanGame.applyAction(state, 1, { type: 'antiTributeDecision', invoke: true });
     expect(step1.ok).toBe(true);
@@ -835,7 +835,7 @@ describe('antiTributeDecision phase obligations (constructed state, optional mod
     expect(step2.ok).toBe(true);
     if (!step2.ok) return;
     // Both payers invoked → the mandatory public reveal, exactly the two
-    // big jokers with holder attribution, then previous 头游 (seat 0) leads.
+    // big jokers with holder attribution, then previous 1st finisher (seat 0) leads.
     expect(step2.events).toEqual([
       { type: 'antiTribute', reveals: [{ seat: 1, card: 'BJ' }, { seat: 3, card: 'BJ' }] },
     ]);

@@ -75,8 +75,8 @@ function playingState(opts: {
   };
 }
 
-/** A tribute-phase state (single tribute: payer = previous 末游, receiver =
- *  previous 头游) so the tribute/return choice machinery runs for real. */
+/** A tribute-phase state (single tribute: payer = previous 4th finisher, receiver =
+ *  previous 1st finisher) so the tribute/return choice machinery runs for real. */
 function tributeState(opts: {
   currentLevel: Rank;
   levels: [Rank, Rank];
@@ -166,7 +166,7 @@ function findEvent<T extends GuandanEvent['type']>(
 describe('house rule 1: winning the match at A (1-2 / 1-3 yes, 1-4 no)', () => {
   it('house: 1-2 at A wins the match', () => {
     // Team 0 declares at its own A. Seats 0 and 2 each hold one card and can
-    // finish 1st and 2nd (双上) in two plays: 0 leads 2S, 1 passes, 2 beats
+    // finish 1st and 2nd (1-2 finish) in two plays: 0 leads 2S, 1 passes, 2 beats
     // with 5S and empties — finishOrder [0,2], teammates ⇒ hand over, 1-2.
     let s = playingState({
       currentLevel: 'A',
@@ -221,7 +221,7 @@ describe('house rule 1: winning the match at A (1-2 / 1-3 yes, 1-4 no)', () => {
 
   it('house: 1-4 at A does NOT win and grants no level', () => {
     // Team 0 declares at A but its partner (seat 2) never finishes: order
-    // forced to [0, 1, 3] — seat 2 is 末游, a 1-4. No match win, no level;
+    // forced to [0, 1, 3] — seat 2 is 4th finisher, a 1-4. No match win, no level;
     // per §6.4 the hand consumes one A-attempt.
     let s = playingState({
       currentLevel: 'A',
@@ -258,7 +258,7 @@ describe('house rule 1: winning the match at A (1-2 / 1-3 yes, 1-4 no)', () => {
 
 describe('house rule 2: K+3 clamps to A', () => {
   it('house: K+3 clamps to A (overshootWinsGame=false)', () => {
-    // Team 0 at K wins 双上 (+3) — raw target K+3 overshoots A. Owner pin:
+    // Team 0 at K wins 1-2 finish (+3) — raw target K+3 overshoots A. Owner pin:
     // land exactly at A, no match win.
     let s = playingState({
       currentLevel: 'K',
@@ -270,7 +270,7 @@ describe('house rule 2: K+3 clamps to A', () => {
     });
     s = playSingle(s, 0, '2S').state;
     s = pass(s, 1).state;
-    const last = playSingle(s, 2, '7S'); // [0,2] teammates ⇒ 双上, +3
+    const last = playSingle(s, 2, '7S'); // [0,2] teammates ⇒ 1-2 finish, +3
     s = last.state;
 
     const handEnded = findEvent(last.events, 'handEnded');
@@ -294,7 +294,7 @@ describe('house rule 2: K+3 clamps to A', () => {
 describe('house rule 3: A-attempt suspension lifecycle', () => {
   it('house: 3rd failed A-attempt sets suspension, level stays A', () => {
     // Team 0 declares its own A with 2 failed attempts already on the
-    // counter. Opponents (seats 1+3) win 双上 in two plays: 1 leads 2C,
+    // counter. Opponents (seats 1+3) win 1-2 finish in two plays: 1 leads 2C,
     // 2 passes, 3 beats with 6C and empties — team 0's 3rd failure.
     let s = playingState({
       currentLevel: 'A',
@@ -307,7 +307,7 @@ describe('house rule 3: A-attempt suspension lifecycle', () => {
     });
     s = playSingle(s, 1, '2C').state;
     s = pass(s, 2).state;
-    const last = playSingle(s, 3, '6C'); // [1,3] teammates ⇒ 双上 for team 1
+    const last = playSingle(s, 3, '6C'); // [1,3] teammates ⇒ 1-2 finish for team 1
     s = last.state;
 
     const handEnded = findEvent(last.events, 'handEnded');
@@ -357,7 +357,7 @@ describe('house rule 3: A-attempt suspension lifecycle', () => {
 
   it("house: suspended team's hand win clears the flag and the following hand plays at A again", () => {
     // Suspended team 0 declares a hand played at the opponents' level 5
-    // (i.e. the state the previous test produced). Team 0 wins it 双上 —
+    // (i.e. the state the previous test produced). Team 0 wins it 1-2 finish —
     // which must NOT win the match (this is the opponents' 5, not an A
     // attempt), must clear the suspension, and the following hand — still
     // declared by team 0 — is back at A.
@@ -373,7 +373,7 @@ describe('house rule 3: A-attempt suspension lifecycle', () => {
     });
     s = playSingle(s, 0, '2S').state;
     s = pass(s, 1).state;
-    const last = playSingle(s, 2, '7S'); // [0,2] ⇒ team 0 wins 双上
+    const last = playSingle(s, 2, '7S'); // [0,2] ⇒ team 0 wins 1-2 finish
     s = last.state;
 
     expect(last.events.some((e) => e.type === 'matchEnded')).toBe(false); // not an A win
@@ -405,7 +405,7 @@ describe('house rule 3: A-attempt suspension lifecycle', () => {
     });
     s = playSingle(s, 1, '2C').state;
     s = pass(s, 2).state;
-    const last = playSingle(s, 3, '6C'); // opponents 双上 ⇒ team 0's attempt fails
+    const last = playSingle(s, 3, '6C'); // opponents 1-2 finish ⇒ team 0's attempt fails
     s = last.state;
 
     const handEnded = findEvent(last.events, 'handEnded');
@@ -422,8 +422,8 @@ describe('house rule 3: A-attempt suspension lifecycle', () => {
 
 describe('house rule 4: return tribute levelValue ≤ 10', () => {
   it('house: return tribute at level T excludes the T (levelValue ≤ 10 semantics)', () => {
-    // Real single-tribute phase at level T (previous order [0,1,2,3]: 末游
-    // seat 3 pays 头游 seat 0). Seat 0's hand mixes T cards (levelValue 15
+    // Real single-tribute phase at level T (previous order [0,1,2,3]: 4th finisher
+    // seat 3 pays 1st finisher seat 0). Seat 0's hand mixes T cards (levelValue 15
     // — face value ≤ 10 but ELEVATED, the exact trap the owner pinned),
     // 9s (returnable), and J/K (> 10). Wild is TH — deliberately absent.
     let s = tributeState({
@@ -431,10 +431,10 @@ describe('house rule 4: return tribute levelValue ≤ 10', () => {
       levels: ['T', '2'],
       declarerTeam: 0,
       hands: [
-        ['TS', 'TC', '9S', '9H', '5C', 'JS', 'KD', '2H'], // receiver (头游)
+        ['TS', 'TC', '9S', '9H', '5C', 'JS', 'KD', '2H'], // receiver (1st finisher)
         ['3C', '4C'],
         ['3D', '4D'],
-        ['AS', 'AC', '2S', '3S'], // payer (末游): forced rank A
+        ['AS', 'AC', '2S', '3S'], // payer (4th finisher): forced rank A
       ],
       payer: 3,
       receiver: 0,
@@ -622,13 +622,13 @@ describe('house rule 5: mixed SJ+BJ is never a pair — anywhere', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 6. 接风 exact condition (spec §5.6, jiefengRecipient='partner')
+// 6. jiefeng exact condition (spec §5.6, jiefengRecipient='partner')
 // ---------------------------------------------------------------------------
 
-describe('house rule 6: 接风 fires only when the winning final play was not beaten', () => {
+describe('house rule 6: jiefeng fires only when the winning final play was not beaten', () => {
   it("house: finisher's last play wins the trick (all pass) → partner leads next trick + jiefeng event", () => {
     // Seat 0 empties with KS; seats 1, 2, 3 all pass — the final play stood
-    // unbeaten, so 接风: partner seat 2 leads the next trick.
+    // unbeaten, so jiefeng: partner seat 2 leads the next trick.
     let s = playingState({
       currentLevel: '2',
       levels: ['2', '2'],
@@ -655,7 +655,7 @@ describe('house rule 6: 接风 fires only when the winning final play was not be
   it("house: finisher's last play gets beaten → beater leads, no jiefeng event", () => {
     // Seat 0 empties with KS but seat 1 beats it with AS; seats 2 and 3
     // pass; the finished seat 0 is skipped and the trick closes on seat 1's
-    // top play. No 接风 — the beater leads.
+    // top play. No jiefeng — the beater leads.
     let s = playingState({
       currentLevel: '2',
       levels: ['2', '2'],
@@ -675,7 +675,7 @@ describe('house rule 6: 接风 fires only when the winning final play was not be
     allEvents.push(...r.events);
     s = r.state;
 
-    expect(allEvents.some((e) => e.type === 'jiefeng')).toBe(false); // no 接风, ever
+    expect(allEvents.some((e) => e.type === 'jiefeng')).toBe(false); // no jiefeng, ever
     expect(findEvent(r.events, 'trickWon').seat).toBe(1);
     expect(s.trick!.leader).toBe(1); // the beater leads the next trick
     expect(s.trick!.toAct).toBe(1);

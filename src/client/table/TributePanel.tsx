@@ -1,13 +1,13 @@
 // TributePanel — the table center during tribute phases: phase banner
-// (進貢/還貢), who-pays-whom arrows, committed markers, the atomic
-// paid/returned reveals, and the 抗貢 reveal (both big jokers with holder
+// (tribute/return tribute), who-pays-whom arrows, committed markers, the atomic
+// paid/returned reveals, and the anti-tribute reveal (both big jokers with holder
 // names — a significant moment: brief cinnabar flash, deliberately NOT
-// goldleaf, which is reserved for 接風 and match victory).
+// goldleaf, which is reserved for jiefeng and match victory).
 //
 // Double-tribute direction honesty: before the atomic reveal the payer→
 // receiver pairing DOESN'T EXIST yet (staging, spec §7.3), so pre-reveal
 // double tribute shows per-payer "committing" lines; once `paid` is set the
-// real pairings render, and the return arrows follow them (对应, §7.4).
+// real pairings render, and the return arrows follow them (corresponding, §7.4).
 
 import type { Seat } from '../../engine/core/game';
 import type { Card, Rank } from '../../engine/guandan/cards';

@@ -1,4 +1,4 @@
-// CeremonyOverlay — the hand-1 翻牌定先 opening (firstLeadMethod='drawCard'),
+// CeremonyOverlay — the hand-1 draw ceremony (flip-to-lead) opening (firstLeadMethod='drawCard'),
 // restyled into the Lacquer Ledger system (ceremony-marker round): the
 // information order follows the ritual — who cut → the flipped card(s) → the
 // count → where the marker lands → who leads — with goldleaf reserved for the
@@ -7,7 +7,7 @@
 //
 // The ceremony is PUBLICLY VERIFIABLE (owner rule): all four seats see the
 // same two cards — the count card (the walk's last flip; re-flips fade with a
-// 重翻 label) and the face-up 明牌 marker — legibly enough to derive the
+// re-flip label) and the face-up marker card — legibly enough to derive the
 // drawer and the leader themselves. The marker is a specific card INSTANCE
 // (deck position; two decks mean twins), so copy names SEATS, never "the 8♥".
 // ~4–6s total, skippable by tap; prefers-reduced-motion renders a one-line
@@ -81,7 +81,7 @@ export function CeremonyOverlay({ ceremony, level, twoCard, nameFor, onDone }: C
   // closure every render, and while a turn deadline is outstanding GameTable
   // re-renders every 500ms (the countdown tick). With onDone as a dep each
   // re-render's cleanup cleared the pending step timeout before it could fire
-  // (500ms tick < every step duration), freezing the overlay on 洗牌中…
+  // (500ms tick < every step duration), freezing the overlay on shuffling…
   // forever. The ref keeps the timer chain untouchable by parent re-renders
   // while still calling the LATEST callback.
   const onDoneRef = useRef(onDone);
@@ -138,7 +138,7 @@ export function CeremonyOverlay({ ceremony, level, twoCard, nameFor, onDone }: C
           </p>
         )}
 
-        {/* 2. The flipped card(s): the count walk, then the 明牌 beside it */}
+        {/* 2. The flipped card(s): the count walk, then the marker card beside it */}
         {(flipsShown > 0 || markerShown) && (
           <div className="gd-ceremony__cards">
             {ceremony.flips.slice(0, flipsShown).map((flip, i) => {

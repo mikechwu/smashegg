@@ -57,7 +57,7 @@ function dealHands(prng: PrngState): { hands: Hands; prng: PrngState } {
 }
 
 // ---------------------------------------------------------------------------
-// 翻牌定先 drawCard ceremony (spec §5.1 `firstLeadMethod='drawCard'`, owner
+// the draw ceremony (flip-to-lead) drawCard ceremony (spec §5.1 `firstLeadMethod='drawCard'`, owner
 // counting rule; M3). Hand 1 only. Fully seeded and deterministic — the
 // emitted ceremony data is exactly what the UI animates (types.ts
 // handStarted contract); the engine computes it once, replay reproduces it
@@ -74,7 +74,7 @@ function countingValue(rank: Rank): number {
   return rank === 'A' ? 1 : naturalValue(rank);
 }
 
-/** Walk `steps` seats from `from`, 下家 by 下家 (types.ts nextSeat), so the
+/** Walk `steps` seats from `from`, the next seat (in turn direction) by the next seat (in turn direction) (types.ts nextSeat), so the
  *  count follows turnDirection: CCW by default, clockwise when configured. */
 function stepSeats(from: Seat, steps: number, config: RuleVariant): Seat {
   let seat = from;
@@ -83,7 +83,7 @@ function stepSeats(from: Seat, steps: number, config: RuleVariant): Seat {
 }
 
 // ---------------------------------------------------------------------------
-// 翻牌定先 with a REAL cut (item 3; geometry REVERSED in the ceremony-marker
+// the draw ceremony (flip-to-lead) with a REAL cut (item 3; geometry REVERSED in the ceremony-marker
 // round 2026-07-15): init commits a shuffled deck and stops in phase
 // 'ceremonyCut'; the cutter's cutDeck action PRESERVES deck order (lift,
 // look at the split, put back) and selects the revealed cards — the count
@@ -402,7 +402,7 @@ function finishHand(
     };
   }
 
-  // spec §1.5: next hand's declarer is this hand's winning (头游) team.
+  // spec §1.5: next hand's declarer is this hand's winning (1st finisher) team.
   const next = startHand(
     {
       config: state.config,

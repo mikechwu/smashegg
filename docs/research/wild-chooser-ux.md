@@ -2,8 +2,8 @@
 
 **Date:** 2026-07-14 (M4 owner item A research deliverable — REQUIRED before implementation)
 **Status:** Decision-ready. Presentation-only: no engine, protocol, or validation change; obligation 4 (PLAN §3) untouched by design.
-**Scope:** How the decl chooser presents each interpretation of a wild-containing selection as CARD FACES — the wild→substituted-card arrow, the post-substitution concrete combo, the 配-marker tension, two-wild readability, many-option layout, and a PROVEN 390px fit — plus the implementation sketch, i18n keys, and test plan.
-**Owner intent (verbatim spirit):** a family member must understand each option with no explanation: wild face → arrow → the card it becomes, PLUS the resulting combo rendered as it will be played (the 紅心2 appears as the card it stands for, not as itself, inside the group).
+**Scope:** How the decl chooser presents each interpretation of a wild-containing selection as CARD FACES — the wild→substituted-card arrow, the post-substitution concrete combo, the wild-marker tension, two-wild readability, many-option layout, and a PROVEN 390px fit — plus the implementation sketch, i18n keys, and test plan.
+**Owner intent (verbatim spirit):** a family member must understand each option with no explanation: wild face → arrow → the card it becomes, PLUS the resulting combo rendered as it will be played (the heart 2 appears as the card it stands for, not as itself, inside the group).
 **Sources:** docs/research/wild-disambiguation.md (§1 rule R1–R5, §2 enumeration, §2 chooser-size bound), `src/engine/guandan/combos.ts`, `src/engine/guandan/cards.ts`, `src/engine/guandan/types.ts`, `src/engine/guandan/index.ts`, `src/client/table/helpers.ts`, `src/client/table/ActionBar.tsx`, `src/client/table/CardFace.tsx`, `src/client/table/HandFan.tsx`, `src/client/table/table.css`, `src/client/app.css`, `src/client/RoomPage.tsx`, `src/client/i18n/index.ts` + the three locale JSONs, `tests/unit/client/table.test.ts`, `tests/e2e/product-paths.e2e.test.ts`.
 
 **Verification legend (METHODOLOGY §3):**
@@ -20,7 +20,7 @@
 **Questions this pass set out to answer (METHODOLOGY §5):**
 1. Can the client derive, per chooser option, the wild→substituted pairs and the post-substitution concrete combo — today, from `PlayMatch` alone? → §1 (yes; algorithm given; the one under-determined case resolved).
 2. How does each option present substitution + result so a family member reads it unaided? → §2.
-3. How is the "wild renders as a plain 梅花A — which card is the wild?" tension resolved? → §2.3 (explicit, with rejected alternatives).
+3. How is the "wild renders as a plain clubsA — which card is the wild?" tension resolved? → §2.3 (explicit, with rejected alternatives).
 4. Do two-wild options stay readable without doubling row height? → §2.4.
 5. What layout for many options, what is the comfortable count, what happens beyond it? → §3.2.
 6. Does the whole thing fit 390px — proven from the actual CSS numbers? → §3.1 (arithmetic, every constant cited).
@@ -33,7 +33,7 @@
 - **Chooser input:** `matchSelection` returns `PlayMatch[] = {cards, decl, playable}[]`, one entry per distinct decl, in `classifyPlays`'s order (helpers.ts:118-140). `classifyPlays` sorts strongest-first via `compareComboStrength` before returning (combos.ts:476-477), so the pinned larger-on-top ordering (R5, wild-disambiguation.md §1.2/§4.3) is engine-enforced; the client does no re-sorting (ActionBar.tsx:147 maps in array order).
 - **Chooser render:** a plain text list — `<div className="gd-chooser" role="dialog">` with title, one `<button>` per match showing `t(comboKey(decl)) + rankText(keyRank)` + SF run text + optional cannotBeat note, then Cancel (ActionBar.tsx:144-172). No card faces anywhere in it. It opens only when `matches.length > 1`; a single reading auto-plays (ActionBar.tsx:120-121).
 - **Chooser CSS:** absolute popup above the action bar — `bottom: calc(100% + 0.5rem); left: 50%; transform: translateX(-50%); min-width: 11rem; padding: 0.625rem; border: 1px solid var(--ivory)` inside `position: relative` `.gd-actions` (table.css:591-605, 524-531). No chooser-specific media query; the table page pins "375px must never scroll horizontally" globally (table.css:5, 25-26 `max-width:100%; overflow-x:hidden`).
-- **Card faces:** `CardFace {card, level, size: 'hand'|'trick'}` (CardFace.tsx:13-18); width via `--gd-cardw` — base 2.5rem, hand `clamp(2.25rem, 11vw, 3.25rem)`, trick 2.25rem; height `1.45 × cardw`, `box-sizing: border-box` with a 2px rosewood border (table.css:377-394). Rank glyph `0.42 × cardw`, suit glyph `0.36 × cardw` (table.css:410-416). The wild marker is a solid cinnabar bottom-left corner triangle (`0.62 × cardw` square, clip-path) with the 配/W glyph at `0.28 × cardw`, rendered whenever `isWild(card, level)` — i.e. the card IS the heart of the level rank (CardFace.tsx:51-55, table.css:431-454, cards.ts:34-36).
+- **Card faces:** `CardFace {card, level, size: 'hand'|'trick'}` (CardFace.tsx:13-18); width via `--gd-cardw` — base 2.5rem, hand `clamp(2.25rem, 11vw, 3.25rem)`, trick 2.25rem; height `1.45 × cardw`, `box-sizing: border-box` with a 2px rosewood border (table.css:377-394). Rank glyph `0.42 × cardw`, suit glyph `0.36 × cardw` (table.css:410-416). The wild marker is a solid cinnabar bottom-left corner triangle (`0.62 × cardw` square, clip-path) with the wild/W glyph at `0.28 × cardw`, rendered whenever `isWild(card, level)` — i.e. the card IS the heart of the level rank (CardFace.tsx:51-55, table.css:431-454, cards.ts:34-36).
 - **Submission & validation:** the chooser row calls `onPlay(match)` → `act({type:'play', cards: match.cards, decl: match.decl})` (ActionBar.tsx:158, GameTable.tsx:432). The server re-derives everything: cards-in-hand check, decl resolution (explicit or `inferDecl`), full `validatePlay(cards, decl, …)` re-validation, then `beats()` (src/engine/guandan/index.ts:507-544). The client's decl is a disambiguation hint the server never trusts — **so anything this document adds is presentation over an unchanged wire action; obligation 4 is structurally untouched.**
 - **i18n:** three chooser keys exist, identical key set in all locales (en/zh-Hans/zh-Hant .json:146-148); `TranslationKey = keyof zh-Hant.json` with a runtime parity test (i18n/index.ts:13-16, tests/unit/i18n.test.ts:23).
 
@@ -93,7 +93,7 @@ export interface ResolvedFace {
   displayRank: Rank;
   /** null ⇒ suit-blind ghost face (no suit glyph); set for naturals and SF targets. */
   displaySuit: Suit | null;
-  /** true ⇒ this slot is wild-backed (drives the 配 corner marker). */
+  /** true ⇒ this slot is wild-backed (drives the wild corner marker). */
   viaWild: boolean;
 }
 ```
@@ -110,27 +110,27 @@ Each chooser option becomes one tappable `<button class="gd-chooser__option">` w
 
 ```
 ┌──────────────────────────────────────────┐
-│  [2♥配] → [ 9 ]  ×2      三带二 9        │   header: substitution chips + type label
+│  [2♥wild] → [ 9 ]  ×2      full house 9        │   header: substitution chips + type label
 │  [9♠][9♣][9♦][ 9 ][ 9 ]                  │   result: the combo AS IT WILL BE PLAYED
 └──────────────────────────────────────────┘
 ```
 
-- **Header (flex-wrap row):** one **substitution chip** per distinct non-`asSelf` substitution — the physical wild face (mini CardFace, its usual solid 配 corner) → arrow glyph `→` → the substituted face (mini ghost face, §2.5) — followed by the existing **type label** (`t(comboKey) + rankText + declRunText` + cannotBeat note) demoted to a small secondary cue (0.75rem, opacity 0.8). The label keeps carrying the semantics for screen readers and for the zero-wild ambiguity cases (tube-vs-plate readings with no wilds at all, e.g. natural TP shapes) where no chips render. `flex-wrap` lets the worst case (two chips + long English SF label) wrap to a second line instead of overflowing (§3.1 arithmetic).
-- **Result row:** `resolveComboFaces` output as mini faces, **no overlap** (unlike the fan) — at chooser sizes every face, suit, and marker stays fully visible, and §3.1 proves no-overlap fits. Wild-backed slots render the substituted identity with the 配 corner marker (§2.3); `asSelf` wilds render as the ordinary wild face (marker already automatic via `isWild`, CardFace.tsx:51).
+- **Header (flex-wrap row):** one **substitution chip** per distinct non-`asSelf` substitution — the physical wild face (mini CardFace, its usual solid wild corner) → arrow glyph `→` → the substituted face (mini ghost face, §2.5) — followed by the existing **type label** (`t(comboKey) + rankText + declRunText` + cannotBeat note) demoted to a small secondary cue (0.75rem, opacity 0.8). The label keeps carrying the semantics for screen readers and for the zero-wild ambiguity cases (tube-vs-plate readings with no wilds at all, e.g. natural TP shapes) where no chips render. `flex-wrap` lets the worst case (two chips + long English SF label) wrap to a second line instead of overflowing (§3.1 arithmetic).
+- **Result row:** `resolveComboFaces` output as mini faces, **no overlap** (unlike the fan) — at chooser sizes every face, suit, and marker stays fully visible, and §3.1 proves no-overlap fits. Wild-backed slots render the substituted identity with the wild corner marker (§2.3); `asSelf` wilds render as the ordinary wild face (marker already automatic via `isWild`, CardFace.tsx:51).
 - **Options with no substitutions** (all wilds `asSelf`, or no wilds) simply have no chips — header collapses to the label alone. No "=" chip: rendering nothing when nothing substitutes is the lower-noise reading, and the result row already shows the wild as itself, marked. (Rejected alternative: a `2♥ = 2♥` self-chip — adds a symbol a family member must decode, to say "nothing happened".)
 
 The full option remains ONE button (tap anywhere = choose), preserving the current interaction contract, the unplayable dimming (`gd-chooser__unplayable`, opacity 0.55, table.css:614) and the two-tap-free flow.
 
 ### 2.2 Why arrow row AND marked result row (owner requirement, justified)
 
-The two zones answer different questions a first-time player actually asks: the arrow answers *"what is my 配 doing?"* (identity mapping, one glance); the result row answers *"what exactly hits the table and how big is it?"* (the thing opponents must beat). Either alone fails someone: arrow-only forces mental assembly of the final combo (exactly the cognitive step wilds make hard); result-only hides which card was yours vs conjured. Redundant encoding is the accessibility-grade choice and it is cheap (§3.1: both rows fit with >100px to spare).
+The two zones answer different questions a first-time player actually asks: the arrow answers *"what is my wild doing?"* (identity mapping, one glance); the result row answers *"what exactly hits the table and how big is it?"* (the thing opponents must beat). Either alone fails someone: arrow-only forces mental assembly of the final combo (exactly the cognitive step wilds make hard); result-only hides which card was yours vs conjured. Redundant encoding is the accessibility-grade choice and it is cheap (§3.1: both rows fit with >100px to spare).
 
-### 2.3 The 配-marker tension — resolved (Q3)
+### 2.3 The wild-marker tension — resolved (Q3)
 
-**Tension:** if the wild renders as a plain 梅花A inside the group, the player cannot tell which card is the wild. **Resolution (PROPOSED): the substituted face carries the exact same solid cinnabar 配 corner marker the table already uses for wilds** (table.css:431-454), on top of the substituted identity.
+**Tension:** if the wild renders as a plain clubsA inside the group, the player cannot tell which card is the wild. **Resolution (PROPOSED): the substituted face carries the exact same solid cinnabar wild corner marker the table already uses for wilds** (table.css:431-454), on top of the substituted identity.
 
 Justification:
-- It preserves **one convention with one meaning**: "cinnabar 配 corner = the wild is at work on this card." In the hand/trick it sits on the wild's own face; in the chooser it sits on the face the wild is playing as. A family member who has seen the hand marker transfers the reading for free; the arrow chip directly above teaches the equivalence the first time.
+- It preserves **one convention with one meaning**: "cinnabar wild corner = the wild is at work on this card." In the hand/trick it sits on the wild's own face; in the chooser it sits on the face the wild is playing as. A family member who has seen the hand marker transfers the reading for free; the arrow chip directly above teaches the equivalence the first time.
 - The invariant survives the *result row alone* (glance path: most players will look at the big row first) — the row is self-sufficient even if the chips are ignored.
 
 Rejected alternatives (explicit, per owner instruction):
@@ -148,7 +148,7 @@ Result-row height never changes with wild count (one face per card regardless). 
 
 ### 2.5 Suit honesty on substituted faces (owner constraint: no suit-redundancy reintroduction)
 
-For suit-blind types the wild stands for **a rank, not a card identity** — the engine never chooses a suit (combos.ts:122-138) and R1 (wild-disambiguation.md §1.2) pins that suit is never a chooser dimension. **PROPOSED: suit-blind substituted faces are rank-only "ghost faces"** — rank glyph in the corner index, no suit glyph, ink-colored, plus the 配 corner marker. Inventing a concrete suit (the owner's illustrative 梅花A) would (a) claim something false-precise, and (b) visually reintroduce the suit dimension the enumeration deliberately collapsed. For **straight flushes the suit IS determined** (`decl.suit`, pinned by the naturals — R1 proof) and the ghost face shows it (e.g. `9♠` with marker), which is exactly when a family member needs the suit to understand why this option is the big one. The owner's example remains fully honored in structure (wild face → arrow → card face); only the suit-blind case renders "the A it becomes" rather than "the ♣A it never specifically becomes".
+For suit-blind types the wild stands for **a rank, not a card identity** — the engine never chooses a suit (combos.ts:122-138) and R1 (wild-disambiguation.md §1.2) pins that suit is never a chooser dimension. **PROPOSED: suit-blind substituted faces are rank-only "ghost faces"** — rank glyph in the corner index, no suit glyph, ink-colored, plus the wild corner marker. Inventing a concrete suit (the owner's illustrative clubsA) would (a) claim something false-precise, and (b) visually reintroduce the suit dimension the enumeration deliberately collapsed. For **straight flushes the suit IS determined** (`decl.suit`, pinned by the naturals — R1 proof) and the ghost face shows it (e.g. `9♠` with marker), which is exactly when a family member needs the suit to understand why this option is the big one. The owner's example remains fully honored in structure (wild face → arrow → card face); only the suit-blind case renders "the A it becomes" rather than "the ♣A it never specifically becomes".
 
 ---
 
@@ -305,9 +305,9 @@ The visual design deliberately makes the card faces + arrow + marker carry the s
 
 | Key | en | zh-Hant | zh-Hans | Used for |
 |---|---|---|---|---|
-| `game.chooser.becomes` | `"wild plays as {card}"` | `"配牌當 {card}"` | `"配牌当 {card}"` | one chip's aria sentence; `{card}` = `rankText(rank)` or rank+suit via existing `game.card.label`/`game.suit.*` for SF |
-| `game.chooser.becomesBoth` | `"both wilds play as {card}"` | `"兩張配牌當 {card}"` | `"两张配牌当 {card}"` | collapsed ×2 chip's aria sentence |
-| `game.chooser.playedAs` | `"played as"` | `"實際出牌"` | `"实际出牌"` | joins the option aria-label before the face list; also available as an (optional) visible micro-caption if the visual round wants one |
+| `game.chooser.becomes` | `"wild plays as {card}"` | `"wild card as  {card}"` | `"wild card as  {card}"` | one chip's aria sentence; `{card}` = `rankText(rank)` or rank+suit via existing `game.card.label`/`game.suit.*` for SF |
+| `game.chooser.becomesBoth` | `"both wilds play as {card}"` | `"two wild card as  {card}"` | `"two wild cards as  {card}"` | collapsed ×2 chip's aria sentence |
+| `game.chooser.playedAs` | `"played as"` | `"actual play"` | `"actual play"` | joins the option aria-label before the face list; also available as an (optional) visible micro-caption if the visual round wants one |
 
 Option `aria-label` composition (client-side, no new key): `"{combo} {rank}[ ({run})] · {becomes-sentences} · {playedAs} {face list via cardLabel/rankText}[ · {cannotBeat}]"` — every fragment from existing keys plus the three above. The arrow `→` and `×2` are locale-free glyphs (precedent: `declRunText`'s `–` and suit glyphs, helpers.ts:281-287).
 
@@ -341,9 +341,9 @@ The existing parity test (tests/unit/i18n.test.ts:23) automatically enforces the
 
 ## 8. (d) Open questions (owner / visual-round input wanted)
 
-1. **Ghost-face suit slot (§2.5):** rank-only face (proposed) vs rendering 配 in the suit-glyph position (rank over a small cinnabar 配 instead of an empty slot). The alternative is denser but overloads the glyph (corner marker AND suit slot). Visual round should screenshot both if cheap.
+1. **Ghost-face suit slot (§2.5):** rank-only face (proposed) vs rendering wild in the suit-glyph position (rank over a small cinnabar wild instead of an empty slot). The alternative is denser but overloads the glyph (corner marker AND suit slot). Visual round should screenshot both if cheap.
 2. **Mini marker legibility:** wild glyph at mini is 0.28 × 32 = 9.0px vs the 10.1px it was designed for at trick size (table.css:431-433). If the visual round finds it muddy, bump only mini: `.gd-card--mini .gd-card__wildGlyph { font-size: calc(var(--gd-cardw) * 0.32); }` (10.2px). Decide on screenshots, then pin the chosen ratio in the CSS-token ratchet.
 3. **Single-reading wild plays get NO visualization** (chooser only opens at ≥2 readings, ActionBar.tsx:120-144): a wild-completed unambiguous play auto-submits with no card-face confirmation of what the wild became. Out of scope for item A (the owner asked for the chooser), but the same `resolveComboFaces` could cheaply power a transient confirmation or the trick-well rendering of one's own play. Flag for M4 backlog, not this change.
 4. **Scroll affordance beyond 3 options** (non-default configs only, §3.2): plain `overflow-y: auto` (proposed) vs an added fade/`N more…` indicator. Given the 3-option proven bound under the shipped default, proposing to ship plain scroll and revisit only if a variant config becomes real.
-5. **Trick-well consistency:** opponents' plays in the well still render wilds as their physical faces (CardFace with solid marker) — after this change, a wild played by an opponent shows as 2♥配 in the well while the chooser taught "配 shows as what it stands for". Unifying the well (rendering opponents' wild-backed plays via `resolveComboFaces(play.cards, play.decl, level)` — both are in every seat's view) is a natural follow-up; kept out of item A's scope to keep the diff reviewable, but the helper is deliberately signature-ready for it.
+5. **Trick-well consistency:** opponents' plays in the well still render wilds as their physical faces (CardFace with solid marker) — after this change, a wild played by an opponent shows as 2♥wild in the well while the chooser taught "wild shows as what it stands for". Unifying the well (rendering opponents' wild-backed plays via `resolveComboFaces(play.cards, play.decl, level)` — both are in every seat's view) is a natural follow-up; kept out of item A's scope to keep the diff reviewable, but the helper is deliberately signature-ready for it.
 6. **Desktop mini size:** keep 32px everywhere (proposed, consistency) vs bumping to trick 36px at ≥720px (more air available). Cosmetic; default to consistency unless the visual round objects.

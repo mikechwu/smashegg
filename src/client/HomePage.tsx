@@ -25,7 +25,7 @@ export function HomePage() {
       // same function the lobby rule-picker uses — so what the picker
       // displays is exactly what the room carries from birth.
       // CURATED_DEFAULT_PICKS pins firstLeadMethod='drawCard' (the PRODUCT
-      // default: created rooms show the 翻牌定先 opening ceremony); the
+      // default: created rooms show the draw ceremony (flip-to-lead) opening); the
       // engine-spec default stays 'random'. Timing follows the same rule:
       // DEFAULT_ROOM_TIMING is sent explicitly (the server would default it
       // anyway) so the product default is client-visible like the config.

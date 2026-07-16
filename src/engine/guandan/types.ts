@@ -10,7 +10,7 @@ import type { Card, Rank, Suit } from './cards';
 import type { RuleVariant } from './config';
 
 // ---------------------------------------------------------------------------
-// Seats & teams. Turn direction: nextSeat models "下家"; the physical
+// Seats & teams. Turn direction: nextSeat models "the next seat (in turn direction)"; the physical
 // clockwise/counterclockwise mapping is presentational, but the config flip
 // must invert rotation so seat-order tie rules (spec §7.3) follow it.
 // ---------------------------------------------------------------------------
@@ -81,14 +81,14 @@ export interface TrickState {
   toAct: Seat;
   /** Highest play so far; null while waiting for the lead. */
   top: Play | null;
-  /** Pending 接风: set when the trick winner finished with their winning
+  /** Pending jiefeng: set when the trick winner finished with their winning
    *  final play; the recipient leads the next trick (spec §5.6). */
   jiefengTo: Seat | null;
 }
 
 // ---------------------------------------------------------------------------
 // Tribute state (spec §7, v1.3 semantics): choices over eligible sets,
-// staged commits, atomic reveal, 对应 return pairing.
+// staged commits, atomic reveal, corresponding return pairing.
 // ---------------------------------------------------------------------------
 
 export interface TributePairing {
@@ -99,21 +99,21 @@ export interface TributePairing {
 
 export interface TributeState {
   kind: 'single' | 'double';
-  /** 末游 [, 三游] — who owes tribute. */
+  /** 4th finisher [, 3rd finisher] — who owes tribute. */
   payers: Seat[];
-  /** 头游 [, 二游] — who receives. */
+  /** 1st finisher [, 2nd finisher] — who receives. */
   receivers: Seat[];
   /** Committed-but-unrevealed tribute cards (staging: no sequential info
    *  leak; spec §7.3). Keyed by payer seat. */
   staged: Partial<Record<number, Card>>;
   /** Set atomically when all payers have committed: assignment resolved
-   *  (higher→头游; ties per equalTributeAssignment). */
+   *  (higher→1st finisher; ties per equalTributeAssignment). */
   paid: TributePairing[] | null;
   /** Committed-but-unrevealed returns, keyed by receiver seat. */
   returnsStaged: Partial<Record<number, Card>>;
-  /** Set atomically when all receivers have returned (对应 pairing). */
+  /** Set atomically when all receivers have returned (corresponding pairing). */
   returned: TributePairing[] | null;
-  /** Resolved leader for the hand once known (payer of 头游's card, or 头游
+  /** Resolved leader for the hand once known (payer of 1st finisher's card, or 1st finisher
    *  on anti-tribute — spec §7.5/§7.6). */
   leader: Seat | null;
 }
@@ -229,7 +229,7 @@ export type GuandanEvent =
       suspensionApplied: boolean;
       /** Full deal — viewEvent redacts to the recipient's own hand. */
       hands: [Card[], Card[], Card[], Card[]];
-      /** 翻牌定先 opening ceremony (hand 1 under firstLeadMethod='drawCard'
+      /** the draw ceremony (flip-to-lead) opening ceremony (hand 1 under firstLeadMethod='drawCard'
        *  ONLY; owner spec M3, made REAL by item 3, geometry corrected in the
        *  ceremony-marker round 2026-07-15). Deterministic from (seed,
        *  cutPosition), replay-identical — the UI animates EXACTLY this data

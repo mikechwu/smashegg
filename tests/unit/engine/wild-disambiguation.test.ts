@@ -1,4 +1,4 @@
-// Wild-card (逢人配) selection disambiguation — spec v1.4 / the M3-hardening
+// Wild-card (the wild rule) selection disambiguation — spec v1.4 / the M3-hardening
 // owner mission, per docs/research/wild-disambiguation.md (Option A,
 // OWNER-SIGNED-OFF):
 //

@@ -160,7 +160,7 @@ describe('spec §9 engine edge-cases checklist', () => {
     expect(types).not.toContain('trickWon');
   });
 
-  it('§9.4 接风 invariant never fires across seeded playouts (trick.ts throw would surface here)', () => {
+  it('§9.4 jiefeng invariant never fires across seeded playouts (trick.ts throw would surface here)', () => {
     // trick.ts asserts the §5.6/§9.4 invariant by THROWING (an engine bug,
     // not a RuleError) if a jiefeng recipient is ever inactive. Driving
     // several full seeded playouts through the public GameDefinition and
@@ -193,12 +193,12 @@ describe('spec §9 engine edge-cases checklist', () => {
     expect(jiefengCount).toBeGreaterThan(0); // the scenario was genuinely exercised
   });
 
-  it('§9.5 four jokers & tribute — joker bomb never paid; one BJ payable; both BJ ⇒ 抗贡', () => {
+  it('§9.5 four jokers & tribute — joker bomb never paid; one BJ payable; both BJ ⇒ anti-tribute', () => {
     // Single tribute (prevFinishOrder [0,1,3], non-partners 1st/2nd):
-    // payer = seat 2 (末游). Seat 2 holds ALL FOUR jokers — the "joker
+    // payer = seat 2 (4th finisher). Seat 2 holds ALL FOUR jokers — the "joker
     // bomb" — but tribute is a single card, so it can never be "paid" as
     // a bomb: both big jokers being in the payer set instead cancels
-    // tribute outright (抗贡).
+    // tribute outright (anti-tribute).
     const allFourJokersHand: Hands = [['9S'], ['9S'], ['SJ', 'SJ', 'BJ', 'BJ', '3S'], ['9S']];
     const setup1 = setupTribute([0, 1, 3], allFourJokersHand, '2', cfg);
     expect(setup1.kind).toBe('anti');

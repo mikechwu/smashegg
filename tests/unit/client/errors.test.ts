@@ -1,7 +1,7 @@
 // F3 ratchet (pre-M5): no rejection code the server can send may EVER appear
 // on screen. describeError must return human copy in all three locales, and
 // an unknown code falls back to a generic human line — never the raw code.
-// This test is the regression that keeps `動作被拒絕(room.notSeated)` from
+// This test is the regression that keeps `action rejected(room.notSeated)` from
 // coming back.
 
 import { afterAll, describe, expect, it } from 'vitest';

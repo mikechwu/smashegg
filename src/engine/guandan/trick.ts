@@ -15,7 +15,7 @@
 // §9.1 1-based `playerFinished.place` both need the order *as of this
 // play*, so applyPlay takes the running finishOrder as a parameter and
 // returns the appended array — cleaner than making index.ts re-derive
-// "was this a 双上/3rd-finisher moment" from scratch after the fact.
+// "was this a 1-2 finish/3rd-finisher moment" from scratch after the fact.
 
 import type { Seat } from '../core/game';
 import type { Card } from './cards';
@@ -52,7 +52,7 @@ export function nextActiveSeat(from: Seat, hands: Hands, config: RuleVariant): S
  *  would return to the top-play owner". Normally that owner is still active
  *  and the plain skip-empties rotation naturally lands back on them once
  *  everyone else has passed. But when the owner emptied their hand with the
- *  very play that put them on top (the 接风 precondition, §5.6), they are
+ *  very play that put them on top (the jiefeng precondition, §5.6), they are
  *  no longer in the "real" active rotation at all — yet the trick still
  *  must close once every other active player has had a chance to beat that
  *  final play. Treating `topSeat` as a rotation stop (distinct from "can
@@ -91,7 +91,7 @@ export function startTrick(leader: Seat, hands: Hands, config: RuleVariant): Tri
 }
 
 /** Hand end (spec §5.8/§9.3): immediately when the 1st and 2nd finishers
- *  are teammates (双上), otherwise immediately when the 3rd player
+ *  are teammates (1-2 finish), otherwise immediately when the 3rd player
  *  finishes. Only ever tested right after a new finisher is appended, so
  *  finishOrder.length is 1, 2, or 3 at the call site. */
 function handEndsAt(finishOrder: readonly Seat[]): boolean {
@@ -100,7 +100,7 @@ function handEndsAt(finishOrder: readonly Seat[]): boolean {
 }
 
 /** Resolve who leads the next trick once a trick winner is known, handling
- *  接风 (spec §5.6): if the winner emptied their hand WITH the winning
+ *  jiefeng (spec §5.6): if the winner emptied their hand WITH the winning
  *  play, lead passes to their partner (or next active seat, per
  *  `jiefengRecipient`) instead of the winner themselves. Pushes any
  *  'jiefeng' event onto the shared `events` array (mutation kept local to
@@ -116,7 +116,7 @@ function resolveWinnerAndLead(
     const recipient =
       config.jiefengRecipient === 'partner' ? partnerOf(winner) : nextActiveSeat(winner, hands, config);
     // spec §5.6/§9.4 invariant: the recipient is always still active when
-    // 接风 fires — if the partner (or next player) had already finished,
+    // jiefeng fires — if the partner (or next player) had already finished,
     // this finish would itself have been the 2nd or 3rd finisher and the
     // hand would already have ended above, before any lead was needed.
     // A violation here is an engine bug, not a rule outcome.
@@ -164,7 +164,7 @@ export function applyPlay(
     events.push({ type: 'playerFinished', seat: play.seat, place: nextFinishOrder.length });
   }
 
-  // spec §5.8/§9.3: abort mid-trick on 双上 or the 3rd finisher — no trick
+  // spec §5.8/§9.3: abort mid-trick on 1-2 finish or the 3rd finisher — no trick
   // end / jiefeng bookkeeping happens; the trick itself is moot.
   if (handEndsAt(nextFinishOrder)) {
     return { trick: null, events, handEnded: true, finishOrder: nextFinishOrder };

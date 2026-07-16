@@ -292,7 +292,7 @@ describe('Guandan e2e (M3 gate)', () => {
         }
         const dealSeq = afterCut.seq;
 
-        // --- 翻牌定先 ceremony: the FIRST handStarted (hand 1) must carry
+        // --- the draw ceremony (flip-to-lead) ceremony: the FIRST handStarted (hand 1) must carry
         // the ceremony payload, identical (public) on every seat's copy,
         // and its markerSeat must hold the lead. ---
         const firstCopies: EventMsg[] = [];

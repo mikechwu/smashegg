@@ -28,7 +28,7 @@ describe('beatState (F9 binary legal-play cue)', () => {
   });
 });
 
-describe('handSizeTier (F11 / 報牌 escalation)', () => {
+describe('handSizeTier (F11 / low-card alert escalation)', () => {
   it('normal above the alert line', () => {
     expect(handSizeTier(27)).toBe('normal');
     expect(handSizeTier(11)).toBe('normal');

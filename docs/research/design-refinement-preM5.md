@@ -16,7 +16,7 @@ a background workflow; its digest informs items 4–5 execution, not these decis
 |---|------|--------|-----|
 | 1 | Nickname edit + leave/change seat | **FULL** (authority) | Touches seat-token authority → redaction. Pure decisions + wire e2e (stale-token starvation) + panel. |
 | 2 | Per-seat planning window | **FULL** (timing) | Timing-CLASS derivation change in the machinery that broke twice. Property extension + decision table + panel. |
-| 3 | Real cut in 翻牌定先 | **FULL** (engine/interface) | New phase + action + state; replay, uniformity, deadlock-freedom, redaction of the committed deck. |
+| 3 | Real cut in the draw ceremony (flip-to-lead) | **FULL** (engine/interface) | New phase + action + state; replay, uniformity, deadlock-freedom, redaction of the committed deck. |
 | 4 | Physical deal animation | **Presentation** | Client-only render of already-received state; clock interaction stated, not negotiated with the server. |
 | 5 | DeckTheme framework | **Presentation** | Pure client rendering keyed on (rank, suit); engine/DO never learn it exists. Contract + conformance ratchet. |
 
@@ -60,7 +60,7 @@ while the new claimant receives them all (checked against the new claimant's vie
   natural two-step; no new atomic swap is needed because the DO serializes — the race below
   is an ordering, not atomicity, problem.
 - **The race** (you leave, someone takes it, you try to return): second claim hits an occupied
-  row → new rejection code `seat.taken` with dedicated human copy 「這個座位剛被人坐下」/
+  row → new rejection code `seat.taken` with dedicated human copy 「this seat was just taken」/
   "Someone just took that seat" (added to describeError + the complete-inventory ratchet).
   The roster broadcast keeps every lobby live, so the UI already shows who sat down.
 - **Multi-seat/self-play:** release takes an explicit `seat` parameter and touches only that
@@ -75,7 +75,7 @@ server→client:  { v:1, type:'seatReleased', seat, seq }   // broadcast; roster
 ```
 Store: reducer case for `seatReleased` (patch roster; drop own credential + persist),
 `release(seat)` / `rename(seat, name)` senders (clearRejections first, like the others).
-Lobby UI: on each of MY claimed plates — 離座 + a small rename affordance; empty plates keep
+Lobby UI: on each of MY claimed plates — leave seat + a small rename affordance; empty plates keep
 the claim form (now clickable on ANY empty seat, not only the first).
 
 ---
@@ -116,7 +116,7 @@ actor keeps its base; grace clamps unchanged).
   precedes the deal, so the cut does **not** consume anyone's window (see item 3's class
   decision); every seat's window arms fresh when hands land — which also absorbs item 4's
   deal animation (~4s inside 90s planning; stated in item 4).
-- **不限時 stays moot — verified by construction:** the class only selects WHICH budget
+- **untimed stays moot — verified by construction:** the class only selects WHICH budget
   (`perTurnMs` vs `planningMs`); the untimed preset has both `null`, so class never produces
   a clock. The property suite's untimed dimension re-checks it.
 
@@ -153,7 +153,7 @@ violates the claim-must-match-code culture. The cut becomes an engine action.
   deck — `deck[0], deck[1], …` with today's re-flip rule (joker/level-rank) and today's owner
   counting rule (cutter=1, CCW, `(value−1) mod 4`) — determine `firstDrawer`/`markerSeat`;
   then **deal the same rotated deck** round-robin from `firstDrawer` so the publicly-flipped
-  marker card genuinely lands at `markerSeat` (明牌 physically真實 — everyone knows where the
+  marker card genuinely lands at `markerSeat` (the marker card physicallyreal — everyone knows where the
   known cards went, exactly as at a physical table); enter the hand as today (`handStarted`
   with ceremony data now including `cutPosition`). The cut therefore changes BOTH the flips
   AND the hands — the choice genuinely matters.
@@ -176,7 +176,7 @@ violates the claim-must-match-code culture. The cut becomes an engine action.
   cover both arms.
 - **UI (inside this item's gate, rendered via item 5's contract):** the deck ribbon in the
   ring centre; the cutter gets a position picker with one-line microcopy
-  (「請選擇切牌位置——從這裡分開牌疊」), the other three see 「等 {cutter} 切牌」+ the actor's
+  (「choose the cut position - split the deck here」), the other three see 「waiting for {cutter} to cut」+ the actor's
   plate ring; then the flip/count animation plays as today, now from real deck cards.
 
 **Interface/PLAN impact (for the record):** phase union +`'ceremonyCut'`; `GuandanAction`
@@ -227,7 +227,7 @@ export interface DeckTheme {
   };
 }
 ```
-- **The framework (not the theme) renders:** the 配 cinnabar wild marker (overlaid on top of
+- **The framework (not the theme) renders:** the cinnabar wild marker (overlaid on top of
   `Face` by the shared `CardFrame` wrapper — a theme has no code path to remove or cover it),
   selection lift + cinnabar edge, focus ring, tribute glow, ghost faces' via-wild identity.
   That is how the non-negotiables are enforced by CONTRACT: the theme never touches game-state

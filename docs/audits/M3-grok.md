@@ -17,7 +17,7 @@ I'll run a code+spec adversarial audit of turn-direction consistency and rule-pi
 **Canonical convention:** `nextSeat(seat, config)` in `src/engine/guandan/types.ts`:
 - `counterclockwise` → `(seat + 1) % 4` (default)
 - `clockwise` → `(seat + 3) % 4`
-- 下家 = that next seat; partners remain `(seat + 2) % 4` (direction-independent)
+- the next seat (in turn direction) = that next seat; partners remain `(seat + 2) % 4` (direction-independent)
 
 ---
 
@@ -102,8 +102,8 @@ Any picker change runs `assembleConfig({ ...displayedPicks })` → rewrites full
 |------|---------|
 | **`nextSeat` / `partnerOf`** | Single convention; partner across table is correct for both directions. |
 | **`trick.ts`** | `nextActiveSeat`, `stepToward`, `resolveWinnerAndLead` all take `config` and use `nextSeat`. `jiefengRecipient: 'nextPlayer'` → `nextActiveSeat` (direction-aware). |
-| **`tribute.ts` equal `seatOrder`** | Walk from 头游 via `nextSeat` until first payer — matches §7.3 / tests for CCW and CW. |
-| **`tribute.ts` obligations** | From finish order / teams only; no hardcoded `(seat+1)%4`. Loser order for 双上 does not depend on turn direction (assignment is by rank / seatOrder walk). |
+| **`tribute.ts` equal `seatOrder`** | Walk from 1st finisher via `nextSeat` until first payer — matches §7.3 / tests for CCW and CW. |
+| **`tribute.ts` obligations** | From finish order / teams only; no hardcoded `(seat+1)%4`. Loser order for 1-2 finish does not depend on turn direction (assignment is by rank / seatOrder walk). |
 | **`index.ts` ceremony** | `countingValue`: A=1, else `naturalValue` → J=11,Q=12,K=13. `firstDrawer = stepSeats(cutter, (count−1)%4, config)`. `markerSeat = stepSeats(firstDrawer, U{0..3}, config)`. Uniform over seats under both directions. |
 | **`index.ts` hand-1 leaders** | `random` / `drawCard` / fall-through `fixedSeat`→0; no direction bug. |
 | **`levels.ts` `partnerOf`** | Team scoring only; independent of turn direction. |
@@ -133,7 +133,7 @@ No guandan site was found that hardcodes `(seat+1)%4` for **turn progression** o
 ## Could-not-verify (code/spec only)
 
 - Runtime/network injection of partial configs against a live DO (logic is clear from static code; not exercised here).
-- Visual "feels like 下家 on the right" under CW for every locale/layout CSS path beyond `seatLayout` math (plates use that helper only).
+- Visual "feels like the next seat (in turn direction) on the right" under CW for every locale/layout CSS path beyond `seatLayout` math (plates use that helper only).
 - Whether product owners **want** `fixedSeat` banned at init (spec says implement; picker prose says "guarded").
 
 ---

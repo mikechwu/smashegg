@@ -1,6 +1,6 @@
 // ResultOverlay — matchEnded: serif headline from the viewer's team
-// perspective (勝利/敗北 — goldleaf ONLY on victory, per the design
-// system's goldleaf restraint), final levels, standings, and 再來一局
+// perspective (Victory/Defeat — goldleaf ONLY on victory, per the design
+// system's goldleaf restraint), final levels, standings, and Play again
 // back to the home route.
 
 import type { Seat } from '../../engine/core/game';

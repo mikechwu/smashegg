@@ -1,5 +1,5 @@
 // TrickWell — the table center during play: the current top play (cards +
-// localized combo name + seat), a subtle sweep on trickWon, and the 接風
+// localized combo name + seat), a subtle sweep on trickWon, and the jiefeng
 // goldleaf moment (banner from finisher to leader). Pass state renders on
 // the seat plates; the well stays quiet (design-system restraint).
 
@@ -16,7 +16,7 @@ export interface TrickWellProps {
   nameFor: (seat: Seat) => string;
   /** Bumped by each trickWon event — keys the sweep animation. */
   sweepKey: number;
-  /** Set while a 接風 is pending/being granted. */
+  /** Set while a jiefeng is pending/being granted. */
   jiefeng: { finisher: Seat; leader: Seat } | null;
   /** The viewer's active seat — so "waiting for X to lead" becomes "your lead"
    *  when it is the viewer's own turn (F8). */

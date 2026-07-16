@@ -29,7 +29,7 @@ export function suitOf(card: Card): Suit | null {
   return isJoker(card) ? null : (card[1] as Suit);
 }
 
-/** The wild (逢人配) is exactly the heart of the current level rank —
+/** The wild (the wild rule) is exactly the heart of the current level rank —
  *  two physical copies per match state (spec §4.1). */
 export function isWild(card: Card, level: Rank): boolean {
   return card === `${level}H`;

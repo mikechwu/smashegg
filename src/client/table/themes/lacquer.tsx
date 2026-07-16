@@ -2,7 +2,7 @@
 // DeckTheme contract (item 5): ivory face, rosewood border, serif corner
 // index; joker names as a vertical CJK strip in the left column (the fan
 // overlaps each card's right side). NOTE the theme renders NO game-state
-// indicator: the 配 wild marker is framework-drawn over this face by
+// indicator: the wild wild marker is framework-drawn over this face by
 // CardFace.tsx — by design, a theme cannot touch it.
 //
 // Back art (research recipe): a flat rosewood field with a 1px goldleaf

@@ -44,7 +44,7 @@ describe('assembleConfig', () => {
   it('the curated defaults assemble the create-room config: owner profile + drawCard ceremony', () => {
     // This IS the config HomePage sends on POST /api/rooms: a FULL
     // RuleVariant (GuandanGame.init rejects null), equal to the owner
-    // profile except the one PRODUCT default — the visible 翻牌定先
+    // profile except the one PRODUCT default — the visible the draw ceremony (flip-to-lead)
     // opening ceremony. The engine-spec default stays 'random'.
     expect(assembleConfig(CURATED_DEFAULT_PICKS)).toEqual({
       ...JIANGSU_OFFICIAL_ONLINE,

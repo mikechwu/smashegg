@@ -432,7 +432,7 @@ a {
    North/south span the FULL row (centered) so the claim form and seat
    labels never inherit the narrow centre column's width — the true-390
    find of the refinement round: at 390px the old middle column collapsed
-   to ~100px and 座位/暱稱 wrapped one character per line. */
+   to ~100px and seat/nickname wrapped one character per line. */
 .lobby-ring {
   display: grid;
   grid-template-columns: 1fr minmax(1.5rem, 0.6fr) 1fr;

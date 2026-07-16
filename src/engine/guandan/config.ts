@@ -8,10 +8,10 @@ import type { Rank } from './cards';
 export interface RuleVariant {
   turnDirection: 'counterclockwise' | 'clockwise';
   firstLeadMethod: 'random' | 'drawCard' | 'fixedSeat';
-  /** 翻牌定先 card count (owner decision 2026-07-15). 2 = the owner's table
+  /** the draw ceremony (flip-to-lead) card count (owner decision 2026-07-15). 2 = the owner's table
    *  rule: count card = the lifted packet's BOTTOM, marker = the table
    *  packet's TOP — two PUBLIC cards, adjacent at the split; the ceremony is
-   *  publicly verifiable. 1 = the official 《竞技掼蛋》 form (one card does
+   *  publicly verifiable. 1 = the official 《competitive Guandan》 form (one card does
    *  both jobs). The two-card form was not found in the competition texts
    *  reached (legitimate null) — tagged UNCERTAIN, likely a table/regional
    *  variant; the owner's table is the authority, so 2 is the default.

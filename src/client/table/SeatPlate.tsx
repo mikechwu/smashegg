@@ -1,7 +1,7 @@
 // SeatPlate — one seat on the ring (pre-M5 Lacquer Ledger restyle). Two reads:
 //  • remote seat (partner / opponent): name, a VALUE-DEPENDENT mini card-back
 //    fan whose width tracks the remaining count (2 cards must LOOK different
-//    from 27 — the structural fix for 報牌 / F11), the count numeral escalating
+//    from 27 — the structural fix for low-card alert / F11), the count numeral escalating
 //    at the ≤10 alert line, the active-turn ring + clock, connection, and the
 //    partner tag (a non-colour team cue, F5).
 //  • self seat (you): name + you tag + the active-turn ring/clock; your own

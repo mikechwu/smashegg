@@ -72,8 +72,8 @@ There is **no** automatic "zh-Hant then en" for detection or for missing strings
 | Fallback chain prevents raw keys / mixed primary UI | **Hold** for chrome: one `currentLocale`, all `t()` from that bag; parity 188 keys, non-empty strings |
 | TW/HK/Hant → zh-Hant; CN/SG/Hans/bare-zh → zh-Hans; first-match-wins | **Hold** (`LOCALE_TAG_MAP` most-specific first; languages list first hit wins; tests cover) |
 | zh-Hans key parity | **Hold** (same keys as zh-Hant/en; unit test) |
-| Guandan terms (进贡/还贡/抗贡/接风/逢人配/头游/末游) | **Hold** — correct simplified forms; 逢人配 shared (no trad residue) |
-| No Taiwan-isms leaking through conversion | **Hold** on spot-check (连线→连接, 端点→接口, 昵称, 默认, 台面, 加载, …); only intentional trad is `locale.zhHant` = `繁體中文` |
+| Guandan terms (tribute/return tribute/anti-tribute/jiefeng/the wild rule/1st finisher/4th finisher) | **Hold** — correct simplified forms; the wild rule shared (no trad residue) |
+| No Taiwan-isms leaking through conversion | **Hold** on spot-check (connection term localized, endpoint term localized, nickname, default, table surface, loading, …); only intentional trad is `locale.zhHant` = `Traditional Chinese self-label` |
 | Semantic siblings vs en | **Hold** on audited game/UI keys; param tokens aligned across three files |
 | `<html lang>` updates | **Hold** — `App` `useEffect` sets `document.documentElement.lang = locale`; static `index.html` `lang="zh-Hant"` is pre-hydrate default |
 

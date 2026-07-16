@@ -106,7 +106,7 @@ describe('matchSelection (selection → hint matching)', () => {
     // The generator emits ONE wild-frugal realization per form; a player
     // spending the ♥level wild on the same form is still that form — the
     // engine's validatePlay accepts natural+wild as the pair of 9s. (This
-    // exact gap made 出牌 refuse legal wild plays in production.)
+    // exact gap made Play refuse legal wild plays in production.)
     const matches = matchSelection(['9S', '2H'], [play(['9S', '9C'], pairOf9)], '2');
     expect(matches).toHaveLength(1);
     expect(matches[0]!.cards).toEqual(['9S', '2H']);
@@ -485,8 +485,8 @@ describe('foldEvents + EventFeed render-time localization (m1)', () => {
   });
 });
 
-// REGRESSION (M4 computer-use visual round): playing a lone 大王 rendered as
-// "單張 A" in both the trick-well caption and the event feed. Root cause —
+// REGRESSION (M4 computer-use visual round): playing a lone big joker rendered as
+// "Single A" in both the trick-well caption and the event feed. Root cause —
 // joker-keyed singles/pairs carry keyRank 'A' as a FROZEN-TYPES placeholder
 // (combos.ts: never compared, mirrors jokerBomb's convention) with jokerRank
 // as the REAL identity; every label built from `${comboKey} ${keyRank}`
@@ -506,7 +506,7 @@ describe('joker-keyed combo labels (regression: BJ/SJ singles & pairs)', () => {
     expect(declJokerRank(plainPair)).toBeUndefined();
   });
 
-  // Direct comboKey unit case: comboKey still names the TYPE (單張/對子);
+  // Direct comboKey unit case: comboKey still names the TYPE (single/pair);
   // comboRankLabel is what must diverge from the old `rankText(keyRank)`
   // call for a jokerRank decl. Values read from the locale files, not
   // guessed (game.card.bj/sj, game.combo.single/pair).
@@ -531,7 +531,7 @@ describe('joker-keyed combo labels (regression: BJ/SJ singles & pairs)', () => {
     }
   });
 
-  it('a folded "played" line for a lone 大王 (BJ single) resolves per-locale as 單張 大王, never 單張 A', () => {
+  it('a folded "played" line for a BJ single resolves per-locale as the big joker single, never Single A', () => {
     const original = getLocale();
     const nameFor = () => 'Alice';
     let nextId = 0;
@@ -566,7 +566,7 @@ describe('joker-keyed combo labels (regression: BJ/SJ singles & pairs)', () => {
     }
   });
 
-  it('a folded "played" line for a SJ+SJ pair resolves per-locale as 對子 小王, never 對子 A', () => {
+  it('a folded "played" line for a SJ+SJ pair resolves per-locale as the small joker pair, never Pair A', () => {
     const original = getLocale();
     const nameFor = () => 'Alice';
     let nextId = 0;

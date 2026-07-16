@@ -1,7 +1,7 @@
 // Tribute phase (spec docs/rules/guandan.md §7, v1.3): who pays, the forced
 // rank with player CHOICE of concrete card (§7.2), staged commits with an
-// ATOMIC reveal (§7.3), the 对应 return pairing (§7.4/§7.5), and anti-tribute
-// 抗贡 with its mandatory public reveal (§7.6).
+// ATOMIC reveal (§7.3), the corresponding return pairing (§7.4/§7.5), and anti-tribute
+// anti-tribute with its mandatory public reveal (§7.6).
 //
 // Pure functions in/out: nothing here mutates its inputs; hands and tribute
 // state are rebuilt on every transition. Randomness (only the 'random'
@@ -19,7 +19,7 @@ import { nextSeat, teamOf } from './types';
 export type Hands = [Card[], Card[], Card[], Card[]];
 
 // ---------------------------------------------------------------------------
-// Setup: derive obligations from the previous finish order, then check 抗贡.
+// Setup: derive obligations from the previous finish order, then check anti-tribute.
 // ---------------------------------------------------------------------------
 
 /** Pending `optional`-mode anti-tribute decision (spec §7.6 state machine):
@@ -44,15 +44,15 @@ export type TributeSetup =
 /** Tribute obligations derived from a previous finish order (spec §7.1). */
 interface Obligations {
   double: boolean;
-  /** 末游 first, then 三游 for double tribute (matches TributeState docs). */
+  /** 4th finisher first, then 3rd finisher for double tribute (matches TributeState docs). */
   payers: Seat[];
-  /** 头游 first, then 二游 for double tribute. */
+  /** 1st finisher first, then 2nd finisher for double tribute. */
   receivers: Seat[];
 }
 
-/** A hand can end with only 2 (双上) or 3 seats recorded (spec §5.8); the
+/** A hand can end with only 2 (1-2 finish) or 3 seats recorded (spec §5.8); the
  *  missing seats are appended in ascending seat order. For 1-3 the single
- *  missing seat is exactly the 末游; for 1-2 the order between the two
+ *  missing seat is exactly the 4th finisher; for 1-2 the order between the two
  *  losers never matters (both pay, assignment is by card rank — §7.1). */
 function normalizeFinishOrder(prevFinishOrder: readonly Seat[]): Seat[] {
   const order = prevFinishOrder.slice();
@@ -64,8 +64,8 @@ function normalizeFinishOrder(prevFinishOrder: readonly Seat[]): Seat[] {
 
 function deriveObligations(order: Seat[]): Obligations {
   // spec §7.1: 1-2 (first two finishers are teammates) → both losers pay,
-  // 头游 and 二游 receive; otherwise (1-3 / 1-4) the 末游 pays the 头游 —
-  // including the 1-4 case where the 末游 is the 头游's own partner.
+  // 1st finisher and 2nd finisher receive; otherwise (1-3 / 1-4) the 4th finisher pays the 1st finisher —
+  // including the 1-4 case where the 4th finisher is the 1st finisher's own partner.
   const double = teamOf(order[0]!) === teamOf(order[1]!);
   return double
     ? { double, payers: [order[3]!, order[2]!], receivers: [order[0]!, order[1]!] }
@@ -123,7 +123,7 @@ export function setupTribute(
   const reveals = bigJokerReveals(obligations.payers, hands);
   if (reveals.length === 2) {
     if (config.antiTributeMode === 'auto') {
-      // spec §7.6 effect: no tribute, no return, previous 头游 leads —
+      // spec §7.6 effect: no tribute, no return, previous 1st finisher leads —
       // with the mandatory public reveal of the qualifying jokers.
       return { kind: 'anti', reveals, leader: order[0]! };
     }
@@ -229,7 +229,7 @@ export function eligibleTributeCards(hand: readonly Card[], level: Rank): Card[]
  *   excludes wilds, level cards, jokers and J/Q/K/A by construction (a
  *   level-'T' hand has NO returnable 'T': its levelValue is 15).
  *   When the set is empty, the fallback is per returnNoLowCardPolicy:
- *   'lowestByLevelValue' (official 「如全手牌均大于10，则还最小的牌」) → all
+ *   'lowestByLevelValue' (official rule: if all cards are above 10, return the lowest card) → all
  *   copies tied at the minimum levelValue; 'anyCard' → the whole hand.
  * - returnTributeMaxRank=null (pagat variant): any card except the received
  *   tribute card itself (one physical copy — a duplicate identity from the
@@ -284,7 +284,7 @@ function moveCards(hands: Readonly<Hands>, pairings: TributePairing[]): Hands | 
  * event is the card-less 'tributeCommitted' marker only (spec §7.3 — no
  * sequential information leak). When the last payer commits, the assignment
  * resolves atomically: cards move and ONE 'tributePaid' event carries all
- * pairings. Double tribute sends the higher card to 头游; equal cards
+ * pairings. Double tribute sends the higher card to 1st finisher; equal cards
  * resolve per equalTributeAssignment.
  */
 export function applyPayTribute(
@@ -335,12 +335,12 @@ export function applyPayTribute(
     const valueB = levelValue(cardB, level);
     let headPayer: Seat;
     if (valueA !== valueB) {
-      // spec §7.1: 头游 receives the HIGHER of the two tribute cards.
+      // spec §7.1: 1st finisher receives the HIGHER of the two tribute cards.
       headPayer = valueA > valueB ? payerA : payerB;
     } else {
       switch (config.equalTributeAssignment) {
         case 'seatOrder': {
-          // spec §7.3: 头游 receives from the payer reached first from 头游
+          // spec §7.3: 1st finisher receives from the payer reached first from 1st finisher
           // via nextSeat — bound to turnDirection, not absolute clockwise.
           let s = nextSeat(tribute.receivers[0]!, config);
           while (!tribute.payers.includes(s)) s = nextSeat(s, config);
@@ -348,7 +348,7 @@ export function applyPayTribute(
           break;
         }
         case 'random': {
-          // spec §7.3 (唐人游/JJ): uniform choice, drawn from the engine PRNG.
+          // spec §7.3 (Tangrenyou/JJ): uniform choice, drawn from the engine PRNG.
           const draw = nextInt(prng, 2);
           outPrng = draw.state;
           headPayer = tribute.payers[draw.value]!;
@@ -392,10 +392,10 @@ export type ReturnTributeResult =
 
 /**
  * One receiver commits their return card. Symmetric to applyPayTribute:
- * staged with a card-less marker; the last commit resolves the 对应 pairing
+ * staged with a card-less marker; the last commit resolves the corresponding pairing
  * (each receiver returns to the payer they received from — spec §7.4),
  * moves cards, emits ONE 'tributeReturned' event, and resolves the hand's
- * leader = the payer whose card 头游 received (spec §7.5 — hard-coded,
+ * leader = the payer whose card 1st finisher received (spec §7.5 — hard-coded,
  * unanimous across sources; covers single, unequal-double and equal-double
  * in one rule).
  */
@@ -438,7 +438,7 @@ export function applyReturnTribute(
     return { ok: true, tribute: { ...tribute, returnsStaged }, hands: hands as Hands, events };
   }
 
-  // Last receiver committed → resolve the 对应 pairing atomically: invert
+  // Last receiver committed → resolve the corresponding pairing atomically: invert
   // each paid pairing (receiver → the payer they received from).
   const pairings: TributePairing[] = tribute.paid.map((pairing) => ({
     from: pairing.to,
@@ -449,7 +449,7 @@ export function applyReturnTribute(
   if (newHands === null) {
     return { ok: false, error: { code: 'tribute.cardNotInHand', params: { seat, card } } };
   }
-  // spec §7.5: the payer whose tribute card the 头游 received leads.
+  // spec §7.5: the payer whose tribute card the 1st finisher received leads.
   const headPairing = tribute.paid.find((pairing) => pairing.to === tribute.receivers[0])!;
   events.push({ type: 'tributeReturned', pairings });
   return {

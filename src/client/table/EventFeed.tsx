@@ -20,7 +20,7 @@ import type { ComboType } from '../../engine/guandan/types';
  *  locale-aware lookup at render time. `jokerRank`, when set, is the REAL
  *  identity of a joker-keyed single/pair (keyRank is the FROZEN-TYPES 'A'
  *  placeholder there, combos.ts) — carried through so resolveFeedParams can
- *  name the joker instead of printing keyRank (the M4 "單張 A" bug). */
+ *  name the joker instead of printing keyRank (the M4 "single A" bug). */
 export type FeedParamValue =
   | string
   | number

@@ -128,9 +128,9 @@ the countdown ring is de-emphasized while the ceremony overlay is up.
 
 ## 5. Defaults and presets (research: honest null result)
 
-A research pass over Chinese card-game platforms (JJ比赛, 91y, 欢乐斗地主,
+A research pass over Chinese card-game platforms (JJ competition, 91y, Happy Dou Dizhu,
 Guandan titles) found that NO surveyed platform publishes its timer values —
-help pages document timeout CONSEQUENCES (托管/auto-play), not seconds;
+help pages document timeout CONSEQUENCES (auto-play/auto-play), not seconds;
 forum numbers (15–30s per turn) could not be traced to a primary source. No
 platform documents a hand-start planning window or a no-timer mode.
 Diagnosis: timer values are internal tuning parameters, not rules. So the

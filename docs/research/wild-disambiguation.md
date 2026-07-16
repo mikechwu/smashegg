@@ -1,4 +1,4 @@
-# Wild-Card (逢人配) Selection Disambiguation — Design Research
+# Wild-Card (the wild rule) Selection Disambiguation — Design Research
 
 **Date:** 2026-07-14 (M3-hardening §1 research deliverable, owner-mandated)
 **Status:** Decision-ready; one owner sign-off required (§1.4). No code changed by this pass.

@@ -48,8 +48,8 @@ function tributeOf(setup: ReturnType<typeof setupTribute>): TributeState {
 describe('setupTribute obligations', () => {
   const plainHands = hands4(['2S'], ['3S'], ['4S'], ['5S']);
 
-  it('§7.1 1-2 double: both losers pay, 头游+二游 receive (payers 末游-first)', () => {
-    // Teammates 0 and 2 finished 1st and 2nd; 1 was 三游, 3 was 末游.
+  it('§7.1 1-2 double: both losers pay, 1st finisher+2nd finisher receive (payers 4th finisher-first)', () => {
+    // Teammates 0 and 2 finished 1st and 2nd; 1 was 3rd finisher, 3 was 4th finisher.
     const setup = setupTribute([0, 2, 1, 3], plainHands, '2', cfg());
     const tribute = tributeOf(setup);
     expect(tribute.kind).toBe('double');
@@ -57,7 +57,7 @@ describe('setupTribute obligations', () => {
     expect(tribute.receivers).toEqual([0, 2]);
   });
 
-  it('§7.1 1-3 single: 末游 pays 头游', () => {
+  it('§7.1 1-3 single: 4th finisher pays 1st finisher', () => {
     const setup = setupTribute([0, 1, 2, 3], plainHands, '2', cfg());
     const tribute = tributeOf(setup);
     expect(tribute.kind).toBe('single');
@@ -65,8 +65,8 @@ describe('setupTribute obligations', () => {
     expect(tribute.receivers).toEqual([0]);
   });
 
-  it('§7.1 1-4: the 末游 is the 头游 own partner and still pays', () => {
-    // 头游 = 0, 末游 = 2 = partner of 0.
+  it('§7.1 1-4: the 4th finisher is the 1st finisher own partner and still pays', () => {
+    // 1st finisher = 0, 4th finisher = 2 = partner of 0.
     const setup = setupTribute([0, 1, 3, 2], plainHands, '2', cfg());
     const tribute = tributeOf(setup);
     expect(tribute.kind).toBe('single');
@@ -75,7 +75,7 @@ describe('setupTribute obligations', () => {
   });
 
   it('§5.8 normalizes a truncated finish order (hand ended when 3rd finished)', () => {
-    // Only three finishers recorded; the missing seat 3 is the 末游.
+    // Only three finishers recorded; the missing seat 3 is the 4th finisher.
     const setup = setupTribute([0, 1, 2], plainHands, '2', cfg());
     const tribute = tributeOf(setup);
     expect(tribute.payers).toEqual([3]);
@@ -88,11 +88,11 @@ describe('setupTribute obligations', () => {
 });
 
 // ---------------------------------------------------------------------------
-// setupTribute: anti-tribute 抗贡 (§7.6, §9.19)
+// setupTribute: anti-tribute anti-tribute (§7.6, §9.19)
 // ---------------------------------------------------------------------------
 
 describe('setupTribute anti-tribute (auto mode)', () => {
-  it('§7.6 single tribute: payer holding BOTH big jokers ⇒ 抗贡, 头游 leads', () => {
+  it('§7.6 single tribute: payer holding BOTH big jokers ⇒ anti-tribute, 1st finisher leads', () => {
     const hands = hands4(['AS'], ['KS'], ['QS'], ['BJ', 'BJ', '2S']);
     const setup = setupTribute([0, 1, 2, 3], hands, '2', cfg());
     expect(setup.kind).toBe('anti');
@@ -102,11 +102,11 @@ describe('setupTribute anti-tribute (auto mode)', () => {
       { seat: 3, card: 'BJ' },
     ]);
     // §7.6 effect: no tribute, no return — the setup carries no TributeState
-    // at all — and the previous 头游 leads.
+    // at all — and the previous 1st finisher leads.
     expect(setup.leader).toBe(0);
   });
 
-  it('§7.6 double tribute: big jokers split ACROSS the two payers ⇒ 抗贡 for both', () => {
+  it('§7.6 double tribute: big jokers split ACROSS the two payers ⇒ anti-tribute for both', () => {
     const hands = hands4(['AS'], ['BJ', 'KS'], ['QS'], ['BJ', '2S']);
     const setup = setupTribute([0, 2, 1, 3], hands, '2', cfg());
     expect(setup.kind).toBe('anti');
@@ -137,7 +137,7 @@ describe('setupTribute anti-tribute (auto mode)', () => {
   });
 
   it('§9.19 the check runs on the NEWLY DEALT hands passed in', () => {
-    // Same finish order; whether 抗贡 fires depends solely on the hands
+    // Same finish order; whether anti-tribute fires depends solely on the hands
     // argument (the previous hand leftovers are never consulted).
     const withJokers = hands4(['AS'], ['KS'], ['QS'], ['BJ', 'BJ']);
     const without = hands4(['AS'], ['KS'], ['QS'], ['SJ', 'SJ']);
@@ -316,7 +316,7 @@ describe('applyPayTribute', () => {
     expect(result.hands).toEqual(hands);
   });
 
-  it('§7.1/§7.3 double resolve: higher card to 头游, lower to 二游, ONE atomic tributePaid', () => {
+  it('§7.1/§7.3 double resolve: higher card to 1st finisher, lower to 2nd finisher, ONE atomic tributePaid', () => {
     const hands = doubleHands();
     const config = cfg();
     const prng = seedPrng('x');
@@ -324,7 +324,7 @@ describe('applyPayTribute', () => {
     const second = ok(applyPayTribute(first.tribute, 3, 'KS', first.hands, '5', config, first.prng));
     const paidEvents = second.events.filter((e: GuandanEvent) => e.type === 'tributePaid');
     expect(paidEvents).toHaveLength(1);
-    // A(14) > K(13): seat 1's ace goes to 头游 0, seat 3's king to 二游 2.
+    // A(14) > K(13): seat 1's ace goes to 1st finisher 0, seat 3's king to 2nd finisher 2.
     expect(second.tribute.paid).toEqual([
       { from: 1, to: 0, card: 'AS' },
       { from: 3, to: 2, card: 'KS' },
@@ -336,7 +336,7 @@ describe('applyPayTribute', () => {
     expect(second.hands[3]).toEqual(['QD', '2C']);
   });
 
-  it('§7.1 single tribute resolves on the only commit, to 头游', () => {
+  it('§7.1 single tribute resolves on the only commit, to 1st finisher', () => {
     const hands = hands4(['9C', '3S'], ['4S'], ['6S'], ['KS', 'KH', '2C']);
     const tribute = tributeOf(setupTribute([0, 1, 2, 3], hands, '5', cfg()));
     const result = ok(applyPayTribute(tribute, 3, 'KH', hands, '5', cfg(), seedPrng('x')));
@@ -361,13 +361,13 @@ describe('applyPayTribute', () => {
   const equalHands = (): Hands =>
     hands4(['9C', '3S'], ['AS', 'KC'], ['8D', '2H'], ['AD', 'QD']);
 
-  it('§7.3 equal tribute, seatOrder, counterclockwise: 头游 receives from its 下家 payer', () => {
+  it('§7.3 equal tribute, seatOrder, counterclockwise: 1st finisher receives from its the next seat (in turn direction) payer', () => {
     const config = cfg({ equalTributeAssignment: 'seatOrder', turnDirection: 'counterclockwise' });
     const tribute = tributeOf(setupTribute(doubleOrder, equalHands(), '5', config));
     const prng = seedPrng('x');
     const first = ok(applyPayTribute(tribute, 1, 'AS', equalHands(), '5', config, prng));
     const second = ok(applyPayTribute(first.tribute, 3, 'AD', first.hands, '5', config, first.prng));
-    // 头游 = 0; counterclockwise 下家 chain 1,2,3 → payer 1 reached first.
+    // 1st finisher = 0; counterclockwise the next seat (in turn direction) chain 1,2,3 → payer 1 reached first.
     expect(second.tribute.paid).toEqual([
       { from: 1, to: 0, card: 'AS' },
       { from: 3, to: 2, card: 'AD' },
@@ -381,7 +381,7 @@ describe('applyPayTribute', () => {
     const tribute = tributeOf(setupTribute(doubleOrder, equalHands(), '5', config));
     const first = ok(applyPayTribute(tribute, 1, 'AS', equalHands(), '5', config, seedPrng('x')));
     const second = ok(applyPayTribute(first.tribute, 3, 'AD', first.hands, '5', config, first.prng));
-    // 头游 = 0; clockwise 下家 chain 3,2,1 → payer 3 reached first.
+    // 1st finisher = 0; clockwise the next seat (in turn direction) chain 3,2,1 → payer 3 reached first.
     expect(second.tribute.paid).toEqual([
       { from: 3, to: 0, card: 'AD' },
       { from: 1, to: 2, card: 'AS' },
@@ -402,7 +402,7 @@ describe('applyPayTribute', () => {
     expect(a.prng).toEqual(b.prng);
     // The draw advanced the PRNG state.
     expect(a.prng).not.toEqual(prng);
-    // Whatever the draw, 头游 got one card and 二游 the other.
+    // Whatever the draw, 1st finisher got one card and 2nd finisher the other.
     expect(a.tribute.paid!.map((p) => p.to).sort()).toEqual([0, 2]);
   });
 
@@ -455,7 +455,7 @@ describe('applyPayTribute', () => {
 });
 
 // ---------------------------------------------------------------------------
-// applyReturnTribute (§7.4/§7.5): staging, 对应 pairing, leader
+// applyReturnTribute (§7.4/§7.5): staging, corresponding pairing, leader
 // ---------------------------------------------------------------------------
 
 /** Run the full double-tribute payment so returns can start. */
@@ -477,19 +477,19 @@ describe('applyReturnTribute', () => {
     expect(result.hands).toEqual(hands);
   });
 
-  it('§7.4/§7.5 double resolve: 对应 pairing (each receiver returns to their payer), ONE atomic event, leader = payer of 头游 card', () => {
+  it('§7.4/§7.5 double resolve: corresponding pairing (each receiver returns to their payer), ONE atomic event, leader = payer of 1st finisher card', () => {
     const config = cfg();
     const { tribute, hands } = paidDouble(config);
     const first = ok(applyReturnTribute(tribute, 0, '3S', hands, '5', config));
     const second = ok(applyReturnTribute(first.tribute, 2, '8D', first.hands, '5', config));
     const returnedEvents = second.events.filter((e: GuandanEvent) => e.type === 'tributeReturned');
     expect(returnedEvents).toHaveLength(1);
-    // Paid: 1→0 (AS), 3→2 (KS). 对应 return: 0→1, 2→3.
+    // Paid: 1→0 (AS), 3→2 (KS). corresponding return: 0→1, 2→3.
     expect(second.tribute.returned).toEqual([
       { from: 0, to: 1, card: '3S' },
       { from: 2, to: 3, card: '8D' },
     ]);
-    // §7.5: 头游 (seat 0) received seat 1's card ⇒ seat 1 leads.
+    // §7.5: 1st finisher (seat 0) received seat 1's card ⇒ seat 1 leads.
     expect(second.tribute.leader).toBe(1);
     // Cards moved.
     expect(second.hands[1]).toContain('3S');
@@ -498,7 +498,7 @@ describe('applyReturnTribute', () => {
     expect(second.hands[2]).not.toContain('8D');
   });
 
-  it('§7.5 single tribute: the payer (末游) leads after the return', () => {
+  it('§7.5 single tribute: the payer (4th finisher) leads after the return', () => {
     const config = cfg();
     const hands = hands4(['9C', '3S'], ['4S'], ['6S'], ['KS', 'KH', '2C']);
     const tribute = tributeOf(setupTribute([0, 1, 2, 3], hands, '5', config));

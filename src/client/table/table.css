@@ -1,6 +1,6 @@
 /* M3 Guandan table — design-system CSS. Every color derives from the
  * normative palette; goldleaf appears ONLY on the level rail's current
- * rank, the 接風 moment, and match victory. The table deliberately commits
+ * rank, the jiefeng moment, and match victory. The table deliberately commits
  * to its lacquer look in both browser themes (a card table has one felt).
  * Mobile-first: 375px must never scroll horizontally. */
 
@@ -338,7 +338,7 @@
 
 /* --- cards ------------------------------------------------------------------ */
 /* The FRAMEWORK frame (item 5): wraps the active theme's face/back and
-   anchors the framework-drawn overlays (the 配 wild marker) OVER it. The
+   anchors the framework-drawn overlays (the wild wild marker) OVER it. The
    frame carries the size class, so --gd-cardw resolves for the overlay
    regardless of the theme's internals. */
 .gd-cardframe {
@@ -408,8 +408,8 @@
 }
 /* The joker's vertical name lives in the LEFT strip (like the corner
  * index): the fan overlaps each card's right ~60%, so centered content is
- * occluded by the neighbour — 小王 sat invisible under 大王. 小王 keeps
- * ink (via .gd-card--black), 大王 cinnabar (via .gd-card--red). */
+ * occluded by the neighbour — small joker sat invisible under big joker. small joker keeps
+ * ink (via .gd-card--black), big joker cinnabar (via .gd-card--red). */
 .gd-card--joker .gd-card__joker {
   font-family: var(--font-card);
   writing-mode: vertical-rl;
@@ -420,7 +420,7 @@
   align-self: flex-start;
   letter-spacing: 0.0625em;
 }
-/* Wild (逢人配) marker: solid cinnabar corner triangle + 配 glyph at the
+/* Wild (the wild rule) marker: solid cinnabar corner triangle + wild glyph at the
  * card's bottom-LEFT — inside the strip the fan overlap leaves visible —
  * readable at both hand and trick sizes. */
 .gd-card__wild {
@@ -539,7 +539,7 @@
 }
 /* Fixed playing-phase geometry: reason line space is ALWAYS reserved and
  * the two buttons hold fixed slots with a wide gap, so a mid-tick rerender
- * can never move 過 under a tap aimed at 出牌. */
+ * can never move Pass under a tap aimed at Play. */
 .gd-actions__reason {
   width: 100%;
   text-align: center;
@@ -866,9 +866,9 @@
   gap: 0.125rem;
   animation: gd-flip-in 300ms ease-out;
 }
-/* The 明牌 is the load-bearing card: cinnabar-edged, never goldleaf (that is
+/* The marker card is the load-bearing card: cinnabar-edged, never goldleaf (that is
    the banner's). Its identity is the INSTANCE flying in the deal — the label
-   says 明牌, never a rank. */
+   says marker card, never a rank. */
 .gd-ceremony__flip--marker .gd-cardframe {
   outline: 2px solid var(--cinnabar);
   outline-offset: 1px;
@@ -980,7 +980,7 @@
   gap: 0.5rem;
 }
 
-/* --- topbar headline: level 打幾 (Songti) · wild · teams · turn ---------- */
+/* --- topbar headline: the level (rank) (Songti) · wild · teams · turn ---------- */
 .gd-headline {
   display: flex;
   align-items: center;
@@ -1223,7 +1223,7 @@
   padding: 0;
   flex: none;
 }
-/* ≤10 = 報牌 alert; ≤2 = critical (owner: 2 must look unlike 27, structurally) */
+/* ≤10 = low-card alert alert; ≤2 = critical (owner: 2 must look unlike 27, structurally) */
 .gd-plate__count--low {
   color: var(--cinnabar);
   font-weight: 600;

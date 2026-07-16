@@ -1,4 +1,4 @@
-// 翻牌定先 with a REAL cut (item 3; owner counting rule from M3 preserved;
+// the draw ceremony (flip-to-lead) with a REAL cut (item 3; owner counting rule from M3 preserved;
 // geometry REVERSED in the ceremony-marker round 2026-07-15). Hand 1 under
 // firstLeadMethod='drawCard' OPENS in phase 'ceremonyCut': init commits a
 // shuffled deck (hidden), the cutter picks a position, and the cutDeck
@@ -366,7 +366,7 @@ describe('the RE-CUT loop (owner rule 2026-07-15, superseding the count walk)', 
 });
 
 describe('real cut — the physical pins (reversed geometry: the cut moves the LEADER, not the cards)', () => {
-  it("the marker card REALLY lands in the leader's hand (明牌落在該家)", () => {
+  it("the marker card REALLY lands in the leader's hand (the marker card lands in that seat)", () => {
     for (let i = 0; i < 15; i++) {
       const position = CUT_MIN + ((i * 11) % (CUT_MAX - CUT_MIN + 1));
       const { ceremony, state } = runCut(`cut-marker-${i}`, DRAW_CFG, position);
@@ -388,7 +388,7 @@ describe('real cut — the physical pins (reversed geometry: the cut moves the L
   it('THE DEFECT REGRESSION: markerSeat is NOT pinned to firstDrawer — the cut depth moves it', () => {
     // The 2026-07-15 owner finding: the old model put the marker at deal
     // index flips.length-1 (≈0), so the first drawer always drew it and the
-    // ceremony was deterministic ~89% of the time (數到/明牌落在/該家先出
+    // ceremony was deterministic ~89% of the time (count reaches/the marker card lands in/that seat leads
     // collapsed onto ONE seat). Now the marker sits at the cut depth:
     // markerSeat = stepSeats(firstDrawer, markerDealIndex % 4). Pins:
     // (a) the equation holds everywhere; (b) both markerSeat === firstDrawer
@@ -754,7 +754,7 @@ describe('real cut — scope (hand 1, drawCard only)', () => {
 });
 
 describe('real cut — clockwise turnDirection counts clockwise', () => {
-  it('offset-1 final flip steps to the CLOCKWISE 下家, not the CCW one', () => {
+  it('offset-1 final flip steps to the CLOCKWISE the next seat (in turn direction), not the CCW one', () => {
     const { ceremony } = findCut('cw-one', CW_DRAW_CFG, (c) => {
       const last = lastFlipRank(c);
       return last !== null && (countOf(last) - 1) % 4 === 1;

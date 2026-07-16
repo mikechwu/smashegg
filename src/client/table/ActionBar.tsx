@@ -1,4 +1,4 @@
-// ActionBar — the acting seat's controls. 出牌 is enabled iff the current
+// ActionBar — the acting seat's controls. Play is enabled iff the current
 // selection has some PLAYABLE reading (matchSelection, unit-tested); when
 // the selection admits several declared forms (the wild-ambiguity case,
 // spec §4.4.4 / v1.4 disambiguation) a chooser lists the FULL meaningful-
@@ -11,12 +11,12 @@
 // listed (marked) — picking one submits and the server rejects it as
 // usual, so the UI never hides a reading a raw client could attempt.
 //
-// Both playing-phase buttons ALWAYS render in a fixed order (出牌 left,
-// wide gap, 過 right) so a mid-tick reflow can never swap what sits under
-// the pointer; 出牌 disables (with a localized reason line, in reserved
-// space) when the selection matches nothing, and 過 disables when leading.
-// Passing while cards are selected takes a two-tap confirm (確定要過?).
-// Tribute phases collapse to a single confirm (貢牌/還貢) over the glowing
+// Both playing-phase buttons ALWAYS render in a fixed order (Play left,
+// wide gap, Pass right) so a mid-tick reflow can never swap what sits under
+// the pointer; Play disables (with a localized reason line, in reserved
+// space) when the selection matches nothing, and Pass disables when leading.
+// Passing while cards are selected takes a two-tap confirm (Confirm pass?).
+// Tribute phases collapse to a single confirm (pay tribute/return tribute) over the glowing
 // eligible card. Rejections surface as a dismissible toast, localized by
 // error code.
 
@@ -87,7 +87,7 @@ export interface ActionBarProps {
   /** Distinct decl interpretations of the current selection. */
   matches: readonly PlayMatch[];
   passAvailable: boolean;
-  /** How many cards are currently selected — drives the disabled-出牌
+  /** How many cards are currently selected — drives the disabled-Play
    *  reason line and the pass-with-selection confirm step. */
   selectionCount: number;
   /** Tribute confirm: which action the single selected eligible card maps
@@ -116,7 +116,7 @@ export function ActionBar(props: ActionBarProps) {
     chooserOpen,
   } = props;
 
-  // Two-tap pass confirm: armed by the first 過 tap while cards are
+  // Two-tap pass confirm: armed by the first Pass tap while cards are
   // selected; any selection or hint change disarms it.
   const [passArmed, setPassArmed] = useState(false);
   useEffect(() => {
@@ -156,12 +156,12 @@ export function ActionBar(props: ActionBarProps) {
 
   // Playing phase. Fixed geometry: the reason line's space is always
   // reserved and BOTH buttons always render in the same slots, so nothing
-  // that happens between render ticks can move 過 under a tap aimed at
-  // 出牌 (or vice versa).
-  // 出牌 enables iff SOME reading is playable; a valid-but-multi-reading
+  // that happens between render ticks can move Pass under a tap aimed at
+  // Play (or vice versa).
+  // Play enables iff SOME reading is playable; a valid-but-multi-reading
   // selection always opens the chooser (declaration required, spec §4.4.4)
   // — with a non-empty selection the primary action can never silently do
-  // nothing, and 過 keeps its own two-tap confirm below.
+  // nothing, and Pass keeps its own two-tap confirm below.
   const playableCount = matches.reduce((n, m) => n + (m.playable ? 1 : 0), 0);
   const beat = beatState(hints, passAvailable);
   const canBeat = beat === 'canBeat';

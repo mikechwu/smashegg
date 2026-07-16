@@ -31,19 +31,19 @@ npm run build && npm run deploy
 
 ---
 
-### 2. Low — Wild terminology: chooser says 配牌; rest of UI says 逢人配
+### 2. Low — Wild terminology: chooser says wild card; rest of UI says the wild rule
 
 **Location:**
 
 | Key | zh-Hans / zh-Hant |
 |-----|-------------------|
-| `game.card.wild` | 逢人配 (`zh-Hans.json:110`, `zh-Hant.json:110`) |
-| `game.chooser.becomes` | 配牌当 / 配牌當 (`:164`) |
-| `game.chooser.becomesBoth` | 两张配牌当 / 兩張配牌當 (`:165`) |
+| `game.card.wild` | the wild rule (`zh-Hans.json:110`, `zh-Hant.json:110`) |
+| `game.chooser.becomes` | wild card as  / wild card as  (`:164`) |
+| `game.chooser.becomesBoth` | two wild cards as  / two wild card as  (`:165`) |
 
-**Failure scenario:** Screen reader announces “配牌当 9♥” while the visible card badge and other wild copy use 逢人配 / 配. Same concept, two product terms.
+**Failure scenario:** Screen reader announces “wild card as  9♥” while the visible card badge and other wild copy use the wild rule / wild. Same concept, two product terms.
 
-**Class:** Implementation i18n consistency (not a design/platform issue). No mixed-script leakage between Hans/Hant on these keys; 繁/简 splits elsewhere look correct.
+**Class:** Implementation i18n consistency (not a design/platform issue). No mixed-script leakage between Hans/Hant on these keys; Traditional/Simplified Chinese splits elsewhere look correct.
 
 ---
 
@@ -51,7 +51,7 @@ npm run build && npm run deploy
 
 **Location:** `src/server/room-helpers.ts:144,210` (grace rows stamped with current `timingClass`); `src/client/table/SeatPlate.tsx:81-85` (shows `table.deadline.planning` whenever `planning && seconds !== null`)
 
-**Failure scenario:** Room is `untimed` (or grace is tighter than remaining planning budget); opening lead is `planning`; expected actor disconnects. Wire still carries `timingClass: 'planning'`; plate shows **起手思考 / Planning time** over a **60s grace** clock (`DISCONNECT_GRACE_MS = 60_000` at `room-helpers.ts:70`), not `planningMs`.
+**Failure scenario:** Room is `untimed` (or grace is tighter than remaining planning budget); opening lead is `planning`; expected actor disconnects. Wire still carries `timingClass: 'planning'`; plate shows **opening-hand thinking / Planning time** over a **60s grace** clock (`DISCONNECT_GRACE_MS = 60_000` at `room-helpers.ts:70`), not `planningMs`.
 
 **Class:** Spans design vs UX. Design treats `timingClass` as decision-point vocabulary (not budget source). UX can still read the label as “you have the planning window.”
 
@@ -137,7 +137,7 @@ Independent pin: obligations property test asserts `'planning' ⇔ phase playing
 | `app.update*` | 3 | Yes | — |
 | `game.chooser.*` | 6 (not only 3) | Yes | title, cancel, cannotBeat, becomes, becomesBoth, playedAs |
 
-繁/简: differing keys use proper script pairs (载/載, 时/時, 标准/標準, etc.). No simp-only glyphs in Hant M4 strings / no trad-only in Hans. Shared identical strings (起手思考, 快棋, 取消) are script-neutral.
+Traditional/Simplified Chinese: differing keys use proper script pairs (loading glyph pair, time glyph pair, standard glyph pair, etc.). No simp-only glyphs in Hant M4 strings / no trad-only in Hans. Shared identical strings (opening-hand thinking, fast chess, cancel) are script-neutral.
 
 **TimingPicker** (`TimingPicker.tsx`)
 
@@ -156,7 +156,7 @@ Independent pin: obligations property test asserts `'planning' ⇔ phase playing
 - Feed / well / chooser combo **names** share `comboKey` / `comboKeyForType` (`helpers.ts:522-544`; well `:47`; feed `:49`; chooser `:237`). No decl-type disagreement.
 - Well shows **physical** cards post-play (`TrickWell.tsx:42-44`); chooser shows **substituted** ghosts for wilds — intentional (table vs declaration), not a label key mismatch. SF chooser adds `declRunText` for option disambiguation only (`helpers.ts:547-557`).
 
-**Terminology consistency note:** only Finding 2 (配牌 vs 逢人配). Half-width commas in zh strings match pre-M4 style (e.g. `hello.alarmPending`).
+**Terminology consistency note:** only Finding 2 (wild card vs the wild rule). Half-width commas in zh strings match pre-M4 style (e.g. `hello.alarmPending`).
 
 ---
 
@@ -166,6 +166,6 @@ Independent pin: obligations property test asserts `'planning' ⇔ phase playing
 |------|----------|---------|
 | Game-agnostic timing | **0** | Room layer clean; Guandan `planning` derivation sound across hand-open paths + variants; guess-number omission hits every DO call site |
 | Version skew | **1 Medium** | CI/wire/banner/dismiss/`dev` suppression sound; manual `build`+`deploy` can kill the signal |
-| I18n / picker / chooser | **1 Low + 1 Low UX** | Parity, preset numbers, picker freeze/aria, chooser visual meaning OK; 配牌 wording + planning-on-grace label |
+| I18n / picker / chooser | **1 Low + 1 Low UX** | Parity, preset numbers, picker freeze/aria, chooser visual meaning OK; wild card wording + planning-on-grace label |
 
 **Highest practical risk:** Finding 1 — any deploy that is not the GitHub workflow (or an explicit `BUILD_VERSION=… vite build` paired with the same SHA on `wrangler deploy`) can leave production clients forever silent on updates.

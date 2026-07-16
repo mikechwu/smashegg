@@ -19,18 +19,18 @@ import { partnerOf, teamOf } from './types';
 // Scoring (spec §6.1)
 // ---------------------------------------------------------------------------
 
-/** Score a finished hand from its finishing order (first element = 头游).
+/** Score a finished hand from its finishing order (first element = 1st finisher).
  *  The order may be TRUNCATED (spec §5.8): a hand ends the moment the
- *  result is determined — after the 2nd finisher on a 双上, otherwise after
+ *  result is determined — after the 2nd finisher on a 1-2 finish, otherwise after
  *  the 3rd — so a seat absent from finishOrder simply never got out and
- *  occupies the next place(s). In particular the 头游's partner missing
+ *  occupies the next place(s). In particular the 1st finisher's partner missing
  *  from the list means the partner finished 4th. */
 export function scoreHand(finishOrder: readonly Seat[]): HandResult {
   const first = finishOrder[0]!;
   const winnerTeam = teamOf(first);
   const partnerIdx = finishOrder.indexOf(partnerOf(first));
   const partnerPlace = partnerIdx >= 0 ? partnerIdx + 1 : 4;
-  // spec §6.1: partner 2nd (双上) → +3; partner 3rd → +2; partner 4th → +1.
+  // spec §6.1: partner 2nd (1-2 finish) → +3; partner 3rd → +2; partner 4th → +1.
   const levelDelta = partnerPlace === 2 ? 3 : partnerPlace === 3 ? 2 : 1;
   return { finishOrder: [...finishOrder], winnerTeam, levelDelta };
 }
@@ -76,7 +76,7 @@ export interface ApplyHandResultInput {
   /** The level this hand was actually played at (may be the opponents'
    *  level under suspension — spec §1.5 refinement). */
   currentLevel: Rank;
-  /** Team whose member was 头游 of the previous hand; null for hand 1. */
+  /** Team whose member was 1st finisher of the previous hand; null for hand 1. */
   declarerTeam: 0 | 1 | null;
   result: HandResult;
   /** True iff the hand-winning team's opponent-facing final play consisted
@@ -127,7 +127,7 @@ export function applyHandResult(input: ApplyHandResultInput): ApplyHandResultOut
     !wasSuspended[winnerTeam];
   // spec §6.4: default win condition is 1-2 or 1-3 (partner not last, i.e.
   // levelDelta >= 2); the casual aWinPartnerNotLast=false variant accepts
-  // any 头游 at A, including 1-4.
+  // any 1st finisher at A, including 1-4.
   if (playedAtOwnA && (!config.aWinPartnerNotLast || levelDelta >= 2)) {
     return { levels, aAttempts, aAttemptsExhausted, matchWinner: winnerTeam };
   }
@@ -234,7 +234,7 @@ export function applyHandResult(input: ApplyHandResultInput): ApplyHandResultOut
 export interface SelectCurrentLevelInput {
   config: RuleVariant;
   levels: [Rank, Rank];
-  /** Previous hand's 头游 team; null for the first hand of the match. */
+  /** Previous hand's 1st finisher team; null for the first hand of the match. */
   declarerTeam: 0 | 1 | null;
   aAttemptsExhausted: [boolean, boolean];
 }

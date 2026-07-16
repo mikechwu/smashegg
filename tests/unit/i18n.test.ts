@@ -44,7 +44,7 @@ describe('i18n config', () => {
     expect(DEFAULT_LOCALE).toBe('zh-Hant');
   });
 
-  // m3h visual finding: the switcher showed 簡體中文 under zh-Hant because
+  // m3h visual finding: the switcher showed the Simplified Chinese self-label under zh-Hant because
   // language names lived in the locale files as translations. Endonyms are
   // constants — each option labels itself in its own script — so this pins
   // the exact glyphs and that no locale file can reintroduce the drift.

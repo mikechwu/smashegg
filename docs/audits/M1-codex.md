@@ -10,7 +10,7 @@ Ran 2026-07-14 against engine commit (M1 gate). Anchoring-free: Codex received t
 
 - **major — `equalTributeAssignment: 'winnersChoose'` is a spec-listed variant but is unusable.**  
   Spec §7.3 allows `seatOrder | random | winnersChoose` (`docs/rules/guandan.md:187`) and §10 lists `winnersChoose` as an allowed config value (`:265`). `src/engine/guandan/index.ts:init` throws immediately for this config (`index.ts:231-235`), and `src/engine/guandan/tribute.ts:applyPayTribute` returns `config.notImplemented` if reached (`tribute.ts:357-366`).  
-  Failing scenario: config `equalTributeAssignment: 'winnersChoose'`, previous finish order `[0,2]` (double tribute), P1 and P3 both pay equal-value Aces at level `2`. Spec requires the winners to choose which payer’s card goes to 头游; the engine cannot start the match with that config, or rejects resolution if called directly.
+  Failing scenario: config `equalTributeAssignment: 'winnersChoose'`, previous finish order `[0,2]` (double tribute), P1 and P3 both pay equal-value Aces at level `2`. Spec requires the winners to choose which payer’s card goes to 1st finisher; the engine cannot start the match with that config, or rejects resolution if called directly.
 
 **CHECKED, NO FINDING**
 

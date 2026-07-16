@@ -46,14 +46,14 @@ function input(overrides: Partial<ApplyHandResultInput> = {}): ApplyHandResultIn
 
 describe('scoreHand', () => {
   const cases: { name: string; order: number[]; winnerTeam: 0 | 1; delta: number }[] = [
-    { name: '§6.1 partner 2nd (双上, 1-2) → +3', order: [0, 2, 1, 3], winnerTeam: 0, delta: 3 },
+    { name: '§6.1 partner 2nd (1-2 finish, 1-2) → +3', order: [0, 2, 1, 3], winnerTeam: 0, delta: 3 },
     { name: '§6.1 partner 3rd (1-3) → +2', order: [0, 1, 2, 3], winnerTeam: 0, delta: 2 },
-    { name: '§6.1 partner 4th (1-4, 单上) → +1', order: [0, 1, 3, 2], winnerTeam: 0, delta: 1 },
+    { name: '§6.1 partner 4th (1-4, single-up finish) → +1', order: [0, 1, 3, 2], winnerTeam: 0, delta: 1 },
     { name: '§6.1 team 1 winner: [1,3,0,2] → +3', order: [1, 3, 0, 2], winnerTeam: 1, delta: 3 },
     { name: '§6.1 team 1 winner: [3,0,1,2] → +2', order: [3, 0, 1, 2], winnerTeam: 1, delta: 2 },
     // spec §5.8: the hand ends the moment the result is known — the order
     // may be truncated; an absent seat never finished (= last place).
-    { name: '§5.8 truncated 双上 [0,2] → +3', order: [0, 2], winnerTeam: 0, delta: 3 },
+    { name: '§5.8 truncated 1-2 finish [0,2] → +3', order: [0, 2], winnerTeam: 0, delta: 3 },
     { name: '§5.8 truncated [1,2,3] partner 3rd → +2', order: [1, 2, 3], winnerTeam: 1, delta: 2 },
     { name: '§5.8 truncated [0,1,3] partner absent = 4th → +1', order: [0, 1, 3], winnerTeam: 0, delta: 1 },
   ];
@@ -172,7 +172,7 @@ describe('applyHandResult: winning at A', () => {
     expect(out.aAttempts).toEqual([1, 0]); // ...and the attempt is consumed
   });
 
-  it('§6.4 aWinPartnerNotLast=false variant: any 头游 at A wins, including 1-4', () => {
+  it('§6.4 aWinPartnerNotLast=false variant: any 1st finisher at A wins, including 1-4', () => {
     const out = applyHandResult(atA(res(0, 1), { config: cfg({ aWinPartnerNotLast: false }) }));
     expect(out.matchWinner).toBe(0);
   });

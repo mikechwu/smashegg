@@ -550,7 +550,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
       }
       const dealSeq = afterCut.seq;
 
-      // The FIRST handStarted carries the 翻牌定先 ceremony payload on
+      // The FIRST handStarted carries the draw ceremony (flip-to-lead) payload on
       // every seat's copy (drawCard product default visible).
       let ceremony: HandStartedEvent['ceremony'] | undefined;
       for (let seat = 0 as Seat; seat < 4; seat++) {
@@ -732,7 +732,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
       expect(engineProof).not.toBeNull(); // deterministic: same seeds every run
       const ep = engineProof!;
       // §7.6: both big jokers, collectively held by the payers, publicly
-      // revealed; tribute cancelled; previous 头游 leads.
+      // revealed; tribute cancelled; previous 1st finisher leads.
       expect(ep.anti.reveals).toHaveLength(2);
       expect(ep.anti.reveals.every((r) => r.card === 'BJ')).toBe(true);
       const payers = payersOf(ep.prevOrder);
@@ -744,7 +744,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
       }
       expect(ep.state.phase).toBe('playing'); // no tribute/return phase at all
       expect(ep.state.tribute).toBeNull();
-      expect(ep.state.trick!.leader).toBe(ep.prevOrder[0]); // 头游 leads (§7.6)
+      expect(ep.state.trick!.leader).toBe(ep.prevOrder[0]); // 1st finisher leads (§7.6)
       expect(ep.state.trick!.toAct).toBe(ep.prevOrder[0]);
 
       // ---- Phase B (wire, bounded hunt): fresh rooms until anti-tribute

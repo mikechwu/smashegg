@@ -1,12 +1,12 @@
 // TableHeadline — the ring's always-on topbar (pre-M5 Lacquer Ledger). It
 // makes the three facts every decision depends on impossible to miss:
-//  • the hand LEVEL 打幾 as a large Songti numeral — the one bold move, spent
+//  • the hand LEVEL the level (rank) as a large Songti numeral — the one bold move, spent
 //    on the most under-served fact (F7);
-//  • the WILD 紅心級牌, stated ALWAYS, not only when you hold one (F6);
+//  • the WILD the wild (heart level card), stated ALWAYS, not only when you hold one (F6);
 //  • whose turn it is, IN WORDS, naming the player (F8),
 // plus both teams' standings as two anchored badges (never one banner), with
 // A-attempt dots and the suspension state — the real level-rail state, kept.
-// Meaning never rides on colour alone: the wild carries a ♥ glyph + 配 tag, the
+// Meaning never rides on colour alone: the wild carries a ♥ glyph + wild tag, the
 // turn is a sentence, suspension is a tag.
 
 import { type Rank } from '../../engine/guandan/cards';

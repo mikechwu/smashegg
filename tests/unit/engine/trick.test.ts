@@ -131,7 +131,7 @@ describe('trick end down to fewer active players (spec §9.22)', () => {
   });
 });
 
-describe('接风 (jiefeng) — spec §5.6 exact condition, both branches', () => {
+describe('jiefeng (jiefeng) — spec §5.6 exact condition, both branches', () => {
   it('unbeaten final play: partner leads the next trick, jiefeng event emitted', () => {
     // Seat 0 plays its last card; seats 1,2,3 all pass without beating it.
     const h = hands(0, 3, 3, 3); // seat 0 now empty
@@ -215,7 +215,7 @@ describe('接风 (jiefeng) — spec §5.6 exact condition, both branches', () =>
 });
 
 describe('hand end mid-trick (spec §5.8/§9.3) — both patterns', () => {
-  it('双上: teammates finish 1st and 2nd — hand ends immediately, trick aborted', () => {
+  it('1-2 finish: teammates finish 1st and 2nd — hand ends immediately, trick aborted', () => {
     // Seat 2 (partner of seat 0) finishes as the 2nd finisher; it's seat 2's
     // turn to act in an in-progress trick led by seat 1.
     const trick: TrickState = { leader: 1, toAct: 2, top: play(1), jiefengTo: null };
