@@ -1,8 +1,22 @@
 # STATUS
 
-## Current phase: owner-feedback round (heart-only wilds + 5 UI gates) BUILT — focused panel in flight
+## Current phase: DEPLOYED — seven audited rounds live (owner-authorized push 2026-07-16)
 
-**Last updated:** 2026-07-15 (owner live-build feedback)
+**Last updated:** 2026-07-16 (deploy)
+
+## Deploy record (2026-07-16, owner: "if everything is clean, merge and deploy")
+
+Pre-push gate: clean tree, 4 typechecks, 768 unit, 40 e2e — all green. Fast-forward merge
+feat/cut-deal-refine -> main (f64b272..b562161, 34 commits, seven audited rounds: design
+refinement items 1-5; cut & deal refinement + clockwise fix; deal fidelity + the Codex
+producer!=auditor policy; ceremony marker geometry; ceremony suspense/re-cut + English-only
+sweep; owner live-build feedback incl. the heart-only wilds correction; the lead-reveal-text
+refinement). Push triggered CI + Deploy: BOTH green (CI 2m12s, Deploy 1m19s). Live verification:
+https://smashegg.mikechwu-iams.workers.dev/api/health returned build
+b562161ef906d0a0bb7eb28c11a61ba4043c7c24 == the pushed HEAD, exactly. (This STATUS record
+commit rides after the deploy; the next push will advance the live hash past b562161.)
+Still open for the owner: the cut-slider keyboard/AT channel (documented, not fixed — jitter
+option available on request).
 
 ## Owner live-build feedback round (2026-07-15) — 6 items from the owner's own play session
 
