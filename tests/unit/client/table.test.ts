@@ -16,6 +16,7 @@ import {
   declRunText,
   declSignature,
   handRows,
+  concealedLeader,
   isCeremonyShowing,
   matchSelection,
   multisetKey,
@@ -599,6 +600,24 @@ describe('joker-keyed combo labels (regression: BJ/SJ singles & pairs)', () => {
     const events: GuandanEvent[] = [{ type: 'played', seat: 0, cards: ['9S', '9C'], decl: plainPair }];
     const derived = foldEvents(EMPTY_DERIVED, events, 0, nameFor, idGen);
     expect(derived.feed[0]!.params?.combo).toEqual({ kind: 'combo', comboType: 'pair', keyRank: '9' });
+  });
+});
+
+describe('concealedLeader (suspense gate — the visual pass caught the headline leaking)', () => {
+  const base = { handNo: 1, markerSeat: 2 as const, markerLanded: false, ceremonyShowing: false, dealing: false };
+
+  it('conceals the leader from the ceremony overlay through the deal, until the marker LANDS', () => {
+    expect(concealedLeader({ ...base, ceremonyShowing: true })).toBe(2);
+    expect(concealedLeader({ ...base, dealing: true })).toBe(2);
+    // The landing IS the reveal: the instant the marker lands, every surface
+    // (headline turn sentence, seat ring, countdown chip) may name the leader.
+    expect(concealedLeader({ ...base, dealing: true, markerLanded: true })).toBeNull();
+  });
+
+  it('never conceals outside hand 1, without a ceremony, or at the settled table', () => {
+    expect(concealedLeader({ ...base, handNo: 2, dealing: true })).toBeNull();
+    expect(concealedLeader({ ...base, markerSeat: null, dealing: true })).toBeNull();
+    expect(concealedLeader(base)).toBeNull(); // neither overlay nor deal showing
   });
 });
 

@@ -489,6 +489,26 @@ export function isCeremonyShowing(args: {
   return args.hasCeremony && !args.ceremonyDone && args.handNo === 1 && args.matchWinner === null;
 }
 
+/** The suspense gate (owner rule, suspense/re-cut round): from the hand-1
+ *  ceremony overlay until the face-up marker LANDS in the deal, NO UI surface
+ *  may name the leader — not the seat ring, not the headline's turn sentence
+ *  (the visual pass caught it leaking behind the overlay), not the leader's
+ *  countdown chip. Returns the seat to conceal, or null once revealed /
+ *  outside hand 1. UI-LEVEL suspense only, deliberately not concealment: the
+ *  ceremony payload is public and the client needs the depth to fly the
+ *  marker — a devtools reader can peek; a presentation choice for a family
+ *  game, stated honestly. */
+export function concealedLeader(args: {
+  handNo: number;
+  markerSeat: Seat | null;
+  markerLanded: boolean;
+  ceremonyShowing: boolean;
+  dealing: boolean;
+}): Seat | null {
+  if (args.handNo !== 1 || args.markerSeat === null || args.markerLanded) return null;
+  return args.ceremonyShowing || args.dealing ? args.markerSeat : null;
+}
+
 /** Seats currently expected to act, derived from the view (the cinnabar
  *  active-turn ring). antiTributeDecision exposes no pending set in the
  *  view — callers union in the deadline seats for that phase. */

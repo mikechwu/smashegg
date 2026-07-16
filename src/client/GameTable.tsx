@@ -36,6 +36,7 @@ import {
   asGuandanView,
   asRuleVariant,
   declJokerRank,
+  concealedLeader,
   isCeremonyShowing,
   matchSelection,
   multisetKey,
@@ -418,12 +419,20 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         leaderName: nameFor(dealCeremony.markerSeat),
       }
     : null;
-  // The suspense gate (owner rule): while the hand-1 deal is running, the
-  // leader's seat ring stays OFF until the face-up marker actually lands —
-  // the landing IS the reveal. UI-level suspense only (the payload is
-  // public); hands 2+ and the settled table are unaffected.
-  const suppressLeaderRing =
-    dealing && dealCeremony !== null && !dealLeadRevealed ? dealCeremony.markerSeat : null;
+  // The suspense gate (owner rule): from the ceremony overlay until the
+  // face-up marker actually LANDS, the UI must not name the leader anywhere
+  // — the seat ring stays off, the headline stays generic (the visual pass
+  // caught it leaking the leader behind the overlay), and the leader's
+  // countdown chip stays hidden. The landing IS the reveal. UI-level
+  // suspense only (the payload is public); hands 2+ and the settled table
+  // are unaffected, and reduced-motion (instant deal) reveals immediately.
+  const leaderConcealed = concealedLeader({
+    handNo: view.handNo,
+    markerSeat: derived.ceremony?.markerSeat ?? null,
+    markerLanded: dealLeadRevealed,
+    ceremonyShowing,
+    dealing,
+  });
 
   const tributePhase = tributeKind(hints ?? []);
   const eligible = tributeEligibleCards(hints ?? []);
@@ -456,8 +465,8 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       partner={teamOf(seat) === viewerTeam && seat !== activeSeat}
       cardCount={view.cardCounts[seat] ?? null}
       place={placeOf(view.finishOrder, seat)}
-      active={(ringSeats.has(seat) || (seat === activeSeat && yourTurn)) && seat !== suppressLeaderRing}
-      dueAt={deadlineBySeat.get(seat)?.dueAt ?? null}
+      active={(ringSeats.has(seat) || (seat === activeSeat && yourTurn)) && seat !== leaderConcealed}
+      dueAt={seat === leaderConcealed ? null : (deadlineBySeat.get(seat)?.dueAt ?? null)}
       planning={deadlineBySeat.get(seat)?.timingClass === 'planning'}
       dimTimer={ceremonyShowing}
       now={now}
@@ -494,8 +503,8 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         aAttempts={view.aAttempts}
         aAttemptsExhausted={view.aAttemptsExhausted}
         viewerTeam={viewerTeam}
-        yourTurn={yourTurn}
-        actorName={actorName}
+        yourTurn={leaderConcealed !== null ? false : yourTurn}
+        actorName={leaderConcealed !== null ? null : actorName}
       />
 
       {/* The ring: you at the bottom, partner across the top, opponents left
