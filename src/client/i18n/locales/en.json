@@ -125,7 +125,6 @@
   "game.card.sj": "Joker",
   "game.card.bj": "Big Joker",
   "game.card.wild": "Wild",
-  "game.card.wildBadge": "W",
   "game.card.label": "{rank} of {suit}",
   "game.suit.S": "Spades",
   "game.suit.H": "Hearts",
@@ -234,5 +233,7 @@
   "game.error.tributeCardNotEligible": "That card isn't eligible for tribute",
   "game.error.matchEnded": "The match is over",
   "theme.lacquer.name": "Classic lacquer",
+  "theme.label": "Deck",
+  "theme.cinnabarCourt.name": "Cinnabar Court",
   "game.deal.label": "Dealing"
 }

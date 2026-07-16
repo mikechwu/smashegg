@@ -125,7 +125,6 @@
   "game.card.sj": "小王",
   "game.card.bj": "大王",
   "game.card.wild": "逢人配",
-  "game.card.wildBadge": "配",
   "game.card.label": "{suit}{rank}",
   "game.suit.S": "黑桃",
   "game.suit.H": "红心",
@@ -234,5 +233,7 @@
   "game.error.tributeCardNotEligible": "这张牌不符合贡牌规定",
   "game.error.matchEnded": "比赛已结束",
   "theme.lacquer.name": "经典漆案",
+  "theme.label": "牌面",
+  "theme.cinnabarCourt.name": "朱砂宫廷",
   "game.deal.label": "发牌中"
 }

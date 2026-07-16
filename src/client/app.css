@@ -57,6 +57,10 @@ a {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  /* Wrap, never overflow: two switcher navs no longer fit beside the
+     wordmark at 390px, and a sideways-scrolling page is a defect —
+     wrapping turns horizontal overflow into vertical flow structurally. */
+  flex-wrap: wrap;
   gap: 0.75rem;
 }
 .app-wordmark {
@@ -70,12 +74,27 @@ a {
   color: var(--ivory);
   text-decoration: none; /* quiet ivory wordmark, not a blue link */
 }
-.app-locale {
+/* Groups the locale and deck-theme switchers so .app-header keeps its
+   2-child space-between layout (wordmark, controls) regardless of how many
+   preference switchers live inside. */
+.app-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.25rem 0.75rem;
+  flex: none;
+  /* Never wider than the viewport column: the navs inside wrap instead. */
+  max-width: 100%;
+}
+.app-locale,
+.app-theme {
   display: flex;
   gap: 0.25rem;
   flex: none;
 }
-.app-locale button {
+.app-locale button,
+.app-theme button {
   background: none;
   border: 1px solid transparent;
   border-radius: 999px;
@@ -85,11 +104,13 @@ a {
   padding: 0.2rem 0.6rem;
   cursor: pointer;
 }
-.app-locale button:hover:not(:disabled) {
+.app-locale button:hover:not(:disabled),
+.app-theme button:hover:not(:disabled) {
   opacity: 0.9;
 }
-.app-locale button:disabled {
-  /* the ACTIVE locale */
+.app-locale button:disabled,
+.app-theme button:disabled {
+  /* the ACTIVE locale / deck theme */
   opacity: 1;
   border-color: rgba(245, 239, 227, 0.4);
   cursor: default;

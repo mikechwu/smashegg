@@ -52,7 +52,7 @@ export interface DeckThemeFaceProps {
 
 export interface DeckTheme {
   id: string;
-  /** Localized display name (for the future settings toggle). */
+  /** Localized display name (the App header switcher, item 3). */
   name: TranslationKey;
   /** Face CONTENT only — rank/suit/joker identity at a size. */
   Face: ComponentType<DeckThemeFaceProps>;
@@ -73,24 +73,63 @@ export function deckThemes(): DeckTheme[] {
   return [...registry.values()];
 }
 
-export const DEFAULT_DECK_THEME_ID = 'lacquer';
+export const DEFAULT_DECK_THEME_ID = 'cinnabar-court';
 const THEME_STORAGE_KEY = 'pref:deckTheme';
 
+// In-memory override (item 2): set by setDeckTheme(), read first by
+// activeDeckTheme(). Kept SEPARATE from the localStorage read below rather
+// than an eagerly-initialized cache, because registration is a SIDE EFFECT
+// of importing a theme module (CardFace.tsx's `import './themes/lacquer'`)
+// that can run after this module's top-level code — an eager read here
+// could race an empty registry. null means "no override; fall through to
+// storage", so the switch still applies for the session even when
+// localStorage itself is unavailable (private mode, storage quota, etc).
+let overrideThemeId: string | null = null;
+
+const listeners = new Set<() => void>();
+
 /** The active theme: a per-client preference (same idiom as handSort),
- *  defaulting to lacquer. The SELECTION UI ships later (owner: framework
- *  now, not a deck library) — until then this only ever resolves the
- *  default, but every render site already goes through it. */
+ *  defaulting to DEFAULT_DECK_THEME_ID. Every render site goes through this
+ *  (directly, or via useDeckTheme() in components — see sibling
+ *  useDeckTheme.ts). */
 export function activeDeckTheme(): DeckTheme {
-  let id = DEFAULT_DECK_THEME_ID;
-  try {
-    if (typeof localStorage !== 'undefined') {
-      const stored = localStorage.getItem(THEME_STORAGE_KEY);
-      if (stored !== null && registry.has(stored)) id = stored;
+  let id = overrideThemeId ?? DEFAULT_DECK_THEME_ID;
+  if (overrideThemeId === null) {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const stored = localStorage.getItem(THEME_STORAGE_KEY);
+        if (stored !== null && registry.has(stored)) id = stored;
+      }
+    } catch {
+      // storage unavailable — the default carries.
     }
-  } catch {
-    // storage unavailable — the default carries.
   }
   const theme = registry.get(id);
   if (!theme) throw new Error(`deck theme registry empty: missing '${id}'`);
   return theme;
+}
+
+/** Set the active deck-theme preference (item 2, the switcher's write
+ *  side): an unregistered id is silently rejected — no crash, no persist,
+ *  no notify — the same "invalid input is a no-op" idiom as setLocale.
+ *  Notifies every subscriber (useDeckTheme() render sites, the F11 mini-fan
+ *  metrics reader) so the switch is a pure re-render everywhere at once. */
+export function setDeckTheme(id: string): void {
+  if (!registry.has(id)) return;
+  overrideThemeId = id;
+  try {
+    if (typeof localStorage !== 'undefined') localStorage.setItem(THEME_STORAGE_KEY, id);
+  } catch {
+    // storage unavailable — overrideThemeId still carries the switch for
+    // this session, it just doesn't persist.
+  }
+  for (const listener of listeners) listener();
+}
+
+/** Subscribe to deck-theme preference changes. Returns an unsubscribe
+ *  function — the useSyncExternalStore subscribe half (see useDeckTheme.ts,
+ *  kept out of this module so theme.ts stays React-free). */
+export function subscribeDeckTheme(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }

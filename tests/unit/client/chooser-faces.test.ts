@@ -439,14 +439,19 @@ describe('chooser 390px fit — CSS-token arithmetic (render verified by visual 
     expect(chrome).toBe(22);
   });
 
-  it('pins the mini wild-marker glyph at or above the 10px legibility floor', () => {
+  // Superseded pin (item 1): the wild marker is now a language-neutral SVG
+  // seal, not a sized glyph — there is no more per-size font-size ratio to
+  // pin against a text legibility floor. What replaces it: the seal reads
+  // as a stamp (not a smear) at the smallest shipped size, i.e. its
+  // diameter clears ~8px at mini's --gd-cardw.
+  it('pins the mini wild-seal diameter at ~8px (reads as a stamp, not a smear)', () => {
     const miniCardw = token(tableCss, /\.gd-card--mini\s*\{[^}]*--gd-cardw:\s*([\d.]+)rem/, 'mini cardw') * REM;
     const ratio = token(
       tableCss,
-      /\.gd-card--mini \.gd-card__wildGlyph\s*\{[^}]*calc\(var\(--gd-cardw\)\s*\*\s*([\d.]+)\)/,
-      'mini glyph ratio',
+      /\.gd-card__wild\s*\{[^}]*width:\s*calc\(var\(--gd-cardw\)\s*\*\s*([\d.]+)\)/,
+      'wild seal width ratio',
     );
-    expect(ratio * miniCardw).toBeGreaterThanOrEqual(10);
+    expect(ratio * miniCardw).toBeGreaterThanOrEqual(8);
   });
 
   it('keeps Cancel outside the scroll region (only the options list scrolls)', () => {

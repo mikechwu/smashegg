@@ -401,6 +401,13 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
+  /* Not for placement (no top/left set) — for PAINT ORDER: this promotes
+   * the index into the "positioned" bucket alongside any absolutely-
+   * positioned body art a theme paints inside the same .gd-card (CSS
+   * paints non-positioned in-flow content BEFORE positioned descendants,
+   * regardless of DOM order), so the index reliably stays on top of a
+   * theme body that comes earlier in the markup instead of under it. */
+  position: relative;
 }
 .gd-card__rank {
   font-size: calc(var(--gd-cardw) * 0.42);
@@ -409,49 +416,43 @@
 .gd-card__suit {
   font-size: calc(var(--gd-cardw) * 0.36);
 }
-/* The joker's vertical name lives in the LEFT strip (like the corner
- * index): the fan overlaps each card's right ~60%, so centered content is
- * occluded by the neighbour — small joker sat invisible under big joker. small joker keeps
- * ink (via .gd-card--black), big joker cinnabar (via .gd-card--red). */
-.gd-card--joker .gd-card__joker {
-  font-family: var(--font-card);
-  writing-mode: vertical-rl;
-  text-orientation: upright;
-  font-size: calc(var(--gd-cardw) * 0.3);
-  font-weight: 600;
-  margin: 0.1875rem 0 0 0.2rem;
-  align-self: flex-start;
-  letter-spacing: 0.0625em;
-}
-/* Wild (the wild rule) marker: solid cinnabar corner triangle + wild glyph at the
- * card's bottom-LEFT — inside the strip the fan overlap leaves visible —
- * readable at both hand and trick sizes. */
-.gd-card__wild {
+/* The joker's emblem lives in the LEFT/index column (like the corner
+ * index): the fan overlaps each card's right ~60%, so content painted past
+ * 0.40 * cardw is occluded by the neighbour — wordless SVG emblems replace
+ * the old vertical CJK strip (a writing-mode: vertical-rl + text-orientation:
+ * upright letter-stack, which mis-rendered English 'Joker'/'Big Joker' into
+ * overflowing single-glyph columns). Distinct by SILHOUETTE — filled star
+ * vs. hollow stroke lozenge — never by colour alone; colour reinforces it
+ * (the SVG paints itself cinnabar/ink directly — see themes/lacquer.tsx —
+ * matching the palette the joker's .gd-card--red / .gd-card--black class
+ * would otherwise set). Positioned like the wild seal below: absolute and
+ * scaled ENTIRELY off --gd-cardw (no fixed-px margin, which would drift the
+ * box past the 0.40w sliver as cardw shrinks at hand size) — left(0.06w) +
+ * width(0.30w) = 0.36w stays inside 0.40w with margin to spare, so the whole
+ * box (not just wherever the SVG's own preserveAspectRatio happens to place
+ * the ink within it) is guaranteed clear of the neighbour's occlusion. */
+.gd-card__jokerMark {
   position: absolute;
-  left: 0;
-  bottom: 0;
-  width: calc(var(--gd-cardw) * 0.62);
-  height: calc(var(--gd-cardw) * 0.62);
-  background: var(--cinnabar);
-  clip-path: polygon(0 0, 0 100%, 100% 100%);
-  border-bottom-left-radius: 6px;
+  left: calc(var(--gd-cardw) * 0.06);
+  top: calc(var(--gd-cardw) * 0.08);
+  width: calc(var(--gd-cardw) * 0.3);
+  height: calc(var(--gd-cardw) * 0.3);
   pointer-events: none;
 }
-.gd-card__wildGlyph {
+/* Wild seal (the wild rule): a language-neutral cinnabar circle stamp,
+ * in-column at the card's bottom-LEFT — attachment to its OWN card is
+ * structural because the seal's right edge (0.07w + 0.26w = 0.33w) stays
+ * inside the 0.40w visible fan sliver, unlike the old junction-riding
+ * triangle (which spanned to 0.62w and read as belonging to whichever card
+ * sat on top at the fan seam). Readable at hand, trick and mini sizes as
+ * a stamp, not text — no locale can mis-render it. */
+.gd-card__wild {
   position: absolute;
-  left: calc(var(--gd-cardw) * 0.05);
-  bottom: calc(var(--gd-cardw) * 0.04);
-  color: var(--ivory);
-  font-family: var(--font-card);
-  font-size: calc(var(--gd-cardw) * 0.28);
-  font-weight: 600;
-  line-height: 1;
-}
-/* At mini size the designed 0.28 ratio lands at 9.0px — under the 10px
- * legibility floor — so mini alone bumps to 0.32 (10.2px); ratio pinned by
- * the CSS-token ratchet test. */
-.gd-card--mini .gd-card__wildGlyph {
-  font-size: calc(var(--gd-cardw) * 0.32);
+  left: calc(var(--gd-cardw) * 0.07);
+  top: calc(var(--gd-cardw) * 0.92);
+  width: calc(var(--gd-cardw) * 0.26);
+  height: calc(var(--gd-cardw) * 0.26);
+  pointer-events: none;
 }
 
 /* The lacquer theme's back (themes/lacquer.tsx): flat rosewood field with a
@@ -467,6 +468,104 @@
   inset: 3px;
   border: 1px solid color-mix(in srgb, var(--goldleaf) 55%, transparent);
   border-radius: 5px;
+}
+
+/* The cinnabar-court theme (themes/cinnabar-court/index.tsx): its own suit
+ * glyph is a DRAWN shape (SUIT_PATHS, art.tsx), not a font character — suits
+ * must separate by silhouette, which a platform's ♥/♦ glyph doesn't
+ * guarantee — so it is sized by WIDTH off --gd-cardw (font-size has no
+ * effect on an <svg>); height is left to the svg's own 24x28 viewBox
+ * aspect via `height: auto`. */
+.gd-ccourt__suitGlyph {
+  display: block;
+  width: calc(var(--gd-cardw) * 0.3);
+  height: auto;
+}
+/* rankText('T') is '10' — two glyphs where every other rank is one. At the
+ * shared .gd-card__rank size (0.42w) the extra glyph crowds the suit glyph
+ * beneath it in the same index column, so only this theme's ten shrinks. */
+.gd-ccourt__rank--ten {
+  font-size: calc(var(--gd-cardw) * 0.34);
+}
+/* Body art (CourtFigure / PipField / Big|SmallJokerFigure — all viewBox
+ * "0 0 200 290", the SAME 1:1.45 ratio as the card box itself, so the svg
+ * fills edge-to-edge with no letterboxing): absolutely fills the card,
+ * BEHIND the corner index (.gd-card__index's `position: relative` is what
+ * makes that ordering hold — see its comment) and behind the framework's
+ * wild seal, which sits a stacking context further out again
+ * (.gd-cardframe's `isolation: isolate`) and so is unaffected either way. */
+.gd-ccourt__body {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.gd-ccourt__body > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* Joker corner emblem (BigJokerEmblem/SmallJokerEmblem, art.tsx, viewBox
+ * 44x64) — this theme's OWN box, wider than lacquer's .gd-card__jokerMark
+ * (0.34w vs 0.30w): left(0.04w) + width(0.34w) = 0.38w, still inside the
+ * 0.40w fan-visible sliver. Height is DERIVED from the box's own width via
+ * the emblem's 44:64 viewBox ratio (never a second independent multiplier),
+ * so the box's aspect always matches the viewBox's — an aspect-matched box
+ * never letterboxes under the svg's default xMidYMid meet, whatever
+ * preserveAspectRatio it ends up with. Entirely calc(var(--gd-cardw) * k):
+ * no fixed rem/px, which would drift the 0.38w ratio as --gd-cardw shrinks
+ * at hand size (the exact defect already fixed once on the jokerMark box
+ * above). */
+.gd-ccourt__jokerEmblem {
+  position: absolute;
+  left: calc(var(--gd-cardw) * 0.04);
+  top: calc(var(--gd-cardw) * 0.06);
+  width: calc(var(--gd-cardw) * 0.34);
+  height: calc(var(--gd-cardw) * 0.34 * 64 / 44);
+  pointer-events: none;
+}
+.gd-ccourt__jokerEmblem > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Cinnabar Court's back: a flat DEEP-cinnabar field (cinnabar mixed toward
+ * the table's lacquer dark) with the SAME cheap recipe as lacquer's back
+ * (one flat fill + a hairline inset pseudo-element, no gradient stacks —
+ * the deal renders 100+ of these concurrently) plus a small centered
+ * goldleaf motif: a rotated-square pseudo-element with four box-shadow
+ * copies (center + up/down/left/right — "petals" with no extra DOM nodes).
+ * The motif is deliberately ANGULAR and gold-on-deep-red — the framework's
+ * cinnabar wild seal (.gd-card__wild) is a ROUND cinnabar disc with IVORY
+ * petals and means GAME STATE, so this back must never share its
+ * silhouette or palette, or a face-down deck card could read as a wild. */
+.gd-cardback--ccourt {
+  background: #8a2b21;
+  border-color: color-mix(in srgb, var(--goldleaf) 55%, transparent);
+}
+.gd-cardback--ccourt::before {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border: 1px solid color-mix(in srgb, var(--goldleaf) 55%, transparent);
+  border-radius: 5px;
+}
+.gd-cardback--ccourt::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: calc(var(--gd-cardw) * 0.14);
+  height: calc(var(--gd-cardw) * 0.14);
+  margin: calc(var(--gd-cardw) * -0.07) 0 0 calc(var(--gd-cardw) * -0.07);
+  background: var(--goldleaf);
+  opacity: 0.6;
+  transform: rotate(45deg);
+  box-shadow:
+    calc(var(--gd-cardw) * 0.17) 0 0 var(--goldleaf),
+    calc(var(--gd-cardw) * -0.17) 0 0 var(--goldleaf),
+    0 calc(var(--gd-cardw) * 0.17) 0 var(--goldleaf),
+    0 calc(var(--gd-cardw) * -0.17) 0 var(--goldleaf);
 }
 
 /* --- hand fan ----------------------------------------------------------------- */

@@ -50,7 +50,7 @@ import {
 } from './table/helpers';
 import { t } from './i18n';
 import { describeError } from './errors';
-import { activeDeckTheme } from './table/theme';
+import { useDeckTheme } from './table/useDeckTheme';
 import './table/table.css';
 
 export interface GameTableProps {
@@ -350,6 +350,13 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     return matchSelection(selectionCards, hints, view.currentLevel, variant);
   }, [selectionCards, hints, view, variant]);
 
+  // Item 5: the active theme's back tokens ride CSS vars, so the F11
+  // mini-fan (framework-owned geometry) renders any theme's back colors.
+  // MUST live up here with the other hooks (this file's own rule: hooks
+  // before any early return) — the lobby renders take the view===null
+  // return below, so a hook after it changes hook order mid-session.
+  const themeMetrics = useDeckTheme().metrics;
+
   if (activeSeat === undefined) {
     // Connected without any seat token (e.g. joined a game already going):
     // nothing to render — per-seat views only flow to token holders (PLAN §4).
@@ -484,10 +491,6 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     setSelected(new Set());
     setChooserOpen(false);
   };
-
-  // Item 5: the active theme's back tokens ride CSS vars, so the F11
-  // mini-fan (framework-owned geometry) renders any theme's back colors.
-  const themeMetrics = activeDeckTheme().metrics;
 
   return (
     <section

@@ -13,8 +13,10 @@ import { isJoker, isWild, rankOf, suitOf, type Card, type Rank, type Suit } from
 import type { JokerRank } from '../../engine/guandan/combos';
 import type { CanonicalForm } from '../../engine/guandan/types';
 import { declJokerRank, isRedSuit, rankText, suitGlyph } from './helpers';
-import { activeDeckTheme, type CardFaceSize } from './theme';
-import './themes/lacquer'; // registers the default theme
+import type { CardFaceSize } from './theme';
+import { useDeckTheme } from './useDeckTheme';
+import './themes/lacquer'; // registers the classic theme (still selectable)
+import './themes/cinnabar-court'; // registers the default theme
 import { t } from '../i18n';
 
 export type { CardFaceSize } from './theme';
@@ -61,18 +63,35 @@ export function comboRankLabel(decl: CanonicalForm): string {
   return jokerRank !== undefined ? jokerLabel(jokerRank) : rankText(decl.keyRank);
 }
 
+/** Language-neutral wild seal (item 1): a cinnabar circle stamp with an
+ *  ivory four-petal cutout and center dot — reads as a seal at any card
+ *  size without translation, replacing the old localized glyph (the
+ *  now-removed 'game.card.wildBadge' key). Purely decorative: the
+ *  accessible wild fact is carried by cardLabel's " (Wild)" suffix (below),
+ *  so the mark itself is aria-hidden. */
+function WildSeal() {
+  return (
+    <svg className="gd-card__wild" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <circle cx="12" cy="12" r="12" fill="var(--cinnabar)" />
+      <g fill="var(--ivory)">
+        <ellipse cx="12" cy="6" rx="3" ry="5" />
+        <ellipse cx="18" cy="12" rx="5" ry="3" />
+        <ellipse cx="12" cy="18" rx="3" ry="5" />
+        <ellipse cx="6" cy="12" rx="5" ry="3" />
+        <circle cx="12" cy="12" r="2" />
+      </g>
+    </svg>
+  );
+}
+
 export function CardFace({ card, level, size }: CardFaceProps) {
-  const theme = activeDeckTheme();
+  const theme = useDeckTheme();
   return (
     <span className={`gd-cardframe gd-card--${size}`} aria-hidden="true">
       <theme.Face card={card} level={level} size={size} />
       {/* The wild marker is FRAMEWORK-drawn over the theme (contract): a
           theme has no code path to remove or obscure it. */}
-      {isWild(card, level) && (
-        <span className="gd-card__wild">
-          <span className="gd-card__wildGlyph">{t('game.card.wildBadge')}</span>
-        </span>
-      )}
+      {isWild(card, level) && <WildSeal />}
     </span>
   );
 }
@@ -80,7 +99,7 @@ export function CardFace({ card, level, size }: CardFaceProps) {
 /** A face-down card in the active theme — the deck pile, deal flights, any
  *  hidden card. Framework-level like CardFace. */
 export function CardBack({ size }: { size: CardFaceSize }) {
-  const theme = activeDeckTheme();
+  const theme = useDeckTheme();
   return (
     <span className={`gd-cardframe gd-card--${size}`} aria-hidden="true">
       <theme.Back size={size} />
@@ -108,9 +127,7 @@ export function GhostFace({ rank, suit, size }: GhostFaceProps) {
         <span className="gd-card__rank">{rankText(rank)}</span>
         {suit !== null && <span className="gd-card__suit">{suitGlyph(suit)}</span>}
       </span>
-      <span className="gd-card__wild">
-        <span className="gd-card__wildGlyph">{t('game.card.wildBadge')}</span>
-      </span>
+      <WildSeal />
     </span>
   );
 }

@@ -1,6 +1,8 @@
 # Card face redesign — verification, research, three independent proposals
 
-**Date:** 2026-07-16 · **Status:** PROPOSALS — awaiting the owner's pick (owner authority).
+**Date:** 2026-07-16 · **Status:** PICKED — the owner chose a figurative Eastern-minimalist
+court reimagining (overriding unanimous point 5, see the dated note in §2; everything else in
+the foundation stands). Build record: docs/design/deck-themes/cinnabar-court/DESIGN.md.
 Mode: DESIGN panel (independent proposals, anchoring-free — none of the three saw another's
 answer), not an audit panel. Lead: Fable (owner-requested, logged per the model-dispatch rule);
 proposers: Fable, Codex, Grok. Implementation later: Sonnet-class per the ladder.
@@ -69,6 +71,14 @@ signal this exercise can produce:
 5. **Bodies**: real French pip layouts (public-domain geometry) at open sizes; NO figurative
    court art (IP + craft honesty) — abstract/typographic court treatment instead; goldleaf as
    hairline whisper only.
+   > **OVERRIDDEN by owner decision, 2026-07-16** (this point only; the other five stand):
+   > courts and jokers are reimagined FIGURATIVELY in the app's Eastern-minimalist idiom,
+   > following the owner's five reference images filed at
+   > docs/design/deck-themes/cinnabar-court/reference/ (direction, not spec). The override
+   > answers both original reasons: IP by constraint (original Eastern-idiom art, no
+   > reproduction of any published deck, no trademarks), craft by an explicit quality bar
+   > with an abstract-treatment fallback if the art fails at ship sizes. Full record:
+   > docs/design/deck-themes/cinnabar-court/DESIGN.md §0/§5.
 6. **Contract additions** (testable, from Grok's spec): joker faces contain no text nodes; the
    wild overlay's paint box satisfies right ≤ 0.40 x cardw. Plus the existing ratchet.
 

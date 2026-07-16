@@ -9,6 +9,8 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { LOCALE_SELF_LABELS, SUPPORTED_LOCALES } from './config';
 import type { Locale } from './config';
 import { getLocale, setLocale, subscribe, t } from './i18n';
+import { deckThemes, setDeckTheme } from './table/theme';
+import { useDeckTheme } from './table/useDeckTheme';
 import { useRoute } from './router';
 import { versionSignal } from './version';
 import { DebugPage } from './DebugPage';
@@ -47,6 +49,7 @@ function UpdateBanner() {
 
 export function App() {
   const locale = useLocale();
+  const deckTheme = useDeckTheme();
   const route = useRoute();
 
   useEffect(() => {
@@ -60,18 +63,37 @@ export function App() {
         <h1 className="app-wordmark">
           <a href="#/">{t('app.title')}</a>
         </h1>
-        <nav className="app-locale" aria-label={t('locale.label')}>
-          {SUPPORTED_LOCALES.map((l) => (
-            <button
-              key={l}
-              type="button"
-              disabled={l === locale}
-              onClick={() => setLocale(l)}
-            >
-              {LOCALE_SELF_LABELS[l]}
-            </button>
-          ))}
-        </nav>
+        <div className="app-controls">
+          {/* Deck-theme switcher (item 3): a CLIENT PREFERENCE control, same
+              idiom as the locale switcher next to it — never on the table's
+              decision surface (ActionBar/chooser own that). Lists only
+              REGISTERED themes, so today it shows one entry; that grows as
+              more themes register, with no change here. */}
+          <nav className="app-theme" aria-label={t('theme.label')}>
+            {deckThemes().map((theme) => (
+              <button
+                key={theme.id}
+                type="button"
+                disabled={theme.id === deckTheme.id}
+                onClick={() => setDeckTheme(theme.id)}
+              >
+                {t(theme.name)}
+              </button>
+            ))}
+          </nav>
+          <nav className="app-locale" aria-label={t('locale.label')}>
+            {SUPPORTED_LOCALES.map((l) => (
+              <button
+                key={l}
+                type="button"
+                disabled={l === locale}
+                onClick={() => setLocale(l)}
+              >
+                {LOCALE_SELF_LABELS[l]}
+              </button>
+            ))}
+          </nav>
+        </div>
       </header>
       <UpdateBanner />
       {route.page === 'home' && <HomePage />}
