@@ -64,23 +64,25 @@ export function App() {
           <a href="#/">{t('app.title')}</a>
         </h1>
         <div className="app-controls">
-          {/* Deck-theme switcher (item 3): a CLIENT PREFERENCE control, same
-              idiom as the locale switcher next to it — never on the table's
-              decision surface (ActionBar/chooser own that). Lists only
-              REGISTERED themes, so today it shows one entry; that grows as
-              more themes register, with no change here. */}
-          <nav className="app-theme" aria-label={t('theme.label')}>
+          {/* Deck-theme switcher (item 3, owner refinement: a drop-down, not
+              a button row — one pill regardless of how many themes register).
+              A CLIENT PREFERENCE control, never on the table's decision
+              surface (ActionBar/chooser own that). NATIVE select on purpose:
+              phones get the platform picker and keyboard/AT semantics come
+              free — a custom popover would re-implement all of that for one
+              header control. Lists only REGISTERED themes. */}
+          <select
+            className="app-themeSelect"
+            aria-label={t('theme.label')}
+            value={deckTheme.id}
+            onChange={(e) => setDeckTheme(e.target.value)}
+          >
             {deckThemes().map((theme) => (
-              <button
-                key={theme.id}
-                type="button"
-                disabled={theme.id === deckTheme.id}
-                onClick={() => setDeckTheme(theme.id)}
-              >
+              <option key={theme.id} value={theme.id}>
                 {t(theme.name)}
-              </button>
+              </option>
             ))}
-          </nav>
+          </select>
           <nav className="app-locale" aria-label={t('locale.label')}>
             {SUPPORTED_LOCALES.map((l) => (
               <button

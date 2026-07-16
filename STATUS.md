@@ -82,6 +82,12 @@ Codex's clone saw one unrelated property-test timeout under 3-way machine conten
 round defect. Final: suite 789/789, 36 files; typecheck clean; lint:hooks clean. Committed
 locally; push only on the owner's word.
 
+Owner refinement (2026-07-16): the theme switcher is now a DROP-DOWN (styled native select,
+one pill showing the active theme's localized name, goldleaf chevron; native picker on
+phones, keyboard/AT free). Verified live: switching through it re-renders mid-hand both
+directions and persists; at true 390 [zh-Hant] the header now fits ONE row (scrollWidth 375,
+zero overflowing elements). Suite/typecheck/lint green.
+
 ## Card face redesign (2026-07-16) — verified, researched, three proposals — OWNER PICKED (see above)
 
 Item-0 verification (live, elementFromPoint grid, [zh-Hant+en] x [desktop+true 390], asc+desc):

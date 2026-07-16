@@ -87,8 +87,7 @@ a {
   /* Never wider than the viewport column: the navs inside wrap instead. */
   max-width: 100%;
 }
-.app-locale,
-.app-theme {
+.app-locale {
   display: flex;
   /* A single nav must also wrap (panel residual, 2026-07-16): without this,
      one nav that outgrows the 390px column would extend the page sideways
@@ -98,8 +97,7 @@ a {
   flex: none;
   max-width: 100%;
 }
-.app-locale button,
-.app-theme button {
+.app-locale button {
   background: none;
   border: 1px solid transparent;
   border-radius: 999px;
@@ -109,16 +107,49 @@ a {
   padding: 0.2rem 0.6rem;
   cursor: pointer;
 }
-.app-locale button:hover:not(:disabled),
-.app-theme button:hover:not(:disabled) {
+.app-locale button:hover:not(:disabled) {
   opacity: 0.9;
 }
-.app-locale button:disabled,
-.app-theme button:disabled {
-  /* the ACTIVE locale / deck theme */
+.app-locale button:disabled {
+  /* the ACTIVE locale */
   opacity: 1;
   border-color: rgba(245, 239, 227, 0.4);
   cursor: default;
+}
+/* Deck-theme drop-down (owner refinement 2026-07-16: one pill, not a button
+   row). Native select, restyled to the same quiet pill as the locale
+   buttons; the goldleaf chevron is an inline SVG so the CSP stays
+   self-contained. The pill shows the ACTIVE theme's localized name. */
+.app-themeSelect {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: transparent;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23c9a227' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.6rem center;
+  background-size: 0.5rem auto;
+  border: 1px solid rgba(245, 239, 227, 0.4);
+  border-radius: 999px;
+  color: var(--ivory);
+  opacity: 0.9;
+  font-size: 0.75rem;
+  font-family: inherit;
+  line-height: 1.2;
+  padding: 0.2rem 1.5rem 0.2rem 0.65rem;
+  cursor: pointer;
+  flex: none;
+  max-width: 100%;
+}
+.app-themeSelect:hover,
+.app-themeSelect:focus-visible {
+  opacity: 1;
+}
+/* The opened list inherits UA styling; keep it on the lacquer palette where
+   the platform honors it (desktop browsers do; mobile shows the native
+   picker, which is the point of a native select). */
+.app-themeSelect option {
+  background: var(--lacquer);
+  color: var(--ivory);
 }
 
 /* --- page column --------------------------------------------------------- */
