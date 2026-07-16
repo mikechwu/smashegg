@@ -466,7 +466,14 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       cardCount={view.cardCounts[seat] ?? null}
       place={placeOf(view.finishOrder, seat)}
       active={(ringSeats.has(seat) || (seat === activeSeat && yourTurn)) && seat !== leaderConcealed}
-      dueAt={seat === leaderConcealed ? null : (deadlineBySeat.get(seat)?.dueAt ?? null)}
+      dueAt={
+        // Owner rule (live-build feedback): countdown chips — the planning
+        // window included — appear only once the player HAS their sorted
+        // hand; during the ceremony and the deal they are meaningless.
+        ceremonyShowing || dealing || seat === leaderConcealed
+          ? null
+          : (deadlineBySeat.get(seat)?.dueAt ?? null)
+      }
       planning={deadlineBySeat.get(seat)?.timingClass === 'planning'}
       dimTimer={ceremonyShowing}
       now={now}
@@ -534,7 +541,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
               sweepKey={derived.sweep}
               jiefeng={derived.jiefeng}
               viewerSeat={activeSeat}
-              concealLeader={leaderConcealed !== null}
+              concealLeader={dealing || leaderConcealed !== null}
             />
           )}
         </div>
@@ -547,6 +554,9 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       <div className="gd-handzone">
         <EventFeed lines={derived.feed} />
         <div className="gd-handzone__sortrow">
+          {/* Owner rule: the sort toggle is meaningless until the player has
+              all cards, sorted — hidden through the cut/ceremony/deal. */}
+          {view.phase !== 'ceremonyCut' && !ceremonyShowing && !dealing && (
           <button
             type="button"
             className="gd-handSort"
@@ -556,6 +566,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           >
             {handDescending ? t('game.sort.descending') : t('game.sort.ascending')}
           </button>
+          )}
         </div>
         <HandFan
           hand={view.hand}

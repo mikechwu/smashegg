@@ -538,8 +538,8 @@ describe('named liveness cases', () => {
     // (joker / level rank), driving the real re-cut loop through the alarm
     // path: each alarm applies the default, the acted cutter re-arms fresh
     // (never the expired base — the tight-loop hazard), the default position
-    // VARIES with attempts, and the loop reaches the deal within the 13-cut
-    // bound.
+    // VARIES with attempts, and the loop reaches the deal within the 7-cut
+    // bound (6 uncountables: 4 jokers + 2 heart level cards).
     const spec = GAMES[2]!;
     let seed: string | null = null;
     for (let i = 0; i < 300 && seed === null; i++) {
@@ -563,7 +563,7 @@ describe('named liveness cases', () => {
       room.now = row.dueAt + 1;
       room.fireAlarmIfDue();
       alarms++;
-      expect(alarms).toBeLessThanOrEqual(13);
+      expect(alarms).toBeLessThanOrEqual(7);
       assertInvariants(room);
     }
     expect(alarms).toBeGreaterThanOrEqual(2); // the hunted seed re-cut at least once

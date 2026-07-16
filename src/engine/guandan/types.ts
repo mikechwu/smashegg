@@ -240,7 +240,8 @@ export type GuandanEvent =
        *  - cutPosition: WHERE the cutter chose to cut (the logged action);
        *  - flips: ONE count-card flip per applied cut attempt, in attempt
        *    order (re-cut round 2026-07-15, superseding the walk rule: an
-       *    uncountable flip — joker or current-level rank — does NOT walk
+       *    uncountable flip — a joker or the WILD (heart level card ONLY;
+       *    owner correction 2026-07-15) — does NOT walk
        *    to the next card; the cutter CUTS AGAIN, so all but the last
        *    flip came from earlier logged cutDeck actions). Under
        *    ceremonyCardCount=2 each attempt flips the lifted packet's
@@ -283,7 +284,8 @@ export type GuandanEvent =
    *  before any deal exists. Public in full: everyone watches one actor. */
   | { type: 'ceremonyCutStarted'; cutter: Seat }
   /** Re-cut round: an applied cut whose count-card flip was UNCOUNTABLE (a
-   *  joker or the current-level rank) — the flip is shown to the whole
+   *  joker or the WILD, i.e. the HEART level card only — other suits of the
+   *  level rank COUNT; owner correction 2026-07-15) — the flip is shown to the whole
    *  table and the cutter cuts again with a fresh clock. Public in full. */
   | { type: 'ceremonyCutFlipped'; cutter: Seat; position: number; flip: Card }
   | { type: 'antiTribute'; reveals: { seat: Seat; card: Card }[] }

@@ -66,8 +66,11 @@ function countIndexAt(position: number, config: RuleVariant): number {
 }
 
 function uncountable(card: Card): boolean {
+  // Owner correction 2026-07-15: only jokers and the WILD (the HEART level
+  // card) re-cut — other suits of the level rank COUNT. Hand 1 plays at
+  // level 2, so the uncountables are exactly {SJ, BJ, 2H} (6 cards total).
   const r = rankOf(card);
-  return r === null || r === '2'; // hand 1 plays at level 2
+  return r === null || card === '2H';
 }
 
 /** Oracle ritual over a POSITION SEQUENCE — the documented deck arithmetic,
@@ -313,12 +316,13 @@ describe('the RE-CUT loop (owner rule 2026-07-15, superseding the count walk)', 
     expect(uncountable(ceremony.flips[ceremony.flips.length - 1]!)).toBe(false);
   });
 
-  it('AFK termination bound: the varying default cut completes within 13 alarm cuts, every seed', () => {
+  it('AFK termination bound: the varying default cut completes within 7 alarm cuts, every seed', () => {
     // The deck is fixed, so a CONSTANT default would flip the same
     // uncountable card forever; the default walks one position per attempt,
-    // and a double deck holds only 12 uncountables, so any 13 distinct
-    // count slots contain a countable card. Sweep: simulate a fully-AFK
-    // cutter (defaultAction only) across 200 seeds.
+    // and a double deck holds only 6 uncountables (4 jokers + 2 heart level
+    // cards — owner correction), so any 7 distinct count slots contain a
+    // countable card. Sweep: simulate a fully-AFK cutter (defaultAction
+    // only) across 200 seeds.
     let worst = 0;
     for (let i = 0; i < 200; i++) {
       const init = GuandanGame.init(DRAW_CFG, 4, `recut-afk-${i}`);
@@ -333,7 +337,7 @@ describe('the RE-CUT loop (owner rule 2026-07-15, superseding the count walk)', 
         if (!res.ok) break;
         state = res.state;
         cuts++;
-        expect(cuts).toBeLessThanOrEqual(13);
+        expect(cuts).toBeLessThanOrEqual(7);
       }
       worst = Math.max(worst, cuts);
     }
@@ -440,11 +444,11 @@ describe('real cut — re-flips over real cards', () => {
   it("level-rank ('2') and joker flips are recorded re-flips; the last flip is countable", () => {
     const { ceremony } = findCut('reflip', DRAW_CFG, (c) => c.flips.length >= 2);
     for (const flip of ceremony.flips.slice(0, -1)) {
-      expect(isJoker(flip) || rankOf(flip) === '2', `re-flip cause: ${flip}`).toBe(true);
+      expect(isJoker(flip) || flip === '2H', `re-cut cause: ${flip}`).toBe(true);
     }
     const last = ceremony.flips[ceremony.flips.length - 1]!;
     expect(isJoker(last)).toBe(false);
-    expect(rankOf(last)).not.toBe('2');
+    expect(last).not.toBe('2H'); // a NON-heart 2 counts (owner correction)
   });
 
   it('a joker at the cut point is flipped, recorded and passed over', () => {
@@ -670,12 +674,12 @@ describe('real cut — distribution and determinism', () => {
     // fixed (the physical table has the identical property). The absolute
     // sweeps below stay uniform because the cutter is PRNG-uniform; this test
     // conditions on the cutter and shows what they cannot: the count offset
-    // X=(value-1)%4 at level 2 (hand 1 ALWAYS runs at level 2) is skewed —
-    // countable ranks by offset: 0:{A,5,9,K} 1:{6,10} 2:{3,7,J} 3:{4,8,Q} —
-    // so P(X even)=7/12 and a cutter picking an EVEN depth leads their own
-    // team ≈58.3% vs ≈41.7% at an ODD depth: a ~16.7pt swing chosen by the
-    // cutter. (At levels A/5/9/K the distribution is flat, but hand 1 never
-    // runs there under the standard start.)
+    // X=(value-1)%4 at level 2 (hand 1 ALWAYS runs at level 2; heart-only
+    // wilds excluded per the owner correction) is skewed — the 102 countable
+    // cards by offset: 0:{A,5,9,K}=32 1:{2(6 non-heart),6,10}=22
+    // 2:{3,7,J}=24 3:{4,8,Q}=24 — so P(X even)=56/102≈54.9% and a cutter
+    // picking an EVEN depth leads their own team ≈54.9% vs ≈45.1% at an ODD
+    // depth: a ≈9.8pt swing chosen by the cutter.
     const N = 500;
     const teamLead = { even: 0, odd: 0 };
     let sampled = 0;
@@ -692,13 +696,13 @@ describe('real cut — distribution and determinism', () => {
       if (teamOf(odd.state.trick!.leader) === cutterTeam) teamLead.odd++;
     }
     expect(sampled).toBe(N);
-    // Expected: even ≈ 7/12 ≈ 58.3%, odd ≈ 5/12 ≈ 41.7%. ±6pt at N=500.
-    expect(teamLead.even / N).toBeGreaterThan(7 / 12 - 0.06);
-    expect(teamLead.even / N).toBeLessThan(7 / 12 + 0.06);
-    expect(teamLead.odd / N).toBeGreaterThan(5 / 12 - 0.06);
-    expect(teamLead.odd / N).toBeLessThan(5 / 12 + 0.06);
-    // The edge itself: even-depth minus odd-depth own-team lead ≈ 16.7pt.
-    expect(teamLead.even / N - teamLead.odd / N).toBeGreaterThan(0.09);
+    // Expected: even ≈ 56/102 ≈ 54.9%, odd ≈ 46/102 ≈ 45.1%. ±6pt at N=500.
+    expect(teamLead.even / N).toBeGreaterThan(56 / 102 - 0.06);
+    expect(teamLead.even / N).toBeLessThan(56 / 102 + 0.06);
+    expect(teamLead.odd / N).toBeGreaterThan(46 / 102 - 0.06);
+    expect(teamLead.odd / N).toBeLessThan(46 / 102 + 0.06);
+    // The edge itself: even-depth minus odd-depth own-team lead ≈ 9.8pt.
+    expect(teamLead.even / N - teamLead.odd / N).toBeGreaterThan(0.03);
   });
 
   it('same (seed, position) twice ⇒ identical ceremony, state and events', () => {

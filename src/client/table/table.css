@@ -166,7 +166,10 @@
   font-size: 0.8125rem;
   opacity: 0.85;
 }
+/* The lead prompt FADES IN once the centre is clear (owner rule: it only
+   shows after the deal overlay is gone). */
 .gd-well__waiting {
+  animation: gd-fade-in 300ms ease-out;
   opacity: 0.7;
   font-size: 0.875rem;
 }
@@ -470,6 +473,7 @@
 /* Quiet toggle for the hand's sort direction — a UI preference, not a
  * signature element, so it stays visually subordinate to the fan below it. */
 .gd-handSort {
+  animation: gd-fade-in 300ms ease-out;
   align-self: flex-end;
   background: transparent;
   color: var(--ivory);
@@ -734,10 +738,12 @@
    then the leader's name fades in — the ceremony's one goldleaf moment now
    happens mid-deal, where the physical table puts it. */
 .gd-deal__reveal {
+  /* Owner rule (live-build feedback): the reveal sits just BELOW the deck
+     pile, centred in the table — never over seat plates or the fan. */
   position: absolute;
   left: 0;
   right: 0;
-  top: 56%;
+  top: 52%;
   margin: 0;
   text-align: center;
   font-family: var(--font-card);
@@ -745,6 +751,7 @@
   color: var(--goldleaf);
   opacity: 0;
   pointer-events: none;
+  z-index: 3;
 }
 .gd-deal__reveal--shown {
   opacity: 1;
@@ -841,6 +848,14 @@
 .gd-ceremony__line--marker {
   color: var(--ivory);
   opacity: 1;
+}
+@keyframes gd-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 @keyframes gd-pulse {
   from {

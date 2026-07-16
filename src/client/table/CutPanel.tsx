@@ -4,7 +4,7 @@
 // moves. The other three watch, with the actor named.
 //
 // Re-cut round (owner rule): an applied cut whose count-card flip is
-// uncountable (a joker or the current-level rank) shows the flipped card IN
+// uncountable (a joker or the WILD — the heart level card only) shows the flipped card IN
 // THIS PANEL and the cutter cuts again, with a fresh clock; the flip history
 // arrives via view.ceremonyFlips (public — the table watched each one).
 //
@@ -64,17 +64,17 @@ function CutRibbon({ leftCount }: { leftCount: number }) {
   );
 }
 
-/** The uncountable flips from earlier attempts, shown in the SAME panel so
- *  the re-cut reads as one continuous ritual. */
+/** ONLY the latest uncountable flip, shown in the SAME panel so the re-cut
+ *  reads as one continuous ritual (owner: never a growing history — earlier
+ *  attempts' cards are already gone from the table's attention). */
 function FlipRow({ flips, level }: { flips: readonly Card[]; level: Rank }) {
-  if (flips.length === 0) return null;
+  const last = flips.length > 0 ? flips[flips.length - 1]! : null;
+  if (last === null) return null;
   return (
     <div className="gd-cut__flips">
-      {flips.map((flip, i) => (
-        <span key={i} className="gd-cut__flip" role="img" aria-label={cardLabel(flip, level)}>
-          <CardFace card={flip} level={level} size="mini" />
-        </span>
-      ))}
+      <span className="gd-cut__flip" role="img" aria-label={cardLabel(last, level)}>
+        <CardFace card={last} level={level} size="mini" />
+      </span>
     </div>
   );
 }

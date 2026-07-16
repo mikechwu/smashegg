@@ -7,7 +7,7 @@
 
 import type { ApplyResult, GameDefinition, GameResult, RuleError, Seat } from '../core/game';
 import { nextInt, seedPrng, shuffle, type PrngState } from '../core/prng';
-import { buildDeck, naturalValue, rankOf, RANKS, sortCards, type Card, type Rank } from './cards';
+import { buildDeck, isWild, naturalValue, rankOf, RANKS, sortCards, type Card, type Rank } from './cards';
 import { JIANGSU_OFFICIAL_ONLINE, validateRuleVariant, type RuleVariant } from './config';
 import { beats, inferDecl, validatePlay } from './combos';
 import { defaultPlayAction, legalActionsFor } from './generate';
@@ -104,13 +104,15 @@ export const CUT_MAX = 102;
  *  cutter: split the deck roughly in half, as a human would. */
 export const DEFAULT_CUT_POSITION = 54;
 
-/** Uncountable = a joker or the current-level rank. Re-cut round: an
- *  uncountable count-card flip means the cutter CUTS AGAIN (there is no
- *  walk to the next card any more); a double deck holds at most 4 + 8 = 12
- *  uncountables, which is what bounds the varying-default AFK loop. */
+/** Uncountable = a joker or the WILD (the HEART level card ONLY — owner
+ *  correction 2026-07-15, matching the official text's "jokers or the red
+ *  heart 2": other suits of the level rank COUNT normally). An uncountable
+ *  count-card flip means the cutter CUTS AGAIN; a double deck holds at most
+ *  4 jokers + 2 heart level cards = 6 uncountables, which is what bounds
+ *  the varying-default AFK loop (any 7 distinct count slots contain a
+ *  countable card). */
 function isCountable(card: Card, level: Rank): boolean {
-  const rank = rankOf(card); // null for jokers
-  return rank !== null && rank !== level;
+  return rankOf(card) !== null && !isWild(card, level);
 }
 
 /** The count-card flip for a cut at `position`. Two-card form (owner rule,
@@ -151,11 +153,13 @@ function countCardAt(deck: readonly Card[], position: number, config: RuleVarian
  *  ABSOLUTE leader uniformity holds (the cutter is PRNG-uniform and the
  *  count offset is independent of the cutter). CONDITIONAL on the cutter it
  *  does NOT: the count offset X=(value-1) mod 4 is skewed at level 2 (hand 1
- *  always runs at level 2) — P(X even)=7/12 — so a cutter choosing the cut
- *  depth's residue class shifts their own team's lead probability to ≈58.3%
- *  vs ≈41.7%. Owner decision: measured and documented (the physical table
- *  has the identical property), deliberately NOT policed; the UI's
- *  no-number slider is the (partial) mitigation — see CutPanel/cut.ts. */
+ *  always runs at level 2; heart-only wilds excluded, the 102 countable
+ *  cards split 32/22/24/24 across offsets 0..3) — P(X even)=56/102≈54.9% —
+ *  so a cutter choosing the cut depth's residue class shifts their own
+ *  team's lead probability to ≈54.9% vs ≈45.1%, a ≈9.8pt edge. Owner
+ *  decision: measured and documented (the physical table has the identical
+ *  property), deliberately NOT policed; the UI's no-number slider is the
+ *  (partial) mitigation — see CutPanel/cut.ts. */
 function runCutRitual(
   deck: readonly Card[],
   position: number,
@@ -568,14 +572,15 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
           return err('ceremony.invalidCutPosition', { position: action.position });
         }
         // Re-cut loop (owner rule 2026-07-15, superseding the count walk):
-        // an uncountable count-card flip (joker / current-level rank) stays
+        // an uncountable count-card flip (joker / the heart level card) stays
         // in ceremonyCut — the flip is recorded PUBLICLY and the cutter cuts
         // again; the room re-arms a fresh clock because the acted seat is
         // still the actor (room-helpers actedSeat rule). Termination: a live
         // cutter cannot target uncountables (the deck is hidden; each flip
-        // is ~89% countable), and the AFK default path varies its position
-        // with `attempts`, so ≤13 alarm cuts always reach a countable card
-        // (only 12 uncountables exist in a double deck) — pinned in tests.
+        // is ~94% countable — only jokers and the heart level card re-cut),
+        // and the AFK default path varies its position with `attempts`, so
+        // ≤7 alarm cuts always reach a countable card (only 6 uncountables
+        // exist in a double deck) — pinned in tests.
         const ceremony = state.ceremonyCut!;
         const flip = countCardAt(ceremony.deck, action.position, state.config);
         if (!isCountable(flip, state.currentLevel)) {
@@ -761,9 +766,10 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
         // a constant default that flipped an uncountable card would flip the
         // SAME card on every alarm, forever; walking one position per
         // attempt (wrapping inside the legal band) visits distinct count
-        // slots, and a double deck holds only 12 uncountables, so any 13
-        // distinct slots contain a countable card: the AFK path terminates
-        // in ≤13 alarm cuts. Pinned in ceremony.test.ts.
+        // slots, and a double deck holds only 6 uncountables (4 jokers + 2
+        // heart level cards), so any 7 distinct slots contain a countable
+        // card: the AFK path terminates in ≤7 alarm cuts. Pinned in
+        // ceremony.test.ts.
         const attempts = state.ceremonyCut!.attempts ?? 0;
         const range = CUT_MAX - CUT_MIN + 1;
         return {

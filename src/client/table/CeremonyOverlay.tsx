@@ -56,11 +56,14 @@ function countValue(rank: Rank): number {
   return rank === 'A' ? 1 : naturalValue(rank);
 }
 
-function buildSteps(ceremony: Ceremony): Step[] {
+function buildSteps(): Step[] {
+  // Owner rule (live-build feedback): the panel shows ONLY the final two
+  // cards — the count card and the marker — never the earlier re-cut flips
+  // (those already had their moment in the cut panel). One flip step.
   return [
     { kind: 'shuffle' },
     { kind: 'cut' },
-    ...ceremony.flips.map((_, index): Step => ({ kind: 'flip', index })),
+    { kind: 'flip', index: 0 },
     { kind: 'reveal' },
     { kind: 'count' },
     { kind: 'identity' },
@@ -75,7 +78,7 @@ function prefersReducedMotion(): boolean {
 
 export function CeremonyOverlay({ ceremony, level, twoCard, nameFor, onDone }: CeremonyOverlayProps) {
   const reduced = useMemo(prefersReducedMotion, []);
-  const steps = useMemo(() => buildSteps(ceremony), [ceremony]);
+  const steps = useMemo(() => buildSteps(), []);
   const [stepIdx, setStepIdx] = useState(0);
 
   // onDone goes through a ref, NOT the effect deps: the parent passes a fresh
@@ -139,30 +142,23 @@ export function CeremonyOverlay({ ceremony, level, twoCard, nameFor, onDone }: C
           </p>
         )}
 
-        {/* 2. The flipped card(s): each cut attempt's flip (re-cut history), then the marker card beside it */}
+        {/* 2. The final two cards ONLY (owner rule): the count card and the
+            face-up marker — earlier re-cut flips are deliberately not
+            re-shown here. */}
         {(flipsShown > 0 || markerShown) && (
           <div className="gd-ceremony__cards">
-            {ceremony.flips.slice(0, flipsShown).map((flip, i) => {
-              const isCounted = i === ceremony.flips.length - 1;
-              const superseded = !isCounted && (i < flipsShown - 1 || stage !== 'flip');
-              return (
-                <span
-                  key={i}
-                  className={`gd-ceremony__flip ${!isCounted ? 'gd-ceremony__flip--reflip' : ''} ${superseded ? 'gd-ceremony__flip--gone' : ''}`}
-                  role="img"
-                  aria-label={cardLabel(flip, level)}
-                >
-                  <CardFace card={flip} level={level} size="mini" />
-                  <span className="gd-ceremony__cardLabel">
-                    {isCounted
-                      ? twoCard
-                        ? t('game.ceremony.countLabel')
-                        : `${t('game.ceremony.countLabel')}・${t('game.ceremony.markerLabel')}`
-                      : t('game.ceremony.reflip')}
-                  </span>
-                </span>
-              );
-            })}
+            <span
+              className="gd-ceremony__flip"
+              role="img"
+              aria-label={cardLabel(ceremony.flips[ceremony.flips.length - 1]!, level)}
+            >
+              <CardFace card={ceremony.flips[ceremony.flips.length - 1]!} level={level} size="mini" />
+              <span className="gd-ceremony__cardLabel">
+                {twoCard
+                  ? t('game.ceremony.countLabel')
+                  : `${t('game.ceremony.countLabel')}・${t('game.ceremony.markerLabel')}`}
+              </span>
+            </span>
             {twoCard && markerShown && (
               <span
                 className="gd-ceremony__flip gd-ceremony__flip--marker"
