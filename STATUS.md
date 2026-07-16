@@ -26,8 +26,18 @@ x3 locales.
 
 Live-verified (zh-Hant, desktop 907px, TIMED room): exactly 2 ceremony cards; no
 toggle/prompt/planning label through cut->ceremony->deal; reveal at x-centre below the deck;
-settled state restores all three. 768 unit + 40 e2e + 4 typechecks green. Focused both-lineage
-panel on the engine change in flight.
+settled state restores all three.
+
+**FOCUSED PANEL EXECUTED (both lineages, clean auditors — in-house build).** Both independently
+re-derived the heart-only arithmetic (32/22/24/24 over 102 => 56/102~54.9%) and confirmed the
+engine change, the five UI gates, and the scope. Grok caught a HIGH the sandboxed Codex could
+not reach: the e2e still pinned "counted flip is never rank 2" (all-suits thinking) — a
+legally-counted non-heart 2 failed the suite, which Grok REPRODUCED live (its e2e run: 2
+failures). Fixed (e131091): the pin now forbids exactly 2H, engine-guaranteed. Both flagged the
+stale 7/12 odds in types.ts + 12-uncountables comments (fixed same commit; prose pin extended
+with the stale numbers; historical STATUS entries annotated with SUPERSEDED brackets, never
+rewritten). Codex: runtime clean, 768 unit green (e2e sandbox-blocked). Grok: all claims PASS
+after fixes, 768 unit + e2e verified. 768 unit + 40 e2e + 4 typechecks green at close.
 
 ## Ceremony suspense/re-cut round — PANEL EXECUTED (completing the record below)
 
