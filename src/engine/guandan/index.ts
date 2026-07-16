@@ -127,8 +127,8 @@ function countCardAt(deck: readonly Card[], position: number, config: RuleVarian
  *  2026-07-15; supersedes both the rotate-the-deck model AND the
  *  walk-to-the-next-countable rule): the physical act is "lift a packet,
  *  look at the card(s) at the split, put it back" — THE ORDER IS PRESERVED.
- *  If the count-card flip is uncountable (a joker or the current-level
- *  rank), the cutter CUTS AGAIN with a fresh clock (applyAction stays in
+ *  If the count-card flip is uncountable (a joker or the WILD — the heart
+ *  level card only), the cutter CUTS AGAIN with a fresh clock (applyAction stays in
  *  ceremonyCut and records the public flip); this function runs only for
  *  the SUCCESSFUL final cut, with the earlier attempts' flips passed in.
  *

@@ -535,7 +535,7 @@ describe('named liveness cases', () => {
 
   it('re-cut: an uncountable alarm cut re-arms a FRESH clock and the varying default terminates (no alarm loop)', () => {
     // Hunt a seed whose FIRST alarm default cut flips an uncountable card
-    // (joker / level rank), driving the real re-cut loop through the alarm
+    // (a joker or the heart level card), driving the real re-cut loop through the alarm
     // path: each alarm applies the default, the acted cutter re-arms fresh
     // (never the expired base — the tight-loop hazard), the default position
     // VARIES with attempts, and the loop reaches the deal within the 7-cut

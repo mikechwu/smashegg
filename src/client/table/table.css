@@ -247,8 +247,8 @@
     transition: none;
   }
 }
-/* Re-cut round: earlier attempts' uncountable flips stay visible in the
-   SAME panel, so the re-cut reads as one continuous ritual. */
+/* Re-cut round: the LATEST uncountable flip shows in the SAME panel, so the
+   re-cut reads as one continuous ritual (owner: never a growing history). */
 .gd-cut__flips {
   display: flex;
   justify-content: center;

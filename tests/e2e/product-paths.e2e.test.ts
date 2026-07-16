@@ -531,7 +531,7 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
       const cutter = cutView.ceremonyCutter!;
       // Re-cut loop (owner rule): an uncountable flip keeps the phase in
       // ceremonyCut with a ceremonyCutFlipped event — cut again until the
-      // deal lands (bounded well above the 12 possible uncountables).
+      // deal lands (bounded well above the 6 possible uncountables).
       let cutPos = 54;
       let prevSeq = startedSeq;
       let afterCut!: EventMsg;

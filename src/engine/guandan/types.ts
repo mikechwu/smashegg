@@ -267,8 +267,9 @@ export type GuandanEvent =
        *  and the other ~106 deck cards stay unreachable. Uniformity, stated
        *  precisely: ABSOLUTE leader uniformity holds (PRNG-uniform cutter);
        *  CONDITIONAL on the cutter it does not — the count offset is skewed
-       *  at level 2 (P(offset even)=7/12), so the cut depth's residue class
-       *  carries a ≈58%/42% own-team lead edge. Owner decision: documented,
+       *  at level 2 (heart-only wilds: P(offset even)=56/102≈54.9%), so the
+       *  cut depth's residue class carries a ≈55%/45% own-team lead edge.
+       *  Owner decision: documented,
        *  not policed (the physical table has the identical property). */
       ceremony?: {
         cutter: Seat;

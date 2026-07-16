@@ -798,6 +798,8 @@ describe('superseded-model prose pin (panel catch, ceremony-marker round)', () =
       'src/client/table/cut.ts',
       'src/client/table/CutPanel.tsx',
       'tests/unit/engine/ceremony.test.ts',
+      'tests/e2e/guandan.e2e.test.ts',
+      'tests/e2e/product-paths.e2e.test.ts',
     ];
     const forbidden = [
       'rotates the deck at',
@@ -809,6 +811,9 @@ describe('superseded-model prose pin (panel catch, ceremony-marker round)', () =
       'count walk skips',
       "the walk's last flip",
       'walks below are total',
+      '=7/12',
+      '12 uncountables',
+      'only 12 uncountable',
       'flies at its\n// TRUE beat (flips.length',
     ];
     const { readFileSync } = require('node:fs') as typeof import('node:fs');

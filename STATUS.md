@@ -61,7 +61,8 @@ alarm-fired default cut flipping uncountable left an EXPIRED base → the alarm 
 same deterministic middle cut in a tight infinite loop. Two-part fix: (a) nextDeadlines gains
 actedSeat — the seat that just ACTED and remains an actor re-arms FRESH (the owner's restart timer;
 preserve-base stays scoped to co-actor actions, i.e. the second tribute payer); (b) defaultAction
-varies its position with attempts, so the AFK path terminates in ≤13 alarm cuts (only 12
+varies its position with attempts, so the AFK path terminates in ≤13 alarm cuts [SUPERSEDED
+2026-07-15 by the heart-only correction: 6 uncountables, bound ≤7] (only 12
 uncountables exist in a double deck) — both pinned (decision-table cases; a named hunted-seed
 alarm-path re-cut case; a 200-seed AFK termination sweep). Bonus correctness: a cutter who
 becomes the LEADER now gets a real planning window instead of inheriting a stale turn clock.
@@ -151,7 +152,8 @@ updated with the superseded note; ceremony.test.ts carries the dated pins.
 
 **THE EXPLOITABILITY FINDING (owner's arithmetic, CONFIRMED by measurement).** markerSeat =
 stepSeats(cutter, (X + N) mod 4) where the cutter picks N. X=(value−1)%4 is skewed at level 2
-(offsets {A,5,9,K}→0=4, {6,10}→1=2, {3,7,J}→2=3, {4,8,Q}→3=3, so P(X even)=7/12) — and hand 1
+(offsets {A,5,9,K}→0=4, {6,10}→1=2, {3,7,J}→2=3, {4,8,Q}→3=3, so P(X even)=7/12 [SUPERSEDED
+2026-07-15 by the heart-only correction: 56/102≈54.9%]) — and hand 1
 ALWAYS runs at level 2, so the flat levels (A/5/9/K) never apply to the real ceremony. Measured
 in the engine (N=500, cutter fixed, even vs odd depth): own-team lead ≈58.3% vs ≈41.7% — the
 ~16.7pt swing the owner predicted. ABSOLUTE uniformity still holds (PRNG-uniform cutter; both

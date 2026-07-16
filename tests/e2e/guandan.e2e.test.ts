@@ -267,7 +267,7 @@ describe('Guandan e2e (M3 gate)', () => {
         }
         // Re-cut loop (owner rule): a cut whose flip is uncountable stays in
         // ceremonyCut with a public ceremonyCutFlipped event — cut again at
-        // the next position until the deal lands (bounded: at most 12
+        // the next position until the deal lands (bounded: at most 6
         // uncountables exist in the deck; the loop below allows 20).
         const cutterClient = clients[cutter]!.client;
         let cutPositionSent = 42;
@@ -321,7 +321,8 @@ describe('Guandan e2e (M3 gate)', () => {
           expect(copy.hints !== undefined).toBe(copy.seat === ceremony0!.markerSeat);
         }
         // Ceremony internals (item 3: flips are REAL cards now): the last
-        // flip is countable — not a joker, not the hand-1 level '2' — the
+        // flip is countable — not a joker, not the WILD (the hand-1 heart 2;
+        // NON-heart 2s COUNT under the owner's heart-only correction) — the
         // logged position matches the FINAL cut we sent (re-cut loop), and
         // all seats are in range.
         const lastFlip = ceremony0!.flips[ceremony0!.flips.length - 1]!;
@@ -329,7 +330,7 @@ describe('Guandan e2e (M3 gate)', () => {
         expect(ceremony0!.cutPosition).toBe(cutPositionSent);
         expect(lastFlip).not.toBe('SJ');
         expect(lastFlip).not.toBe('BJ');
-        expect(lastFlip[0], 'countable rank').not.toBe('2');
+        expect(lastFlip, 'countable card (heart-only wilds)').not.toBe('2H');
         for (const s of [ceremony0!.cutter, ceremony0!.firstDrawer, ceremony0!.markerSeat]) {
           expect([0, 1, 2, 3]).toContain(s);
         }
