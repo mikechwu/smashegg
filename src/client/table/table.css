@@ -734,29 +734,6 @@
   opacity: 1;
   z-index: 2;
 }
-/* The suspense reveal (owner rule): empty until the face-up marker LANDS,
-   then the leader's name fades in — the ceremony's one goldleaf moment now
-   happens mid-deal, where the physical table puts it. */
-.gd-deal__reveal {
-  /* Owner rule (live-build feedback): the reveal sits just BELOW the deck
-     pile, centred in the table — never over seat plates or the fan. */
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 52%;
-  margin: 0;
-  text-align: center;
-  font-family: var(--font-card);
-  font-size: 1.25rem;
-  color: var(--goldleaf);
-  opacity: 0;
-  pointer-events: none;
-  z-index: 3;
-}
-.gd-deal__reveal--shown {
-  opacity: 1;
-  transition: opacity 400ms ease-out;
-}
 .gd-deal__skip {
   position: absolute;
   bottom: 0.5rem;

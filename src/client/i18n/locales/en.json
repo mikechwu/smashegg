@@ -203,7 +203,6 @@
   "game.cut.flippedWaiting": "{name} flipped an uncountable card — cutting again",
   "game.feed.cutFlipped": "{name} flipped an uncountable card and cuts again",
   "game.ceremony.markerIdentity": "This card is tucked back into the deck — whoever draws it leads.",
-  "game.deal.leadReveal": "{name} leads",
   "game.ceremony.summary": "Draw ceremony: {name} leads first",
   "game.ceremony.skipHint": "Tap to skip",
   "game.result.title": "Match result",

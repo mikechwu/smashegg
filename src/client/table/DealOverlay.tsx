@@ -32,17 +32,18 @@ export interface DealOverlayProps {
   /** Deal order of ring directions. Hand 1 passes dealDirOrder(firstDrawerDir)
    *  so the marker lands at its true beat; hands 2+ omit it (south-first). */
   dirOrder?: DealDir[];
-  /** The face-up marker card, its true deal beat, and the LEADER's name for
-   *  the landing reveal (hand 1 only). The marker replaces the back at that
-   *  beat, so accounting stays exact (leader gets 26 backs + 1 marker). */
-  marker: { card: Card; beat: number; leaderName: string } | null;
+  /** The face-up marker card and its true deal beat (hand 1 only). The
+   *  marker replaces the back at that beat, so accounting stays exact
+   *  (leader gets 26 backs + 1 marker). */
+  marker: { card: Card; beat: number } | null;
   level: Rank;
   /** Called as own (south) cards land: reveal the fan's first N slots. */
   onOwnLanded: (count: number) => void;
-  /** The suspense reveal (owner rule): fired the moment the face-up marker
-   *  LANDS at its seat — the first time the UI names the leader. UI-level
-   *  suspense, not concealment: the payload is public; a presentation
-   *  choice, stated honestly. */
+  /** The suspense reveal (owner rule, refined): fired the moment the
+   *  face-up marker LANDS at its seat — the concealment gate lifts here and
+   *  the leader's seat ring lights up; the landing itself is the whole
+   *  announcement (no extra text — the middle is clear enough). UI-level
+   *  suspense, not concealment: the payload is public. */
   onMarkerLanded?: () => void;
   onDone: () => void;
 }
@@ -179,13 +180,10 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onMarkerLand
         markerEl.classList.add('gd-deal__marker--flying');
         flyNode(markerEl, target, tick.delayMs, MARKER_FLY_MS, () => {
           onCardLanded(tick.ownSlot);
-          // THE reveal (owner suspense rule): the leader is named for the
-          // first time at the instant the face-up marker lands.
-          const reveal = root.querySelector('.gd-deal__reveal') as HTMLElement | null;
-          if (reveal) {
-            reveal.textContent = t('game.deal.leadReveal', { name: marker.leaderName });
-            reveal.classList.add('gd-deal__reveal--shown');
-          }
+          // THE reveal (owner suspense rule, refined): the landing itself is
+          // the announcement — the concealment gate lifts here, lighting the
+          // leader's seat ring; no extra text (owner: what shows in the
+          // middle is clear enough).
           onMarkerLandedRef.current?.();
         });
       } else {
@@ -237,9 +235,6 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onMarkerLand
       <span className="gd-deal__backTemplate">
         <CardBack size="trick" />
       </span>
-      {/* Filled at the marker's LANDING (empty until then, so aria-live
-          genuinely announces the reveal and the name isn't painted early). */}
-      {marker !== null && <p className="gd-deal__reveal" aria-live="polite" />}
       <p className="gd-deal__skip">{t('game.ceremony.skipHint')}</p>
     </div>
   );

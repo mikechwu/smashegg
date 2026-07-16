@@ -203,7 +203,6 @@
   "game.cut.flippedWaiting": "{name} 翻出不計數的牌,重新切牌中",
   "game.feed.cutFlipped": "{name} 翻出不計數的牌,重新切牌",
   "game.ceremony.markerIdentity": "這張牌夾回牌堆裡——誰摸到,誰先出。",
-  "game.deal.leadReveal": "{name} 先出",
   "game.ceremony.summary": "翻牌定先:{name} 先出",
   "game.ceremony.skipHint": "點一下跳過",
   "game.result.title": "比賽結果",

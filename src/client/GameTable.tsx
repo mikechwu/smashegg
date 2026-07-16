@@ -414,11 +414,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     ? dealDirOrder(dirFor(dealCeremony.firstDrawer), variant.turnDirection === 'clockwise')
     : undefined;
   const dealMarker = dealCeremony
-    ? {
-        card: dealCeremony.marker,
-        beat: markerDealBeat(dealCeremony.markerDealIndex),
-        leaderName: nameFor(dealCeremony.markerSeat),
-      }
+    ? { card: dealCeremony.marker, beat: markerDealBeat(dealCeremony.markerDealIndex) }
     : null;
   // The suspense gate (owner rule): from the ceremony overlay until the
   // face-up marker actually LANDS, the UI must not name the leader anywhere
