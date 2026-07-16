@@ -126,9 +126,11 @@ Background research (deck depth / deal pacing / cut UX / theme architecture) lan
   code path to remove them); F11 mini-fan reads theme back tokens; conformance ratchet runs
   per registered theme (incl. renderToStaticMarkup of every card at every size).
 - **Item 4 (37ceca7 + 792a446):** the physical deal — 36ms stagger / 320ms flight round-robin
-  (≈4.2s landings ≤4.5s + full choreography ≤5s, both PINNED; the 90s window absorbs it), pre-reserved sorted
-  slots ("auto-arrange as they land"; true arrival order unknowable BY REDACTION, deliberately
-  never claimed), WAAPI + tap-anywhere .finish() (purely local), reduced-motion instant,
+  (≈4.2s landings ≤4.5s + full choreography ≤5s, both PINNED; the 90s window absorbs it),
+  pre-reserved sorted slots — SUPERSEDED by the cut & deal refinement round below, which
+  corrects the false "true arrival order unknowable BY REDACTION" justification (the order was
+  always in handStarted.hands) and animates true arrival order + one sort beat instead —
+  WAAPI + tap-anywhere .finish() (purely local), reduced-motion instant,
   4-tier shadow-slab deck depletion, marker fly-in to the leader. Visual pass: full
   cut→ceremony(real flips incl. joker re-flip)→deal sequence verified at desktop; cut UI +
   settled layouts verified at TRUE 390 (iframe recipe); ONE 390 find — the lobby ring's

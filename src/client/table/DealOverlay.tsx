@@ -1,8 +1,9 @@
 // DealOverlay (item 4 + obs 2) — the physical deal: a depth-stacked deck at
 // the ring centre deals one card at a time to all four seats concurrently,
 // round-robin FROM THE FIRST DRAWER (hand 1) so the order matches the physical
-// table; the viewer's fan reveals its SORTED slots left-to-right as own cards
-// land (deal.ts explains why true arrival order is unknowable — by redaction);
+// table; the viewer's fan uncovers its cards in TRUE ARRIVAL order as they land
+// (obs 3 — the order the server already delivers in handStarted.hands; one sort
+// beat re-lays the fan when the deal completes, see HandFan);
 // remote flights despawn into the plates. The face-up marker card flies at its
 // TRUE beat (flips.length − 1), not as a tail after the deal — everyone watches
 // the deal wondering whether it's coming to them, and sees it land at the

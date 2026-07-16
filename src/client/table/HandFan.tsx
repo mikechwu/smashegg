@@ -3,13 +3,41 @@
 // tap toggles multi-selection (lift + cinnabar edge). Selection is by
 // POSITION, not identity: two copies of the same card are distinct slots.
 // Wraps to ≤2 balanced rows so 27 cards fit a 375px phone.
+//
+// Obs 3 (faithful deal): while `dealOrder` is set the fan lays its cards out
+// in TRUE ARRIVAL (deal) order and `revealed` uncovers them left to right as
+// they land — never pre-sorted. When the deal finishes and `dealOrder` clears,
+// the fan re-lays in sorted order and every card FLIP-slides to its slot in one
+// beat (SORT_BEAT_MS). Cards are keyed by their SORTED-hand index, so the same
+// element persists across the re-lay and the slide animates even across rows.
 
+import { useLayoutEffect, useRef } from 'react';
 import type { Card, Rank } from '../../engine/guandan/cards';
 import { CardFace, cardLabel } from './CardFace';
+import { SORT_BEAT_MS } from './deal';
 import { t } from '../i18n';
 
 /** Above this the fan splits into two rows (27-card deals → 14+13). */
 const MAX_PER_ROW = 14;
+
+function prefersReducedMotion(): boolean {
+  return (
+    typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
+/** Map each deal-order card to a UNIQUE sorted-hand index, consuming
+ *  duplicates left to right (two decks ⇒ duplicate cards). Both arrays are the
+ *  same multiset, so this is a bijection deal-position → sorted index. */
+export function dealToHandIndices(dealOrder: readonly Card[], hand: readonly Card[]): number[] {
+  const used = new Array(hand.length).fill(false);
+  return dealOrder.map((card) => {
+    let idx = hand.findIndex((c, i) => !used[i] && c === card);
+    if (idx === -1) idx = used.findIndex((u) => !u); // defensive: multiset drift
+    used[idx] = true;
+    return idx;
+  });
+}
 
 export interface HandFanProps {
   /** Already sorted by the engine's playerView (sortCards), ascending. */
@@ -21,20 +49,22 @@ export interface HandFanProps {
   glow: ReadonlySet<Card>;
   /** Display-only reversal of the ascending hand order (light UX pref,
    *  owner §3). Selection/toggle/glow all key off the ORIGINAL index into
-   *  `hand` — reversing display never renumbers a slot, so a wild or level
-   *  card simply lands wherever reversal puts it (never re-sorted by a
-   *  second scheme). Defaults to the current ascending display. */
+   *  `hand`, so reversing display never renumbers a slot. Applies only once
+   *  the hand has settled (not during the arrival-order deal). */
   descending?: boolean;
   /** Item 4 (deal animation): how many DISPLAY slots (left to right) are
-   *  revealed so far — undealt slots keep their layout (visibility only,
-   *  so the deal overlay can measure every slot rect) but show nothing.
-   *  undefined = not dealing, everything visible. */
+   *  revealed so far — undealt slots keep their layout (visibility only, so
+   *  the deal overlay can measure every slot rect) but show nothing. Applies
+   *  only while `dealOrder` is set. undefined = not dealing. */
   revealed?: number;
+  /** Obs 3: the seat's own DEAL ORDER. While set (and matching the hand's
+   *  size), the fan lays out in this order; when it clears the fan sorts. */
+  dealOrder?: readonly Card[] | null;
 }
 
-/** Split an index sequence into at most two balanced rows, same arithmetic
- *  as helpers.handRows but generic over the index array rather than the
- *  card array, so it works for both display orders. */
+/** Split an index sequence into at most two balanced rows, same arithmetic as
+ *  helpers.handRows but generic over the index array rather than the card
+ *  array, so it works for both display orders. */
 function splitIndexRows(indices: readonly number[], maxPerRow: number): number[][] {
   if (indices.length === 0) return [];
   if (indices.length <= maxPerRow) return [[...indices]];
@@ -50,10 +80,48 @@ export function HandFan({
   glow,
   descending = false,
   revealed,
+  dealOrder,
 }: HandFanProps) {
-  const order = hand.map((_, i) => i);
-  if (descending) order.reverse();
+  const cardRefs = useRef(new Map<number, HTMLElement>());
+  const prevRects = useRef(new Map<number, DOMRect>());
+
+  // Display order = sorted-hand indices in display sequence. During the deal it
+  // follows arrival order; otherwise ascending (or the descending pref).
+  const dealing = dealOrder != null && dealOrder.length === hand.length;
+  let order: number[];
+  if (dealing) {
+    order = dealToHandIndices(dealOrder!, hand);
+  } else {
+    order = hand.map((_, i) => i);
+    if (descending) order.reverse();
+  }
   const rows = splitIndexRows(order, MAX_PER_ROW);
+
+  // FLIP: after each render, slide every card that changed position from its
+  // previous slot to its new one. Reveal-only and selection re-renders produce
+  // no position delta, so nothing animates; the deal→sorted re-lay does. Keyed
+  // by sorted index, so a card that changes ROWS (React remounts it) still
+  // animates — cardRefs resolves the key to the CURRENT node.
+  useLayoutEffect(() => {
+    const next = new Map<number, DOMRect>();
+    cardRefs.current.forEach((el, key) => next.set(key, el.getBoundingClientRect()));
+    if (!prefersReducedMotion()) {
+      prevRects.current.forEach((prev, key) => {
+        const el = cardRefs.current.get(key);
+        const now = next.get(key);
+        if (!el || !now) return;
+        const dx = prev.left - now.left;
+        const dy = prev.top - now.top;
+        if (dx === 0 && dy === 0) return;
+        el.animate(
+          [{ transform: `translate(${dx}px, ${dy}px)` }, { transform: 'translate(0, 0)' }],
+          { duration: SORT_BEAT_MS, easing: 'cubic-bezier(0.22, 0.61, 0.36, 1)' },
+        );
+      });
+    }
+    prevRects.current = next;
+  });
+
   let displayIndex = -1;
   return (
     <div className="gd-fan" role="group" aria-label={t('game.hand.label')}>
@@ -66,12 +134,15 @@ export function HandFan({
             const classes = ['gd-fan__card'];
             if (isSelected) classes.push('gd-fan__card--selected');
             if (glow.has(card)) classes.push('gd-fan__card--glow');
-            if (revealed !== undefined && displayIndex >= revealed) {
+            if (dealing && revealed !== undefined && displayIndex >= revealed) {
               classes.push('gd-fan__card--undealt');
             }
             return (
               <button
                 key={i}
+                ref={(el) => {
+                  if (el) cardRefs.current.set(i, el);
+                }}
                 type="button"
                 className={classes.join(' ')}
                 aria-pressed={isSelected}

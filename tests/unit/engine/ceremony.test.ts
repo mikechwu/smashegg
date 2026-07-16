@@ -319,6 +319,36 @@ describe('real cut — redaction (obligation 3: the deck is everyone\'s future h
       }
     }
   });
+
+  it('obs 3: each seat is delivered EXACTLY its own cards in TRUE DEAL ORDER — no leak', () => {
+    // The faithful-deal animation uses the order the server ALREADY sends: the
+    // deal is unsorted (round-robin) in handStarted.hands, viewEvent redacts it
+    // to the seat's own cards, and that is a permutation of the seat's sorted
+    // hand — its own 27 and nothing from the other 81. Publishing per-seat deal
+    // order leaks nothing (owner's argument, pinned continuously here).
+    const key = (cards: readonly Card[]) => [...cards].sort().join(',');
+    let anyUnsorted = false;
+    for (let s = 0; s < 4; s++) {
+      const { handStarted, state } = runCut(`obs3-${s}`, DRAW_CFG, DEFAULT_CUT_POSITION);
+      for (let seat = 0; seat < 4; seat++) {
+        const viewed = GuandanGame.viewEvent(handStarted, seat, DRAW_CFG) as HandStarted;
+        const own = viewed.hands[seat]!;
+        const sortedOwn = GuandanGame.playerView(state, seat as Seat).hand;
+        // Exactly this seat's cards (same multiset as its sorted hand)…
+        expect(key(own)).toBe(key(sortedOwn));
+        expect(own).toHaveLength(27);
+        // …and nothing from the other three seats.
+        for (let other = 0; other < 4; other++) {
+          if (other !== seat) expect(viewed.hands[other]!).toEqual([]);
+        }
+        // The delivered order is the DEAL order, not pre-sorted.
+        if (own.join(',') !== [...own].sort().join(',')) anyUnsorted = true;
+      }
+    }
+    // Across 16 seat views the dealt order is genuinely shuffled, never sorted
+    // — proving the client is not being handed a fake "arrives sorted" order.
+    expect(anyUnsorted, 'the delivered deal order must not be pre-sorted').toBe(true);
+  });
 });
 
 describe('real cut — distribution and determinism', () => {

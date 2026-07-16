@@ -18,6 +18,11 @@ export const HAND_SIZE = 27;
 export const MARKER_FLY_MS = 500;
 /** The settle beat after the last card lands, before the fan takes over. */
 export const FINISH_SETTLE_MS = 150;
+/** Obs 3: the ONE sort beat — after the deal completes, the fan re-lays from
+ *  arrival (deal) order into sorted order and every card FLIP-slides to its
+ *  slot. A single reflow, not 27 chained inserts. HandFan owns the animation;
+ *  this constant keeps the honest end-to-end budget in one place. */
+export const SORT_BEAT_MS = 420;
 
 export type DealDir = 'south' | 'east' | 'north' | 'west';
 
@@ -42,6 +47,14 @@ export function dealDurationMs(cards: number = DECK_SIZE): number {
  *  choreography got SHORTER and more faithful. */
 export function dealChoreographyMs(cards: number = DECK_SIZE): number {
   return dealDurationMs(cards) + FINISH_SETTLE_MS;
+}
+
+/** The FULL obs-3 experience: the deal choreography plus the one sort beat
+ *  that follows it (the sort starts at dealChoreographyMs, when the overlay
+ *  hands off to the fan). Pinned honestly — the sort is a real added beat, not
+ *  free — and still inside the 90s planning window. */
+export function dealWithSortMs(cards: number = DECK_SIZE): number {
+  return dealChoreographyMs(cards) + SORT_BEAT_MS;
 }
 
 /** The marker card's true deal beat (0-indexed) — obs 2. The marker is the
@@ -73,12 +86,12 @@ export interface DealTick {
   delayMs: number;
   /** Ring direction the card flies to. 'south' is the viewer. */
   target: DealDir;
-  /** For south (own) cards: the sorted-fan slot revealed on landing (0-based,
-   *  left to right in DISPLAY order); null for remote cards. NOTE the arrival
-   *  order of one's own cards is NOT derivable from the view (the deck order
-   *  is hidden — by design), so the fan reveals its SORTED slots left-to-right,
-   *  one per own tick: "auto-arrange as they land", never a claim about true
-   *  deck order. */
+  /** For south (own) cards: the display slot uncovered on landing (0-based,
+   *  left to right); null for remote cards. Obs 3: during the deal the fan is
+   *  laid out in ARRIVAL (deal) order, so the j-th own tick uncovers the j-th
+   *  arriving card — the REAL order, taken from handStarted.hands (which the
+   *  server already delivers per-seat; there is no "unknowable by redaction"
+   *  here). One sort beat re-lays the fan when the deal completes. */
   ownSlot: number | null;
 }
 

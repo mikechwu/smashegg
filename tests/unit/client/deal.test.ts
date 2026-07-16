@@ -11,11 +11,13 @@ import {
   HAND_SIZE,
   FINISH_SETTLE_MS,
   MARKER_FLY_MS,
+  SORT_BEAT_MS,
   type DealDir,
   dealChoreographyMs,
   dealDirOrder,
   dealDurationMs,
   dealSchedule,
+  dealWithSortMs,
   deckDepthTier,
   markerDealBeat,
 } from '../../../src/client/table/deal';
@@ -127,6 +129,16 @@ describe('deal budget (item 4 + obs 2, honestly re-derived)', () => {
     // re-flips, so flips.length ≤ 13) finishes well before the last landing.
     const worstBeat = markerDealBeat(13);
     expect(worstBeat * DEAL_STAGGER_MS + MARKER_FLY_MS).toBeLessThan(dealDurationMs());
+  });
+
+  it('obs 3: the sort beat is a REAL added beat, and the full experience ≤ 5s', () => {
+    // Cards arrive in deal order, then one FLIP sort beat re-lays them. The
+    // sort starts when the overlay hands off (dealChoreographyMs), so the
+    // honest end-to-end total is landings + settle + one sort — pinned so the
+    // added beat can never be smuggled in as free (the panel caught that once).
+    expect(dealWithSortMs()).toBe(dealChoreographyMs() + SORT_BEAT_MS);
+    expect(dealWithSortMs()).toBe(dealDurationMs() + FINISH_SETTLE_MS + SORT_BEAT_MS);
+    expect(dealWithSortMs()).toBeLessThanOrEqual(5_000);
   });
 });
 

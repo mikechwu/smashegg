@@ -100,6 +100,13 @@ export interface SeatDerived {
    *  physical deal animation exactly once (reconnect resyncs fold no
    *  events, so a rejoin never replays it). */
   dealNo: number;
+  /** Obs 3: this seat's own hand in TRUE DEAL ORDER (round-robin for hand 1),
+   *  taken straight from the handStarted event — NOT a new field, and NOT a
+   *  leak: viewEvent already redacts handStarted.hands to the seat's own
+   *  cards, so this is exactly the 27 cards it already holds, in the order the
+   *  server already sent. The deal animates arrival in THIS order and sorts in
+   *  one beat at the end (never "arrives sorted"). Null until the first deal. */
+  dealOrder: readonly Card[] | null;
 }
 
 export const EMPTY_DERIVED: SeatDerived = {
@@ -111,6 +118,7 @@ export const EMPTY_DERIVED: SeatDerived = {
   level: '2',
   sweep: 0,
   dealNo: 0,
+  dealOrder: null,
 };
 
 // Exported (not just used internally) so a unit test can fold real events
@@ -134,11 +142,25 @@ export function foldEvents(
       case 'ceremonyCutStarted':
         push('game.feed.cutStarted', { name: nameFor(ev.cutter) });
         break;
-      case 'handStarted':
-        d = { ...d, passed: [], jiefeng: null, anti: null, level: ev.currentLevel, dealNo: d.dealNo + 1 };
+      case 'handStarted': {
+        // The redacted handStarted carries ONLY this seat's own hand populated
+        // (viewEvent empties the other three), in the engine's deal order — so
+        // the single non-empty entry IS this seat's deal order (obligation 3
+        // already guarantees it holds no other seat's cards).
+        const ownDealOrder = ev.hands.find((h) => h.length > 0) ?? null;
+        d = {
+          ...d,
+          passed: [],
+          jiefeng: null,
+          anti: null,
+          level: ev.currentLevel,
+          dealNo: d.dealNo + 1,
+          dealOrder: ownDealOrder,
+        };
         if (ev.ceremony !== undefined) d.ceremony = ev.ceremony;
         push('game.feed.handStarted', { hand: ev.handNo, rank: rankText(ev.currentLevel) });
         break;
+      }
       case 'played':
         d.passed = d.passed.filter((s) => s !== ev.seat);
         d.jiefeng = null;
@@ -521,6 +543,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           glow={eligible}
           descending={handDescending}
           revealed={dealing ? (dealRevealed ?? 0) : undefined}
+          dealOrder={dealing ? derived.dealOrder : undefined}
         />
         {view.phase !== 'ceremonyCut' && (
         <ActionBar
