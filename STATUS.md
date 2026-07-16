@@ -1,6 +1,6 @@
 # STATUS
 
-## Current phase: cut & deal refinement (obs 1+2) BUILT + visual-verified — panel in flight
+## Current phase: cut & deal refinement (obs 1+2) DONE (panel + fix + re-audit clean) — awaiting owner deploy
 
 **Last updated:** 2026-07-15 (cut & deal refinement)
 
@@ -60,8 +60,26 @@ surface, grammar pins unchanged.
 overlay to end at the count (letting the deal reveal the marker landing) is a connected design
 change to a DIFFERENT component than obs 2 named — flagged for the owner, left unchanged.
 
-Panel next (both lineages, headless): no new deck/index leak; obs 2 adds no field; uniformity
-intact; legal cut range unchanged; budget honesty; no engine/timing smuggled in.
+**PANEL EXECUTED (both lineages, headless scratch clones).** Grok: all 6 claims CONFIRMED, no
+findings, 737 unit + 40 e2e green — CLEAN. Codex: confirmed 5/6 and caught ONE real Medium — the
+deal order was built from a fixed CCW display cycle, so under `turnDirection:'clockwise'` (which
+the engine supports and tests) the marker — the load-bearing who-leads card — would fly to the
+WRONG seat. Both independently confirmed: no pre-commit leak, obs 2 adds NO server/view field
+(`git show HEAD -- src/engine src/server src/shared` empty), both uniformity sweeps pass, legal
+cut range byte-identical, honest budget, no engine/timing/DO smuggled in.
+
+**Fix (3cf08ed):** `dealDirOrder(dir, clockwise)` now mirrors the engine's nextSeat (CCW seat+1,
+clockwise seat+3), and GameTable passes `variant.turnDirection` (the client already holds the
+config — no new data). schedule[beat].target is now the engine's markerSeat under EITHER config;
+DealOverlay comment corrected. Regression pins both directions, closing the loop with the
+engine's own clockwise counting test. **738 unit + 40 e2e + 4 typechecks green.** Fix re-audit
+(Codex, fresh clone): all 4 points CONFIRMED, no new issue — CLEAN (default CCW unchanged;
+clockwise bug closed; both directions pinned; DealOverlay comment now accurate).
+
+**Visual note (honest):** the CCW default is verified in the browser (desktop + true 390 for the
+cut UI; desktop for the deal marker). The clockwise fix is UNIT-verified only — clockwise is not
+exposed in the lobby UI (reachable solely via direct API room creation), so the marker-at-right-
+seat guarantee under CW rests on the property pins + the engine's clockwise test, not the eyes.
 
 **Last updated:** 2026-07-15 (prior: refinement round)
 
