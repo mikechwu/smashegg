@@ -802,6 +802,9 @@ describe('superseded-model prose pin (panel catch, ceremony-marker round)', () =
       'REALLY changes the hands',
       'hidden + uniform',
       'the first leader is uniform)',
+      'count walk skips',
+      "the walk's last flip",
+      'walks below are total',
       'flies at its\n// TRUE beat (flips.length',
     ];
     const { readFileSync } = require('node:fs') as typeof import('node:fs');

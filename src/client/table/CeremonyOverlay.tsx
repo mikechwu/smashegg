@@ -6,8 +6,9 @@
 // payload (engine contract: the UI computes nothing but display labels).
 //
 // The ceremony is PUBLICLY VERIFIABLE (owner rule): all four seats see the
-// same two cards — the count card (the walk's last flip; re-flips fade with a
-// re-flip label) and the face-up marker card — legibly enough to derive the
+// same two cards — the count card (the FINAL cut's flip; earlier attempts'
+// uncountable flips fade with a re-cut label) and the face-up marker card —
+// legibly enough to derive the
 // drawer and the leader themselves. The marker is a specific card INSTANCE
 // (deck position; two decks mean twins), so copy names SEATS, never "the 8♥".
 // ~4–6s total, skippable by tap; prefers-reduced-motion renders a one-line
@@ -138,7 +139,7 @@ export function CeremonyOverlay({ ceremony, level, twoCard, nameFor, onDone }: C
           </p>
         )}
 
-        {/* 2. The flipped card(s): the count walk, then the marker card beside it */}
+        {/* 2. The flipped card(s): each cut attempt's flip (re-cut history), then the marker card beside it */}
         {(flipsShown > 0 || markerShown) && (
           <div className="gd-ceremony__cards">
             {ceremony.flips.slice(0, flipsShown).map((flip, i) => {

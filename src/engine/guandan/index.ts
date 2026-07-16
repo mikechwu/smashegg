@@ -104,9 +104,10 @@ export const CUT_MAX = 102;
  *  cutter: split the deck roughly in half, as a human would. */
 export const DEFAULT_CUT_POSITION = 54;
 
-/** The count walk skips uncountable cards (jokers and the current-level
- *  rank). A double deck holds at most 4 + 8 = 12 uncountables, so a countable
- *  card always exists; the walks below are total by construction. */
+/** Uncountable = a joker or the current-level rank. Re-cut round: an
+ *  uncountable count-card flip means the cutter CUTS AGAIN (there is no
+ *  walk to the next card any more); a double deck holds at most 4 + 8 = 12
+ *  uncountables, which is what bounds the varying-default AFK loop. */
 function isCountable(card: Card, level: Rank): boolean {
   const rank = rankOf(card); // null for jokers
   return rank !== null && rank !== level;
