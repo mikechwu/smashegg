@@ -869,6 +869,12 @@
   font-size: 1.25rem;
   margin: 0.625rem 0;
 }
+/* The ONE goldleaf moment of the ceremony (owner: goldleaf reserved, here
+   only): who leads. */
+.gd-ceremony__banner {
+  color: var(--goldleaf);
+  margin: 0.125rem 0 0;
+}
 .gd-ceremony__skip {
   font-size: 0.6875rem;
   opacity: 0.6;
