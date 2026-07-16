@@ -79,10 +79,27 @@ function LacquerFace({ card, size }: DeckThemeFaceProps) {
   const suit = suitOf(card)!;
   const rank = rankOf(card)!;
   classes.push(isRedSuit(suit) ? 'gd-card--red' : 'gd-card--black');
+  // Owner reference (corner index reads HORIZONTALLY): rank then suit glyph
+  // side by side, not stacked. --row is a LACQUER-scoped modifier on the
+  // shared .gd-card__index span, not a change to the generic column layout
+  // itself — GhostFace and cinnabar-court reuse that generic layout and must
+  // stay untouched (both keep rendering a plain .gd-card__index column).
+  // NEVER at 'mini' either, same reason the body pip below is gated: the
+  // decl chooser's real (non-ghost) card faces render at size="mini"
+  // (ActionBar.tsx), and its 390px arithmetic depends on mini's current
+  // metrics — including .gd-card__index's plain column layout — staying
+  // byte-identical to before this round.
+  // rankText('T') is the only two-glyph rank ('10'); at the shared row
+  // font-size the extra glyph would push the row past its 0.65w fit budget,
+  // so it alone takes the reduced --row10 modifier.
+  const indexClasses = ['gd-card__index'];
+  if (size !== 'mini') indexClasses.push('gd-card__index--row');
+  const rankClasses = ['gd-card__rank'];
+  if (size !== 'mini' && rank === 'T') rankClasses.push('gd-card__rank--row10');
   return (
     <span className={classes.join(' ')} aria-hidden="true">
-      <span className="gd-card__index">
-        <span className="gd-card__rank">{rankText(rank)}</span>
+      <span className={indexClasses.join(' ')}>
+        <span className={rankClasses.join(' ')}>{rankText(rank)}</span>
         <span className="gd-card__suit">{suitGlyph(suit)}</span>
       </span>
       {/* Owner reference (mainstream Guandan look): ONE large body suit pip,
@@ -111,6 +128,9 @@ export const LACQUER_THEME: DeckTheme = {
   metrics: {
     aspect: 1.45,
     cornerIndexMinPx: 10,
+    // One horizontal index line needs only its own height, not the two-line
+    // vertical column cinnabar-court's own metric still claims.
+    stackStripW: 0.42,
     backEdge: 'rgba(245, 239, 227, 0.32)',
     backGradient: 'linear-gradient(160deg, #5a3a33, #35211d)',
   },

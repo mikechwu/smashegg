@@ -49,6 +49,8 @@ for (const theme of deckThemes()) {
       expect(theme.metrics.aspect).toBeGreaterThanOrEqual(1.3);
       expect(theme.metrics.aspect).toBeLessThanOrEqual(1.6);
       expect(theme.metrics.cornerIndexMinPx).toBeGreaterThanOrEqual(10);
+      expect(theme.metrics.stackStripW).toBeGreaterThanOrEqual(0.3);
+      expect(theme.metrics.stackStripW).toBeLessThanOrEqual(1.0);
       expect(theme.metrics.backEdge.length).toBeGreaterThan(0);
       expect(theme.metrics.backGradient.length).toBeGreaterThan(0);
     });
@@ -320,6 +322,60 @@ describe("lacquer body pip ('mini' = index only, jokers stay wordless)", () => {
         const html = renderToStaticMarkup(createElement(LACQUER_THEME.Face, { card, level: '2', size }));
         expect(html, `${card} @ ${size}: joker must not gain a body pip`).not.toContain('gd-card__pip');
       }
+    }
+  });
+});
+
+// Owner-directed refinement round: the corner index reads HORIZONTALLY —
+// rank then suit glyph, adjacent — via a lacquer-SCOPED modifier on the
+// shared .gd-card__index span. GhostFace and cinnabar-court both reuse the
+// generic column layout (never this modifier), so a regression that leaked
+// the row layout onto either would fail here first.
+describe('lacquer horizontal index row (owner reference, theme-scoped)', () => {
+  it('a single-glyph rank carries the row modifier but not the "10" reduced-size one', () => {
+    const html = renderToStaticMarkup(createElement(LACQUER_THEME.Face, { card: '7S', level: '2', size: 'hand' }));
+    expect(html).toContain('gd-card__index--row');
+    expect(html).not.toContain('gd-card__rank--row10');
+  });
+
+  it('the "10" rank carries BOTH the row modifier and its own reduced-size modifier', () => {
+    const html = renderToStaticMarkup(createElement(LACQUER_THEME.Face, { card: 'TH', level: '2', size: 'hand' }));
+    expect(html).toContain('gd-card__index--row');
+    expect(html).toContain('gd-card__rank--row10');
+  });
+
+  it('jokers carry neither modifier (wordless corner marks, unchanged)', () => {
+    for (const card of ['SJ', 'BJ'] as const) {
+      const html = renderToStaticMarkup(createElement(LACQUER_THEME.Face, { card, level: '2', size: 'hand' }));
+      expect(html).not.toContain('gd-card__index--row');
+      expect(html).not.toContain('gd-card__rank--row10');
+    }
+  });
+
+  it('cinnabar-court never carries the lacquer row modifier or its "10" modifier (own vertical column design)', () => {
+    for (const card of ['TH', '7S', 'KS'] as const) {
+      const html = renderToStaticMarkup(
+        createElement(CINNABAR_COURT_THEME.Face, { card, level: '2', size: 'hand' }),
+      );
+      expect(html, `${card}: must not carry lacquer's row modifier`).not.toContain('gd-card__index--row');
+      expect(html, `${card}: must not carry lacquer's row10 modifier`).not.toContain('gd-card__rank--row10');
+    }
+  });
+
+  it('GhostFace never carries the lacquer row modifier or its "10" modifier (framework-owned, generic column)', () => {
+    const html = renderToStaticMarkup(createElement(GhostFace, { rank: 'T', suit: 'S', size: 'hand' }));
+    expect(html).not.toContain('gd-card__index--row');
+    expect(html).not.toContain('gd-card__rank--row10');
+  });
+
+  it('never carries the row modifier at "mini" either (ActionBar renders the decl chooser\'s real card faces at size="mini"; its 390px arithmetic depends on mini\'s plain .gd-card__index column staying untouched)', () => {
+    for (const card of ['7S', 'TH'] as const) {
+      const html = renderToStaticMarkup(createElement(LACQUER_THEME.Face, { card, level: '2', size: 'mini' }));
+      expect(html, `${card} @ mini: must not carry the row modifier`).not.toContain('gd-card__index--row');
+      expect(html, `${card} @ mini: must not carry the row10 modifier`).not.toContain('gd-card__rank--row10');
+      expect(html, `${card} @ mini: must still render the plain generic index column`).toContain(
+        'gd-card__index',
+      );
     }
   });
 });

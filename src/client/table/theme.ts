@@ -36,6 +36,14 @@ export interface DeckThemeMetrics {
   /** The corner-index legibility floor (px) this theme claims at its
    *  smallest shipped size. Conformance: ≥ 10. */
   cornerIndexMinPx: number;
+  /** Fraction of card WIDTH exposed (as a height, in --gd-cardw units) per
+   *  covered card in a same-value settled-layout pile — the strip tall
+   *  enough to show this theme's OWN covered-card identity mark and no more
+   *  (HandFan.tsx's stackOffsetW reads this as its cap). A theme with a
+   *  one-line index (lacquer) needs less height than one with a taller
+   *  identity column (cinnabar-court's vertical rank+suit strip).
+   *  Conformance range: [0.3, 1.0]. */
+  stackStripW: number;
   /** CSS color for the F11 mini-fan sliver edges. */
   backEdge: string;
   /** CSS background for mini-fan slivers and back fills. */

@@ -23,6 +23,7 @@ import type { CSSProperties } from 'react';
 import { levelValue, type Card, type Rank } from '../../engine/guandan/cards';
 import { CardFace, cardLabel } from './CardFace';
 import { SORT_BEAT_MS } from './deal';
+import { useDeckTheme } from './useDeckTheme';
 import { t } from '../i18n';
 
 /** Above this the DEALING flat fan splits into two rows (27-card deals →
@@ -111,27 +112,30 @@ export function groupHandColumns(
 }
 
 /** Visible top-edge fraction (of --gd-cardw) each non-base card in an n-card
- *  column exposes above the card stacked in front of it. Capped at 0.841w —
- *  the height a corner index needs to show its full rank+suit strip — so a
- *  short column reads at full legibility; above 4 copies the cap yields to
- *  spreading a fixed 2.95w budget across the (n-1) reveals, so an 8-copy
- *  column tops out at 1.45 (one card height) + 2.95 = 4.4 card-widths tall,
- *  at the cost of showing only the rank (not the suit) per reveal. Exported
- *  so tests pin the curve with no DOM. */
-export function stackOffsetW(n: number): number {
-  return Math.min(0.841, 2.95 / Math.max(n - 1, 1));
+ *  column exposes above the card stacked in front of it. Capped at the
+ *  theme's OWN stackStripW (DeckThemeMetrics — the height its covered-card
+ *  identity mark needs: one horizontal index line for lacquer, a taller
+ *  vertical rank+suit column for cinnabar-court) so a short column reads at
+ *  full legibility; above 4 copies the cap yields to spreading a fixed 2.95w
+ *  budget across the (n-1) reveals — the budget only binds once
+ *  2.95 / (n-1) drops below stripW, so an 8-copy lacquer column (stripW
+ *  0.42) still gets the full 0.42w line, and only a 9-copy column starts
+ *  compressing. Exported so tests pin the curve with no DOM. */
+export function stackOffsetW(n: number, stripW: number): number {
+  return Math.min(stripW, 2.95 / Math.max(n - 1, 1));
 }
 
 function roundTo3(value: number): number {
   return Math.round(value * 1000) / 1000;
 }
 
-/** Card height is 1.45 * cardw (the DeckTheme aspect contract) — the inline
- *  margin-top that pulls each non-base card up so only stackOffsetW(n) of
- *  the card behind it stays visible (negative: 1.45 always exceeds the
- *  capped/spread offset). Rounded to 3 decimals for a readable inline style. */
-function stackMarginTopW(n: number): number {
-  return roundTo3(stackOffsetW(n) - 1.45);
+/** The inline margin-top that pulls each non-base card up so only
+ *  stackOffsetW(n, stripW) of the card behind it stays visible (negative:
+ *  the theme's own card aspect — DeckThemeMetrics.aspect — always exceeds
+ *  the capped/spread offset). Rounded to 3 decimals for a readable inline
+ *  style. */
+function stackMarginTopW(n: number, stripW: number, aspect: number): number {
+  return roundTo3(stackOffsetW(n, stripW) - aspect);
 }
 
 export function HandFan({
@@ -144,6 +148,7 @@ export function HandFan({
   revealed,
   dealOrder,
 }: HandFanProps) {
+  const theme = useDeckTheme();
   const cardRefs = useRef(new Map<number, HTMLElement>());
   const prevRects = useRef(new Map<number, DOMRect>());
   const wasDealing = useRef(false);
@@ -237,7 +242,11 @@ export function HandFan({
                 // margin (it is the pile's top, drawn first/underneath); every
                 // later DOM sibling paints over it, so only the base (last)
                 // card shows its full face.
-                const marginTopW = stackMarginTopW(column.length);
+                const marginTopW = stackMarginTopW(
+                  column.length,
+                  theme.metrics.stackStripW,
+                  theme.metrics.aspect,
+                );
                 return (
                   <div className="gd-fan__stack" key={colIdx}>
                     {column.map((i, posInColumn) => {

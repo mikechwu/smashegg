@@ -137,6 +137,9 @@ export const CINNABAR_COURT_THEME: DeckTheme = {
   metrics: {
     aspect: 1.45,
     cornerIndexMinPx: 10,
+    // Unchanged (its own design round): the vertical rank+suit column needs
+    // the taller strip a one-line horizontal index (lacquer) does not.
+    stackStripW: 0.841,
     // Distinct hue family from lacquer's ivory-edge/rosewood-brown pair, so
     // the F11 mini-fan visibly changes when the player switches theme.
     backEdge: 'rgba(201, 162, 39, 0.45)',
