@@ -599,6 +599,13 @@ const CONFIG_MATRIX: { name: string; config: RuleVariant; seeds: string[] }[] = 
     seeds: ['obl-drawcard-1', 'obl-drawcard-2'],
   },
   {
+    // Ceremony-marker round: the official one-card form must satisfy the
+    // same obligations as the owner's two-card default.
+    name: 'ceremonyCardCount=1 (official one-card form)',
+    config: { ...BASE, firstLeadMethod: 'drawCard', ceremonyCardCount: 1 },
+    seeds: ['obl-onecard-1', 'obl-onecard-2'],
+  },
+  {
     name: "aFailConsequence='demote'",
     config: { ...BASE, aFailConsequence: 'demote' },
     seeds: ['obl-demote-1', 'obl-demote-2'],

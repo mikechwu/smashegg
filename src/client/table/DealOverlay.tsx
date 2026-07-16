@@ -155,12 +155,14 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onDone }: De
         ? rects.slots[Math.min(tick.ownSlot ?? 0, rects.slots.length - 1)]!
         : (rects.seats[tick.target] ?? rects.origin);
 
-    // The schedule (deal.ts) is the single source of the choreography. At the
-    // marker's beat the face-up marker card flies instead of a back. Because
-    // dirOrder is built with the CONFIGURED turn direction, schedule[beat]'s
-    // target IS the leader's seat, so the marker replaces the leader's own
-    // back and everyone still receives exactly 27 cards.
-    for (const [i, tick] of dealSchedule(dirOrder).entries()) {
+    // The schedule (deal.ts) is the single source of the choreography — the
+    // marker's beat (its deck index, straight from the public ceremony
+    // payload) also opens the 2× slow window around itself, the moment the
+    // ceremony exists for. At that beat the face-up marker card flies instead
+    // of a back. Because dirOrder is built with the CONFIGURED turn
+    // direction, schedule[beat]'s target IS the leader's seat, so the marker
+    // replaces the leader's own back and everyone still receives exactly 27.
+    for (const [i, tick] of dealSchedule(dirOrder, marker?.beat ?? null).entries()) {
       const target = targetFor(tick);
       if (marker !== null && i === marker.beat && markerEl) {
         // The marker sits at the deck centre already (absolute, inset:0), so —
@@ -180,8 +182,8 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onDone }: De
       onDoneRef.current();
     };
     // The marker flies AT its beat (mid-deal), so the honest end of the
-    // choreography is just the last landing plus a settle (deal.ts).
-    timers.push(setTimeout(finish, dealChoreographyMs()));
+    // choreography is the last landing (slow window included) plus a settle.
+    timers.push(setTimeout(finish, dealChoreographyMs(DECK_SIZE, marker?.beat ?? null)));
 
     // Tap-to-skip: finish every retained animation — purely local; the
     // schedule/state/clock are untouched (deal.ts contract).

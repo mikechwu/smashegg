@@ -393,19 +393,18 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     derived.dealNo > dealShown && !ceremonyShowing && view.phase !== 'ceremonyCut' && view.hand.length > 0;
   const dirFor = (seat: Seat): 'south' | 'east' | 'north' | 'west' =>
     seat === layout.south ? 'south' : seat === layout.east ? 'east' : seat === layout.north ? 'north' : 'west';
-  // Obs 2: hand 1 deals FROM the first drawer (public, from the ceremony) so
-  // the marker lands at its true beat; hands 2+ keep the default south-first
-  // order. The marker card + beat are derived purely from the public flips
-  // array — no new server field (see deal.ts markerDealBeat).
+  // Hand 1 deals FROM the first drawer (public, from the ceremony) so the
+  // marker lands at its true beat; hands 2+ keep the default south-first
+  // order. The marker card AND its deal beat come straight from the public
+  // ceremony payload (marker / markerDealIndex — a specific card INSTANCE at
+  // a deck position, never "the 8♥": two decks mean twins). The old
+  // flips-derived beat was the 2026-07-15 defect.
   const dealCeremony = dealing && derived.ceremony !== null && view.handNo === 1 ? derived.ceremony : null;
   const dealDir = dealCeremony
     ? dealDirOrder(dirFor(dealCeremony.firstDrawer), variant.turnDirection === 'clockwise')
     : undefined;
   const dealMarker = dealCeremony
-    ? {
-        card: dealCeremony.flips[dealCeremony.flips.length - 1]!,
-        beat: markerDealBeat(dealCeremony.flips.length),
-      }
+    ? { card: dealCeremony.marker, beat: markerDealBeat(dealCeremony.markerDealIndex) }
     : null;
 
   const tributePhase = tributeKind(hints ?? []);
@@ -581,6 +580,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         <CeremonyOverlay
           ceremony={derived.ceremony}
           level={view.currentLevel}
+          twoCard={variant.ceremonyCardCount === 2}
           nameFor={nameFor}
           onDone={() => setCeremonyDone(true)}
         />

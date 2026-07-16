@@ -222,30 +222,46 @@ export type GuandanEvent =
       /** Full deal — viewEvent redacts to the recipient's own hand. */
       hands: [Card[], Card[], Card[], Card[]];
       /** 翻牌定先 opening ceremony (hand 1 under firstLeadMethod='drawCard'
-       *  ONLY; owner spec M3, made REAL by item 3). Deterministic from
-       *  (seed, cutPosition), replay-identical — the UI animates EXACTLY
-       *  this data and computes nothing:
+       *  ONLY; owner spec M3, made REAL by item 3, geometry corrected in the
+       *  ceremony-marker round 2026-07-15). Deterministic from (seed,
+       *  cutPosition), replay-identical — the UI animates EXACTLY this data
+       *  and computes nothing. The cut PRESERVES deck order (lift, look at
+       *  the split, put back): it selects which cards are revealed and where
+       *  the marker sits — who LEADS, never which cards each seat holds.
        *  - cutter: the seat that cut the deck (PRNG-uniform);
        *  - cutPosition: WHERE the cutter chose to cut (the logged action);
-       *  - flips: the ACTUAL top cards of the cut deck, in order, INCLUDING
-       *    joker flips — all but the last were re-flips (jokers and the
-       *    current-level rank have no countable natural position). These
-       *    are real deck cards: they land in the dealt hands, publicly
-       *    known, exactly as at a physical table;
-       *  - firstDrawer: counting the last flip's rank IN TURN DIRECTION
-       *    (counterclockwise by default, per turnDirection) with the cutter
-       *    as position 1 (A=self, 2=下家, 3=partner, 4=remaining; ranks
-       *    wrap mod 4 — seatOffset=(rank-1)%4);
-       *  - markerSeat: the seat the face-up marker card (the counted flip)
-       *    REALLY lands at in the one-card-at-a-time deal from firstDrawer
-       *    = the hand's leader. The ABSOLUTE leader distribution stays
-       *    uniform over seats (the cutter is PRNG-uniform and independent
-       *    of the deck); conditional on the cutter it follows the physical
-       *    rank arithmetic — the real table's distribution, by design. */
+       *  - flips: the count-card walk, in flip order — under
+       *    ceremonyCardCount=2 it starts at the lifted packet's BOTTOM
+       *    (deck[cutPosition-1]) and re-flips DEEPER on jokers/level cards;
+       *    under =1 it starts at the split (deck[cutPosition]) and walks
+       *    forward. The LAST flip is the counted card. All flips are real
+       *    deck cards that land in the dealt hands, publicly known — the
+       *    table watched them;
+       *  - marker / markerDealIndex: the face-up 明牌 and its DECK INDEX
+       *    (= its 0-indexed deal beat). Under ceremonyCardCount=2 the marker
+       *    is the table packet's top (deck[cutPosition], any card — it only
+       *    marks who leads); under =1 it IS the counted card. The marker is
+       *    a specific PHYSICAL INSTANCE identified by position — two decks
+       *    mean every rank+suit has a twin, so no copy may name it by rank;
+       *  - firstDrawer: counting the counted card's rank IN TURN DIRECTION
+       *    with the cutter as position 1 (seatOffset=(value-1)%4);
+       *  - markerSeat: stepSeats(firstDrawer, markerDealIndex % 4) — the
+       *    seat that REALLY draws the marker in the one-card-at-a-time deal
+       *    over the unrotated deck = the hand's leader.
+       *  PUBLIC-EXCEPTION note (redaction model): exactly flips ∪ {marker}
+       *  are public card instances — deliberately, as at a physical table —
+       *  and the other ~106 deck cards stay unreachable. Uniformity, stated
+       *  precisely: ABSOLUTE leader uniformity holds (PRNG-uniform cutter);
+       *  CONDITIONAL on the cutter it does not — the count offset is skewed
+       *  at level 2 (P(offset even)=7/12), so the cut depth's residue class
+       *  carries a ≈58%/42% own-team lead edge. Owner decision: documented,
+       *  not policed (the physical table has the identical property). */
       ceremony?: {
         cutter: Seat;
         cutPosition: number;
         flips: Card[];
+        marker: Card;
+        markerDealIndex: number;
         firstDrawer: Seat;
         markerSeat: Seat;
       };

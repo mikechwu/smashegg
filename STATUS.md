@@ -31,12 +31,51 @@ competition rules reached (cert/403 on some) — tag UNCERTAIN, likely the owner
 variant. "Sometimes two cards appear" = the joker/level RE-FLIP sequence (rejected + accepted card
 with 重翻 labels), NOT the two-card marker — confirmed in code.
 
-**HELD for owner (owner authority): one card or two, and the marker geometry** (does the cut still
-rotate the deal, or only pick the marker+count? the off-by-one). Proposal presented: marker deal
-index = f(cutPosition); `ceremonyCardCount: 1 | 2` RuleVariant default = owner's; drop the marker
-pre-announce so the deal reveals it. Engine build + item-3 CeremonyOverlay restyle wait on the
-answer (the panel content depends on the fix). Bot-name convention fixed (阿明/阿美/阿華/阿強;
-[[visual-verify-room-adoption]]). CUT panel praised — untouched.
+**OWNER ANSWERED (prose brief) — BUILT.** ceremonyCardCount: 2 default (1 = official form,
+reachable as config; the UNCERTAIN tag on the two-card form is an honest null); count card =
+lifted packet's bottom, marker = table packet's top, adjacent at the split; the ceremony is
+PUBLICLY VERIFIABLE (both cards shown to all four seats, derivation legible; the redaction
+blanket rule now carries exactly the stated exceptions flips ∪ {marker}, pinned as such); the
+marker is a PHYSICAL INSTANCE (deck position — two decks mean twins; no copy names it by rank).
+
+**PROCESS ENTRY — REVERSAL (METHODOLOGY 9/10), dated 2026-07-15.** Round-1's claim "a different
+cut position REALLY changes every hand" is SUPERSEDED: the cut PRESERVES deck order (lift, look
+at the split, put back) and never changes which cards a seat group holds. The original partial
+rationale — the cut's physical anti-stacking purpose — is gone with it. What stands, and is now
+the recorded rationale: the cut is genuine player agency because it picks the marker's depth,
+which REALLY moves the leader. The old cut-agency test (positions 20 vs 80 ⇒ different hands) is
+REPLACED by its reversal pin (hand groups invariant; the leader moves). PLAN §4 cutDeck prose
+updated with the superseded note; ceremony.test.ts carries the dated pins.
+
+**THE EXPLOITABILITY FINDING (owner's arithmetic, CONFIRMED by measurement).** markerSeat =
+stepSeats(cutter, (X + N) mod 4) where the cutter picks N. X=(value−1)%4 is skewed at level 2
+(offsets {A,5,9,K}→0=4, {6,10}→1=2, {3,7,J}→2=3, {4,8,Q}→3=3, so P(X even)=7/12) — and hand 1
+ALWAYS runs at level 2, so the flat levels (A/5/9/K) never apply to the real ceremony. Measured
+in the engine (N=500, cutter fixed, even vs odd depth): own-team lead ≈58.3% vs ≈41.7% — the
+~16.7pt swing the owner predicted. ABSOLUTE uniformity still holds (PRNG-uniform cutter; both
+400-seed sweeps pass) — the same failure shape as the defect, one level up, and the variance
+assertion alone would NOT have caught it. New CONDITIONAL test pins the exact numbers. **Owner
+decision (recorded): document precisely, do NOT fix** — the physical table has the identical
+property, and this is a family game that doesn't police exploiters. "Uniformity holds" is no
+longer written unqualified anywhere: absolute holds, conditional does not, stated in
+types.ts/index.ts/the tests. Corollary correction (owner): hiding the cut index has a LITTLE
+secrecy value after all (a slider could count to a residue class where a physical cutter
+cannot) — cut.ts comment corrected.
+
+**Build (engine + client, in-house — load-bearing, Codex stays auditor):** runCutRitual reversed
+geometry, both forms, oracle-verified bit-for-bit; ceremony payload += marker + markerDealIndex
+(public by nature — the table watches where the marker sits); defect regression pinned (the
+marker-to-firstDrawer collapse scored ~11% differs, now ≥40% enforced, equation pinned
+everywhere); public-exception redaction pin (per seat: visible tokens outside own hand == flips
+∪ {marker} exactly, at three cut depths); one-card form in the obligations CONFIG_MATRIX; client
+marker beat now FROM THE PAYLOAD (markerDealBeat = defensive clamp only); the 2× slow window
+(MARKER_SLOW_TICKS=6 starting 2 before the beat, clipped at deck end) with budgets honestly
+re-derived and re-pinned (landings+slow ≤4.5s; full incl. sort ≤5s); CeremonyOverlay restyled
+into Lacquer Ledger (ritual order: who cut → flips + 明牌 (labeled, cinnabar-edged, both public)
+→ count with its VALUE → 明牌落在 → goldleaf 該家先出; reduced-motion summary kept); i18n
+counting→count/countLabel/markerLabel ×3 locales. Bot-name convention fixed (阿明/阿美/阿華/阿強;
+[[visual-verify-room-adoption]]). CUT panel untouched (praised). 753 unit + 40 e2e + 4
+typechecks green. Visual verify (desktop + true 390) + panel next.
 
 **Last updated (prior below):** 2026-07-15 (deal fidelity)
 

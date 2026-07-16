@@ -102,60 +102,119 @@ export const CUT_MAX = 102;
  *  cutter: split the deck roughly in half, as a human would. */
 export const DEFAULT_CUT_POSITION = 54;
 
-/** Flip-walk cap: a real double deck holds at most 8 level-rank cards + 4
- *  jokers = 12 consecutive re-flips, so a countable card ALWAYS appears
- *  within 13 flips; the cap is purely defensive. */
-const MAX_FLIPS = 24;
+/** The count walk skips uncountable cards (jokers and the current-level
+ *  rank). A double deck holds at most 4 + 8 = 12 uncountables, so a countable
+ *  card always exists; the walks below are total by construction. */
+function isCountable(card: Card, level: Rank): boolean {
+  const rank = rankOf(card); // null for jokers
+  return rank !== null && rank !== level;
+}
 
-/** The flip/count ritual over the REAL top of the cut deck: flip cards until
- *  one is countable (jokers and the current-level rank re-flip, every flip
- *  recorded), count around the table from the cutter (owner rule: cutter=1,
- *  in turn direction, offset (value−1) mod 4) to find the first drawer, and
- *  locate where the counted (face-up marker) card lands in the one-card-at-
- *  a-time deal — that seat leads. No PRNG is consumed: the deck IS the
- *  randomness. The ABSOLUTE leader stays uniform over seats (the cutter is
- *  PRNG-uniform and independent of the deck); conditional on the cutter the
- *  distribution follows the physical rank arithmetic, by design. */
+/** The cut ritual — REVERSED GEOMETRY (owner decision 2026-07-15; supersedes
+ *  the rotate-the-deck model): the physical act is "lift a packet, look at
+ *  the card(s) at the split, put it back, deal" — THE ORDER IS PRESERVED.
+ *  The cut selects WHICH cards are revealed and at what depth the face-up
+ *  marker sits; it determines who LEADS, never which cards each seat holds.
+ *
+ *  Two-card form (ceremonyCardCount=2, the owner's table rule, the default):
+ *  count card = the lifted packet's BOTTOM (deck[position-1]); marker = the
+ *  table packet's TOP (deck[position]) — adjacent at the split, both PUBLIC
+ *  (the ceremony is publicly verifiable: all four seats can independently
+ *  derive drawer and leader). If the count card is uncountable the walk
+ *  re-flips DEEPER into the lifted packet (position-2, …, 0; defensively
+ *  wrapping to position+1, … if the whole packet is uncountable). The marker
+ *  may be ANY card — it only marks who leads — and is a specific PHYSICAL
+ *  INSTANCE (a deck position), never "the 8♥": two decks mean every rank+suit
+ *  has a twin, so identity is positional (the face-up deal makes it visually
+ *  unambiguous; no copy may name the marker by rank).
+ *
+ *  One-card form (ceremonyCardCount=1, official 《竞技掼蛋》): one card does
+ *  both jobs — the first COUNTABLE card at/after the split (deck[position],
+ *  position+1, …, wrapping defensively) is the count card AND the face-up
+ *  marker. (Simplification noted: the official text reinserts the flipped
+ *  card at the cut point; we keep every card at its own position — the
+ *  ~11% re-flip case would physically reorder by a few indices.)
+ *
+ *  In both forms: firstDrawer = stepSeats(cutter, (countingValue-1) mod 4);
+ *  the deal runs over the UNROTATED deck from firstDrawer, so the marker at
+ *  deck index m lands at markerSeat = stepSeats(firstDrawer, m mod 4) — the
+ *  cut depth genuinely moves the leader.
+ *
+ *  Uniformity, stated PRECISELY (the old unqualified claim is superseded):
+ *  ABSOLUTE leader uniformity holds (the cutter is PRNG-uniform and the
+ *  count offset is independent of the cutter). CONDITIONAL on the cutter it
+ *  does NOT: the count offset X=(value-1) mod 4 is skewed at level 2 (hand 1
+ *  always runs at level 2) — P(X even)=7/12 — so a cutter choosing the cut
+ *  depth's residue class shifts their own team's lead probability to ≈58.3%
+ *  vs ≈41.7%. Owner decision: measured and documented (the physical table
+ *  has the identical property), deliberately NOT policed. */
 function runCutRitual(
-  rotated: readonly Card[],
+  deck: readonly Card[],
+  position: number,
   level: Rank,
   config: RuleVariant,
   cutter: Seat,
-): { flips: Card[]; firstDrawer: Seat; markerSeat: Seat } {
+): { flips: Card[]; marker: Card; markerDealIndex: number; firstDrawer: Seat; markerSeat: Seat } {
   const flips: Card[] = [];
   let counted: Rank | null = null;
-  for (let i = 0; i < Math.min(MAX_FLIPS, rotated.length) && counted === null; i++) {
-    const card = rotated[i]!;
-    flips.push(card);
-    const rank = rankOf(card); // null for jokers → re-flip
-    if (rank !== null && rank !== level) counted = rank;
+
+  if (config.ceremonyCardCount === 2) {
+    // Owner form: walk the lifted packet from its bottom, deeper on re-flip.
+    const walk: number[] = [];
+    for (let i = position - 1; i >= 0; i--) walk.push(i);
+    for (let i = position + 1; i < deck.length; i++) walk.push(i); // defensive wrap
+    for (const idx of walk) {
+      const card = deck[idx]!;
+      flips.push(card);
+      if (isCountable(card, level)) {
+        counted = rankOf(card)!;
+        break;
+      }
+    }
+  } else {
+    // Official form: one card at/after the split does both jobs.
+    const walk: number[] = [];
+    for (let i = position; i < deck.length; i++) walk.push(i);
+    for (let i = 0; i < position; i++) walk.push(i); // defensive wrap
+    for (const idx of walk) {
+      const card = deck[idx]!;
+      flips.push(card);
+      if (isCountable(card, level)) {
+        counted = rankOf(card)!;
+        break;
+      }
+    }
   }
-  if (counted === null) {
-    // Unreachable on a real double deck (≤12 possible re-flips); defensive
-    // structural fallback only.
-    counted = 'A';
-  }
+  // A countable card always exists (96 of 108); the walks cover the deck.
+  if (counted === null) counted = 'A';
+
   const firstDrawer = stepSeats(cutter, (countingValue(counted) - 1) % 4, config);
-  // Deal index i lands at stepSeats(firstDrawer, i % 4); the marker card is
-  // the counted flip at rotated[flips.length - 1].
-  const markerSeat = stepSeats(firstDrawer, (flips.length - 1) % 4, config);
-  return { flips, firstDrawer, markerSeat };
+  // The marker: form 2 = the table packet's top (deck[position], any card);
+  // form 1 = the counted card itself. Deal index i (over the UNROTATED deck,
+  // from firstDrawer) lands at stepSeats(firstDrawer, i % 4).
+  const markerDealIndex =
+    config.ceremonyCardCount === 2
+      ? position
+      : (position + flips.length - 1) % deck.length;
+  const marker = deck[markerDealIndex]!;
+  const markerSeat = stepSeats(firstDrawer, markerDealIndex % 4, config);
+  return { flips, marker, markerDealIndex, firstDrawer, markerSeat };
 }
 
-/** Apply the cut: rotate the committed deck, run the ritual on its real top
- *  cards, deal the SAME rotated deck round-robin from firstDrawer, and
- *  enter play with the marker's landing seat leading. */
+/** Apply the cut: run the ritual at the chosen split, deal the UNROTATED
+ *  committed deck round-robin from firstDrawer, and enter play with the
+ *  marker's landing seat leading. (The deal order is deck order — the cut
+ *  never changes which cards each seat holds, only who leads.) */
 function completeCeremonyCut(
   state: GuandanState,
   position: number,
 ): { state: GuandanState; events: GuandanEvent[] } {
   const { cutter, deck } = state.ceremonyCut!;
   const { config } = state;
-  const rotated = [...deck.slice(position), ...deck.slice(0, position)];
-  const ritual = runCutRitual(rotated, state.currentLevel, config, cutter);
+  const ritual = runCutRitual(deck, position, state.currentLevel, config, cutter);
   const hands: GuandanState['hands'] = [[], [], [], []];
-  for (let i = 0; i < rotated.length; i++) {
-    hands[stepSeats(ritual.firstDrawer, i % 4, config)]!.push(rotated[i]!);
+  for (let i = 0; i < deck.length; i++) {
+    hands[stepSeats(ritual.firstDrawer, i % 4, config)]!.push(deck[i]!);
   }
   const handStarted: Extract<GuandanEvent, { type: 'handStarted' }> = {
     type: 'handStarted',
@@ -168,6 +227,8 @@ function completeCeremonyCut(
       cutter,
       cutPosition: position,
       flips: ritual.flips,
+      marker: ritual.marker,
+      markerDealIndex: ritual.markerDealIndex,
       firstDrawer: ritual.firstDrawer,
       markerSeat: ritual.markerSeat,
     },

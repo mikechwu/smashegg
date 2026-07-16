@@ -3,12 +3,15 @@
 // as the slider moves. Extracted so the DOM-free client suite pins the split
 // decisions; CutPanel's DOM is a thin renderer of these numbers.
 //
-// NO numeric cut index is ever shown. The investigation (both lineages,
-// headless) confirmed the exact position leaks nothing — the deck is hidden
-// and the first leader is uniform over seats — so the number is unusable
-// information that would only imply the choice of index matters. It doesn't;
-// cutting has no numeric analogue at a physical table. The ribbon shows
-// WHERE, spatially, not a count.
+// NO numeric cut index is ever shown. Reasoning CORRECTED in the
+// ceremony-marker round (owner, 2026-07-15): the primary reason is still
+// design — cutting has no numeric analogue at a physical table; the ribbon
+// shows WHERE, spatially — but hiding the number now ALSO has a little
+// secrecy value: the cut depth's residue class mod 4 carries a documented
+// conditional edge (see the engine's conditional-uniformity test), and a
+// physical cutter can't count to a residue mid-cut while a numbered slider
+// theoretically could. (cutPosition remains public in the post-cut ceremony
+// payload; the edge is deliberately documented, not policed.)
 
 import { CUT_MIN, CUT_MAX } from '../../engine/guandan';
 

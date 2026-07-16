@@ -11,6 +11,7 @@ import {
   HAND_SIZE,
   FINISH_SETTLE_MS,
   MARKER_FLY_MS,
+  MARKER_SLOW_TICKS,
   SORT_BEAT_MS,
   type DealDir,
   dealChoreographyMs,
@@ -20,6 +21,7 @@ import {
   dealWithSortMs,
   deckDepthTier,
   markerDealBeat,
+  markerSlowTicks,
 } from '../../../src/client/table/deal';
 
 const DIRS: DealDir[] = ['south', 'east', 'north', 'west'];
@@ -75,34 +77,34 @@ describe('dealDirOrder + deal-from-first-drawer (obs 2)', () => {
   });
 });
 
-describe('markerDealBeat (obs 2)', () => {
-  it('is flips.length - 1 (the counted flip is the last-dealt-first card)', () => {
-    expect(markerDealBeat(1)).toBe(0);
-    expect(markerDealBeat(2)).toBe(1);
-    expect(markerDealBeat(5)).toBe(4);
-    expect(markerDealBeat(13)).toBe(12);
-  });
-
-  it('never goes negative for a defensive empty flips list', () => {
+describe('markerDealBeat (ceremony-marker round: the beat IS the payload deck index)', () => {
+  it('passes the public markerDealIndex through (with a defensive clamp)', () => {
+    // THE DEFECT REGRESSION (client half): the beat comes straight from
+    // handStarted.ceremony.markerDealIndex — the marker's deck index — and is
+    // NEVER derived from flips.length (the old formula pinned the marker to
+    // the first drawer and made the ceremony deterministic ~89% of the time).
     expect(markerDealBeat(0)).toBe(0);
+    expect(markerDealBeat(15)).toBe(15);
+    expect(markerDealBeat(102)).toBe(102);
+    expect(markerDealBeat(107)).toBe(107);
+    // Defensive clamp only — malformed payloads, not a semantic.
+    expect(markerDealBeat(-3)).toBe(0);
+    expect(markerDealBeat(400)).toBe(DECK_SIZE - 1);
   });
 
-  it('the marker beat lands at the leader in a first-drawer-first schedule, EITHER direction', () => {
-    // For every first drawer, every plausible flips length, and BOTH turn
-    // directions, the tick at the marker beat targets the seat (flips.length-1)
-    // steps in that direction from the drawer — exactly the engine's markerSeat
-    // = stepSeats(firstDrawer, (L-1)%4, config). Under clockwise the step is +3
-    // in the display cycle (the engine's seat+3); pinning both closes the
-    // Codex catch that a fixed-CCW client flew the marker to the wrong seat.
+  it('the marker beat lands at stepSeats(firstDrawer, beat % 4), EITHER direction', () => {
+    // The engine's markerSeat = stepSeats(firstDrawer, markerDealIndex % 4);
+    // the schedule must fly the marker to exactly that seat for every beat
+    // residue and both turn directions (the earlier Codex catch, re-pinned
+    // for the new beat semantics).
     for (const cw of [false, true]) {
       const step = cw ? 3 : 1;
       for (const start of DIRS) {
         const order = dealDirOrder(start, cw);
-        const schedule = dealSchedule(order);
         const startIdx = DIRS.indexOf(start);
-        for (let L = 1; L <= 13; L++) {
-          const beat = markerDealBeat(L);
-          const expected = DIRS[(startIdx + ((L - 1) % 4) * step) % 4];
+        for (const beat of [6, 15, 54, 87, 102]) {
+          const schedule = dealSchedule(order, beat);
+          const expected = DIRS[(startIdx + (beat % 4) * step) % 4];
           expect(schedule[beat]!.target).toBe(expected);
         }
       }
@@ -110,35 +112,57 @@ describe('markerDealBeat (obs 2)', () => {
   });
 });
 
-describe('deal budget (item 4 + obs 2, honestly re-derived)', () => {
-  it('card landings ≤ 4.5s (the 90s planning window absorbs them)', () => {
+describe('the 2× marker slow window (owner: the beat should READ)', () => {
+  it('exactly MARKER_SLOW_TICKS ticks get double stagger, starting 2 before the beat', () => {
+    const beat = 54;
+    const plain = dealSchedule(undefined, null);
+    const slowed = dealSchedule(undefined, beat);
+    for (let i = 0; i < DECK_SIZE; i++) {
+      const extra = slowed[i]!.delayMs - plain[i]!.delayMs;
+      const slowTicksAtOrBefore = Math.max(0, Math.min(i - (beat - 2) + 1, MARKER_SLOW_TICKS));
+      expect(extra, `tick ${i}`).toBe(slowTicksAtOrBefore * DEAL_STAGGER_MS);
+    }
+    // Delays stay strictly monotonic (the deal never stalls or reorders).
+    for (let i = 1; i < DECK_SIZE; i++) {
+      expect(slowed[i]!.delayMs).toBeGreaterThan(slowed[i - 1]!.delayMs);
+    }
+  });
+
+  it('the window clips at the deck end (one-card form can put the marker near 107)', () => {
+    expect(markerSlowTicks(54)).toBe(MARKER_SLOW_TICKS);
+    expect(markerSlowTicks(107)).toBe(3); // ticks 105,106,107
+    expect(markerSlowTicks(null)).toBe(0);
+    const slowed = dealSchedule(undefined, 107);
+    expect(slowed[DECK_SIZE - 1]!.delayMs).toBe(
+      (DECK_SIZE - 1) * DEAL_STAGGER_MS + 3 * DEAL_STAGGER_MS,
+    );
+  });
+});
+
+describe('deal budget (honestly re-derived for the slow window)', () => {
+  it('card landings ≤ 4.5s WITH the marker slow window (the 90s window absorbs them)', () => {
     expect(dealDurationMs()).toBe((DECK_SIZE - 1) * DEAL_STAGGER_MS + DEAL_FLIGHT_MS);
-    expect(dealDurationMs()).toBeLessThanOrEqual(4_500);
+    expect(dealDurationMs(DECK_SIZE, 54)).toBe(
+      (DECK_SIZE - 1) * DEAL_STAGGER_MS + MARKER_SLOW_TICKS * DEAL_STAGGER_MS + DEAL_FLIGHT_MS,
+    );
+    expect(dealDurationMs(DECK_SIZE, 54)).toBeLessThanOrEqual(4_500);
   });
 
-  it('the FULL choreography is now just landings + a settle — the marker no longer tails it', () => {
-    // Obs 2 moved the marker fly INTO the deal (at markerDealBeat), so the
-    // choreography ends at the last landing plus a settle, NOT landings +
-    // MARKER_FLY + 200 as before. It got shorter; pin the honest number.
-    expect(dealChoreographyMs()).toBe(dealDurationMs() + FINISH_SETTLE_MS);
-    expect(dealChoreographyMs()).toBeLessThanOrEqual(4_500);
+  it('the choreography ends at the last landing + a settle (marker overlaps mid-deal)', () => {
+    expect(dealChoreographyMs(DECK_SIZE, 54)).toBe(dealDurationMs(DECK_SIZE, 54) + FINISH_SETTLE_MS);
+    expect(dealChoreographyMs(DECK_SIZE, 54)).toBeLessThanOrEqual(4_700);
   });
 
-  it('the marker flight overlaps the deal and never extends it (worst-case beat)', () => {
-    // Even the deepest realistic marker beat (a double deck allows ≤12
-    // re-flips, so flips.length ≤ 13) finishes well before the last landing.
-    const worstBeat = markerDealBeat(13);
-    expect(worstBeat * DEAL_STAGGER_MS + MARKER_FLY_MS).toBeLessThan(dealDurationMs());
+  it('the marker flight never extends the deal, even at the deepest legal cut', () => {
+    // CUT_MAX = 102 is the deepest two-card marker beat; its slowed delay +
+    // its own flight still ends before the last landing.
+    const schedule = dealSchedule(undefined, 102);
+    expect(schedule[102]!.delayMs + MARKER_FLY_MS).toBeLessThan(dealDurationMs(DECK_SIZE, 102));
   });
 
-  it('obs 3: the sort beat is a REAL added beat, and the full experience ≤ 5s', () => {
-    // Cards arrive in deal order, then one FLIP sort beat re-lays them. The
-    // sort starts when the overlay hands off (dealChoreographyMs), so the
-    // honest end-to-end total is landings + settle + one sort — pinned so the
-    // added beat can never be smuggled in as free (the panel caught that once).
-    expect(dealWithSortMs()).toBe(dealChoreographyMs() + SORT_BEAT_MS);
-    expect(dealWithSortMs()).toBe(dealDurationMs() + FINISH_SETTLE_MS + SORT_BEAT_MS);
-    expect(dealWithSortMs()).toBeLessThanOrEqual(5_000);
+  it('obs 3 + slow window: the full experience (landings+settle+sort) ≤ 5s', () => {
+    expect(dealWithSortMs(DECK_SIZE, 54)).toBe(dealChoreographyMs(DECK_SIZE, 54) + SORT_BEAT_MS);
+    expect(dealWithSortMs(DECK_SIZE, 54)).toBeLessThanOrEqual(5_000);
   });
 });
 

@@ -13,9 +13,14 @@ export const DEAL_FLIGHT_MS = 320;
 export const DECK_SIZE = 108;
 export const HAND_SIZE = 27;
 /** The marker card's own flight duration when it flies face-up at its true
- *  deal beat (obs 2). It STARTS mid-deal (at its beat), so it overlaps the
+ *  deal beat. It STARTS mid-deal (at its beat), so it overlaps the
  *  round-robin and never extends the choreography — see dealChoreographyMs. */
 export const MARKER_FLY_MS = 500;
+/** The 2× slow window around the marker's beat (owner: "it's the moment the
+ *  ceremony exists for, and it should read"): this many consecutive ticks —
+ *  starting 2 before the marker's — get DOUBLE stagger, then the deal resumes
+ *  normal speed. Total added time = MARKER_SLOW_TICKS × DEAL_STAGGER_MS. */
+export const MARKER_SLOW_TICKS = 6;
 /** The settle beat after the last card lands, before the fan takes over. */
 export const FINISH_SETTLE_MS = 150;
 /** Obs 3: the ONE sort beat — after the deal completes, the fan re-lays from
@@ -32,39 +37,46 @@ export type DealDir = 'south' | 'east' | 'north' | 'west';
  *  seat+1) or backward (clockwise nextSeat = seat+3) to match the engine. */
 const RING_CYCLE: DealDir[] = ['south', 'east', 'north', 'west'];
 
-/** Total deal duration — the last card lands at this time (the landings
- *  budget pin, ≤ 4.5s). */
-export function dealDurationMs(cards: number = DECK_SIZE): number {
-  if (cards <= 0) return 0;
-  return (cards - 1) * DEAL_STAGGER_MS + DEAL_FLIGHT_MS;
+/** The 2× slow ticks that actually apply for a marker at `markerBeat`: the
+ *  window starts 2 ticks before the beat and clips at the deck's end (the
+ *  one-card form can put the marker near index 107). null = no marker. */
+export function markerSlowTicks(markerBeat: number | null, cards: number = DECK_SIZE): number {
+  if (markerBeat === null) return 0;
+  const slowStart = Math.max(0, markerBeat - 2);
+  return Math.max(0, Math.min(slowStart + MARKER_SLOW_TICKS, cards) - slowStart);
 }
 
-/** The FULL hand-1 choreography, end to end (obs 2 re-derivation). The marker
- *  now flies AT its true beat (markerDealBeat) rather than as a tail after the
- *  deal, so it finishes at markerBeat×stagger + MARKER_FLY_MS — comfortably
- *  before the last landing — and the honest total is just the landings plus a
- *  settle. The old design's landings + MARKER_FLY + 200 tail is gone; the
- *  choreography got SHORTER and more faithful. */
-export function dealChoreographyMs(cards: number = DECK_SIZE): number {
-  return dealDurationMs(cards) + FINISH_SETTLE_MS;
+/** Total deal duration — the last card lands at this time (the landings
+ *  budget pin, ≤ 4.5s). A hand-1 deal includes the marker's 2× slow window;
+ *  hands 2+ (markerBeat null) do not. */
+export function dealDurationMs(cards: number = DECK_SIZE, markerBeat: number | null = null): number {
+  if (cards <= 0) return 0;
+  return (cards - 1) * DEAL_STAGGER_MS + markerSlowTicks(markerBeat, cards) * DEAL_STAGGER_MS + DEAL_FLIGHT_MS;
+}
+
+/** The FULL choreography, end to end. The marker flies AT its true beat
+ *  (mid-deal) inside the slow window, so the honest total is the landings
+ *  plus a settle. */
+export function dealChoreographyMs(cards: number = DECK_SIZE, markerBeat: number | null = null): number {
+  return dealDurationMs(cards, markerBeat) + FINISH_SETTLE_MS;
 }
 
 /** The FULL obs-3 experience: the deal choreography plus the one sort beat
  *  that follows it (the sort starts at dealChoreographyMs, when the overlay
  *  hands off to the fan). Pinned honestly — the sort is a real added beat, not
  *  free — and still inside the 90s planning window. */
-export function dealWithSortMs(cards: number = DECK_SIZE): number {
-  return dealChoreographyMs(cards) + SORT_BEAT_MS;
+export function dealWithSortMs(cards: number = DECK_SIZE, markerBeat: number | null = null): number {
+  return dealChoreographyMs(cards, markerBeat) + SORT_BEAT_MS;
 }
 
-/** The marker card's true deal beat (0-indexed) — obs 2. The marker is the
- *  counted (last) flip, and the engine deals the SAME rotated deck round-robin
- *  from firstDrawer, so the marker card lands at deal index flips.length − 1
- *  (engine runCutRitual/completeCeremonyCut). This is derived purely from the
- *  already-public `flips` array in handStarted.ceremony — NO new server field,
- *  no new redaction surface. */
-export function markerDealBeat(flipsLength: number): number {
-  return Math.max(0, flipsLength - 1);
+/** The marker's deal beat comes STRAIGHT from the public ceremony payload
+ *  (handStarted.ceremony.markerDealIndex — the marker's deck index, which IS
+ *  its 0-indexed deal beat over the unrotated deck). The old derivation
+ *  `flips.length − 1` was the 2026-07-15 DEFECT: it pinned the marker to the
+ *  first drawer and made the ceremony deterministic ~89% of the time. This
+ *  clamp is purely defensive against a malformed payload. */
+export function markerDealBeat(markerDealIndex: number): number {
+  return Math.max(0, Math.min(DECK_SIZE - 1, Math.floor(markerDealIndex)));
 }
 
 /** The four ring directions in DEAL order, starting from the first drawer and
@@ -98,15 +110,24 @@ export interface DealTick {
 /** The full 108-tick schedule, round-robin over `dirOrder` (one card per seat
  *  per 4 ticks). Defaults to the south-first display order (hands 2+, which
  *  have no ceremony); hand 1 passes dealDirOrder(firstDrawerDir) so the marker
- *  lands at its true beat (obs 2). South fills its sorted slots in the order
- *  it is dealt, whatever the starting seat. */
-export function dealSchedule(dirOrder: DealDir[] = RING_CYCLE): DealTick[] {
+ *  lands at its true beat. When `markerBeat` is set, the MARKER_SLOW_TICKS
+ *  ticks starting 2 before it get DOUBLE stagger (the 2× slow beat the
+ *  ceremony exists for), then the deal resumes normal speed — delays stay
+ *  strictly monotonic. South fills its slots in the order it is dealt. */
+export function dealSchedule(
+  dirOrder: DealDir[] = RING_CYCLE,
+  markerBeat: number | null = null,
+): DealTick[] {
+  const slowStart = markerBeat === null ? Infinity : Math.max(0, markerBeat - 2);
+  const slowEnd = slowStart + MARKER_SLOW_TICKS; // exclusive
   const out: DealTick[] = [];
   let ownLanded = 0;
+  let extraMs = 0;
   for (let i = 0; i < DECK_SIZE; i++) {
+    if (i >= slowStart && i < slowEnd) extraMs += DEAL_STAGGER_MS;
     const target = dirOrder[i % 4]!;
     out.push({
-      delayMs: i * DEAL_STAGGER_MS,
+      delayMs: i * DEAL_STAGGER_MS + extraMs,
       target,
       ownSlot: target === 'south' ? ownLanded++ : null,
     });

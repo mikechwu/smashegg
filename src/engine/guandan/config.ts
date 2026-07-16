@@ -8,6 +8,15 @@ import type { Rank } from './cards';
 export interface RuleVariant {
   turnDirection: 'counterclockwise' | 'clockwise';
   firstLeadMethod: 'random' | 'drawCard' | 'fixedSeat';
+  /** 翻牌定先 card count (owner decision 2026-07-15). 2 = the owner's table
+   *  rule: count card = the lifted packet's BOTTOM, marker = the table
+   *  packet's TOP — two PUBLIC cards, adjacent at the split; the ceremony is
+   *  publicly verifiable. 1 = the official 《竞技掼蛋》 form (one card does
+   *  both jobs). The two-card form was not found in the competition texts
+   *  reached (legitimate null) — tagged UNCERTAIN, likely a table/regional
+   *  variant; the owner's table is the authority, so 2 is the default.
+   *  Only consulted when firstLeadMethod === 'drawCard'. */
+  ceremonyCardCount: 1 | 2;
   levelTrack: 'perTeam' | 'shared';
   overshootWinsGame: boolean;
   aWinPartnerNotLast: boolean;
@@ -44,6 +53,7 @@ export interface RuleVariant {
 export const JIANGSU_OFFICIAL_ONLINE: RuleVariant = {
   turnDirection: 'counterclockwise',
   firstLeadMethod: 'random',
+  ceremonyCardCount: 2,
   levelTrack: 'perTeam',
   overshootWinsGame: false,
   aWinPartnerNotLast: true,
@@ -96,6 +106,7 @@ export function demoteTarget(config: RuleVariant, current: Rank): Rank {
 const RULE_VALUE_SPACES: { [K in keyof RuleVariant]: readonly RuleVariant[K][] | 'boolean' | 'intOrNull' } = {
   turnDirection: ['counterclockwise', 'clockwise'],
   firstLeadMethod: ['random', 'drawCard', 'fixedSeat'],
+  ceremonyCardCount: [1, 2],
   levelTrack: ['perTeam', 'shared'],
   overshootWinsGame: 'boolean',
   aWinPartnerNotLast: 'boolean',

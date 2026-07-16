@@ -17,7 +17,7 @@ import type { Seat } from '../../../src/engine/core/game';
 import { CUT_MAX, CUT_MIN, DEFAULT_CUT_POSITION, GuandanGame } from '../../../src/engine/guandan';
 import { buildDeck, isJoker, naturalValue, rankOf, type Card, type Rank } from '../../../src/engine/guandan/cards';
 import { JIANGSU_OFFICIAL_ONLINE, type RuleVariant } from '../../../src/engine/guandan/config';
-import { nextSeat, partnerOf, type GuandanEvent, type GuandanState } from '../../../src/engine/guandan/types';
+import { nextSeat, partnerOf, teamOf, type GuandanEvent, type GuandanState } from '../../../src/engine/guandan/types';
 import { getGame } from '../../../src/shared/games';
 import { recordPlayout, replayMatch } from '../../../scripts/replay';
 
@@ -55,24 +55,56 @@ function oracleSetup(seed: string): { deck: Card[]; cutter: Seat } {
   return { deck: shuffled.items, cutter: cut.value as Seat };
 }
 
-/** Oracle ritual — the documented deck arithmetic, no PRNG: rotate at the
- *  position, flip real cards until countable (jokers + level '2' re-flip),
- *  count from the cutter, and locate the marker's landing seat in the
- *  one-card-at-a-time deal from the first drawer. */
-function oracleRitual(seed: string, position: number, config: RuleVariant): Ceremony {
+/** Oracle ritual — the documented deck arithmetic, no PRNG, REVERSED GEOMETRY
+ *  (ceremony-marker round): the cut PRESERVES deck order and selects the
+ *  revealed cards. Two-card form (default): count walk starts at the lifted
+ *  packet's BOTTOM (deck[position-1]) and re-flips DEEPER (jokers + level
+ *  '2'; hand 1 plays at level 2), defensively wrapping forward; the marker is
+ *  the table packet's TOP (deck[position], any card). One-card form: the walk
+ *  starts AT the split and moves forward; the counted card is also the
+ *  marker. The deal runs over the UNROTATED deck from the first drawer, so
+ *  deck index i lands at stepSeats(firstDrawer, i%4). The oracle also
+ *  returns each flip's deck index so physical pins can locate the flips in
+ *  the dealt hands. */
+function oracleRitual(
+  seed: string,
+  position: number,
+  config: RuleVariant,
+): Ceremony & { flipIndices: number[] } {
   const { deck, cutter } = oracleSetup(seed);
-  const rotated = [...deck.slice(position), ...deck.slice(0, position)];
-  const flips: Card[] = [];
-  let counted: Rank | null = null;
-  for (let i = 0; counted === null; i++) {
-    const card = rotated[i]!;
-    flips.push(card);
-    const r = rankOf(card);
-    if (r !== null && r !== '2') counted = r; // hand 1 plays at level '2'
+  const walk: number[] = [];
+  if (config.ceremonyCardCount === 2) {
+    for (let i = position - 1; i >= 0; i--) walk.push(i);
+    for (let i = position + 1; i < deck.length; i++) walk.push(i);
+  } else {
+    for (let i = position; i < deck.length; i++) walk.push(i);
+    for (let i = 0; i < position; i++) walk.push(i);
   }
-  const firstDrawer = stepSeats(cutter, (countOf(counted) - 1) % 4, config);
-  const markerSeat = stepSeats(firstDrawer, (flips.length - 1) % 4, config);
-  return { cutter, cutPosition: position, flips, firstDrawer, markerSeat };
+  const flips: Card[] = [];
+  const flipIndices: number[] = [];
+  let counted: Rank | null = null;
+  for (const idx of walk) {
+    const card = deck[idx]!;
+    flips.push(card);
+    flipIndices.push(idx);
+    const r = rankOf(card);
+    if (r !== null && r !== '2') {
+      counted = r;
+      break;
+    }
+  }
+  const firstDrawer = stepSeats(cutter, (countOf(counted!) - 1) % 4, config);
+  const markerDealIndex =
+    config.ceremonyCardCount === 2 ? position : flipIndices[flipIndices.length - 1]!;
+  const marker = deck[markerDealIndex]!;
+  const markerSeat = stepSeats(firstDrawer, markerDealIndex % 4, config);
+  return { cutter, cutPosition: position, flips, marker, markerDealIndex, firstDrawer, markerSeat, flipIndices };
+}
+
+/** Engine-comparable projection (the ceremony payload has no flipIndices). */
+function oracleCeremony(seed: string, position: number, config: RuleVariant): Ceremony {
+  const { flipIndices: _drop, ...ceremony } = oracleRitual(seed, position, config);
+  return ceremony;
 }
 
 /** Drive the real thing: init → assert phase ceremonyCut → apply cutDeck. */
@@ -100,7 +132,7 @@ function findCut(
   for (let i = 0; i < 200; i++) {
     const seed = `cut-${tag}-${i}`;
     for (let p = CUT_MIN; p <= CUT_MAX; p += 5) {
-      const o = oracleRitual(seed, p, config);
+      const o = oracleCeremony(seed, p, config);
       if (!pred(o)) continue;
       const { ceremony, state } = runCut(seed, config, p);
       expect(ceremony).toEqual(o); // engine must agree with the oracle
@@ -136,40 +168,104 @@ describe('real cut — exact counting mapping (owner rule preserved)', () => {
     expect(ceremony.firstDrawer).toBe(nextSeat(ceremony.cutter, DRAW_CFG));
   });
 
-  it('oracle sweep: engine ceremony equals the documented arithmetic bit-for-bit', () => {
+  it('oracle sweep: engine ceremony equals the documented arithmetic bit-for-bit (both forms)', () => {
+    const ONE_CARD_CFG: RuleVariant = { ...DRAW_CFG, ceremonyCardCount: 1 };
     for (let i = 0; i < 40; i++) {
       const seed = `cut-oracle-${i}`;
       const position = CUT_MIN + ((i * 13) % (CUT_MAX - CUT_MIN + 1));
+      expect(runCut(seed, DRAW_CFG, position).ceremony).toEqual(
+        oracleCeremony(seed, position, DRAW_CFG),
+      );
+      expect(runCut(seed, ONE_CARD_CFG, position).ceremony).toEqual(
+        oracleCeremony(seed, position, ONE_CARD_CFG),
+      );
+    }
+  });
+
+  it('two-card form: count card is the lifted packet bottom; marker is the table packet top', () => {
+    // Direct geometry pin against the committed deck: flips[0] = deck[pos-1],
+    // marker = deck[pos] — adjacent at the split, order preserved.
+    for (const position of [CUT_MIN, 15, 54, 87, CUT_MAX]) {
+      const seed = `cut-geometry-${position}`;
+      const { deck } = oracleSetup(seed);
       const { ceremony } = runCut(seed, DRAW_CFG, position);
-      expect(ceremony).toEqual(oracleRitual(seed, position, DRAW_CFG));
+      expect(ceremony.flips[0]).toBe(deck[position - 1]);
+      expect(ceremony.marker).toBe(deck[position]);
+      expect(ceremony.markerDealIndex).toBe(position);
+    }
+  });
+
+  it('one-card form: the counted card IS the marker (one card, two jobs)', () => {
+    const ONE_CARD_CFG: RuleVariant = { ...DRAW_CFG, ceremonyCardCount: 1 };
+    for (const position of [CUT_MIN, 33, CUT_MAX]) {
+      const seed = `cut-oneform-${position}`;
+      const { ceremony } = runCut(seed, ONE_CARD_CFG, position);
+      expect(ceremony.marker).toBe(ceremony.flips[ceremony.flips.length - 1]);
     }
   });
 });
 
-describe('real cut — the physical pins the theatre version could not state', () => {
+describe('real cut — the physical pins (reversed geometry: the cut moves the LEADER, not the cards)', () => {
   it("the marker card REALLY lands in the leader's hand (明牌落在該家)", () => {
     for (let i = 0; i < 15; i++) {
       const position = CUT_MIN + ((i * 11) % (CUT_MAX - CUT_MIN + 1));
       const { ceremony, state } = runCut(`cut-marker-${i}`, DRAW_CFG, position);
-      const marker = ceremony.flips[ceremony.flips.length - 1]!;
-      expect(state.hands[ceremony.markerSeat]!).toContain(marker);
+      expect(state.hands[ceremony.markerSeat]!).toContain(ceremony.marker);
       expect(state.trick!.leader).toBe(ceremony.markerSeat);
       expect(state.trick!.toAct).toBe(ceremony.markerSeat);
     }
   });
 
-  it('every flip lands at its derivable seat (the flips are REAL deal cards)', () => {
-    const { ceremony, state } = findCut('flips-land', DRAW_CFG, (c) => c.flips.length >= 2);
-    ceremony.flips.forEach((flip, i) => {
-      const seat = stepSeats(ceremony.firstDrawer, i % 4, DRAW_CFG);
-      expect(state.hands[seat]!, `flip ${i} (${flip}) lands at seat ${seat}`).toContain(flip);
+  it('every flip lands at its deck-index-derivable seat (the flips are REAL deal cards)', () => {
+    const found = findCut('flips-land', DRAW_CFG, (c) => c.flips.length >= 2);
+    const oracle = oracleRitual(found.seed, found.position, DRAW_CFG);
+    oracle.flips.forEach((flip, i) => {
+      const seat = stepSeats(oracle.firstDrawer, oracle.flipIndices[i]! % 4, DRAW_CFG);
+      expect(found.state.hands[seat]!, `flip ${i} (${flip}) lands at seat ${seat}`).toContain(flip);
     });
   });
 
-  it('the CUT MATTERS: a different position ⇒ different hands (the agency pin)', () => {
+  it('THE DEFECT REGRESSION: markerSeat is NOT pinned to firstDrawer — the cut depth moves it', () => {
+    // The 2026-07-15 owner finding: the old model put the marker at deal
+    // index flips.length-1 (≈0), so the first drawer always drew it and the
+    // ceremony was deterministic ~89% of the time (數到/明牌落在/該家先出
+    // collapsed onto ONE seat). Now the marker sits at the cut depth:
+    // markerSeat = stepSeats(firstDrawer, markerDealIndex % 4). Pins:
+    // (a) the equation holds everywhere; (b) both markerSeat === firstDrawer
+    // and ≠ occur (hunted deterministically); (c) across a sweep, the
+    // non-collapsed cases are the MAJORITY (~75% expected: position % 4 ≠ 0).
+    let differs = 0;
+    const n = 40;
+    for (let i = 0; i < n; i++) {
+      const position = CUT_MIN + ((i * 11) % (CUT_MAX - CUT_MIN + 1));
+      const { ceremony } = runCut(`cut-defect-${i}`, DRAW_CFG, position);
+      expect(ceremony.markerSeat).toBe(
+        stepSeats(ceremony.firstDrawer, ceremony.markerDealIndex % 4, DRAW_CFG),
+      );
+      if (ceremony.markerSeat !== ceremony.firstDrawer) differs++;
+    }
+    expect(differs).toBeGreaterThanOrEqual(n * 0.4); // the old model scored ~11%
+    findCut('marker-differs', DRAW_CFG, (c) => c.markerSeat !== c.firstDrawer);
+    findCut('marker-same', DRAW_CFG, (c) => c.markerSeat === c.firstDrawer);
+  });
+
+  it('REVERSAL PIN (supersedes the round-1 agency pin): the cut NEVER changes which cards a seat group holds', () => {
+    // Owner decision 2026-07-15: the physical act preserves deck order — the
+    // cut selects the revealed cards and the leader, never the hands. The
+    // prior claim "a different position REALLY changes every hand" is
+    // superseded (STATUS process entry). The four residue-class card GROUPS
+    // are invariant across positions; only their seat ASSIGNMENT (via
+    // firstDrawer) and the leader move.
+    const groupsOf = (state: GuandanState) =>
+      state.hands
+        .map((h) => [...h].sort().join(','))
+        .sort();
     const a = runCut('cut-agency', DRAW_CFG, 20);
     const b = runCut('cut-agency', DRAW_CFG, 80);
-    expect(a.state.hands).not.toEqual(b.state.hands);
+    expect(groupsOf(a.state)).toEqual(groupsOf(b.state));
+    // And the leader genuinely varies across depths for this same seed.
+    const leaders = new Set([20, 21, 22, 23].map((p) => runCut('cut-agency', DRAW_CFG, p).state.trick!.leader));
+    expect(leaders.size).toBeGreaterThan(1);
   });
 
   it('27 cards each, every deck card dealt exactly once', () => {
@@ -320,6 +416,36 @@ describe('real cut — redaction (obligation 3: the deck is everyone\'s future h
     }
   });
 
+  it('THE STATED EXCEPTION (owner 2026-07-15): exactly flips ∪ {marker} are public, the rest unreachable', () => {
+    // The blanket "no card token" rule has precisely these intentional
+    // exceptions — the table watched these cards. For every seat, the card
+    // tokens visible OUTSIDE its own hand must equal flips ∪ {marker}:
+    // nothing else from the other ~106 cards is reachable, and the exception
+    // is deliberate, not accidentally un-caught.
+    const tokenSet = (json: string): Set<string> => {
+      const out = new Set<string>();
+      for (const m of json.matchAll(/"([2-9TJQKA][SHCD]|SJ|BJ)"/g)) out.add(m[1]!);
+      return out;
+    };
+    for (const position of [CUT_MIN, 42, CUT_MAX]) {
+      const { handStarted } = runCut(`cut-exception-${position}`, DRAW_CFG, position);
+      const ceremony = handStarted.ceremony!;
+      const allowed = new Set<string>([...ceremony.flips, ceremony.marker]);
+      for (let seat = 0 as Seat; seat < 4; seat++) {
+        const viewed = GuandanGame.viewEvent(handStarted, seat, DRAW_CFG) as HandStarted;
+        const withoutOwnHand = { ...viewed, hands: viewed.hands.map(() => []) };
+        const visible = tokenSet(JSON.stringify(withoutOwnHand));
+        expect([...visible].sort(), `seat ${seat} @ cut ${position}`).toEqual([...allowed].sort());
+        // NOTE: token identity is rank+suit, but every rank+suit has a TWIN
+        // in a double deck — the exception set is small, so a twin collision
+        // reveals only "one of the two instances", exactly as at the table.
+        // The MARKER itself is identified positionally (markerDealIndex),
+        // never by rank — the two-deck instance rule.
+        expect(typeof ceremony.markerDealIndex).toBe('number');
+      }
+    }
+  });
+
   it('obs 3: each seat is delivered EXACTLY its own cards in TRUE DEAL ORDER — no leak', () => {
     // The faithful-deal animation uses the order the server ALREADY sends: the
     // deal is unsorted (round-robin) in handStarted.hands, viewEvent redacts it
@@ -377,6 +503,42 @@ describe('real cut — distribution and determinism', () => {
       expect(count).toBeGreaterThanOrEqual(n * 0.2);
       expect(count).toBeLessThanOrEqual(n * 0.3);
     }
+  });
+
+  it('CONDITIONAL (non-)uniformity, measured: the cut depth residue carries the documented edge', () => {
+    // Owner finding 2026-07-15, MEASURED AND DOCUMENTED — deliberately NOT
+    // fixed (the physical table has the identical property). The absolute
+    // sweeps below stay uniform because the cutter is PRNG-uniform; this test
+    // conditions on the cutter and shows what they cannot: the count offset
+    // X=(value-1)%4 at level 2 (hand 1 ALWAYS runs at level 2) is skewed —
+    // countable ranks by offset: 0:{A,5,9,K} 1:{6,10} 2:{3,7,J} 3:{4,8,Q} —
+    // so P(X even)=7/12 and a cutter picking an EVEN depth leads their own
+    // team ≈58.3% vs ≈41.7% at an ODD depth: a ~16.7pt swing chosen by the
+    // cutter. (At levels A/5/9/K the distribution is flat, but hand 1 never
+    // runs there under the standard start.)
+    const N = 500;
+    const teamLead = { even: 0, odd: 0 };
+    let sampled = 0;
+    for (let i = 0; sampled < N && i < N * 8; i++) {
+      const seed = `cut-cond-${i}`;
+      // Condition on the cutter WITHOUT biasing the deck: only the seed's
+      // cutter draw decides inclusion.
+      if (oracleSetup(seed).cutter !== 0) continue;
+      sampled++;
+      const cutterTeam = teamOf(0);
+      const even = runCut(seed, DRAW_CFG, 54); // 54 % 4 = 2 (even offset added)
+      if (teamOf(even.state.trick!.leader) === cutterTeam) teamLead.even++;
+      const odd = runCut(seed, DRAW_CFG, 55); // 55 % 4 = 3 (odd)
+      if (teamOf(odd.state.trick!.leader) === cutterTeam) teamLead.odd++;
+    }
+    expect(sampled).toBe(N);
+    // Expected: even ≈ 7/12 ≈ 58.3%, odd ≈ 5/12 ≈ 41.7%. ±6pt at N=500.
+    expect(teamLead.even / N).toBeGreaterThan(7 / 12 - 0.06);
+    expect(teamLead.even / N).toBeLessThan(7 / 12 + 0.06);
+    expect(teamLead.odd / N).toBeGreaterThan(5 / 12 - 0.06);
+    expect(teamLead.odd / N).toBeLessThan(5 / 12 + 0.06);
+    // The edge itself: even-depth minus odd-depth own-team lead ≈ 16.7pt.
+    expect(teamLead.even / N - teamLead.odd / N).toBeGreaterThan(0.09);
   });
 
   it('same (seed, position) twice ⇒ identical ceremony, state and events', () => {
@@ -447,7 +609,7 @@ describe('real cut — clockwise turnDirection counts clockwise', () => {
       const seed = `cut-cw-oracle-${i}`;
       const position = CUT_MIN + ((i * 17) % (CUT_MAX - CUT_MIN + 1));
       const { ceremony } = runCut(seed, CW_DRAW_CFG, position);
-      expect(ceremony).toEqual(oracleRitual(seed, position, CW_DRAW_CFG));
+      expect(ceremony).toEqual(oracleCeremony(seed, position, CW_DRAW_CFG));
     }
   });
 });
