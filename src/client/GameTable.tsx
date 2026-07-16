@@ -397,7 +397,8 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // Item 4: play the physical deal once per fold-observed deal — after the
   // hand-1 ceremony overlay (flips/count) finishes, immediately on later
   // hands. Purely presentational: the clock is already running (the 90s
-  // per-seat planning window absorbs the ≤4.5s animation, deal.ts).
+  // per-seat planning window absorbs the choreography — ≤5s typical, ≤5.5s
+  // at the deepest cut where the 900ms marker lands last; deal.ts pins).
   const dealing =
     derived.dealNo > dealShown && !ceremonyShowing && view.phase !== 'ceremonyCut' && view.hand.length > 0;
   const dirFor = (seat: Seat): 'south' | 'east' | 'north' | 'west' =>
