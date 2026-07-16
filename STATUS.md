@@ -1,6 +1,6 @@
 # STATUS
 
-## Current phase: deal fidelity (obs 1-3) + Codex policy BUILT + visual-verified — panel in flight
+## Current phase: deal fidelity (obs 1-3) + Codex policy DONE (both panels clean) — awaiting owner deploy
 
 **Last updated:** 2026-07-15 (deal fidelity)
 
@@ -45,9 +45,23 @@ pre-sorted); dealToHandIndices bijection incl. duplicates; HandFan deal-order re
   and the prompt reads clearly. (The obs-3 sort + items 1-2 fixes are width-independent; the
   mid-deal freeze was captured at desktop, the settled/390 render confirmed via the iframe.)
 
-746 unit + 40 e2e + 4 typechecks green. Panel next: Codex on item 3 ONLY (it authored 1-2 — can't
-self-audit); Grok on item 3 + items 1-2; the question — does publishing per-seat deal order leak
-any other seat?
+**PANEL EXECUTED — the new policy in action.** Codex audited ONLY item 3 (it authored items 1-2,
+so it cannot self-audit them); Grok audited item 3 + items 1-2. **Both CLEAN, no findings.**
+Codex: all 6 item-3 claims CONFIRMED — obs 3 is client-only (`git show 78e11f4 -- src/engine
+src/server src/shared` empty), no cross-seat leak, foldEvents own-only, obligation-3 pin real,
+honest budget, replay/uniformity intact (its e2e blocked only by sandbox 127.0.0.1 EPERM). Grok:
+all 8 CONFIRMED incl. items 1-2 — marker slabs correctly scoped (deck keeps them, marker doesn't),
+and the well/deck stacking verified (both under `.gd-table`'s context so z-10>z-9, ceremony
+overlay mutually exclusive, toast z-20). Both independently answered the owner's question — does
+publishing per-seat deal order leak any other seat? **NO.**
+
+**Self-caught + fixed before ship (5fa44dd):** the HandFan FLIP animated ANY position delta, so a
+play (hand shrinks, indices remap) or the sort-direction toggle would have animated too. Gated to
+the deal→sorted transition ONLY; every other render stays instant. (A pure-animation refinement;
+the panels' redaction verdict is unaffected.)
+
+746 unit + 40 e2e + 4 typechecks green. Round DONE — merge to main + push (production deploy) awaits
+the owner; main already carries the two prior unpushed rounds too.
 
 **Last updated (prior below):** 2026-07-15 (cut & deal refinement)
 
