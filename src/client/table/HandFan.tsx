@@ -84,6 +84,7 @@ export function HandFan({
 }: HandFanProps) {
   const cardRefs = useRef(new Map<number, HTMLElement>());
   const prevRects = useRef(new Map<number, DOMRect>());
+  const wasDealing = useRef(false);
 
   // Display order = sorted-hand indices in display sequence. During the deal it
   // follows arrival order; otherwise ascending (or the descending pref).
@@ -97,15 +98,20 @@ export function HandFan({
   }
   const rows = splitIndexRows(order, MAX_PER_ROW);
 
-  // FLIP: after each render, slide every card that changed position from its
-  // previous slot to its new one. Reveal-only and selection re-renders produce
-  // no position delta, so nothing animates; the deal→sorted re-lay does. Keyed
-  // by sorted index, so a card that changes ROWS (React remounts it) still
-  // animates — cardRefs resolves the key to the CURRENT node.
+  // FLIP, but ONLY on the deal→sorted re-lay (the sanctioned sort beat): the
+  // moment `dealing` turns false after having been true, slide every card from
+  // its arrival slot to its sorted slot. We keep every OTHER render (reveal,
+  // selection, a play that shrinks the hand and remaps indices, the descending
+  // toggle) instant — those must not animate, so the fan reflow after a play
+  // stays crisp. Cards are keyed by sorted index, so a card that changes ROWS
+  // (React remounts it) still slides: cardRefs resolves the key to the CURRENT
+  // node. prevRects is refreshed every render so the sort baseline is the last
+  // arrival-order layout.
   useLayoutEffect(() => {
     const next = new Map<number, DOMRect>();
     cardRefs.current.forEach((el, key) => next.set(key, el.getBoundingClientRect()));
-    if (!prefersReducedMotion()) {
+    const isSortBeat = wasDealing.current && !dealing;
+    if (isSortBeat && !prefersReducedMotion()) {
       prevRects.current.forEach((prev, key) => {
         const el = cardRefs.current.get(key);
         const now = next.get(key);
@@ -120,6 +126,7 @@ export function HandFan({
       });
     }
     prevRects.current = next;
+    wasDealing.current = dealing;
   });
 
   let displayIndex = -1;
