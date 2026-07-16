@@ -1,8 +1,44 @@
 # STATUS
 
-## Current phase: deal fidelity (obs 1-3) + Codex policy DONE (both panels clean) — awaiting owner deploy
+## Current phase: ceremony marker DEFECT diagnosed — engine fix HELD for owner (1-vs-2-card is owner authority)
 
-**Last updated:** 2026-07-15 (deal fidelity)
+**Last updated:** 2026-07-15 (ceremony marker)
+
+## Ceremony marker round (2026-07-15) — CRITICAL defect + rules fork + result-panel restyle
+
+Owner report: the draw ceremony is deterministic ~89% of the time; the marker is in the wrong place.
+
+**Diagnosed (confirmed):** `runCutRitual` sets `markerSeat = stepSeats(firstDrawer, (flips.length-1)%4)`
+and deals the marker at deal index `flips.length-1`. `flips.length` is 1 unless a joker/level card
+forces a re-flip (~11%: 4 jokers + 8 level cards / 108), so ~89% of hands `markerSeat = firstDrawer`
+— the first drawer always draws the marker and always leads. `數到 X` / `明牌落在 X` / `該家先出 X`
+collapse to ONE seat. **cutPosition never enters the marker's deal index at all** — the cut only
+shifts who leads via which card sits on top (the count). This is the theatre we rejected for the
+cut, reintroduced in a plausible formula (the "NO new field" constraint drove the semantics).
+
+**Uniformity-collapse finding (owner's suspicion, confirmed):** both 400-seed sweeps passed because
+`markerSeat = firstDrawer = stepSeats(cutter, offset)` and the cutter is PRNG-uniform → the test was
+proving "the first drawer is uniform via the uniform cutter," NOT "the marker draw genuinely spreads
+the leader." A correct placement makes `markerSeat` depend on cutPosition too (still uniform via the
+cutter, but genuinely varying from firstDrawer).
+
+**Rule research (WebSearch; BCTA/竞技掼蛋 sources):** the OFFICIAL rule is ONE card — South cuts,
+flips one 明牌, jokers/红心2 re-flip, count from the cutter by its value CCW to the first DRAWER, and
+**whoever draws that 明牌 leads** (one card, two jobs). The 明牌 sits at the CUT POSITION (owner: "cut
+at 15 ⇒ 15th card dealt"), so the marker's deal index must be a function of cutPosition — correct
+under BOTH the one-card and the owner's two-card house rule. The two-card form is NOT in the
+competition rules reached (cert/403 on some) — tag UNCERTAIN, likely the owner's table/regional
+variant. "Sometimes two cards appear" = the joker/level RE-FLIP sequence (rejected + accepted card
+with 重翻 labels), NOT the two-card marker — confirmed in code.
+
+**HELD for owner (owner authority): one card or two, and the marker geometry** (does the cut still
+rotate the deal, or only pick the marker+count? the off-by-one). Proposal presented: marker deal
+index = f(cutPosition); `ceremonyCardCount: 1 | 2` RuleVariant default = owner's; drop the marker
+pre-announce so the deal reveals it. Engine build + item-3 CeremonyOverlay restyle wait on the
+answer (the panel content depends on the fix). Bot-name convention fixed (阿明/阿美/阿華/阿強;
+[[visual-verify-room-adoption]]). CUT panel praised — untouched.
+
+**Last updated (prior below):** 2026-07-15 (deal fidelity)
 
 ## Deal fidelity round (2026-07-15) — 3 deal bugs + the Codex producer≠auditor policy
 
