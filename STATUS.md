@@ -1,8 +1,47 @@
 # STATUS
 
-## Current phase: ceremony suspense/re-cut round BUILT — sweep + visual + panel in flight
+## Current phase: owner-feedback round (heart-only wilds + 5 UI gates) BUILT — focused panel in flight
 
-**Last updated:** 2026-07-15 (ceremony suspense/re-cut)
+**Last updated:** 2026-07-15 (owner live-build feedback)
+
+## Owner live-build feedback round (2026-07-15) — 6 items from the owner's own play session
+
+**Item 1 — RULES CORRECTION (engine, in-house).** Uncountable = jokers + the WILD (the HEART
+level card) ONLY; other suits of the level rank COUNT. The previous all-suits rule was drift
+from the sourced official text ("jokers or the red-heart 2"); the owner caught it live when a
+clubs-2 flip was refused. isCountable now uses isWild. Re-derived consequences, all restated
+consistently: 6 uncountables (was 12) => AFK termination bound <=7 alarm cuts (200-seed pin +
+the named liveness case updated); the level-2 conditional split becomes 32/22/24/24 over 102
+countables => P(even)=56/102~54.9% vs 45.1% — the residue edge SHRINKS to ~9.8pt (was 16.7pt)
+— conditional test re-pinned with the new numbers; copy in all three locales now says jokers +
+the heart level card.
+
+**Items 2-6 (presentation).** The landing reveal sits centred just below the deck pile (never
+over plates/fan); the trick-well lead prompt appears only after the centre is CLEAR (gated
+through the whole deal, fades in); the sort toggle hidden through cut/ceremony/deal; countdown
+chips (planning window included) wait for the sorted hand, every seat; the ceremony panel shows
+ONLY the final two cards in any condition and the cut panel only the LATEST flip (the full flip
+history stays public in payload/feed — the redaction pins unchanged). Unused reflip key dropped
+x3 locales.
+
+Live-verified (zh-Hant, desktop 907px, TIMED room): exactly 2 ceremony cards; no
+toggle/prompt/planning label through cut->ceremony->deal; reveal at x-centre below the deck;
+settled state restores all three. 768 unit + 40 e2e + 4 typechecks green. Focused both-lineage
+panel on the engine change in flight.
+
+## Ceremony suspense/re-cut round — PANEL EXECUTED (completing the record below)
+
+Codex: 5/6 PASS + one LOW (three stale count-walk comments — fixed 0db79b1, prose pin extended
+with the walk phrasings); its e2e blocked by sandbox listen EPERM (environment). Grok: first run
+died to a PLAN RATE LIMIT (a genuine null, retried rather than presented as coverage); the retry
+returned 7/7 PASS — CLEAN, including item 4 (the English sweep, which Codex authored and could
+not audit): sweep verified comments/docs-only, allowlist honest, locale values untouched, plus
+two nits (the stale <=4.5s GameTable comment — fixed d047e61 — and some clumsy sweep glosses,
+accepted). Both lineages ran 768 unit green; Grok ran e2e 40/40. The re-cut liveness argument,
+the actedSeat-only timing scope, the supersession notes, the UI-level suspense framing, the
+900ms budgets, and the keyboard/AT finding were all independently confirmed.
+
+**Last updated (prior below):** 2026-07-15 (ceremony suspense/re-cut)
 
 ## Ceremony suspense/re-cut round (2026-07-15) — 6 owner items
 
