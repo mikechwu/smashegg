@@ -104,4 +104,39 @@ describe('the framework overlays (structural: no theme can remove them)', () => 
     const markerRule = css.match(/\.gd-cardframe\s*>\s*\.gd-card__wild\s*\{[^}]*\}/)?.[0] ?? '';
     expect(markerRule).toContain('z-index: 1');
   });
+
+  it('the physical-deal deck slabs apply only to the deck back, not the marker face', () => {
+    const css = readFileSync(
+      join(__dirname, '../../../src/client/table/table.css'),
+      'utf8',
+    );
+    const deckDepthBlock = css.match(/\/\* Deck depth[\s\S]*?\/\* Undealt fan/)?.[0] ?? '';
+    expect(deckDepthBlock).not.toMatch(
+      /\.gd-deal__deck(?:\[data-depth-tier='[0-3]'\])?\s+\.gd-card\s*\{/,
+    );
+    expect(deckDepthBlock).not.toMatch(/\.gd-deal__marker\s+\.gd-card/);
+
+    const scopedSelectors = [...deckDepthBlock.matchAll(
+      /(^|\n)(\.gd-deal__deck(?:\[data-depth-tier='[0-3]'\])?\s*>\s*\.gd-cardframe\s*>\s*\.gd-card)\s*\{/g,
+    )].map((match) => match[2].replace(/\s+/g, ' '));
+    expect(scopedSelectors).toEqual([
+      '.gd-deal__deck > .gd-cardframe > .gd-card',
+      ".gd-deal__deck[data-depth-tier='3'] > .gd-cardframe > .gd-card",
+      ".gd-deal__deck[data-depth-tier='2'] > .gd-cardframe > .gd-card",
+      ".gd-deal__deck[data-depth-tier='1'] > .gd-cardframe > .gd-card",
+      ".gd-deal__deck[data-depth-tier='0'] > .gd-cardframe > .gd-card",
+    ]);
+  });
+
+  it('the centre well paints above the physical-deal deck layer', () => {
+    const css = readFileSync(
+      join(__dirname, '../../../src/client/table/table.css'),
+      'utf8',
+    );
+    const dealRule = css.match(/^\.gd-deal\s*\{[^}]*\}/m)?.[0] ?? '';
+    expect(dealRule).toContain('z-index: 9');
+    const wellRule = css.match(/^\.gd-well\s*\{[^}]*\}/m)?.[0] ?? '';
+    expect(wellRule).toContain('position: relative');
+    expect(wellRule).toContain('z-index: 10');
+  });
 });

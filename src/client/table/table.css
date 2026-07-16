@@ -146,6 +146,8 @@
 
 /* --- trick well ----------------------------------------------------------- */
 .gd-well {
+  position: relative;
+  z-index: 10;
   text-align: center;
   animation: gd-sweep-in 300ms ease-out;
   max-width: 100%;
@@ -728,28 +730,28 @@
 /* Deck depth (research recipe): offset+negative-spread shadow slab pairs;
    discrete depletion tiers ARE the animation (shadows can't interpolate
    layer counts). The deal pile depletes as it deals. */
-.gd-deal__deck .gd-card {
+.gd-deal__deck > .gd-cardframe > .gd-card {
   transition: box-shadow 150ms linear;
 }
-.gd-deal__deck[data-depth-tier='3'] .gd-card {
+.gd-deal__deck[data-depth-tier='3'] > .gd-cardframe > .gd-card {
   box-shadow:
     2px 2px 0 -1px var(--ivory), 2px 2px 0 0 var(--rosewood),
     4px 4px 0 -1px var(--ivory), 4px 4px 0 0 var(--rosewood),
     6px 6px 0 -1px var(--ivory), 6px 6px 0 0 var(--rosewood),
     0 6px 10px rgba(0, 0, 0, 0.35);
 }
-.gd-deal__deck[data-depth-tier='2'] .gd-card {
+.gd-deal__deck[data-depth-tier='2'] > .gd-cardframe > .gd-card {
   box-shadow:
     2px 2px 0 -1px var(--ivory), 2px 2px 0 0 var(--rosewood),
     4px 4px 0 -1px var(--ivory), 4px 4px 0 0 var(--rosewood),
     0 5px 8px rgba(0, 0, 0, 0.35);
 }
-.gd-deal__deck[data-depth-tier='1'] .gd-card {
+.gd-deal__deck[data-depth-tier='1'] > .gd-cardframe > .gd-card {
   box-shadow:
     2px 2px 0 -1px var(--ivory), 2px 2px 0 0 var(--rosewood),
     0 4px 7px rgba(0, 0, 0, 0.35);
 }
-.gd-deal__deck[data-depth-tier='0'] .gd-card {
+.gd-deal__deck[data-depth-tier='0'] > .gd-cardframe > .gd-card {
   box-shadow: 0 3px 6px rgba(0, 0, 0, 0.35);
 }
 
