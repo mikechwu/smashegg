@@ -1,6 +1,6 @@
 # STATUS
 
-## Current phase: ceremony marker DEFECT diagnosed — engine fix HELD for owner (1-vs-2-card is owner authority)
+## Current phase: ceremony marker round DONE (both panels: 7/7 product claims confirmed; prose catch fixed + pinned) — awaiting owner deploy
 
 **Last updated:** 2026-07-15 (ceremony marker)
 
@@ -74,8 +74,26 @@ re-derived and re-pinned (landings+slow ≤4.5s; full incl. sort ≤5s); Ceremon
 into Lacquer Ledger (ritual order: who cut → flips + 明牌 (labeled, cinnabar-edged, both public)
 → count with its VALUE → 明牌落在 → goldleaf 該家先出; reduced-motion summary kept); i18n
 counting→count/countLabel/markerLabel ×3 locales. Bot-name convention fixed (阿明/阿美/阿華/阿強;
-[[visual-verify-room-adoption]]). CUT panel untouched (praised). 753 unit + 40 e2e + 4
-typechecks green. Visual verify (desktop + true 390) + panel next.
+[[visual-verify-room-adoption]]). CUT panel untouched (praised).
+
+**Visual verification (desktop + TRUE 390, iframe recipe):** the defect fix is VISIBLE — two live
+rooms showed 數到 and 該家先出 as DIFFERENT seats (阿明→阿美 at cut 41; 阿強→阿華 at cut 39, where
+the 明牌 was even a level-2 card, demonstrating any-card markers); the restyled panel reads in
+ritual order with the goldleaf banner (caught ivory in the first pass — fixed d6f45fb) and is
+legible at innerWidth=390 with no H-overflow; a runtime probe confirmed the marker's animation
+delay = 1584ms = 41×36 + 3 slow ticks, bit-for-bit the pinned schedule.
+
+**PANEL EXECUTED (both lineages, headless scratch clones; built in-house so both were clean
+auditors).** Codex: 7/8 claims CONFIRMED (suites 753 green; e2e blocked by sandbox listen EPERM,
+environment not product). Grok: same 7 CONFIRMED and ran e2e 40/40 green. BOTH refuted claim 8
+identically: six comments still asserted the superseded rotate-the-deck / collapsed-marker /
+unqualified-uniformity model (index.ts banner, types.ts state doc, ceremony.test header,
+DealOverlay header incl. the literal defect formula, cut.ts "hidden + uniform", CutPanel
+unqualified "leader is uniform"). **Fixed (0978427)** and pinned per the ratchet: a
+superseded-model prose pin forbids the exact stale phrases across the seven files. Independent
+convergence note: Grok re-derived the offset arithmetic itself (4/2/3/3 → 7/12) and confirmed the
+conditional numbers. **754 unit + 40 e2e + 4 typechecks green. Round DONE — merge/push (production
+deploy, now FOUR queued rounds on feat/cut-deal-refine) awaits the owner.**
 
 **Last updated (prior below):** 2026-07-15 (deal fidelity)
 
