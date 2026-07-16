@@ -265,13 +265,31 @@ describe('Guandan e2e (M3 gate)', () => {
         for (const copy of startCopies) {
           expect(viewOf(copy).ceremonyCutter).toBe(cutter); // public, identical
         }
+        // Re-cut loop (owner rule): a cut whose flip is uncountable stays in
+        // ceremonyCut with a public ceremonyCutFlipped event — cut again at
+        // the next position until the deal lands (bounded: at most 12
+        // uncountables exist in the deck; the loop below allows 20).
         const cutterClient = clients[cutter]!.client;
-        const cutMark = cutterClient.mark();
-        cutterClient.action(cutter, { type: 'cutDeck', position: 42 }, { expectedSeq: startedSeq });
-        const afterCut = await cutterClient.waitFor<EventMsg>(
-          (m) => m.type === 'event' && m.seat === cutter && m.seq > startedSeq,
-          { from: cutMark },
-        );
+        let cutPositionSent = 42;
+        let prevSeq = startedSeq;
+        let afterCut!: EventMsg;
+        for (let attempt = 0; ; attempt++) {
+          expect(attempt).toBeLessThan(20);
+          const cutMark = cutterClient.mark();
+          cutterClient.action(
+            cutter,
+            { type: 'cutDeck', position: cutPositionSent },
+            { expectedSeq: prevSeq },
+          );
+          afterCut = await cutterClient.waitFor<EventMsg>(
+            (m) => m.type === 'event' && m.seat === cutter && m.seq > prevSeq,
+            { from: cutMark },
+          );
+          const events = afterCut.event as { type: string }[];
+          if (!events.some((e) => e.type === 'ceremonyCutFlipped')) break;
+          prevSeq = afterCut.seq;
+          cutPositionSent++;
+        }
         const dealSeq = afterCut.seq;
 
         // --- 翻牌定先 ceremony: the FIRST handStarted (hand 1) must carry
@@ -304,10 +322,11 @@ describe('Guandan e2e (M3 gate)', () => {
         }
         // Ceremony internals (item 3: flips are REAL cards now): the last
         // flip is countable — not a joker, not the hand-1 level '2' — the
-        // logged position matches what we sent, and all seats are in range.
+        // logged position matches the FINAL cut we sent (re-cut loop), and
+        // all seats are in range.
         const lastFlip = ceremony0!.flips[ceremony0!.flips.length - 1]!;
         expect(ceremony0!.flips.length).toBeGreaterThan(0);
-        expect(ceremony0!.cutPosition).toBe(42);
+        expect(ceremony0!.cutPosition).toBe(cutPositionSent);
         expect(lastFlip).not.toBe('SJ');
         expect(lastFlip).not.toBe('BJ');
         expect(lastFlip[0], 'countable rank').not.toBe('2');

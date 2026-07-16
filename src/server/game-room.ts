@@ -1648,7 +1648,7 @@ export class GameRoom extends DurableObject<Env> {
     // reflects the new state by the time currentWireDeadlines() reads it
     // immediately below, BEFORE fanning out the 'event' broadcast (PLAN §5
     // deadlines field: populated from the table after recomputation).
-    void this.recomputeDeadlines('decision');
+    void this.recomputeDeadlines('decision', seat);
     this.fanOutEvents(game, config, newSeq, applied.events, applied.state, this.currentWireDeadlines());
 
     logMutation({
@@ -1743,9 +1743,11 @@ export class GameRoom extends DurableObject<Env> {
     this.ctx.storage.sql.exec('UPDATE room SET pause_started_at = NULL WHERE id = 1');
   }
 
-  /** Call sites: handleStart + applyGameAction (every state change). */
-  private async recomputeDeadlines(reason: 'decision'): Promise<void> {
-    this.applyNextDeadlines(reason, undefined);
+  /** Call sites: handleStart + applyGameAction (every state change).
+   *  `actedSeat` (applyGameAction only) lets the decision table re-arm a
+   *  fresh clock for a seat that acted and REMAINS an actor (re-cut round). */
+  private async recomputeDeadlines(reason: 'decision', actedSeat?: Seat): Promise<void> {
+    this.applyNextDeadlines(reason, undefined, actedSeat);
     await this.scheduleAlarm();
   }
 
@@ -1762,6 +1764,7 @@ export class GameRoom extends DurableObject<Env> {
   private applyNextDeadlines(
     reason: 'decision' | 'presence',
     changedSeats: ReadonlySet<Seat> | undefined,
+    actedSeat?: Seat,
   ): void {
     const sql = this.ctx.storage.sql;
     const room = this.readRoomRow();
@@ -1792,6 +1795,7 @@ export class GameRoom extends DurableObject<Env> {
       now: Date.now(),
       reason,
       changedSeats,
+      actedSeat,
     });
     // Replace wholesale — the pure function already returned untouched rows
     // verbatim, so the table contents equal its output either way.

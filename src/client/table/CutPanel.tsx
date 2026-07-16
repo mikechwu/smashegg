@@ -1,19 +1,33 @@
-// CutPanel — the REAL cut's interaction (item 3, restyled per obs 1): the
-// cutter drags a slider spread to the SAME width as the face-down deck ribbon
-// above it, and the deck genuinely splits into two packets at the chosen
-// point, live as the slider moves. The other three watch, with the actor
-// named. No numeric index is ever shown — cutting has no numeric analogue at
-// a physical table, and (ceremony-marker round) the number would also make
-// residue-class counting trivial: ABSOLUTE leader uniformity holds, but
-// conditional on the cutter the depth's residue carries a documented edge
-// (see cut.ts / the engine's conditional test). The semantics are unchanged:
-// a position in CUT_MIN..CUT_MAX submitted as a cutDeck action.
+// CutPanel — the REAL cut's interaction: the cutter drags a slider spread to
+// the SAME width as the face-down deck ribbon above it, and the deck
+// genuinely splits into two packets at the chosen point, live as the slider
+// moves. The other three watch, with the actor named.
+//
+// Re-cut round (owner rule): an applied cut whose count-card flip is
+// uncountable (a joker or the current-level rank) shows the flipped card IN
+// THIS PANEL and the cutter cuts again, with a fresh clock; the flip history
+// arrives via view.ceremonyFlips (public — the table watched each one).
+//
+// No numeric index is shown VISUALLY — cutting has no numeric analogue at a
+// physical table, and the number would make residue-class counting trivial
+// (see the engine's conditional-uniformity test). Stated honestly: this
+// mitigation is PARTIAL — a native range input still exposes exact positions
+// through the keyboard (Home/End anchor, arrows step by 1) and through
+// assistive tech (aria-valuenow), and cutPosition is public in the post-cut
+// payload anyway. For a family game that is documented, not policed (owner
+// decision) — but anyone adding a numeric readout, or replacing the slider
+// with stepping buttons, makes the residue edge trivially reachable and
+// should re-read that test first. The 24-sliver ribbon is deliberately
+// coarser than the 97 positions, so the SPLIT cannot be counted by eye.
+// The semantics are unchanged: a position in CUT_MIN..CUT_MAX submitted as
+// a cutDeck action.
 
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
 import type { Seat } from '../../engine/core/game';
+import type { Card, Rank } from '../../engine/guandan/cards';
 import { CUT_MIN, CUT_MAX, DEFAULT_CUT_POSITION } from '../../engine/guandan';
-import { CardBack } from './CardFace';
+import { CardBack, CardFace, cardLabel } from './CardFace';
 import { CUT_RIBBON_SLIVERS, cutLeftCount } from './cut';
 import { t } from '../i18n';
 
@@ -21,6 +35,10 @@ export interface CutPanelProps {
   cutter: Seat;
   /** True when the viewer's active seat IS the cutter. */
   isCutter: boolean;
+  /** Public flip history across cut attempts (view.ceremonyFlips): nonempty
+   *  exactly when previous cuts flipped uncountable cards. */
+  flips: readonly Card[];
+  level: Rank;
   nameFor: (seat: Seat) => string;
   onCut: (position: number) => void;
 }
@@ -46,15 +64,36 @@ function CutRibbon({ leftCount }: { leftCount: number }) {
   );
 }
 
-export function CutPanel({ cutter, isCutter, nameFor, onCut }: CutPanelProps) {
+/** The uncountable flips from earlier attempts, shown in the SAME panel so
+ *  the re-cut reads as one continuous ritual. */
+function FlipRow({ flips, level }: { flips: readonly Card[]; level: Rank }) {
+  if (flips.length === 0) return null;
+  return (
+    <div className="gd-cut__flips">
+      {flips.map((flip, i) => (
+        <span key={i} className="gd-cut__flip" role="img" aria-label={cardLabel(flip, level)}>
+          <CardFace card={flip} level={level} size="mini" />
+        </span>
+      ))}
+    </div>
+  );
+}
+
+export function CutPanel({ cutter, isCutter, flips, level, nameFor, onCut }: CutPanelProps) {
   const [position, setPosition] = useState(DEFAULT_CUT_POSITION);
+  const lastFlip = flips.length > 0 ? flips[flips.length - 1]! : null;
 
   if (!isCutter) {
     return (
       <div className="gd-cut" role="status">
         <p className="gd-cut__title">{t('game.ceremony.title')}</p>
         <CutRibbon leftCount={CUT_RIBBON_SLIVERS} />
-        <p className="gd-well__waiting">{t('game.cut.waiting', { name: nameFor(cutter) })}</p>
+        <FlipRow flips={flips} level={level} />
+        <p className="gd-well__waiting">
+          {lastFlip !== null
+            ? t('game.cut.flippedWaiting', { name: nameFor(cutter) })
+            : t('game.cut.waiting', { name: nameFor(cutter) })}
+        </p>
       </div>
     );
   }
@@ -63,7 +102,12 @@ export function CutPanel({ cutter, isCutter, nameFor, onCut }: CutPanelProps) {
     <div className="gd-cut">
       <p className="gd-cut__title">{t('game.ceremony.title')}</p>
       <CutRibbon leftCount={cutLeftCount(position)} />
-      <p className="gd-cut__prompt">{t('game.cut.prompt')}</p>
+      <FlipRow flips={flips} level={level} />
+      <p className="gd-cut__prompt">
+        {lastFlip !== null
+          ? t('game.cut.flipped', { card: cardLabel(lastFlip, level) })
+          : t('game.cut.prompt')}
+      </p>
       <input
         className="gd-cut__slider"
         type="range"

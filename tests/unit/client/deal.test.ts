@@ -153,16 +153,25 @@ describe('deal budget (honestly re-derived for the slow window)', () => {
     expect(dealChoreographyMs(DECK_SIZE, 54)).toBeLessThanOrEqual(4_700);
   });
 
-  it('the marker flight never extends the deal, even at the deepest legal cut', () => {
-    // CUT_MAX = 102 is the deepest two-card marker beat; its slowed delay +
-    // its own flight still ends before the last landing.
-    const schedule = dealSchedule(undefined, 102);
-    expect(schedule[102]!.delayMs + MARKER_FLY_MS).toBeLessThan(dealDurationMs(DECK_SIZE, 102));
+  it('the slower (900ms) marker flight is counted honestly: duration = max(backs, marker landing)', () => {
+    // At a TYPICAL cut the marker lands mid-deal and the backs finish last;
+    // at the deepest legal cut (102) the marker's floatier flight makes it
+    // the FINAL landing — which is exactly the drama the owner asked for —
+    // and the duration owns that instead of leaving a stale number.
+    const typical = dealSchedule(undefined, 54);
+    expect(typical[54]!.delayMs + MARKER_FLY_MS).toBeLessThan(dealDurationMs(DECK_SIZE, 54));
+    const deep = dealSchedule(undefined, 102);
+    expect(dealDurationMs(DECK_SIZE, 102)).toBe(deep[102]!.delayMs + MARKER_FLY_MS);
+    expect(dealDurationMs(DECK_SIZE, 102)).toBeGreaterThan(dealDurationMs(DECK_SIZE, 54));
   });
 
-  it('obs 3 + slow window: the full experience (landings+settle+sort) ≤ 5s', () => {
+  it('obs 3 + slow window + 900ms marker: typical ≤ 5s, worst legal cut ≤ 5.5s (honest re-pin)', () => {
     expect(dealWithSortMs(DECK_SIZE, 54)).toBe(dealChoreographyMs(DECK_SIZE, 54) + SORT_BEAT_MS);
     expect(dealWithSortMs(DECK_SIZE, 54)).toBeLessThanOrEqual(5_000);
+    // Deepest two-card marker beat = CUT_MAX = 102: the marker IS the last
+    // landing, and the honest end-to-end worst case stays within 5.5s —
+    // still under 7% of the 90s planning window.
+    expect(dealWithSortMs(DECK_SIZE, 102)).toBeLessThanOrEqual(5_500);
   });
 });
 

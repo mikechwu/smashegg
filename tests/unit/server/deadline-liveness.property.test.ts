@@ -121,7 +121,11 @@ class VirtualRoom {
     return resolveTimeoutMs(this.game, this.state, this.timing, seat);
   }
 
-  private recompute(reason: 'decision' | 'presence', changedSeats: ReadonlySet<Seat> | undefined): void {
+  private recompute(
+    reason: 'decision' | 'presence',
+    changedSeats: ReadonlySet<Seat> | undefined,
+    actedSeat?: Seat,
+  ): void {
     const prevSeats = new Set(this.rows.map((r) => r.seat));
     this.rows = this.game.isTerminal(this.state)
       ? []
@@ -135,6 +139,9 @@ class VirtualRoom {
           now: this.now,
           reason,
           changedSeats,
+          // Re-cut round: an acted seat that remains an actor re-arms fresh,
+          // exactly as game-room passes opts.seat at applyGameAction.
+          actedSeat,
         });
     // scheduleAlarm — the REAL alarmCandidates decision (minus the hello probe),
     // so a paused room (0 connected seats) arms nothing even with frozen rows (P1)
@@ -142,6 +149,12 @@ class VirtualRoom {
     this.alarmAt = this.computeAlarmAt();
     const nowSeats = new Set(this.rows.map((r) => r.seat));
     for (const s of nowSeats) if (!prevSeats.has(s)) this.armedAt.set(s, this.now);
+    // Re-cut round: the acted seat's clock re-arms FRESH even though the
+    // seat never left the rows (a re-cut, or a cutter who becomes the
+    // leader), so its DL1 anchor moves to now as well.
+    if (reason === 'decision' && actedSeat !== undefined && nowSeats.has(actedSeat)) {
+      this.armedAt.set(actedSeat, this.now);
+    }
     for (const s of [...this.armedAt.keys()]) if (!nowSeats.has(s)) this.armedAt.delete(s);
   }
 
@@ -173,7 +186,7 @@ class VirtualRoom {
     if (!res.ok) throw new Error(`virtual room: legal action rejected: ${res.error.code}`);
     this.state = res.state;
     this.seq++;
-    this.recompute('decision', undefined);
+    this.recompute('decision', undefined, seat);
   }
 
   disconnect(seat: Seat): void {
@@ -517,6 +530,44 @@ describe('named liveness cases', () => {
     expect(room.rows).toHaveLength(1);
     expect(leaderRow.timingClass).toBe('planning');
     expect(leaderRow.baseDueAt).toBe(room.now + 90_000);
+    assertInvariants(room);
+  });
+
+  it('re-cut: an uncountable alarm cut re-arms a FRESH clock and the varying default terminates (no alarm loop)', () => {
+    // Hunt a seed whose FIRST alarm default cut flips an uncountable card
+    // (joker / level rank), driving the real re-cut loop through the alarm
+    // path: each alarm applies the default, the acted cutter re-arms fresh
+    // (never the expired base — the tight-loop hazard), the default position
+    // VARIES with attempts, and the loop reaches the deal within the 13-cut
+    // bound.
+    const spec = GAMES[2]!;
+    let seed: string | null = null;
+    for (let i = 0; i < 300 && seed === null; i++) {
+      const cand = `dl-recut-${i}`;
+      const init = GuandanGame.init(spec.config as never, 4, cand);
+      const cutter = (init.state as { ceremonyCut: { cutter: number } }).ceremonyCut.cutter;
+      const def = GuandanGame.defaultAction(init.state as never, cutter as Seat)!;
+      const res = GuandanGame.applyAction(init.state as never, cutter as Seat, def);
+      if (res.ok && (res.state as { phase: string }).phase === 'ceremonyCut') seed = cand;
+    }
+    expect(seed, 'a first-default-uncountable seed exists within 300').not.toBeNull();
+
+    const room = new VirtualRoom(spec.game, TIMING_PRESETS.standard, spec.seats, spec.config, seed!);
+    const cutter = room.actors()[0]!;
+    let alarms = 0;
+    while (room.rows.length > 0 && room.actors()[0] === cutter && (room.state as { phase: string }).phase === 'ceremonyCut') {
+      const row = room.rows.find((r) => r.seat === cutter)!;
+      // Fresh clock each round: the due sits a full budget from NOW's arming,
+      // never the previous (expired) base.
+      expect(row.dueAt).toBeGreaterThan(room.now);
+      room.now = row.dueAt + 1;
+      room.fireAlarmIfDue();
+      alarms++;
+      expect(alarms).toBeLessThanOrEqual(13);
+      assertInvariants(room);
+    }
+    expect(alarms).toBeGreaterThanOrEqual(2); // the hunted seed re-cut at least once
+    expect((room.state as { phase: string }).phase).toBe('playing');
     assertInvariants(room);
   });
 

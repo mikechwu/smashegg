@@ -58,71 +58,113 @@ function oracleSetup(seed: string): { deck: Card[]; cutter: Seat } {
   return { deck: shuffled.items, cutter: cut.value as Seat };
 }
 
-/** Oracle ritual — the documented deck arithmetic, no PRNG, REVERSED GEOMETRY
- *  (ceremony-marker round): the cut PRESERVES deck order and selects the
- *  revealed cards. Two-card form (default): count walk starts at the lifted
- *  packet's BOTTOM (deck[position-1]) and re-flips DEEPER (jokers + level
- *  '2'; hand 1 plays at level 2), defensively wrapping forward; the marker is
- *  the table packet's TOP (deck[position], any card). One-card form: the walk
- *  starts AT the split and moves forward; the counted card is also the
- *  marker. The deal runs over the UNROTATED deck from the first drawer, so
- *  deck index i lands at stepSeats(firstDrawer, i%4). The oracle also
- *  returns each flip's deck index so physical pins can locate the flips in
- *  the dealt hands. */
+/** The count-card slot for a cut at `position` (mirrors the engine): the
+ *  lifted packet's bottom under the two-card form, the split card under the
+ *  one-card form. */
+function countIndexAt(position: number, config: RuleVariant): number {
+  return config.ceremonyCardCount === 2 ? position - 1 : position;
+}
+
+function uncountable(card: Card): boolean {
+  const r = rankOf(card);
+  return r === null || r === '2'; // hand 1 plays at level 2
+}
+
+/** Oracle ritual over a POSITION SEQUENCE — the documented deck arithmetic,
+ *  no PRNG, REVERSED GEOMETRY + RE-CUT LOOP (owner rules): each attempt
+ *  flips the count card at its own cut; an uncountable flip (joker / level
+ *  '2') means CUT AGAIN (the flip is recorded publicly); the first countable
+ *  flip completes the ritual, with the marker at THAT final cut position.
+ *  The deal runs over the UNROTATED deck from the first drawer, so deck
+ *  index i lands at stepSeats(firstDrawer, i%4). Returns each flip's deck
+ *  index so physical pins can locate the flips in the dealt hands, plus the
+ *  attempts actually consumed. */
 function oracleRitual(
   seed: string,
-  position: number,
+  positions: readonly number[],
   config: RuleVariant,
-): Ceremony & { flipIndices: number[] } {
+): Ceremony & { flipIndices: number[]; attemptsUsed: number } {
   const { deck, cutter } = oracleSetup(seed);
-  const walk: number[] = [];
-  if (config.ceremonyCardCount === 2) {
-    for (let i = position - 1; i >= 0; i--) walk.push(i);
-    for (let i = position + 1; i < deck.length; i++) walk.push(i);
-  } else {
-    for (let i = position; i < deck.length; i++) walk.push(i);
-    for (let i = 0; i < position; i++) walk.push(i);
-  }
   const flips: Card[] = [];
   const flipIndices: number[] = [];
+  let finalPosition: number | null = null;
   let counted: Rank | null = null;
-  for (const idx of walk) {
+  for (const position of positions) {
+    const idx = countIndexAt(position, config);
     const card = deck[idx]!;
     flips.push(card);
     flipIndices.push(idx);
-    const r = rankOf(card);
-    if (r !== null && r !== '2') {
-      counted = r;
+    if (!uncountable(card)) {
+      counted = rankOf(card)!;
+      finalPosition = position;
       break;
     }
   }
-  const firstDrawer = stepSeats(cutter, (countOf(counted!) - 1) % 4, config);
-  const markerDealIndex =
-    config.ceremonyCardCount === 2 ? position : flipIndices[flipIndices.length - 1]!;
+  if (counted === null || finalPosition === null) {
+    throw new Error('oracleRitual: position sequence never reached a countable flip');
+  }
+  const firstDrawer = stepSeats(cutter, (countOf(counted) - 1) % 4, config);
+  const markerDealIndex = finalPosition; // both forms: the FINAL cut position
   const marker = deck[markerDealIndex]!;
   const markerSeat = stepSeats(firstDrawer, markerDealIndex % 4, config);
-  return { cutter, cutPosition: position, flips, marker, markerDealIndex, firstDrawer, markerSeat, flipIndices };
+  return {
+    cutter,
+    cutPosition: finalPosition,
+    flips,
+    marker,
+    markerDealIndex,
+    firstDrawer,
+    markerSeat,
+    flipIndices,
+    attemptsUsed: flips.length,
+  };
 }
 
 /** Engine-comparable projection (the ceremony payload has no flipIndices). */
-function oracleCeremony(seed: string, position: number, config: RuleVariant): Ceremony {
-  const { flipIndices: _drop, ...ceremony } = oracleRitual(seed, position, config);
+function oracleCeremony(seed: string, positions: readonly number[], config: RuleVariant): Ceremony {
+  const { flipIndices: _a, attemptsUsed: _b, ...ceremony } = oracleRitual(seed, positions, config);
   return ceremony;
 }
 
-/** Drive the real thing: init → assert phase ceremonyCut → apply cutDeck. */
+/** The standard test cut policy: try `position`, then +1, +2, … (wrapping
+ *  inside the legal band) until the ritual completes — every attempt is a
+ *  REAL logged cutDeck action, exercising the re-cut loop when the first
+ *  flip is uncountable. */
+function positionSequence(position: number, step = 1): number[] {
+  const range = CUT_MAX - CUT_MIN + 1;
+  return Array.from({ length: 20 }, (_, k) => CUT_MIN + ((position - CUT_MIN + k * step) % range));
+}
+
+/** Drive the real thing through the LOOP: init → cutDeck (re-cutting on
+ *  uncountable flips per the position sequence) → handStarted. */
 function runCut(
   seed: string,
   config: RuleVariant,
   position: number = DEFAULT_CUT_POSITION,
-): { ceremony: Ceremony; state: GuandanState; initState: GuandanState; handStarted: HandStarted } {
+  step = 1,
+): {
+  ceremony: Ceremony;
+  state: GuandanState;
+  initState: GuandanState;
+  handStarted: HandStarted;
+  cutsApplied: number;
+} {
   const init = GuandanGame.init(config, 4, seed);
   expect(init.state.phase).toBe('ceremonyCut');
   const cutter = init.state.ceremonyCut!.cutter;
-  const res = GuandanGame.applyAction(init.state, cutter, { type: 'cutDeck', position });
-  if (!res.ok) throw new Error(`cut rejected: ${res.error.code}`);
-  const handStarted = handStartedOf(res.events, 1);
-  return { ceremony: handStarted.ceremony!, state: res.state, initState: init.state, handStarted };
+  let state = init.state;
+  let cutsApplied = 0;
+  for (const p of positionSequence(position, step)) {
+    const res = GuandanGame.applyAction(state, cutter, { type: 'cutDeck', position: p });
+    if (!res.ok) throw new Error(`cut rejected: ${res.error.code}`);
+    cutsApplied++;
+    state = res.state;
+    if (state.phase !== 'ceremonyCut') {
+      const handStarted = handStartedOf(res.events, 1);
+      return { ceremony: handStarted.ceremony!, state, initState: init.state, handStarted, cutsApplied };
+    }
+  }
+  throw new Error('runCut: loop never completed within the position sequence');
 }
 
 /** Deterministic (seed, position) hunt via the oracle; the found case is
@@ -135,7 +177,7 @@ function findCut(
   for (let i = 0; i < 200; i++) {
     const seed = `cut-${tag}-${i}`;
     for (let p = CUT_MIN; p <= CUT_MAX; p += 5) {
-      const o = oracleCeremony(seed, p, config);
+      const o = oracleCeremony(seed, positionSequence(p), config);
       if (!pred(o)) continue;
       const { ceremony, state } = runCut(seed, config, p);
       expect(ceremony).toEqual(o); // engine must agree with the oracle
@@ -177,24 +219,27 @@ describe('real cut — exact counting mapping (owner rule preserved)', () => {
       const seed = `cut-oracle-${i}`;
       const position = CUT_MIN + ((i * 13) % (CUT_MAX - CUT_MIN + 1));
       expect(runCut(seed, DRAW_CFG, position).ceremony).toEqual(
-        oracleCeremony(seed, position, DRAW_CFG),
+        oracleCeremony(seed, positionSequence(position), DRAW_CFG),
       );
       expect(runCut(seed, ONE_CARD_CFG, position).ceremony).toEqual(
-        oracleCeremony(seed, position, ONE_CARD_CFG),
+        oracleCeremony(seed, positionSequence(position), ONE_CARD_CFG),
       );
     }
   });
 
   it('two-card form: count card is the lifted packet bottom; marker is the table packet top', () => {
-    // Direct geometry pin against the committed deck: flips[0] = deck[pos-1],
-    // marker = deck[pos] — adjacent at the split, order preserved.
+    // Direct geometry pin against the committed deck: the FIRST attempt's
+    // flip = deck[initial-1]; the FINAL (countable) flip = deck[final-1];
+    // marker = deck[final] — adjacent at the final split, order preserved.
     for (const position of [CUT_MIN, 15, 54, 87, CUT_MAX]) {
       const seed = `cut-geometry-${position}`;
       const { deck } = oracleSetup(seed);
       const { ceremony } = runCut(seed, DRAW_CFG, position);
       expect(ceremony.flips[0]).toBe(deck[position - 1]);
-      expect(ceremony.marker).toBe(deck[position]);
-      expect(ceremony.markerDealIndex).toBe(position);
+      const final = ceremony.cutPosition;
+      expect(ceremony.flips[ceremony.flips.length - 1]).toBe(deck[final - 1]);
+      expect(ceremony.marker).toBe(deck[final]);
+      expect(ceremony.markerDealIndex).toBe(final);
     }
   });
 
@@ -205,6 +250,118 @@ describe('real cut — exact counting mapping (owner rule preserved)', () => {
       const { ceremony } = runCut(seed, ONE_CARD_CFG, position);
       expect(ceremony.marker).toBe(ceremony.flips[ceremony.flips.length - 1]);
     }
+  });
+});
+
+describe('the RE-CUT loop (owner rule 2026-07-15, superseding the count walk)', () => {
+  /** Hunt a (seed, position) whose FIRST flip is uncountable — a real
+   *  re-cut case, deterministically. */
+  function findRecut(tag: string): { seed: string; position: number } {
+    for (let i = 0; i < 300; i++) {
+      const seed = `recut-${tag}-${i}`;
+      const { deck } = oracleSetup(seed);
+      for (let p = CUT_MIN; p <= CUT_MAX; p += 3) {
+        if (uncountable(deck[countIndexAt(p, DRAW_CFG)]!)) return { seed, position: p };
+      }
+    }
+    throw new Error('findRecut: none found (statistically impossible)');
+  }
+
+  it('an uncountable flip stays in ceremonyCut, records the PUBLIC flip, and bumps attempts', () => {
+    const { seed, position } = findRecut('stay');
+    const init = GuandanGame.init(DRAW_CFG, 4, seed);
+    const cutter = init.state.ceremonyCut!.cutter;
+    const res = GuandanGame.applyAction(init.state, cutter, { type: 'cutDeck', position });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    expect(res.state.phase).toBe('ceremonyCut');
+    expect(res.state.ceremonyCut!.attempts).toBe(1);
+    expect(res.state.ceremonyCut!.flips).toHaveLength(1);
+    expect(res.events).toHaveLength(1);
+    const ev = res.events[0]!;
+    expect(ev.type).toBe('ceremonyCutFlipped');
+    if (ev.type === 'ceremonyCutFlipped') {
+      expect(ev.position).toBe(position);
+      expect(uncountable(ev.flip)).toBe(true);
+      // Public in full: every seat receives the identical event.
+      for (let s = 0 as Seat; s < 4; s++) {
+        expect(GuandanGame.viewEvent(ev, s, DRAW_CFG)).toEqual(ev);
+      }
+      // And the view carries EXACTLY that flip (resync-visible), no more.
+      for (let s = 0 as Seat; s < 4; s++) {
+        const view = GuandanGame.playerView(res.state, s);
+        expect(view.ceremonyFlips).toEqual([ev.flip]);
+        const json = JSON.stringify({ ...view, ceremonyFlips: [] });
+        expect(json).not.toMatch(/"[2-9TJQKA][SHCD]"|"SJ"|"BJ"/);
+      }
+    }
+    // The cutter is STILL the only actor, with the full legal set again.
+    expect(GuandanGame.expectedActors(res.state)).toEqual([cutter]);
+    expect(GuandanGame.legalActions(res.state, cutter)).toHaveLength(CUT_MAX - CUT_MIN + 1);
+  });
+
+  it('a re-cut re-picks the marker too (one physical act): the final cut decides both cards', () => {
+    const { seed, position } = findRecut('repick');
+    const { ceremony, cutsApplied } = runCut(seed, DRAW_CFG, position);
+    expect(cutsApplied).toBeGreaterThanOrEqual(2);
+    expect(ceremony.cutPosition).not.toBe(position);
+    const { deck } = oracleSetup(seed);
+    expect(ceremony.marker).toBe(deck[ceremony.cutPosition]);
+    // All attempt flips appear, in order; only the last is countable.
+    expect(ceremony.flips.length).toBe(cutsApplied);
+    for (const flip of ceremony.flips.slice(0, -1)) expect(uncountable(flip)).toBe(true);
+    expect(uncountable(ceremony.flips[ceremony.flips.length - 1]!)).toBe(false);
+  });
+
+  it('AFK termination bound: the varying default cut completes within 13 alarm cuts, every seed', () => {
+    // The deck is fixed, so a CONSTANT default would flip the same
+    // uncountable card forever; the default walks one position per attempt,
+    // and a double deck holds only 12 uncountables, so any 13 distinct
+    // count slots contain a countable card. Sweep: simulate a fully-AFK
+    // cutter (defaultAction only) across 200 seeds.
+    let worst = 0;
+    for (let i = 0; i < 200; i++) {
+      const init = GuandanGame.init(DRAW_CFG, 4, `recut-afk-${i}`);
+      const cutter = init.state.ceremonyCut!.cutter;
+      let state = init.state;
+      let cuts = 0;
+      while (state.phase === 'ceremonyCut') {
+        const def = GuandanGame.defaultAction(state, cutter);
+        expect(def).not.toBeNull();
+        const res = GuandanGame.applyAction(state, cutter, def!);
+        expect(res.ok).toBe(true);
+        if (!res.ok) break;
+        state = res.state;
+        cuts++;
+        expect(cuts).toBeLessThanOrEqual(13);
+      }
+      worst = Math.max(worst, cuts);
+    }
+    expect(worst).toBeGreaterThanOrEqual(1);
+  });
+
+  it('the default position VARIES with attempts (the constant-default alarm loop is closed)', () => {
+    const { seed, position } = findRecut('default-varies');
+    const init = GuandanGame.init(DRAW_CFG, 4, seed);
+    const cutter = init.state.ceremonyCut!.cutter;
+    const before = GuandanGame.defaultAction(init.state, cutter);
+    const res = GuandanGame.applyAction(init.state, cutter, { type: 'cutDeck', position });
+    expect(res.ok).toBe(true);
+    if (!res.ok) return;
+    if (res.state.phase !== 'ceremonyCut') return; // hunted to be a re-cut; defensive
+    const after = GuandanGame.defaultAction(res.state, cutter);
+    expect(after).not.toEqual(before);
+  });
+
+  it('replay reproduces the WHOLE cut sequence from the log (re-cut included)', () => {
+    // Drive a real multi-cut opening through the recording harness by
+    // replaying the exact action list against a fresh init.
+    const { seed, position } = findRecut('replay');
+    const first = runCut(seed, DRAW_CFG, position);
+    expect(first.cutsApplied).toBeGreaterThanOrEqual(2);
+    const rerun = runCut(seed, DRAW_CFG, position);
+    expect(rerun.ceremony).toEqual(first.ceremony);
+    expect(rerun.state).toEqual(first.state);
   });
 });
 
@@ -221,7 +378,7 @@ describe('real cut — the physical pins (reversed geometry: the cut moves the L
 
   it('every flip lands at its deck-index-derivable seat (the flips are REAL deal cards)', () => {
     const found = findCut('flips-land', DRAW_CFG, (c) => c.flips.length >= 2);
-    const oracle = oracleRitual(found.seed, found.position, DRAW_CFG);
+    const oracle = oracleRitual(found.seed, positionSequence(found.position), DRAW_CFG);
     oracle.flips.forEach((flip, i) => {
       const seat = stepSeats(oracle.firstDrawer, oracle.flipIndices[i]! % 4, DRAW_CFG);
       expect(found.state.hands[seat]!, `flip ${i} (${flip}) lands at seat ${seat}`).toContain(flip);
@@ -612,7 +769,7 @@ describe('real cut — clockwise turnDirection counts clockwise', () => {
       const seed = `cut-cw-oracle-${i}`;
       const position = CUT_MIN + ((i * 17) % (CUT_MAX - CUT_MIN + 1));
       const { ceremony } = runCut(seed, CW_DRAW_CFG, position);
-      expect(ceremony).toEqual(oracleCeremony(seed, position, CW_DRAW_CFG));
+      expect(ceremony).toEqual(oracleCeremony(seed, positionSequence(position), CW_DRAW_CFG));
     }
   });
 });

@@ -32,13 +32,18 @@ export interface DealOverlayProps {
   /** Deal order of ring directions. Hand 1 passes dealDirOrder(firstDrawerDir)
    *  so the marker lands at its true beat; hands 2+ omit it (south-first). */
   dirOrder?: DealDir[];
-  /** The face-up marker card and its true deal beat (hand 1 only). Its landing
-   *  seat is schedule[beat].target — the marker replaces the back at that
+  /** The face-up marker card, its true deal beat, and the LEADER's name for
+   *  the landing reveal (hand 1 only). The marker replaces the back at that
    *  beat, so accounting stays exact (leader gets 26 backs + 1 marker). */
-  marker: { card: Card; beat: number } | null;
+  marker: { card: Card; beat: number; leaderName: string } | null;
   level: Rank;
   /** Called as own (south) cards land: reveal the fan's first N slots. */
   onOwnLanded: (count: number) => void;
+  /** The suspense reveal (owner rule): fired the moment the face-up marker
+   *  LANDS at its seat — the first time the UI names the leader. UI-level
+   *  suspense, not concealment: the payload is public; a presentation
+   *  choice, stated honestly. */
+  onMarkerLanded?: () => void;
   onDone: () => void;
 }
 
@@ -71,10 +76,12 @@ function readRects(overlay: HTMLElement): Rects | null {
   };
 }
 
-export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onDone }: DealOverlayProps) {
+export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onMarkerLanded, onDone }: DealOverlayProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const onOwnLandedRef = useRef(onOwnLanded);
   onOwnLandedRef.current = onOwnLanded;
+  const onMarkerLandedRef = useRef(onMarkerLanded);
+  onMarkerLandedRef.current = onMarkerLanded;
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
 
@@ -170,7 +177,17 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onDone }: De
         // unlike the fixed-position back flights — it needs no left/top; the
         // translate delta (origin→target) alone carries it to the leader.
         markerEl.classList.add('gd-deal__marker--flying');
-        flyNode(markerEl, target, tick.delayMs, MARKER_FLY_MS, () => onCardLanded(tick.ownSlot));
+        flyNode(markerEl, target, tick.delayMs, MARKER_FLY_MS, () => {
+          onCardLanded(tick.ownSlot);
+          // THE reveal (owner suspense rule): the leader is named for the
+          // first time at the instant the face-up marker lands.
+          const reveal = root.querySelector('.gd-deal__reveal') as HTMLElement | null;
+          if (reveal) {
+            reveal.textContent = t('game.deal.leadReveal', { name: marker.leaderName });
+            reveal.classList.add('gd-deal__reveal--shown');
+          }
+          onMarkerLandedRef.current?.();
+        });
       } else {
         flyBack(target, tick.delayMs, tick.ownSlot);
       }
@@ -187,7 +204,8 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onDone }: De
     timers.push(setTimeout(finish, dealChoreographyMs(DECK_SIZE, marker?.beat ?? null)));
 
     // Tap-to-skip: finish every retained animation — purely local; the
-    // schedule/state/clock are untouched (deal.ts contract).
+    // schedule/state/clock are untouched (deal.ts contract). Finishing the
+    // marker's animation fires its onfinish, so the reveal still happens.
     const skip = (): void => {
       for (const a of animations) a.finish();
       for (const timer of timers) clearTimeout(timer);
@@ -219,6 +237,9 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onDone }: De
       <span className="gd-deal__backTemplate">
         <CardBack size="trick" />
       </span>
+      {/* Filled at the marker's LANDING (empty until then, so aria-live
+          genuinely announces the reveal and the name isn't painted early). */}
+      {marker !== null && <p className="gd-deal__reveal" aria-live="polite" />}
       <p className="gd-deal__skip">{t('game.ceremony.skipHint')}</p>
     </div>
   );

@@ -112,35 +112,39 @@ function isCountable(card: Card, level: Rank): boolean {
   return rank !== null && rank !== level;
 }
 
-/** The cut ritual — REVERSED GEOMETRY (owner decision 2026-07-15; supersedes
- *  the rotate-the-deck model): the physical act is "lift a packet, look at
- *  the card(s) at the split, put it back, deal" — THE ORDER IS PRESERVED.
- *  The cut selects WHICH cards are revealed and at what depth the face-up
- *  marker sits; it determines who LEADS, never which cards each seat holds.
+/** The count-card flip for a cut at `position`. Two-card form (owner rule,
+ *  the default): the lifted packet's BOTTOM (deck[position-1]); one-card
+ *  form (official): the split card itself (deck[position]), which doubles
+ *  as the marker. */
+function countCardAt(deck: readonly Card[], position: number, config: RuleVariant): Card {
+  return config.ceremonyCardCount === 2 ? deck[position - 1]! : deck[position]!;
+}
+
+/** The cut ritual — REVERSED GEOMETRY + RE-CUT LOOP (owner decisions
+ *  2026-07-15; supersedes both the rotate-the-deck model AND the
+ *  walk-to-the-next-countable rule): the physical act is "lift a packet,
+ *  look at the card(s) at the split, put it back" — THE ORDER IS PRESERVED.
+ *  If the count-card flip is uncountable (a joker or the current-level
+ *  rank), the cutter CUTS AGAIN with a fresh clock (applyAction stays in
+ *  ceremonyCut and records the public flip); this function runs only for
+ *  the SUCCESSFUL final cut, with the earlier attempts' flips passed in.
  *
- *  Two-card form (ceremonyCardCount=2, the owner's table rule, the default):
- *  count card = the lifted packet's BOTTOM (deck[position-1]); marker = the
- *  table packet's TOP (deck[position]) — adjacent at the split, both PUBLIC
- *  (the ceremony is publicly verifiable: all four seats can independently
- *  derive drawer and leader). If the count card is uncountable the walk
- *  re-flips DEEPER into the lifted packet (position-2, …, 0; defensively
- *  wrapping to position+1, … if the whole packet is uncountable). The marker
- *  may be ANY card — it only marks who leads — and is a specific PHYSICAL
- *  INSTANCE (a deck position), never "the 8♥": two decks mean every rank+suit
- *  has a twin, so identity is positional (the face-up deal makes it visually
- *  unambiguous; no copy may name the marker by rank).
+ *  Two-card form (ceremonyCardCount=2): count card = the lifted packet's
+ *  BOTTOM (deck[position-1]); marker = the table packet's TOP
+ *  (deck[position]) — adjacent at the split, both PUBLIC (the ceremony is
+ *  publicly verifiable). A re-cut re-picks BOTH (one physical act). The
+ *  marker may be ANY card — it only marks who leads — and is a specific
+ *  PHYSICAL INSTANCE (a deck position): two decks mean every rank+suit has
+ *  a twin, so identity is positional and no copy may name it by rank.
  *
- *  One-card form (ceremonyCardCount=1, official 《竞技掼蛋》): one card does
- *  both jobs — the first COUNTABLE card at/after the split (deck[position],
- *  position+1, …, wrapping defensively) is the count card AND the face-up
- *  marker. (Simplification noted: the official text reinserts the flipped
- *  card at the cut point; we keep every card at its own position — the
- *  ~11% re-flip case would physically reorder by a few indices.)
+ *  One-card form (ceremonyCardCount=1, official): the split card
+ *  (deck[position]) is the count card AND the face-up marker.
  *
  *  In both forms: firstDrawer = stepSeats(cutter, (countingValue-1) mod 4);
- *  the deal runs over the UNROTATED deck from firstDrawer, so the marker at
- *  deck index m lands at markerSeat = stepSeats(firstDrawer, m mod 4) — the
- *  cut depth genuinely moves the leader.
+ *  the deal runs over the UNROTATED deck from firstDrawer, and the marker
+ *  sits at the FINAL cut position m, landing at markerSeat =
+ *  stepSeats(firstDrawer, m mod 4) — the cut depth genuinely moves the
+ *  leader.
  *
  *  Uniformity, stated PRECISELY (the old unqualified claim is superseded):
  *  ABSOLUTE leader uniformity holds (the cutter is PRNG-uniform and the
@@ -149,55 +153,21 @@ function isCountable(card: Card, level: Rank): boolean {
  *  always runs at level 2) — P(X even)=7/12 — so a cutter choosing the cut
  *  depth's residue class shifts their own team's lead probability to ≈58.3%
  *  vs ≈41.7%. Owner decision: measured and documented (the physical table
- *  has the identical property), deliberately NOT policed. */
+ *  has the identical property), deliberately NOT policed; the UI's
+ *  no-number slider is the (partial) mitigation — see CutPanel/cut.ts. */
 function runCutRitual(
   deck: readonly Card[],
   position: number,
-  level: Rank,
+  priorFlips: readonly Card[],
   config: RuleVariant,
   cutter: Seat,
 ): { flips: Card[]; marker: Card; markerDealIndex: number; firstDrawer: Seat; markerSeat: Seat } {
-  const flips: Card[] = [];
-  let counted: Rank | null = null;
-
-  if (config.ceremonyCardCount === 2) {
-    // Owner form: walk the lifted packet from its bottom, deeper on re-flip.
-    const walk: number[] = [];
-    for (let i = position - 1; i >= 0; i--) walk.push(i);
-    for (let i = position + 1; i < deck.length; i++) walk.push(i); // defensive wrap
-    for (const idx of walk) {
-      const card = deck[idx]!;
-      flips.push(card);
-      if (isCountable(card, level)) {
-        counted = rankOf(card)!;
-        break;
-      }
-    }
-  } else {
-    // Official form: one card at/after the split does both jobs.
-    const walk: number[] = [];
-    for (let i = position; i < deck.length; i++) walk.push(i);
-    for (let i = 0; i < position; i++) walk.push(i); // defensive wrap
-    for (const idx of walk) {
-      const card = deck[idx]!;
-      flips.push(card);
-      if (isCountable(card, level)) {
-        counted = rankOf(card)!;
-        break;
-      }
-    }
-  }
-  // A countable card always exists (96 of 108); the walks cover the deck.
-  if (counted === null) counted = 'A';
-
+  const countCard = countCardAt(deck, position, config);
+  const counted = rankOf(countCard)!; // callers guarantee countable
+  const flips = [...priorFlips, countCard];
   const firstDrawer = stepSeats(cutter, (countingValue(counted) - 1) % 4, config);
-  // The marker: form 2 = the table packet's top (deck[position], any card);
-  // form 1 = the counted card itself. Deal index i (over the UNROTATED deck,
-  // from firstDrawer) lands at stepSeats(firstDrawer, i % 4).
-  const markerDealIndex =
-    config.ceremonyCardCount === 2
-      ? position
-      : (position + flips.length - 1) % deck.length;
+  // The marker always sits at the FINAL cut position, in both forms.
+  const markerDealIndex = position;
   const marker = deck[markerDealIndex]!;
   const markerSeat = stepSeats(firstDrawer, markerDealIndex % 4, config);
   return { flips, marker, markerDealIndex, firstDrawer, markerSeat };
@@ -211,9 +181,9 @@ function completeCeremonyCut(
   state: GuandanState,
   position: number,
 ): { state: GuandanState; events: GuandanEvent[] } {
-  const { cutter, deck } = state.ceremonyCut!;
+  const { cutter, deck, flips: priorFlips } = state.ceremonyCut!;
   const { config } = state;
-  const ritual = runCutRitual(deck, position, state.currentLevel, config, cutter);
+  const ritual = runCutRitual(deck, position, priorFlips ?? [], config, cutter);
   const hands: GuandanState['hands'] = [[], [], [], []];
   for (let i = 0; i < deck.length; i++) {
     hands[stepSeats(ritual.firstDrawer, i % 4, config)]!.push(deck[i]!);
@@ -302,7 +272,7 @@ function startHand(
       declarerTeam,
       hands: [[], [], [], []],
       actedThisHand: [false, false, false, false],
-      ceremonyCut: { cutter, deck: shuffled.items },
+      ceremonyCut: { cutter, deck: shuffled.items, attempts: 0, flips: [] },
       finishOrder: [],
       trick: null,
       tribute: null,
@@ -596,6 +566,33 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
         ) {
           return err('ceremony.invalidCutPosition', { position: action.position });
         }
+        // Re-cut loop (owner rule 2026-07-15, superseding the count walk):
+        // an uncountable count-card flip (joker / current-level rank) stays
+        // in ceremonyCut — the flip is recorded PUBLICLY and the cutter cuts
+        // again; the room re-arms a fresh clock because the acted seat is
+        // still the actor (room-helpers actedSeat rule). Termination: a live
+        // cutter cannot target uncountables (the deck is hidden; each flip
+        // is ~89% countable), and the AFK default path varies its position
+        // with `attempts`, so ≤13 alarm cuts always reach a countable card
+        // (only 12 uncountables exist in a double deck) — pinned in tests.
+        const ceremony = state.ceremonyCut!;
+        const flip = countCardAt(ceremony.deck, action.position, state.config);
+        if (!isCountable(flip, state.currentLevel)) {
+          return {
+            ok: true,
+            state: {
+              ...state,
+              ceremonyCut: {
+                ...ceremony,
+                attempts: (ceremony.attempts ?? 0) + 1,
+                flips: [...(ceremony.flips ?? []), flip],
+              },
+            },
+            events: [
+              { type: 'ceremonyCutFlipped', cutter: ceremony.cutter, position: action.position, flip },
+            ],
+          };
+        }
         return { ok: true, ...completeCeremonyCut(state, action.position) };
       }
       case 'antiTributeDecision': {
@@ -756,10 +753,23 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
   defaultAction(state, seat) {
     if (!actorsFor(state).includes(seat)) return null;
     switch (state.phase) {
-      case 'ceremonyCut':
+      case 'ceremonyCut': {
         // An AFK cutter must not deadlock the table before the game even
-        // starts (liveness, obligation 5): the indifferent middle cut.
-        return { type: 'cutDeck', position: DEFAULT_CUT_POSITION };
+        // starts (liveness, obligation 5): the indifferent middle cut —
+        // SHIFTED by the attempt count (re-cut round). The deck is fixed, so
+        // a constant default that flipped an uncountable card would flip the
+        // SAME card on every alarm, forever; walking one position per
+        // attempt (wrapping inside the legal band) visits distinct count
+        // slots, and a double deck holds only 12 uncountables, so any 13
+        // distinct slots contain a countable card: the AFK path terminates
+        // in ≤13 alarm cuts. Pinned in ceremony.test.ts.
+        const attempts = state.ceremonyCut!.attempts ?? 0;
+        const range = CUT_MAX - CUT_MIN + 1;
+        return {
+          type: 'cutDeck',
+          position: CUT_MIN + ((DEFAULT_CUT_POSITION - CUT_MIN + attempts) % range),
+        };
+      }
       case 'antiTributeDecision':
         // Mirrors 'auto' mode; keeps liveness on timeout (spec §7.6).
         return { type: 'antiTributeDecision', invoke: true };
@@ -853,6 +863,11 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
       // Item 3: the cutter is public; the committed DECK never leaves the
       // state (obligation 3 — it is everyone's future hands).
       ceremonyCutter: state.ceremonyCut?.cutter ?? null,
+      // Re-cut round: the attempt flips are PUBLIC (the table watched each
+      // one) and a rejoining client must see them — the ONLY card tokens a
+      // ceremonyCut view carries (stated exception; legacy states without
+      // the field read as no flips yet).
+      ceremonyFlips: state.ceremonyCut ? [...(state.ceremonyCut.flips ?? [])] : null,
       finishOrder: state.finishOrder.slice(),
       trick: state.trick,
       tribute: t

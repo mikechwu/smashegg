@@ -165,8 +165,15 @@ export interface GuandanState {
    *  PLACE (the cut preserves order and only selects the revealed cards —
    *  ceremony-marker round) — HIDDEN INFO OF THE STRONGEST KIND (everyone's
    *  future hands): playerView/viewEvent must NEVER expose it, exactly like
-   *  the PRNG state (obligation 3; property-pinned). `cutter` is public. */
-  ceremonyCut: { cutter: Seat; deck: Card[] } | null;
+   *  the PRNG state (obligation 3; property-pinned). `cutter` is public.
+   *  Re-cut round 2026-07-15: an uncountable flip does NOT walk to the next
+   *  countable card (that rule is superseded) — the cutter CUTS AGAIN with a
+   *  fresh clock. `attempts` counts applied cuts (drives the default
+   *  action's varying position, the AFK termination bound); `flips` is the
+   *  PUBLIC flip history across attempts (each attempt reveals exactly one
+   *  count-card flip; everyone at the table saw them — a deliberate,
+   *  stated redaction exception, resync-visible via view.ceremonyFlips). */
+  ceremonyCut: { cutter: Seat; deck: Card[]; attempts: number; flips: Card[] } | null;
   finishOrder: Seat[];
   trick: TrickState | null;
   tribute: TributeState | null;
@@ -231,19 +238,24 @@ export type GuandanEvent =
        *  the marker sits — who LEADS, never which cards each seat holds.
        *  - cutter: the seat that cut the deck (PRNG-uniform);
        *  - cutPosition: WHERE the cutter chose to cut (the logged action);
-       *  - flips: the count-card walk, in flip order — under
-       *    ceremonyCardCount=2 it starts at the lifted packet's BOTTOM
-       *    (deck[cutPosition-1]) and re-flips DEEPER on jokers/level cards;
-       *    under =1 it starts at the split (deck[cutPosition]) and walks
-       *    forward. The LAST flip is the counted card. All flips are real
-       *    deck cards that land in the dealt hands, publicly known — the
-       *    table watched them;
-       *  - marker / markerDealIndex: the face-up 明牌 and its DECK INDEX
-       *    (= its 0-indexed deal beat). Under ceremonyCardCount=2 the marker
-       *    is the table packet's top (deck[cutPosition], any card — it only
-       *    marks who leads); under =1 it IS the counted card. The marker is
-       *    a specific PHYSICAL INSTANCE identified by position — two decks
-       *    mean every rank+suit has a twin, so no copy may name it by rank;
+       *  - flips: ONE count-card flip per applied cut attempt, in attempt
+       *    order (re-cut round 2026-07-15, superseding the walk rule: an
+       *    uncountable flip — joker or current-level rank — does NOT walk
+       *    to the next card; the cutter CUTS AGAIN, so all but the last
+       *    flip came from earlier logged cutDeck actions). Under
+       *    ceremonyCardCount=2 each attempt flips the lifted packet's
+       *    BOTTOM (deck[position-1]); under =1 the split card itself
+       *    (deck[position]). The LAST flip is the counted card. All flips
+       *    are real deck cards that land in the dealt hands, publicly
+       *    known — the table watched them;
+       *  - marker / markerDealIndex: the face-up marker card and its DECK
+       *    INDEX (= its 0-indexed deal beat) — always the FINAL cut's
+       *    position, in both forms. Under ceremonyCardCount=2 the marker is
+       *    the table packet's top (deck[cutPosition], any card — it only
+       *    marks who leads; a re-cut re-picks it, one physical act); under
+       *    =1 it IS the counted card. The marker is a specific PHYSICAL
+       *    INSTANCE identified by position — two decks mean every rank+suit
+       *    has a twin, so no copy may name it by rank;
        *  - firstDrawer: counting the counted card's rank IN TURN DIRECTION
        *    with the cutter as position 1 (seatOffset=(value-1)%4);
        *  - markerSeat: stepSeats(firstDrawer, markerDealIndex % 4) — the
@@ -270,6 +282,10 @@ export type GuandanEvent =
   /** Item 3: hand 1 (drawCard) now OPENS with the cut — emitted by init,
    *  before any deal exists. Public in full: everyone watches one actor. */
   | { type: 'ceremonyCutStarted'; cutter: Seat }
+  /** Re-cut round: an applied cut whose count-card flip was UNCOUNTABLE (a
+   *  joker or the current-level rank) — the flip is shown to the whole
+   *  table and the cutter cuts again with a fresh clock. Public in full. */
+  | { type: 'ceremonyCutFlipped'; cutter: Seat; position: number; flip: Card }
   | { type: 'antiTribute'; reveals: { seat: Seat; card: Card }[] }
   | { type: 'tributeCommitted'; seat: Seat } // card-less staging marker
   | { type: 'tributePaid'; pairings: TributePairing[] } // atomic reveal
@@ -310,6 +326,12 @@ export interface GuandanView {
    *  whole table watches one actor); null in every other phase. The deck
    *  itself NEVER appears in a view. */
   ceremonyCutter: Seat | null;
+  /** Re-cut round: the PUBLIC flip history across cut attempts, while
+   *  phase === 'ceremonyCut' (everyone at the table saw each uncountable
+   *  flip; a rejoining client must too). These are the ONLY card tokens a
+   *  ceremonyCut view may carry — a deliberate, stated redaction exception;
+   *  the other ~106 cards stay unreachable. Null outside the phase. */
+  ceremonyFlips: Card[] | null;
   finishOrder: Seat[];
   trick: TrickState | null;
   /** Public tribute info only (per tributeVisibility); staged cards of

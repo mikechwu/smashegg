@@ -142,6 +142,11 @@ export function foldEvents(
       case 'ceremonyCutStarted':
         push('game.feed.cutStarted', { name: nameFor(ev.cutter) });
         break;
+      case 'ceremonyCutFlipped':
+        // Re-cut round: an uncountable flip — public, and the cutter goes
+        // again (the CutPanel shows the flip from view.ceremonyFlips).
+        push('game.feed.cutFlipped', { name: nameFor(ev.cutter) });
+        break;
       case 'handStarted': {
         // The redacted handStarted carries ONLY this seat's own hand populated
         // (viewEvent empties the other three), in the engine's deal order — so
@@ -253,6 +258,9 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // landed so far (null = not dealing, the whole fan shows).
   const [dealShown, setDealShown] = useState(0);
   const [dealRevealed, setDealRevealed] = useState<number | null>(null);
+  // Suspense reveal (owner rule): true once the face-up marker has LANDED
+  // this deal — before that, the leader's seat ring stays unlit.
+  const [dealLeadRevealed, setDealLeadRevealed] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [handDescending, setHandDescending] = useState(() => readHandSortDescending());
   const toggleHandSort = () => {
@@ -404,8 +412,18 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     ? dealDirOrder(dirFor(dealCeremony.firstDrawer), variant.turnDirection === 'clockwise')
     : undefined;
   const dealMarker = dealCeremony
-    ? { card: dealCeremony.marker, beat: markerDealBeat(dealCeremony.markerDealIndex) }
+    ? {
+        card: dealCeremony.marker,
+        beat: markerDealBeat(dealCeremony.markerDealIndex),
+        leaderName: nameFor(dealCeremony.markerSeat),
+      }
     : null;
+  // The suspense gate (owner rule): while the hand-1 deal is running, the
+  // leader's seat ring stays OFF until the face-up marker actually lands —
+  // the landing IS the reveal. UI-level suspense only (the payload is
+  // public); hands 2+ and the settled table are unaffected.
+  const suppressLeaderRing =
+    dealing && dealCeremony !== null && !dealLeadRevealed ? dealCeremony.markerSeat : null;
 
   const tributePhase = tributeKind(hints ?? []);
   const eligible = tributeEligibleCards(hints ?? []);
@@ -438,7 +456,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       partner={teamOf(seat) === viewerTeam && seat !== activeSeat}
       cardCount={view.cardCounts[seat] ?? null}
       place={placeOf(view.finishOrder, seat)}
-      active={ringSeats.has(seat) || (seat === activeSeat && yourTurn)}
+      active={(ringSeats.has(seat) || (seat === activeSeat && yourTurn)) && seat !== suppressLeaderRing}
       dueAt={deadlineBySeat.get(seat)?.dueAt ?? null}
       planning={deadlineBySeat.get(seat)?.timingClass === 'planning'}
       dimTimer={ceremonyShowing}
@@ -492,6 +510,8 @@ export function GameTable({ snapshot, store }: GameTableProps) {
             <CutPanel
               cutter={view.ceremonyCutter}
               isCutter={view.ceremonyCutter === activeSeat}
+              flips={view.ceremonyFlips ?? []}
+              level={view.currentLevel}
               nameFor={nameFor}
               onCut={(position) => act({ type: 'cutDeck', position })}
             />
@@ -593,9 +613,11 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           marker={dealMarker}
           level={view.currentLevel}
           onOwnLanded={setDealRevealed}
+          onMarkerLanded={() => setDealLeadRevealed(true)}
           onDone={() => {
             setDealShown(derived.dealNo);
             setDealRevealed(null);
+            setDealLeadRevealed(false);
           }}
         />
       )}

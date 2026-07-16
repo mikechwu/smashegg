@@ -151,6 +151,16 @@ export interface NextDeadlinesInput {
   reason: 'decision' | 'presence';
   /** presence only: the seats whose connectivity changed. */
   changedSeats?: ReadonlySet<Seat>;
+  /** decision only: the seat whose action just applied (absent on start).
+   *  Re-cut round 2026-07-15: a seat that ACTED and is STILL an expected
+   *  actor sits at a NEW decision point (an uncountable ceremony flip → cut
+   *  again), so its clock re-arms fresh; the preserve-base rule stays scoped
+   *  to seats that remained actors across a CO-ACTOR's action (the second
+   *  tribute payer), whose decision point genuinely hasn't changed. Without
+   *  this, an alarm-fired default cut that flips uncountable would leave an
+   *  already-expired base and the alarm would refire the same deterministic
+   *  cut in a tight loop. */
+  actedSeat?: Seat;
 }
 
 /** The room-timing.md §2 decision table, verbatim. Pure so every row and
@@ -181,8 +191,25 @@ export function nextDeadlines(input: NextDeadlinesInput): DeadlineEntry[] {
       }
       const budget =
         now + Math.min(ACTION_TIMEOUT_MAX_MS, Math.max(ACTION_TIMEOUT_MIN_MS, timeoutMs));
+      if (seat === input.actedSeat) {
+        // Re-cut round 2026-07-15: the seat that just ACTED and is STILL an
+        // expected actor sits at a NEW decision point (an uncountable
+        // ceremony flip → cut again), so its clock re-arms fresh — exactly
+        // like newly-acting, deliberately WITHOUT the shrink-only clamp: a
+        // disconnected AFK cutter's alarm-fired default must get a real new
+        // due, or the expired base would refire the alarm in a tight loop.
+        // Extending one's own deadline via one's own action never violates
+        // I4 (which concerns OTHER seats' actions extending absent players).
+        out.push({
+          seat,
+          baseDueAt: budget,
+          dueAt: connected ? budget : Math.min(budget, grace),
+          timingClass,
+        });
+        continue;
+      }
       if (row !== undefined && row.baseDueAt !== null) {
-        // Remained an actor across a co-actor's action (e.g. the second
+        // Remained an actor across a CO-ACTOR's action (e.g. the second
         // tribute payer): PRESERVE base — the decision point is still the
         // same one, so no fresh clock.
         out.push({

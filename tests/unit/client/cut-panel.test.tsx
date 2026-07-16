@@ -11,12 +11,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { CutPanel } from '../../../src/client/table/CutPanel';
 import { CUT_RIBBON_SLIVERS } from '../../../src/client/table/cut';
 import { CUT_MIN, CUT_MAX } from '../../../src/engine/guandan';
+import type { Card } from '../../../src/engine/guandan/cards';
 
 const nameFor = (s: number) => `Seat${s}`;
 
-function render(isCutter: boolean): string {
+function render(isCutter: boolean, flips: readonly Card[] = []): string {
   return renderToStaticMarkup(
-    createElement(CutPanel, { cutter: 2, isCutter, nameFor, onCut: () => {} }),
+    createElement(CutPanel, { cutter: 2, isCutter, flips, level: '2', nameFor, onCut: () => {} }),
   );
 }
 
@@ -50,5 +51,17 @@ describe('CutPanel (obs 1)', () => {
     expect(html).toContain('gd-cut__ribbon');
     expect(html).not.toContain('gd-cut__slider');
     expect(html).not.toContain('gd-cut__pos');
+  });
+
+  it('re-cut: the uncountable flip shows IN the panel, for cutter and spectator alike', () => {
+    // The owner rule: the flip appears in the SAME panel and the cutter cuts
+    // again — the slider stays, the flip row shows the history, and the
+    // prompt switches to the flipped copy. Spectators see the same flip.
+    const cutterHtml = render(true, ['SJ']);
+    expect(cutterHtml).toContain('gd-cut__flips');
+    expect(cutterHtml).toContain('gd-cut__slider'); // the re-cut is live
+    const spectatorHtml = render(false, ['SJ']);
+    expect(spectatorHtml).toContain('gd-cut__flips');
+    expect(spectatorHtml).not.toContain('gd-cut__slider');
   });
 });

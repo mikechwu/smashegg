@@ -154,6 +154,37 @@ describe('nextDeadlines (room-timing.md §2 decision table)', () => {
     expect(decision({ prev: [armed], expectedActors: [1], connectedSeats: connected(1) })).toEqual([armed]);
   });
 
+  it("re-cut: the seat that ACTED and is STILL an actor gets a FRESH clock (not the co-actor preserve)", () => {
+    // The ceremony re-cut: the cutter cuts, flips an uncountable card, and
+    // is immediately the actor again — a NEW decision point, so the base
+    // re-arms. Without actedSeat this row would preserve its (possibly
+    // expired) base and an alarm-fired default cut would refire in a loop.
+    const stale = row(1, NOW - 10_000, NOW - 10_000, 'turn');
+    expect(
+      decision({ prev: [stale], expectedActors: [1], connectedSeats: connected(1), actedSeat: 1 }),
+    ).toEqual([row(1, NOW + 45_000, NOW + 45_000)]);
+  });
+
+  it('re-cut: a DISCONNECTED acted seat re-arms fresh too, clamped to a new grace (no alarm tight-loop)', () => {
+    // The alarm path: the server default-cuts for a disconnected AFK
+    // cutter, the flip is uncountable, and the cutter is the actor again.
+    // The fresh due must be REAL (min(budget, grace anchored now)) — the
+    // shrink-only clamp would keep the expired due and loop the alarm.
+    const expired = row(1, NOW - 10_000, NOW - 10_000, 'turn');
+    expect(decision({ prev: [expired], expectedActors: [1], actedSeat: 1 })).toEqual([
+      row(1, NOW + 45_000, Math.min(NOW + 45_000, GRACE)),
+    ]);
+  });
+
+  it('re-cut: actedSeat does NOT disturb a CO-ACTOR that remained an actor (preserve stays scoped)', () => {
+    // Double tribute: payer 1 pays (actedSeat=1) and leaves the actor set;
+    // payer 2 remains — their base must survive untouched.
+    const armed = row(2, NOW - 5_000 + 45_000, NOW - 5_000 + 45_000, 'planning');
+    expect(
+      decision({ prev: [armed], expectedActors: [2], connectedSeats: connected(2), actedSeat: 1 }),
+    ).toEqual([armed]);
+  });
+
   it('decision / actor, timed, row exists, disconnected → base preserved; due = min(prev due, grace)', () => {
     const clampedDue = NOW - 30_000 + DISCONNECT_GRACE_MS; // grace anchored at an earlier disconnect
     const armed = row(1, NOW + 100_000, clampedDue);

@@ -13,9 +13,11 @@ export const DEAL_FLIGHT_MS = 320;
 export const DECK_SIZE = 108;
 export const HAND_SIZE = 27;
 /** The marker card's own flight duration when it flies face-up at its true
- *  deal beat. It STARTS mid-deal (at its beat), so it overlaps the
- *  round-robin and never extends the choreography — see dealChoreographyMs. */
-export const MARKER_FLY_MS = 500;
+ *  deal beat — the one beat the whole ceremony builds to (owner: slower than
+ *  the 2× window alone), so it floats while the backs snap. It starts
+ *  mid-deal at its beat; for DEEP cuts its landing can now outlast the last
+ *  back's, which dealDurationMs accounts for honestly. */
+export const MARKER_FLY_MS = 900;
 /** The 2× slow window around the marker's beat (owner: "it's the moment the
  *  ceremony exists for, and it should read"): this many consecutive ticks —
  *  starting 2 before the marker's — get DOUBLE stagger, then the deal resumes
@@ -46,12 +48,27 @@ export function markerSlowTicks(markerBeat: number | null, cards: number = DECK_
   return Math.max(0, Math.min(slowStart + MARKER_SLOW_TICKS, cards) - slowStart);
 }
 
-/** Total deal duration — the last card lands at this time (the landings
- *  budget pin, ≤ 4.5s). A hand-1 deal includes the marker's 2× slow window;
- *  hands 2+ (markerBeat null) do not. */
+/** The marker tick's start delay: its base stagger plus the slow-window
+ *  ticks at or before it (the window opens 2 ticks earlier, so an interior
+ *  beat carries 3 slow ticks by its own start). */
+export function markerDelayMs(markerBeat: number, cards: number = DECK_SIZE): number {
+  const slowStart = Math.max(0, markerBeat - 2);
+  const slowAtOrBefore = Math.max(0, Math.min(markerBeat - slowStart + 1, MARKER_SLOW_TICKS));
+  void cards;
+  return markerBeat * DEAL_STAGGER_MS + slowAtOrBefore * DEAL_STAGGER_MS;
+}
+
+/** Total deal duration — EVERY card has landed by this time, the slow
+ *  window and the marker's own (slower, 900ms) flight included: a deep cut's
+ *  marker can outlast the final back, so the honest number is the max of the
+ *  two (the panel caught a stale budget once; never again). Hands 2+
+ *  (markerBeat null) are the plain landings. */
 export function dealDurationMs(cards: number = DECK_SIZE, markerBeat: number | null = null): number {
   if (cards <= 0) return 0;
-  return (cards - 1) * DEAL_STAGGER_MS + markerSlowTicks(markerBeat, cards) * DEAL_STAGGER_MS + DEAL_FLIGHT_MS;
+  const backs =
+    (cards - 1) * DEAL_STAGGER_MS + markerSlowTicks(markerBeat, cards) * DEAL_STAGGER_MS + DEAL_FLIGHT_MS;
+  if (markerBeat === null) return backs;
+  return Math.max(backs, markerDelayMs(markerBeat, cards) + MARKER_FLY_MS);
 }
 
 /** The FULL choreography, end to end. The marker flies AT its true beat

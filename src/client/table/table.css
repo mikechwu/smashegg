@@ -244,6 +244,19 @@
     transition: none;
   }
 }
+/* Re-cut round: earlier attempts' uncountable flips stay visible in the
+   SAME panel, so the re-cut reads as one continuous ritual. */
+.gd-cut__flips {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+.gd-cut__flip {
+  display: inline-flex;
+  animation: gd-flip-in 300ms ease-out;
+  opacity: 0.75;
+}
 .gd-cut__slider {
   width: 100%;
   accent-color: var(--cinnabar);
@@ -716,6 +729,26 @@
 .gd-deal__marker--flying {
   opacity: 1;
   z-index: 2;
+}
+/* The suspense reveal (owner rule): empty until the face-up marker LANDS,
+   then the leader's name fades in — the ceremony's one goldleaf moment now
+   happens mid-deal, where the physical table puts it. */
+.gd-deal__reveal {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 56%;
+  margin: 0;
+  text-align: center;
+  font-family: var(--font-card);
+  font-size: 1.25rem;
+  color: var(--goldleaf);
+  opacity: 0;
+  pointer-events: none;
+}
+.gd-deal__reveal--shown {
+  opacity: 1;
+  transition: opacity 400ms ease-out;
 }
 .gd-deal__skip {
   position: absolute;

@@ -257,9 +257,17 @@ function checkViews(state: GuandanState, config: RuleVariant): void {
       `obligation 3: no 'ceremonyCut' object in seat ${viewer}'s view`,
     ).toBe(false);
     // …and while the deck is COMMITTED (phase ceremonyCut, nothing dealt),
-    // no card token of any encoding may appear in any view at all.
+    // the ONLY card tokens a view may carry are the PUBLIC attempt flips
+    // (re-cut round: everyone at the table watched each uncountable flip —
+    // the stated exception, delivered as view.ceremonyFlips). Outside that
+    // field, no card token of any encoding may appear.
     if (state.phase === 'ceremonyCut') {
-      const json = JSON.stringify(view);
+      const flips = state.ceremonyCut?.flips ?? [];
+      expect(
+        view.ceremonyFlips,
+        `obligation 3: seat ${viewer}'s ceremonyFlips mirror the public attempt flips`,
+      ).toEqual(flips);
+      const json = JSON.stringify({ ...view, ceremonyFlips: [] });
       expect(json, `obligation 3: card token in seat ${viewer}'s ceremonyCut view`).not.toMatch(
         /"[2-9TJQKA][SHCD]"|"SJ"|"BJ"/,
       );

@@ -529,12 +529,25 @@ describe('Product paths e2e (§2 QA ratchet)', () => {
       const cutView = viewOf(startCopy);
       expect(cutView.phase).toBe('ceremonyCut');
       const cutter = cutView.ceremonyCutter!;
-      const cutMark = client.mark();
-      client.action(cutter, { type: 'cutDeck', position: 54 }, { expectedSeq: startedSeq });
-      const afterCut = await client.waitFor<EventMsg>(
-        (m) => m.type === 'event' && m.seat === cutter && m.seq > startedSeq,
-        { from: cutMark },
-      );
+      // Re-cut loop (owner rule): an uncountable flip keeps the phase in
+      // ceremonyCut with a ceremonyCutFlipped event — cut again until the
+      // deal lands (bounded well above the 12 possible uncountables).
+      let cutPos = 54;
+      let prevSeq = startedSeq;
+      let afterCut!: EventMsg;
+      for (let attempt = 0; ; attempt++) {
+        expect(attempt).toBeLessThan(20);
+        const cutMark = client.mark();
+        client.action(cutter, { type: 'cutDeck', position: cutPos }, { expectedSeq: prevSeq });
+        afterCut = await client.waitFor<EventMsg>(
+          (m) => m.type === 'event' && m.seat === cutter && m.seq > prevSeq,
+          { from: cutMark },
+        );
+        const events = afterCut.event as { type: string }[];
+        if (!events.some((e) => e.type === 'ceremonyCutFlipped')) break;
+        prevSeq = afterCut.seq;
+        cutPos++;
+      }
       const dealSeq = afterCut.seq;
 
       // The FIRST handStarted carries the 翻牌定先 ceremony payload on

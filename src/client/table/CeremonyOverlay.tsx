@@ -37,10 +37,9 @@ type Step =
   | { kind: 'shuffle' }
   | { kind: 'cut' }
   | { kind: 'flip'; index: number }
-  | { kind: 'reveal' } // the 明牌 turns over
+  | { kind: 'reveal' } // the marker card turns over
   | { kind: 'count' }
-  | { kind: 'landing' } // 明牌落在
-  | { kind: 'banner' };
+  | { kind: 'identity' }; // "whoever draws it leads" — NEVER who gets it
 
 const STEP_MS: Record<Step['kind'], number> = {
   shuffle: 700,
@@ -48,8 +47,7 @@ const STEP_MS: Record<Step['kind'], number> = {
   flip: 400,
   reveal: 700,
   count: 800,
-  landing: 700,
-  banner: 1200,
+  identity: 1400,
 };
 
 /** The physical count-around-the-table value (owner rule: A counts 1). */
@@ -64,8 +62,7 @@ function buildSteps(ceremony: Ceremony): Step[] {
     ...ceremony.flips.map((_, index): Step => ({ kind: 'flip', index })),
     { kind: 'reveal' },
     { kind: 'count' },
-    { kind: 'landing' },
-    { kind: 'banner' },
+    { kind: 'identity' },
   ];
 }
 
@@ -120,7 +117,7 @@ export function CeremonyOverlay({ ceremony, level, twoCard, nameFor, onDone }: C
   const stage = step.kind;
   const flipsShown =
     stage === 'flip' ? step.index + 1 : stage === 'shuffle' || stage === 'cut' ? 0 : ceremony.flips.length;
-  const markerShown = stage === 'reveal' || stage === 'count' || stage === 'landing' || stage === 'banner';
+  const markerShown = stage === 'reveal' || stage === 'count' || stage === 'identity';
   const countedRank = rankOf(ceremony.flips[ceremony.flips.length - 1]!);
 
   return (
@@ -181,7 +178,7 @@ export function CeremonyOverlay({ ceremony, level, twoCard, nameFor, onDone }: C
         )}
 
         {/* 3. The count → first drawer */}
-        {(stage === 'count' || stage === 'landing' || stage === 'banner') && countedRank !== null && (
+        {(stage === 'count' || stage === 'identity') && countedRank !== null && (
           <p className="gd-ceremony__line">
             {t('game.ceremony.count', {
               value: countValue(countedRank),
@@ -190,17 +187,15 @@ export function CeremonyOverlay({ ceremony, level, twoCard, nameFor, onDone }: C
           </p>
         )}
 
-        {/* 4. Where the marker lands */}
-        {(stage === 'landing' || stage === 'banner') && (
+        {/* 4. The marker's IDENTITY only — never who gets it (owner's
+            suspense rule): the DEAL reveals the leader when the face-up
+            marker lands. UI-level suspense, deliberately NOT concealment —
+            the payload publishes markerSeat (and the client needs the deal
+            depth to fly the marker), so devtools could peek; a presentation
+            choice for a family game, stated honestly. */}
+        {stage === 'identity' && (
           <p className="gd-ceremony__line gd-ceremony__line--marker">
-            {t('game.ceremony.marker', { name: nameFor(ceremony.markerSeat) })}
-          </p>
-        )}
-
-        {/* 5. Who leads — the one goldleaf moment */}
-        {stage === 'banner' && (
-          <p className="gd-ceremony__banner">
-            {t('game.ceremony.leader', { name: nameFor(ceremony.markerSeat) })}
+            {t('game.ceremony.markerIdentity')}
           </p>
         )}
 
