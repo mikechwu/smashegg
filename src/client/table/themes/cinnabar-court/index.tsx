@@ -1,7 +1,8 @@
-// The 'cinnabar-court' deck theme (the owner-picked deck, DEFAULT_DECK_THEME_ID):
-// wires the FROZEN hand-drawn geometry in art.tsx/pips.ts (design-lead master
-// record, not to be edited here) behind the DeckTheme contract, following
-// lacquer.tsx's idiom — index structure, joker wordlessness, registration.
+// The 'cinnabar-court' deck theme (the alternate deck — 'lacquer' is
+// DEFAULT_DECK_THEME_ID, theme.ts): wires the FROZEN hand-drawn geometry in
+// art.tsx/pips.ts (design-lead master record, not to be edited here) behind
+// the DeckTheme contract, following lacquer.tsx's idiom — index structure,
+// joker wordlessness, registration.
 //
 // Unlike lacquer (font-glyph suits + no body art), this theme draws its OWN
 // suit glyphs from SUIT_PATHS (suits must separate by SHAPE, not whatever

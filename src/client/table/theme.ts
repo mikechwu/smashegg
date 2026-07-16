@@ -73,7 +73,7 @@ export function deckThemes(): DeckTheme[] {
   return [...registry.values()];
 }
 
-export const DEFAULT_DECK_THEME_ID = 'cinnabar-court';
+export const DEFAULT_DECK_THEME_ID = 'lacquer';
 const THEME_STORAGE_KEY = 'pref:deckTheme';
 
 // In-memory override (item 2): set by setDeckTheme(), read first by

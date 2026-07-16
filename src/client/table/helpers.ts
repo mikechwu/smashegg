@@ -442,7 +442,11 @@ export function tributeEligibleCards(hints: readonly GuandanAction[]): ReadonlyS
 
 /** Split an (already sorted) hand into at most two balanced fan rows so a
  *  27-card hand never overflows a 375px phone (design system: the fan
- *  wraps to ≤2 rows rather than overflowing). */
+ *  wraps to ≤2 rows rather than overflowing). DEALING flat mode only — the
+ *  SETTLED hand groups into same-value columns instead (HandFan.tsx's
+ *  groupHandColumns), never wrapping rows. This is the card-array twin of
+ *  HandFan.tsx's own splitIndexRows (same arithmetic, generic over indices
+ *  there so it works under both display orders). */
 export function handRows(cards: readonly Card[], maxPerRow: number): Card[][] {
   if (cards.length === 0) return [];
   if (cards.length <= maxPerRow) return [[...cards]];

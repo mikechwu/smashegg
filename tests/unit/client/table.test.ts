@@ -246,7 +246,11 @@ describe('pass & tribute hints', () => {
   });
 });
 
-describe('hand grouping (fan rows)', () => {
+// handRows is the DEALING flat-fan's row split (Obs 3's ≤2-row arrival
+// layout, the deal overlay's slot rects) — the SETTLED hand groups into
+// same-value columns instead (HandFan.tsx's groupHandColumns/stackOffsetW,
+// pinned in hand-fan.test.tsx), never wrapping rows.
+describe('hand grouping (fan rows, dealing flat mode)', () => {
   it('keeps a small hand on one row', () => {
     expect(handRows(['2S', '3S', '4S'], 14)).toEqual([['2S', '3S', '4S']]);
   });

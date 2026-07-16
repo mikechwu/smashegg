@@ -21,6 +21,7 @@ import { buildDeck, isWild, SUITS, type Card } from '../../../src/engine/guandan
 import { CINNABAR_COURT_THEME } from '../../../src/client/table/themes/cinnabar-court';
 import { SUIT_PATHS } from '../../../src/client/table/themes/cinnabar-court/art';
 import { PIP_LAYOUTS } from '../../../src/client/table/themes/cinnabar-court/pips';
+import { LACQUER_THEME } from '../../../src/client/table/themes/lacquer';
 
 const SIZES = ['hand', 'trick', 'mini'] as const;
 const DISTINCT_CARDS: Card[] = [...new Set(buildDeck())];
@@ -29,14 +30,15 @@ const JOKERS: Card[] = ['SJ', 'BJ'];
 const tableCss = readFileSync(join(__dirname, '../../../src/client/table/table.css'), 'utf8');
 
 describe('DeckTheme registry', () => {
-  // Cinnabar Court is the owner-picked default (DEFAULT_DECK_THEME_ID
-  // flipped from 'lacquer'); lacquer stays registered and selectable —
-  // both facts are pinned honestly rather than assuming either theme's id.
-  it('the default theme is registered and active, and lacquer remains selectable', () => {
-    expect(DEFAULT_DECK_THEME_ID).toBe('cinnabar-court');
+  // Classic lacquer is the owner-picked default (DEFAULT_DECK_THEME_ID
+  // flipped BACK from 'cinnabar-court' this round); cinnabar-court stays
+  // registered and selectable from the drop-down — both facts are pinned
+  // honestly rather than assuming either theme's id.
+  it('the default theme is registered and active, and cinnabar-court remains selectable', () => {
+    expect(DEFAULT_DECK_THEME_ID).toBe('lacquer');
     const ids = deckThemes().map((t) => t.id);
     expect(ids).toContain(DEFAULT_DECK_THEME_ID);
-    expect(ids).toContain('lacquer');
+    expect(ids).toContain('cinnabar-court');
     expect(activeDeckTheme().id).toBe(DEFAULT_DECK_THEME_ID);
   });
 });
@@ -293,6 +295,35 @@ describe('joker-identity emblem geometry across every theme (CSS-token pin)', ()
   }
 });
 
+// Owner-directed hand-layout round (item 3): lacquer's body pip is the
+// SAME 'mini' size discipline as cinnabar-court's body art above, plus the
+// joker-wordlessness pin — a joker face gets no new text node from this
+// change, matching the existing "no text nodes on joker faces" contract.
+describe("lacquer body pip ('mini' = index only, jokers stay wordless)", () => {
+  it('a number card and a court both carry the body pip at hand/trick but not at mini', () => {
+    const cards: Card[] = ['7S', 'KH'];
+    for (const card of cards) {
+      for (const size of ['hand', 'trick'] as const) {
+        const html = renderToStaticMarkup(createElement(LACQUER_THEME.Face, { card, level: '2', size }));
+        expect(html, `${card} @ ${size}: missing body pip`).toContain('gd-card__pip');
+      }
+      const miniHtml = renderToStaticMarkup(
+        createElement(LACQUER_THEME.Face, { card, level: '2', size: 'mini' }),
+      );
+      expect(miniHtml, `${card} @ mini: body pip should not render`).not.toContain('gd-card__pip');
+    }
+  });
+
+  it('jokers never carry the body pip (wordless marks stay pinned)', () => {
+    for (const card of ['SJ', 'BJ'] as const) {
+      for (const size of ['hand', 'trick', 'mini'] as const) {
+        const html = renderToStaticMarkup(createElement(LACQUER_THEME.Face, { card, level: '2', size }));
+        expect(html, `${card} @ ${size}: joker must not gain a body pip`).not.toContain('gd-card__pip');
+      }
+    }
+  });
+});
+
 // Item 4b: 'mini' is index-only for EVERY theme's court/joker faces — the
 // full body illustration only earns its keep at sizes big enough to read
 // it (hand/trick). Data comes from the theme's own rendered markup, not a
@@ -431,16 +462,17 @@ describe('reactive deck-theme preference (item 2)', () => {
   it('switching to a NON-default registered theme takes effect, persists and notifies (panel finding)', () => {
     // Every earlier test in this block only ever set the DEFAULT id, so a
     // regression that "works" solely for the default would have passed.
-    // 'lacquer' is the non-default registered theme as of this round.
-    expect(DEFAULT_DECK_THEME_ID).not.toBe('lacquer');
+    // 'cinnabar-court' is the non-default registered theme as of this round
+    // (the default flipped back to 'lacquer' — see the registry test above).
+    expect(DEFAULT_DECK_THEME_ID).not.toBe('cinnabar-court');
     const store = stubStorage();
     const seen: string[] = [];
     const unsubscribe = subscribeDeckTheme(() => seen.push(activeDeckTheme().id));
     try {
-      setDeckTheme('lacquer');
-      expect(activeDeckTheme().id).toBe('lacquer');
-      expect(seen).toEqual(['lacquer']);
-      expect(store.get('pref:deckTheme')).toBe('lacquer');
+      setDeckTheme('cinnabar-court');
+      expect(activeDeckTheme().id).toBe('cinnabar-court');
+      expect(seen).toEqual(['cinnabar-court']);
+      expect(store.get('pref:deckTheme')).toBe('cinnabar-court');
     } finally {
       // Restore the default so the in-memory override never leaks into
       // later tests (this suite shares module state by design).

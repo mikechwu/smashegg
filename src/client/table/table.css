@@ -378,7 +378,7 @@
   box-sizing: border-box;
 }
 .gd-card--hand {
-  --gd-cardw: clamp(2.25rem, 11vw, 3.25rem);
+  --gd-cardw: clamp(2.75rem, 13vw, 4.25rem);
 }
 .gd-card--trick {
   --gd-cardw: 2.25rem;
@@ -422,6 +422,40 @@
 }
 .gd-card__suit {
   font-size: calc(var(--gd-cardw) * 0.36);
+}
+/* Lacquer's body pip (owner reference, mainstream Guandan look): one large
+ * suit glyph, sized/positioned ENTIRELY off --gd-cardw (no fixed rem/px, the
+ * same discipline as the joker/wild boxes above) so the ratio holds as
+ * --gd-cardw shrinks. font-family MUST be pinned to --font-card here: this
+ * span sits outside .gd-card__index (whose own font-family: var(--font-card)
+ * does not inherit to a sibling), so without this line the pip fell back to
+ * the page's --font-ui sans-serif — a WIDER glyph box than the same suit
+ * glyph draws in --font-card, which is what made the not-just-vertically-
+ * offset horizontal fix below insufficient on its own (verified: getBoundingClientRect
+ * in a real Chrome render at 44/68px hand and 36px trick cardw, both suit
+ * colours, wild and non-wild). left: 66% (NOT 50% — a centered box this
+ * size' left half still reached into the corner index / wild-seal column,
+ * confirmed by measurement) shifts the box into the card's right portion,
+ * where nothing else is painted (this theme has no bottom-right mirrored
+ * index and the framework wild seal lives bottom-LEFT, table.css's own
+ * .gd-card__wild rule below) — horizontal separation alone keeps the pip
+ * clear of both regardless of its vertical position, so top: 60% is free to
+ * read as "large body pip", not a placement constraint. font-size dropped
+ * from 0.55w to 0.48w for margin at the clamp floor (44px hand) and at trick
+ * size (36px), where the corner index's FIXED (non --gd-cardw) 0.25rem
+ * left-padding eats a larger fraction of a smaller card. Coloured by the
+ * SAME .gd-card--red / .gd-card--black class the index already uses
+ * (currentColor via `color` on the parent .gd-card--red/black rule): no new
+ * palette entry. */
+.gd-card__pip {
+  position: absolute;
+  left: 66%;
+  top: 60%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-card);
+  font-size: calc(var(--gd-cardw) * 0.48);
+  line-height: 1;
+  pointer-events: none;
 }
 /* The joker's emblem lives in the LEFT/index column (like the corner
  * index): the fan overlaps each card's right ~60%, so content painted past
@@ -602,7 +636,20 @@
   flex-direction: column;
   gap: 0.375rem;
   max-width: 100%;
+  /* The stack overlap is an INLINE margin on the card BUTTON of
+     calc(var(--gd-cardw) * F): custom properties resolve against ANCESTORS,
+     and .gd-card--hand's own --gd-cardw lives on a DESCENDANT of that
+     button — invisible to it. Without this ancestor definition the calc is
+     invalid at computed-value time and the margin silently becomes 0
+     (verified live: stacked cards rendered full-height, no overlap).
+     Lockstep-pinned with the other clamp literals. */
+  --gd-cardw: clamp(2.75rem, 13vw, 4.25rem);
 }
+/* DEALING flat mode only (Obs 3 — the deal overlay measures these slot
+   rects). Scoped with the > child combinator so this rule can never reach a
+   .gd-fan__stack column's cards: those get their overlap from an INLINE
+   margin-top (HandFan.tsx's stackOffsetW), and a stray margin-LEFT here
+   would shove a stacked card sideways out of its column's centerline. */
 .gd-fan__row {
   display: flex;
   justify-content: center;
@@ -619,13 +666,52 @@
   flex: 0 1 auto;
   min-width: 0;
 }
-.gd-fan__card + .gd-fan__card {
-  margin-left: calc(clamp(2.25rem, 11vw, 3.25rem) * -0.6);
+.gd-fan__row > .gd-fan__card + .gd-fan__card {
+  margin-left: calc(clamp(2.75rem, 13vw, 4.25rem) * -0.6);
+}
+/* SETTLED mode (owner reference): same-value columns in one bottom-aligned
+   row. Each column's internal stacking offset is inline (per-column n), so
+   this container only needs to center the row and lift room to match
+   .gd-fan__row's; align-items: flex-end keeps every column's BASE card (the
+   one with the full face, table.css HandFan.tsx comment) on one baseline
+   regardless of how tall its pile grew. */
+.gd-fan__stackRow {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding-top: 0.875rem; /* room for the selection lift */
+  min-width: 0;
+  max-width: 100%;
+}
+.gd-fan__stack {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+}
+/* Column pitch: 0.40w of every column stays visible past its right
+   neighbour — the SAME fraction the flat dealing fan already relies on
+   (.gd-fan__row's -0.6 factor, immediately above). A wider sliver (this
+   rule previously read -0.55, exposing 0.45w) reads a hair more legibly
+   per column, but overflows the real mobile content width once
+   .app-main's OWN 1rem horizontal padding is counted alongside
+   .gd-table's 0.5rem (RoomPage.tsx wraps <GameTable> in
+   <main className="app-main app-main--wide">; --wide only widens
+   max-width, per app.css's own comment, not padding) — see the 390px
+   budget arithmetic in hand-fan.test.tsx, which now derives that budget
+   from both stylesheets' own padding tokens instead of a hardcoded
+   number. Worst case is EXACTLY 15 columns (12 non-level natural ranks +
+   the level class + SJ + BJ) — pinned against that corrected budget. */
+.gd-fan__stack + .gd-fan__stack {
+  margin-left: calc(clamp(2.75rem, 13vw, 4.25rem) * -0.6);
 }
 .gd-fan__card:hover {
+  position: relative;
+  z-index: 1;
   transform: translateY(-4px);
 }
 .gd-fan__card--selected {
+  position: relative;
+  z-index: 1;
   transform: translateY(-12px);
 }
 .gd-fan__card--selected:hover {

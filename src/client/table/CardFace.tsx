@@ -15,8 +15,8 @@ import type { CanonicalForm } from '../../engine/guandan/types';
 import { declJokerRank, isRedSuit, rankText, suitGlyph } from './helpers';
 import type { CardFaceSize } from './theme';
 import { useDeckTheme } from './useDeckTheme';
-import './themes/lacquer'; // registers the classic theme (still selectable)
-import './themes/cinnabar-court'; // registers the default theme
+import './themes/lacquer'; // registers the default theme (owner decision)
+import './themes/cinnabar-court'; // registers the alternate theme (still selectable)
 import { t } from '../i18n';
 
 export type { CardFaceSize } from './theme';
