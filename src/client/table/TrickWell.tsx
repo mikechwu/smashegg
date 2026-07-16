@@ -21,9 +21,14 @@ export interface TrickWellProps {
   /** The viewer's active seat — so "waiting for X to lead" becomes "your lead"
    *  when it is the viewer's own turn (F8). */
   viewerSeat: Seat;
+  /** Suspense gate (owner rule): while the hand-1 marker is still flying,
+   *  the well's lead prompt must not name the leader — the well paints
+   *  ABOVE the deal overlay (the prompt-occlusion fix), so without this
+   *  gate it would leak the leader mid-deal, before the marker lands. */
+  concealLeader?: boolean;
 }
 
-export function TrickWell({ trick, level, nameFor, sweepKey, jiefeng, viewerSeat }: TrickWellProps) {
+export function TrickWell({ trick, level, nameFor, sweepKey, jiefeng, viewerSeat, concealLeader = false }: TrickWellProps) {
   const top = trick?.top ?? null;
   return (
     <div className="gd-well" key={sweepKey}>
@@ -36,7 +41,7 @@ export function TrickWell({ trick, level, nameFor, sweepKey, jiefeng, viewerSeat
         </p>
       )}
       {top === null ? (
-        trick !== null && (
+        trick !== null && !concealLeader && (
           <p className="gd-well__waiting">
             {t(leadPromptKey(trick.toAct, viewerSeat), { name: nameFor(trick.toAct) })}
           </p>

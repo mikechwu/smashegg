@@ -4,6 +4,9 @@
 // plain module over engine types.
 
 import { describe, expect, it } from 'vitest';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { TrickWell } from '../../../src/client/table/TrickWell';
 import { sortCards, type Card, type Rank } from '../../../src/engine/guandan/cards';
 import type { CanonicalForm, GuandanAction, GuandanEvent, GuandanView } from '../../../src/engine/guandan/types';
 import { GuandanGame, JIANGSU_OFFICIAL_ONLINE } from '../../../src/engine/guandan';
@@ -600,6 +603,24 @@ describe('joker-keyed combo labels (regression: BJ/SJ singles & pairs)', () => {
     const events: GuandanEvent[] = [{ type: 'played', seat: 0, cards: ['9S', '9C'], decl: plainPair }];
     const derived = foldEvents(EMPTY_DERIVED, events, 0, nameFor, idGen);
     expect(derived.feed[0]!.params?.combo).toEqual({ kind: 'combo', comboType: 'pair', keyRank: '9' });
+  });
+});
+
+describe('TrickWell lead-prompt concealment (the well paints ABOVE the deal overlay)', () => {
+  it('renders NO lead prompt while the marker is still flying, and the normal prompt after', () => {
+    // The visual pass caught the well leaking the leader mid-deal at true
+    // 390 (zh-Hant): the well sits at z-10 over the deal overlay (z-9) by
+    // design (the prompt-occlusion fix), so it must be gated explicitly.
+    const trick = { leader: 2, toAct: 2, top: null, passes: [] } as never;
+    const nameFor = (s: number) => `Seat${s}`;
+    const concealed = renderToStaticMarkup(
+      createElement(TrickWell, { trick, level: '2', nameFor, sweepKey: 0, jiefeng: null, viewerSeat: 0, concealLeader: true }),
+    );
+    expect(concealed).not.toContain('gd-well__waiting');
+    const revealed = renderToStaticMarkup(
+      createElement(TrickWell, { trick, level: '2', nameFor, sweepKey: 0, jiefeng: null, viewerSeat: 0 }),
+    );
+    expect(revealed).toContain('gd-well__waiting');
   });
 });
 

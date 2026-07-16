@@ -534,6 +534,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
               sweepKey={derived.sweep}
               jiefeng={derived.jiefeng}
               viewerSeat={activeSeat}
+              concealLeader={leaderConcealed !== null}
             />
           )}
         </div>
