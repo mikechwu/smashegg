@@ -1,8 +1,69 @@
 # STATUS
 
-## Current phase: design-refinement round BUILT (all 5 items) — panel + deploy in flight
+## Current phase: cut & deal refinement (obs 1+2) BUILT + visual-verified — panel in flight
 
-**Last updated:** 2026-07-15 (refinement round)
+**Last updated:** 2026-07-15 (cut & deal refinement)
+
+## Cut & deal refinement (2026-07-15) — obs 1 (no cut index) + obs 2 (marker at true beat)
+
+Owner brief: two observations, verify-first. **Obs 1** — hide the cut index, spread the deck to
+the slider's width and split it live into two packets. Owner's stated reason (the index leaks
+who gets the marker) needed VERIFYING: leak-real ⇒ fairness bug + named regression; no-leak ⇒
+remove the number for DESIGN reasons. **Obs 2** — the marker card must fly DURING the deal at its
+true beat, not tacked on at the end.
+
+**Investigation FIRST (the gate).** Adversarial workflow, four diverse-lens skeptics all trying
+to REFUTE "no leak" + a marker-index verifier — unanimous **NO-LEAK** (high confidence, concrete
+file:line each): during `ceremonyCut` every view carries only the public `ceremonyCutter`; the
+committed deck lives solely in `state.ceremonyCut.deck`, never in any view/event; the outcome
+(firstDrawer/markerSeat) is a function of the HIDDEN deck computed only at the `cutDeck` commit;
+the cutter's client lacks the deck to predict anything, and the displayed number was the raw
+index only. So the number comes off for DESIGN reasons (no physical analogue, meaningless, breaks
+the metaphor), CONFIRMING the owner's own reading — no conflict, proceeded to build. (One note:
+skeptics flagged a `debugAuthorized`-gated `/dump` dev endpoint that can egress the deck — a
+pre-existing debug tool, not a player-reachable path; out of scope.)
+
+**Obs 2 redaction decision: NO new server field.** The marker is `flips[last]` and lands at deal
+index `flips.length - 1`; `flips`/`firstDrawer`/`markerSeat` are ALL already public in
+`handStarted.ceremony`, so the beat is derived client-side. No new field, no new redaction
+surface, grammar pins unchanged.
+
+**BUILD (12ff7bf) — all client presentation + pure predicates; engine/protocol/DO untouched:**
+- **Obs 1:** removed the numeric index (all three locales; `game.cut.position` deleted).
+  `CutRibbon` draws CUT_RIBBON_SLIVERS overlapping backs spread to the slider width; each sliver
+  past the split shifts by a gap (> pitch), so dragging slides the split along the ribbon — the
+  deck visibly parting. Pure split geometry (`cut.ts`: cutSplitFraction + cutLeftCount) pinned
+  (monotonic, conservation, endpoints). Legal cut range CUT_MIN..CUT_MAX untouched (slider
+  min/max pinned) — legalActions/defaultAction cannot drift.
+- **Obs 2:** the deal now runs FROM the first drawer (public) so the marker lands at its true
+  beat; the face-up marker replaces the back at `markerDealBeat(flips.length)`, leader still gets
+  exactly 27. Honest budget re-derivation: choreography = landings + settle (≤4.5s); the old
+  landings + MARKER_FLY + 200 tail is GONE — it got shorter and more faithful.
+- Regressions: named engine leak guard (cutter's `ceremonyCut` view carries no
+  firstDrawer/markerSeat/flips/cutPosition); CutPanel shows no numeric index + spectator parity;
+  marker beat lands at the leader in a first-drawer-first schedule; re-pinned budgets.
+  **737 unit + 40 e2e + 4 typechecks green.**
+
+**Visual verification (state-driver bot + Chrome).**
+- Obs 1 at DESKTOP and TRUE 390px (iframe recipe, innerWidth=390, no H-overflow): the split
+  tracks the slider across the whole range (min → all-right, mid → centred, max → all-left),
+  gap clearly exceeds card pitch, no number, legible at phone width; spectator sees the spread
+  with no slider/number.
+- Obs 2 at DESKTOP: froze the deal mid-flight (8× WAAPI slow-mo) — the face-up marker card flies
+  to the leader CONCURRENT with the back flights, not after. Runtime probe confirmed
+  `markerDelayMs === 0` (true beat for flips.length=1) and `reducedMotion=false` (real
+  animation). The deal flights are rect-derived / width-independent, so the beat behaviour holds
+  at 390 by construction (flights verified at desktop; cut UI verified at true 390).
+
+**Owner decision to raise (not smuggled):** the CeremonyOverlay pre-announces the leader
+(「該家先出」) BEFORE the deal, which softens obs 2's "watch it come to you" suspense. Trimming the
+overlay to end at the count (letting the deal reveal the marker landing) is a connected design
+change to a DIFFERENT component than obs 2 named — flagged for the owner, left unchanged.
+
+Panel next (both lineages, headless): no new deck/index leak; obs 2 adds no field; uniformity
+intact; legal cut range unchanged; budget honesty; no engine/timing smuggled in.
+
+**Last updated:** 2026-07-15 (prior: refinement round)
 
 ## Design-refinement round (2026-07-15) — PROPOSAL out; items 1-2 decided+justified, 3/4/5 forks with owner
 

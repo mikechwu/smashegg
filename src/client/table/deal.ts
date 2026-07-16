@@ -21,11 +21,10 @@ export const FINISH_SETTLE_MS = 150;
 
 export type DealDir = 'south' | 'east' | 'north' | 'west';
 
-/** The ring's four directions in DISPLAY turn order (south = viewer, then the
- *  default counterclockwise nextSeat = seat+1 around the ring — see
- *  seatLayout/nextSeat). The clockwise-config table would reverse this; the
- *  client has always assumed the default here (as does the marker→seat
- *  mapping), so obs 2 keeps that assumption rather than widening scope. */
+/** The ring's four directions in DISPLAY seat order (south = viewer, then
+ *  seat+1, +2, +3 around the ring — see seatLayout). This is the seat INDEX
+ *  order, not a turn direction: dealDirOrder walks it forward (CCW nextSeat =
+ *  seat+1) or backward (clockwise nextSeat = seat+3) to match the engine. */
 const RING_CYCLE: DealDir[] = ['south', 'east', 'north', 'west'];
 
 /** Total deal duration — the last card lands at this time (the landings
@@ -55,15 +54,18 @@ export function markerDealBeat(flipsLength: number): number {
   return Math.max(0, flipsLength - 1);
 }
 
-/** The four ring directions in DEAL order, starting from the first drawer's
- *  direction (obs 2). firstDrawer is public (handStarted.ceremony), so dealing
- *  in true seat order leaks nothing and matches the physical table: everyone
- *  watches the cards go firstDrawer → CCW and sees the marker land at its true
- *  beat. Only which SEAT gets each successive card is ordered here; which CARD
- *  a hidden seat receives, and in what order within its hand, stays redacted. */
-export function dealDirOrder(firstDrawerDir: DealDir): DealDir[] {
+/** The four ring directions in DEAL order, starting from the first drawer and
+ *  walking the ring in the CONFIGURED turn direction (obs 2). firstDrawer is
+ *  public (handStarted.ceremony), so dealing in true seat order leaks nothing
+ *  and matches the physical table. `clockwise` mirrors the engine's nextSeat
+ *  (CCW = seat+1, clockwise = seat+3 ≡ seat−1), so the marker's beat lands at
+ *  the ENGINE's markerSeat under either config — not just the CCW default
+ *  (Codex panel catch). Only which SEAT gets each successive card is ordered
+ *  here; which CARD a hidden seat receives stays redacted. */
+export function dealDirOrder(firstDrawerDir: DealDir, clockwise = false): DealDir[] {
   const start = RING_CYCLE.indexOf(firstDrawerDir);
-  return RING_CYCLE.map((_, k) => RING_CYCLE[(start + k) % 4]!);
+  const step = clockwise ? 3 : 1;
+  return RING_CYCLE.map((_, k) => RING_CYCLE[(start + k * step) % 4]!);
 }
 
 export interface DealTick {

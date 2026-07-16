@@ -43,22 +43,32 @@ describe('dealSchedule (item 4)', () => {
 });
 
 describe('dealDirOrder + deal-from-first-drawer (obs 2)', () => {
-  it('rotates the ring cycle to START at the first drawer, in turn order', () => {
+  it('rotates the ring cycle to START at the first drawer, counterclockwise (default)', () => {
     expect(dealDirOrder('south')).toEqual(['south', 'east', 'north', 'west']);
     expect(dealDirOrder('east')).toEqual(['east', 'north', 'west', 'south']);
     expect(dealDirOrder('north')).toEqual(['north', 'west', 'south', 'east']);
     expect(dealDirOrder('west')).toEqual(['west', 'south', 'east', 'north']);
   });
 
-  it('every dir still receives exactly 27 cards, whoever leads', () => {
-    for (const start of DIRS) {
-      const schedule = dealSchedule(dealDirOrder(start));
-      for (const dir of DIRS) {
-        expect(schedule.filter((t) => t.target === dir)).toHaveLength(HAND_SIZE);
+  it('walks the ring BACKWARD under clockwise (matches engine nextSeat seat+3, Codex catch)', () => {
+    // Clockwise nextSeat = seat+3 ≡ seat−1, so the seat after the first drawer
+    // is the one DISPLAYED one step earlier in the ring cycle.
+    expect(dealDirOrder('south', true)).toEqual(['south', 'west', 'north', 'east']);
+    expect(dealDirOrder('east', true)).toEqual(['east', 'south', 'west', 'north']);
+    expect(dealDirOrder('north', true)).toEqual(['north', 'east', 'south', 'west']);
+    expect(dealDirOrder('west', true)).toEqual(['west', 'north', 'east', 'south']);
+  });
+
+  it('every dir still receives exactly 27 cards, whoever leads, either direction', () => {
+    for (const cw of [false, true]) {
+      for (const start of DIRS) {
+        const schedule = dealSchedule(dealDirOrder(start, cw));
+        for (const dir of DIRS) {
+          expect(schedule.filter((t) => t.target === dir)).toHaveLength(HAND_SIZE);
+        }
+        const ownSlots = schedule.filter((t) => t.target === 'south').map((t) => t.ownSlot);
+        expect(ownSlots).toEqual(Array.from({ length: HAND_SIZE }, (_, k) => k));
       }
-      // South always fills its 27 sorted slots in the order it is dealt.
-      const ownSlots = schedule.filter((t) => t.target === 'south').map((t) => t.ownSlot);
-      expect(ownSlots).toEqual(Array.from({ length: HAND_SIZE }, (_, k) => k));
     }
   });
 });
@@ -75,16 +85,24 @@ describe('markerDealBeat (obs 2)', () => {
     expect(markerDealBeat(0)).toBe(0);
   });
 
-  it('the marker beat lands at the leader in a first-drawer-first schedule', () => {
-    // For every first drawer and every plausible flips length, the tick at the
-    // marker beat targets the seat (flips.length-1) steps CCW from the drawer —
-    // which is exactly the engine's markerSeat = stepSeats(firstDrawer, (L-1)%4).
-    for (const start of DIRS) {
-      const order = dealDirOrder(start);
-      const schedule = dealSchedule(order);
-      for (let L = 1; L <= 13; L++) {
-        const beat = markerDealBeat(L);
-        expect(schedule[beat]!.target).toBe(order[(L - 1) % 4]);
+  it('the marker beat lands at the leader in a first-drawer-first schedule, EITHER direction', () => {
+    // For every first drawer, every plausible flips length, and BOTH turn
+    // directions, the tick at the marker beat targets the seat (flips.length-1)
+    // steps in that direction from the drawer — exactly the engine's markerSeat
+    // = stepSeats(firstDrawer, (L-1)%4, config). Under clockwise the step is +3
+    // in the display cycle (the engine's seat+3); pinning both closes the
+    // Codex catch that a fixed-CCW client flew the marker to the wrong seat.
+    for (const cw of [false, true]) {
+      const step = cw ? 3 : 1;
+      for (const start of DIRS) {
+        const order = dealDirOrder(start, cw);
+        const schedule = dealSchedule(order);
+        const startIdx = DIRS.indexOf(start);
+        for (let L = 1; L <= 13; L++) {
+          const beat = markerDealBeat(L);
+          const expected = DIRS[(startIdx + ((L - 1) % 4) * step) % 4];
+          expect(schedule[beat]!.target).toBe(expected);
+        }
       }
     }
   });

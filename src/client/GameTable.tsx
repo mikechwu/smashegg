@@ -376,7 +376,9 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // order. The marker card + beat are derived purely from the public flips
   // array — no new server field (see deal.ts markerDealBeat).
   const dealCeremony = dealing && derived.ceremony !== null && view.handNo === 1 ? derived.ceremony : null;
-  const dealDir = dealCeremony ? dealDirOrder(dirFor(dealCeremony.firstDrawer)) : undefined;
+  const dealDir = dealCeremony
+    ? dealDirOrder(dirFor(dealCeremony.firstDrawer), variant.turnDirection === 'clockwise')
+    : undefined;
   const dealMarker = dealCeremony
     ? {
         card: dealCeremony.flips[dealCeremony.flips.length - 1]!,

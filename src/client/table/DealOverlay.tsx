@@ -155,9 +155,10 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onDone }: De
         : (rects.seats[tick.target] ?? rects.origin);
 
     // The schedule (deal.ts) is the single source of the choreography. At the
-    // marker's beat the face-up marker card flies instead of a back — same
-    // target (schedule[beat].target === markerSeat), so the leader still
-    // receives exactly its 27 cards.
+    // marker's beat the face-up marker card flies instead of a back. Because
+    // dirOrder is built with the CONFIGURED turn direction, schedule[beat]'s
+    // target IS the leader's seat, so the marker replaces the leader's own
+    // back and everyone still receives exactly 27 cards.
     for (const [i, tick] of dealSchedule(dirOrder).entries()) {
       const target = targetFor(tick);
       if (marker !== null && i === marker.beat && markerEl) {
