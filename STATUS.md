@@ -13,8 +13,8 @@ per-seat flag replaces the fragile global held===108 predicate; timingClass(stat
 tribute CONSUMES the window (owner lean adopted + justified); untimed stays moot];
 (3) REAL cut in 翻牌定先 [FULL: ENGINE — cutDeck action, the committed deck in S
 (ceremonyCut.deck, redacted like PRNG), flips AND deal derive from the cut, defaultAction middle cut,
-uniformity re-proven]; (4) physical deal animation [presentation; ≤4s inside the 90s
-planning window; AFTER item 5]; (5) DeckTheme framework [presentation; framework owns the
+uniformity re-proven]; (4) physical deal animation [presentation; proposal said ≤4s, landed
+at ≈4.2s landings / ≤5s full choreography inside the 90s planning window; AFTER item 5]; (5) DeckTheme framework [presentation; framework owns the
 配 marker/selection/focus overlays so no theme can remove them; conformance ratchet].
 Buckets stated per the brief; full proposal:
 [design-refinement-preM5.md](docs/research/design-refinement-preM5.md).
@@ -47,7 +47,7 @@ Background research (deck depth / deal pacing / cut UX / theme architecture) lan
   code path to remove them); F11 mini-fan reads theme back tokens; conformance ratchet runs
   per registered theme (incl. renderToStaticMarkup of every card at every size).
 - **Item 4 (37ceca7 + 792a446):** the physical deal — 36ms stagger / 320ms flight round-robin
-  (≈4.2s, ≤4.5s budget PIN asserted; the 90s per-seat window absorbs it), pre-reserved sorted
+  (≈4.2s landings ≤4.5s + full choreography ≤5s, both PINNED; the 90s window absorbs it), pre-reserved sorted
   slots ("auto-arrange as they land"; true arrival order unknowable BY REDACTION, deliberately
   never claimed), WAAPI + tap-anywhere .finish() (purely local), reduced-motion instant,
   4-tier shadow-slab deck depletion, marker fly-in to the leader. Visual pass: full
@@ -59,9 +59,22 @@ Background research (deck depth / deal pacing / cut UX / theme architecture) lan
 718 unit + 40 e2e + 4 typechecks green at build close. PLAN §3/§4/§5 updated (per-seat
 timingClass — also closing a pre-existing M4 drift where PLAN never gained timingClass at
 all — ceremonyCut/cutDeck/actedThisHand, release/rename protocol + lobby semantics).
-Panel next (both lineages): the owner brief — release/invalidation redaction hard line;
-first-leader uniformity under a player-chosen cut; engine time-free/locale-free/theme-
-ignorant; DO game-agnostic; deckOrder unreachable; no comment overstatement.
+**PANEL EXECUTED (both lineages, scratch clones, headless; both ran the full 718-test suite
+green independently).** Codex: 2 findings (med: timingClass JSDoc overstated "engine never
+sees ms" — actionTimeoutMs exists as a legacy suggestion; low: a theme could z-index over
+the 配 marker). Grok: 4 (med: same marker occlusion; med: deck redaction pinned only in the
+named ceremony tests, not continuously in the property walk; low: STATUS/design-doc numbers
+drifted from landed values; low: the ≤4.5s pin silently covered landings only, not the full
+4.87s choreography). Both checked-clean lists independently confirmed the redaction hard
+line (release starves the stale token at hello/action/delivery), first-leader uniformity
+under a player-chosen cut, deck unreachability from every runtime view, engine
+time/locale/theme-freedom, DO game-agnosticism, the per-seat decision table, and the deal's
+client-only-ness. **All findings fixed (6bc3d61 + this commit):** isolated stacking context
++ z-index CSS pin for the marker (conformance-suite enforced), continuous
+'deck'/'ceremonyCut'/card-grammar assertions in every obligation-3 view sample, honest
+JSDoc/PLAN wording, superseded-numbers notes, dual budget pins (landings ≤4.5s, full ≤5s).
+Fix re-audit (Codex, scratch clone): 3× FIXED, 1× PARTIAL (a residual stale ≤4s claim in
+this file — corrected here), no new issues. 720 unit + 40 e2e + 4 typechecks green.
 
 **Last updated:** 2026-07-15
 
