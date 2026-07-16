@@ -2,10 +2,12 @@
 // cutter drags a slider spread to the SAME width as the face-down deck ribbon
 // above it, and the deck genuinely splits into two packets at the chosen
 // point, live as the slider moves. The other three watch, with the actor
-// named. No numeric index is ever shown — it is meaningless (the deck is
-// hidden and the first leader is uniform) and cutting has no numeric analogue
-// at a physical table. The semantics are unchanged: a position in
-// CUT_MIN..CUT_MAX submitted as a cutDeck action.
+// named. No numeric index is ever shown — cutting has no numeric analogue at
+// a physical table, and (ceremony-marker round) the number would also make
+// residue-class counting trivial: ABSOLUTE leader uniformity holds, but
+// conditional on the cutter the depth's residue carries a documented edge
+// (see cut.ts / the engine's conditional test). The semantics are unchanged:
+// a position in CUT_MIN..CUT_MAX submitted as a cutDeck action.
 
 import { useState } from 'react';
 import type { CSSProperties } from 'react';

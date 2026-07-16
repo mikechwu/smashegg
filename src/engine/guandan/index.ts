@@ -83,13 +83,15 @@ function stepSeats(from: Seat, steps: number, config: RuleVariant): Seat {
 }
 
 // ---------------------------------------------------------------------------
-// 翻牌定先 with a REAL cut (item 3): init commits a shuffled deck and stops
-// in phase 'ceremonyCut'; the cutter's cutDeck action rotates the deck at
-// the chosen position, the flip/count ritual reads ACTUAL top cards, and
-// the SAME rotated deck is then dealt one card at a time from firstDrawer —
-// so the face-up marker card genuinely lands at the seat that leads, and
-// the cut changes both the flips and every hand. Deterministic from
-// (seed, position); the action is logged, so replay reproduces everything.
+// 翻牌定先 with a REAL cut (item 3; geometry REVERSED in the ceremony-marker
+// round 2026-07-15): init commits a shuffled deck and stops in phase
+// 'ceremonyCut'; the cutter's cutDeck action PRESERVES deck order (lift,
+// look at the split, put back) and selects the revealed cards — the count
+// card and the face-up marker at the cut depth. The UNROTATED deck is dealt
+// one card at a time from firstDrawer, so the marker genuinely lands at the
+// seat that leads: the cut moves WHO LEADS, never which cards a seat group
+// holds. Deterministic from (seed, position); the action is logged, so
+// replay reproduces everything.
 // ---------------------------------------------------------------------------
 
 /** Interior-cut bounds: a physical cut takes a non-trivial packet from each

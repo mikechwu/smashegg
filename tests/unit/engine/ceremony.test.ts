@@ -1,15 +1,18 @@
-// 翻牌定先 with a REAL cut (item 3; owner counting rule from M3 preserved).
-// Hand 1 under firstLeadMethod='drawCard' now OPENS in phase 'ceremonyCut':
-// init commits a shuffled deck (hidden), the cutter picks a position, and
-// the cutDeck action derives flips, first drawer, marker seat AND the deal
-// from the same rotated deck — the choice genuinely matters.
+// 翻牌定先 with a REAL cut (item 3; owner counting rule from M3 preserved;
+// geometry REVERSED in the ceremony-marker round 2026-07-15). Hand 1 under
+// firstLeadMethod='drawCard' OPENS in phase 'ceremonyCut': init commits a
+// shuffled deck (hidden), the cutter picks a position, and the cutDeck
+// action PRESERVES deck order and selects the revealed cards — the count
+// card and the face-up marker at the cut depth. The cut moves WHO LEADS
+// (genuine agency), never which cards a seat group holds (the round-1
+// "changes every hand" claim is superseded — see the REVERSAL PIN below).
 //
 // Test strategy: an ORACLE reimplementation of the documented ritual (same
 // PRNG setup as init — deck shuffle then cutter draw — then the pure deck
 // arithmetic) lets us hunt (seed, position) pairs with specific outcomes
-// and assert the engine bit-for-bit; plus the physical pins the old
-// PRNG-theatre version could never state: the marker card REALLY lands in
-// the leader's hand, and a different cut REALLY changes the hands.
+// and assert the engine bit-for-bit; plus the physical pins: the marker
+// card REALLY lands in the leader's hand, and the cut depth REALLY moves
+// the leader.
 
 import { describe, expect, it } from 'vitest';
 import { nextInt, seedPrng, shuffle } from '../../../src/engine/core/prng';
@@ -617,5 +620,44 @@ describe('real cut — clockwise turnDirection counts clockwise', () => {
 describe('registration', () => {
   it("the registry resolves 'guandan' to GuandanGame (M3 registration)", () => {
     expect(getGame('guandan')).toBe(GuandanGame);
+  });
+});
+
+describe('superseded-model prose pin (panel catch, ceremony-marker round)', () => {
+  it('no source prose re-asserts the rotated-deck / collapsed-marker / unqualified-uniformity model', () => {
+    // The panel found the reversed geometry landed while six comments still
+    // described the OLD model. Per the ratchet, the drift class is pinned:
+    // these exact superseded phrases may not reappear (dated references to
+    // the defect/supersession use different wording and stay legal).
+    const files = [
+      'src/engine/guandan/index.ts',
+      'src/engine/guandan/types.ts',
+      'src/client/table/DealOverlay.tsx',
+      'src/client/table/deal.ts',
+      'src/client/table/cut.ts',
+      'src/client/table/CutPanel.tsx',
+      'tests/unit/engine/ceremony.test.ts',
+    ];
+    const forbidden = [
+      'rotates the deck at',
+      'changes both the flips and every hand',
+      'the deck will rotate',
+      'REALLY changes the hands',
+      'hidden + uniform',
+      'the first leader is uniform)',
+      'flies at its\n// TRUE beat (flips.length',
+    ];
+    const { readFileSync } = require('node:fs') as typeof import('node:fs');
+    const { join } = require('node:path') as typeof import('node:path');
+    for (const file of files) {
+      const text = readFileSync(join(__dirname, '../../..', file), 'utf8');
+      for (const phrase of forbidden) {
+        // This test file legitimately QUOTES the phrases inside this very
+        // string array; exclude the array block itself by checking count.
+        const hits = text.split(phrase).length - 1;
+        const allowance = file.endsWith('ceremony.test.ts') ? 1 : 0;
+        expect(hits, `"${phrase}" in ${file}`).toBeLessThanOrEqual(allowance);
+      }
+    }
   });
 });

@@ -5,9 +5,10 @@
 // (obs 3 — the order the server already delivers in handStarted.hands; one sort
 // beat re-lays the fan when the deal completes, see HandFan);
 // remote flights despawn into the plates. The face-up marker card flies at its
-// TRUE beat (flips.length − 1), not as a tail after the deal — everyone watches
-// the deal wondering whether it's coming to them, and sees it land at the
-// leader.
+// TRUE beat (the payload's markerDealIndex — its deck position; the old
+// flips-derived beat was the 2026-07-15 defect), inside a 2× slow window so
+// the moment reads — everyone watches the deal wondering whether it's coming
+// to them, and sees it land at the leader.
 //
 // Purely presentational over the already-received view: WAAPI animations with
 // one shared t0; tap anywhere = .finish() everything (local only — touches no

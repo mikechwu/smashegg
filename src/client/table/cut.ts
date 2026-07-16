@@ -16,11 +16,11 @@
 import { CUT_MIN, CUT_MAX } from '../../engine/guandan';
 
 /** How many card-back slivers the ribbon draws. Deliberately coarser than
- *  the 97 legal positions: the exact index is meaningless (hidden + uniform),
- *  so the ribbon shows "roughly here", and this many slivers stays legible as
- *  a split at TRUE 390px. Purely a rendering constant — the legal cut range
- *  (engine CUT_MIN..CUT_MAX) is untouched, so legalActions/defaultAction stay
- *  exactly as they were. */
+ *  the 97 legal positions: the ribbon shows "roughly here", not a count (and
+ *  per the header above, coarseness also blunts residue-counting), and this
+ *  many slivers stays legible as a split at TRUE 390px. Purely a rendering
+ *  constant — the legal cut range (engine CUT_MIN..CUT_MAX) is untouched, so
+ *  legalActions/defaultAction stay exactly as they were. */
 export const CUT_RIBBON_SLIVERS = 24;
 
 /** The slider position mapped to a split fraction in [0, 1]. Monotonic in

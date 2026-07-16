@@ -161,8 +161,9 @@ export interface GuandanState {
    *  the per-seat planning timing class; deterministic and replayable. */
   actedThisHand: [boolean, boolean, boolean, boolean];
   /** The REAL cut (item 3): non-null exactly while phase === 'ceremonyCut'.
-   *  `deck` is the full shuffled 108-card order the cut will rotate and the
-   *  deal will consume — HIDDEN INFO OF THE STRONGEST KIND (everyone's
+   *  `deck` is the full shuffled 108-card order the deal will consume IN
+   *  PLACE (the cut preserves order and only selects the revealed cards —
+   *  ceremony-marker round) — HIDDEN INFO OF THE STRONGEST KIND (everyone's
    *  future hands): playerView/viewEvent must NEVER expose it, exactly like
    *  the PRNG state (obligation 3; property-pinned). `cutter` is public. */
   ceremonyCut: { cutter: Seat; deck: Card[] } | null;
