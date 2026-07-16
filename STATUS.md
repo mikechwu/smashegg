@@ -42,6 +42,12 @@ the correct -0.3 pattern).
 Suite 812/812; typecheck clean; lint:hooks clean. Committed locally; push only on the
 owner's word.
 
+Owner follow-up (2026-07-16): the body pip grew 1.3x (0.55w -> 0.715w). Re-measured in the
+round's own harness (real stylesheet, getBoundingClientRect, 36/44/50.7/68px, A and '10',
+wild seal present): zero overlaps with the index row / wild seal / card edge at every size;
+tightest clearance 2.87px (pip<->seal at hand-min 44px). No position change needed. Suite
+812/812, typecheck + lint clean.
+
 ## Rank-stacked hand + lacquer refresh (2026-07-16) — owner reference round — local, unpushed
 
 The owner supplied two mainstream-Guandan reference screenshots and asked for: same-value
