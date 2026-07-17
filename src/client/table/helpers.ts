@@ -723,6 +723,45 @@ export function handSizeTier(count: number): 'normal' | 'low' | 'critical' {
   return 'normal';
 }
 
+/** The widest a remote seat's card-back block runs along its lay axis before
+ *  it wraps to a new partially-overlapping row (owner "two or three rows"
+ *  compaction). At exposure 0.09 a row of this many backs is ~2.2 card-widths;
+ *  a full 27-card hand wraps into 2 rows of 14/13, roughly halving the
+ *  single-line strip's length into a tidy near-square. */
+export const SEAT_STACK_ROW_CAP = 14;
+
+/** The most rows the block ever wraps into. Two — not three — because a phone
+ *  is width-bound in the ring's middle band: at 390px a 3-row block runs
+ *  ~2.9 card-widths across each side and leaves only ~48px of centre gap
+ *  between the two opponents (the trick area is crushed), whereas 2 rows keep
+ *  a ~120px gap while still turning the tall single strip into a near-square.
+ *  (Desktop has the room for 3; the owner asked to optimise for mobile.) */
+export const SEAT_STACK_MAX_ROWS = 2;
+
+/** How many partially-overlapping rows a remote seat wraps its hand into: a
+ *  short hand (≤ the row cap) stays a single line — a 2-card hand must never
+ *  read as a multi-row block — and a longer hand wraps, never past the max.
+ *  SeatStack calls this with the SIZED count (reserve included), so the block
+ *  is wrapped for its FINAL size from the deal's first frame and never reflows
+ *  as cards land. Pure + exported for the unit test. */
+export function seatStackRows(count: number): number {
+  return Math.max(1, Math.min(Math.ceil(count / SEAT_STACK_ROW_CAP), SEAT_STACK_MAX_ROWS));
+}
+
+/** Backs per row along the lay axis. A single-row block spans the whole count;
+ *  a WRAPPED block pins perRow at the cap (a full top row, the remainder in
+ *  the next row) rather than balancing the rows. That keeps the lay-axis extent
+ *  CONSTANT across every wrapped count (15…27 all lay 1 + 13·exposure wide) —
+ *  so an opponent playing a card never makes the block grow sideways, and in
+ *  particular the 15→14 unwrap is continuous on the lay axis (14 alone and
+ *  14+1 both lay the same width; only the second row appears/vanishes on the
+ *  cross axis). Balancing (ceil(count/rows)) would instead reflow the lay
+ *  extent on every play and jump it UP at the unwrap (Grok audit). Pure +
+ *  exported for the unit test. */
+export function seatStackPerRow(count: number): number {
+  return seatStackRows(count) === 1 ? Math.max(0, count) : SEAT_STACK_ROW_CAP;
+}
+
 // ---------------------------------------------------------------------------
 // Loose-cast guards for the opaque wire payloads.
 // ---------------------------------------------------------------------------

@@ -20,6 +20,10 @@ import {
   landRemoteDealt,
   NO_REMOTE_DEALT,
   remoteDealtCounts,
+  seatStackRows,
+  seatStackPerRow,
+  SEAT_STACK_ROW_CAP,
+  SEAT_STACK_MAX_ROWS,
 } from '../../../src/client/table/helpers';
 import { RoomStore, type RoomSnapshot } from '../../../src/client/room/store';
 import type { GuandanView } from '../../../src/engine/guandan/types';
@@ -320,44 +324,169 @@ describe('side-strip rotation geometry (T4)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// T10 — placement direction (owner follow-up): every player lays cards from
-// THEIR OWN right to THEIR OWN left, each new card on top. Paint order is
-// DOM order alone, so the whole requirement pins as: north/east cascade
-// straight with the index (newest = last DOM slot at the screen-right /
-// strip-bottom end), west REVERSES the index (newest at the strip's TOP end)
-// — the two sides mirror — and no z-index exists to override any of it.
+// T10 — placement direction (owner follow-up), now through the multi-row wrap.
+// Every player lays cards from THEIR OWN right to THEIR OWN left, each new card
+// on top; paint order is DOM order alone. Two axes now:
+//  · LAY axis (within a row, --gd-stack-pos): north/east cascade straight,
+//    west REVERSES (perrow−1−pos), so the sides mirror end-to-end.
+//  · WRAP axis (across rows, --gd-stack-row): every side's rows grow INWARD
+//    toward the centre from the seat's own edge — east from the right so it
+//    reverses the row index (rows−1−row), west from the left straight; north's
+//    rows step downward straight. The two sides therefore mirror on BOTH axes.
+// No z-index exists to override any of it.
 // ---------------------------------------------------------------------------
 
-describe('placement direction — top-view physics (T10)', () => {
+describe('placement direction — top-view physics, multi-row (T10)', () => {
   const stackRules = seatstackRules(tableCss);
 
   it('paint order is DOM order alone: no z-index in any stack rule', () => {
     expect(stackRules.join('\n')).not.toContain('z-index');
   });
 
-  it('north and east cascade straight with the index (newest card at the screen right / strip bottom)', () => {
+  it('within a row north/east lay straight with --gd-stack-pos (newest at the screen right / strip bottom)', () => {
     const north = stackRules.find((r) => r.includes('--north') && r.includes('left:'));
     expect(north, 'north slot rule not found').toBeDefined();
-    expect(north).toMatch(/left:[^;]*var\(--gd-stack-i\)\s*\*\s*var\(--gd-stack-exposure\)/);
-    expect(north).not.toMatch(/-\s*1\s*-\s*var\(--gd-stack-i\)/);
+    expect(north).toMatch(/left:[^;]*var\(--gd-stack-pos\)\s*\*\s*var\(--gd-stack-exposure\)/);
+    expect(north).not.toMatch(/-\s*1\s*-\s*var\(--gd-stack-pos\)/);
     const east = stackRules.find((r) => r.startsWith('.gd-seatstack--east >') && r.includes('top:'));
     expect(east, 'east slot rule not found').toBeDefined();
-    expect(east).toMatch(/top:[^;]*var\(--gd-stack-i\)\s*\*\s*var\(--gd-stack-exposure\)/);
-    expect(east).not.toMatch(/-\s*1\s*-\s*var\(--gd-stack-i\)/);
+    expect(east).toMatch(/top:[^;]*var\(--gd-stack-pos\)\s*\*\s*var\(--gd-stack-exposure\)/);
+    expect(east).not.toMatch(/-\s*1\s*-\s*var\(--gd-stack-pos\)/);
   });
 
-  it("west reverses the index (newest card at the strip's TOP end) — the sides mirror", () => {
+  it("within a row west reverses --gd-stack-pos over perrow (newest at the strip's TOP end) — the sides mirror", () => {
     const west = stackRules.find((r) => r.startsWith('.gd-seatstack--west >') && r.includes('top:'));
     expect(west, 'west slot rule not found').toBeDefined();
     expect(west).toMatch(
-      /top:[^;]*\(var\(--gd-stack-n\)\s*-\s*1\s*-\s*var\(--gd-stack-i\)\)\s*\*\s*var\(--gd-stack-exposure\)/,
+      /top:[^;]*\(var\(--gd-stack-perrow\)\s*-\s*1\s*-\s*var\(--gd-stack-pos\)\)\s*\*\s*var\(--gd-stack-exposure\)/,
     );
+  });
+
+  it('rows grow inward: east reverses the row index (from the right edge), west steps it straight (from the left)', () => {
+    const east = stackRules.find((r) => r.startsWith('.gd-seatstack--east >') && r.includes('left:'));
+    const west = stackRules.find((r) => r.startsWith('.gd-seatstack--west >') && r.includes('left:'));
+    expect(east, 'east slot rule not found').toBeDefined();
+    expect(west, 'west slot rule not found').toBeDefined();
+    // East hugs the right edge, so its rows count inward as (rows−1−row). The
+    // row step MUST carry `* var(--gd-stack-aspect)` (Grok audit): the offset
+    // is a fraction of the card's CROSS dimension — drop the aspect factor and
+    // the rows stop tiling flush inside the widened side container even though
+    // the coarse `(rows−1−row) * linefrac` fragment still matches.
+    expect(east).toMatch(
+      /left:[^;]*\(var\(--gd-stack-rows\)\s*-\s*1\s*-\s*var\(--gd-stack-row\)\)\s*\*\s*var\(--gd-stack-linefrac\)\s*\*\s*var\(--gd-stack-aspect\)/,
+    );
+    // West hugs the left edge, so its rows step straight with the row index.
+    expect(west).toMatch(
+      /left:[^;]*var\(--gd-stack-row\)\s*\*\s*var\(--gd-stack-linefrac\)\s*\*\s*var\(--gd-stack-aspect\)/,
+    );
+    expect(west).not.toMatch(/-\s*1\s*-\s*var\(--gd-stack-row\)/);
+    // Both sides re-centre the rotated box with the SAME ±(aspect−1)/2 term
+    // that made the single-column strip flush — the multi-row offset rides on
+    // top of it, it does not replace it.
+    expect(east).toMatch(/\(var\(--gd-stack-aspect\)\s*-\s*1\)\s*\/\s*2/);
+    expect(west).toMatch(/\(var\(--gd-stack-aspect\)\s*-\s*1\)\s*\/\s*2/);
+  });
+
+  it('north rows step down straight with --gd-stack-row (the wrap grows toward the centre)', () => {
+    const north = stackRules.find((r) => r.includes('--north') && r.includes('top:'));
+    expect(north, 'north slot rule not found').toBeDefined();
+    // Row step carries the aspect factor here too (cross dimension = the card
+    // height for the un-rotated north strip).
+    expect(north).toMatch(
+      /top:[^;]*var\(--gd-stack-aspect\)\s*\*\s*var\(--gd-stack-row\)\s*\*\s*var\(--gd-stack-linefrac\)/,
+    );
+    expect(north).not.toMatch(/-\s*1\s*-\s*var\(--gd-stack-row\)/);
   });
 
   it('slots render in arrival order (DOM index IS --gd-stack-i), so the last-arrived card paints on top', () => {
     const html = renderStack('west', 3);
     const indices = [...html.matchAll(/--gd-stack-i:\s*(\d+)/g)].map((m) => Number(m[1]));
     expect(indices).toEqual([0, 1, 2]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T11 — the multi-row wrap itself (owner "two or three rows" compaction): the
+// row-count policy is pure and capped, the container advertises its wrap
+// shape, and each slot carries the row-major (row, pos) its geometry keys off.
+// ---------------------------------------------------------------------------
+
+describe('multi-row wrap policy + per-slot mapping (T11)', () => {
+  it('seatStackRows: short hands stay one line, a full hand wraps, never past the max', () => {
+    // A tiny hand must never look like a multi-row block.
+    for (const n of [1, 2, 5, SEAT_STACK_ROW_CAP]) expect(seatStackRows(n), `count ${n}`).toBe(1);
+    // Just over the cap wraps to a second row…
+    expect(seatStackRows(SEAT_STACK_ROW_CAP + 1)).toBe(2);
+    // …and a full 27-card hand is 2 rows (mobile-optimal — 3 would crush the
+    // centre trick area at 390px).
+    expect(seatStackRows(27)).toBe(SEAT_STACK_MAX_ROWS);
+    expect(SEAT_STACK_MAX_ROWS).toBe(2);
+    // The cap is a hard ceiling: nothing, however large, exceeds it.
+    for (const n of [28, 54, 200]) expect(seatStackRows(n)).toBeLessThanOrEqual(SEAT_STACK_MAX_ROWS);
+  });
+
+  it('seatStackPerRow: a single row spans the count; a wrapped block pins perRow at the cap', () => {
+    // Single-row hands span their whole count along the lay axis.
+    for (const n of [1, 6, SEAT_STACK_ROW_CAP]) expect(seatStackPerRow(n), `count ${n}`).toBe(n);
+    // Every wrapped count uses the SAME perRow (= cap), NOT ceil(count/rows):
+    // that is what keeps the lay-axis extent constant while a hand is played
+    // down through 27…15 (Grok audit — a balanced perRow would reflow it every
+    // play and jump it up at the 15→14 unwrap).
+    for (const n of [15, 20, 26, 27]) expect(seatStackPerRow(n), `count ${n}`).toBe(SEAT_STACK_ROW_CAP);
+    // Continuity across the unwrap: 14 (one row of 14) and 15 (14+1) lay the
+    // same width — only the second row appears on the cross axis.
+    expect(seatStackPerRow(14)).toBe(seatStackPerRow(15));
+  });
+
+  it('the container advertises its wrap shape (rows + perrow), sized off the SIZED count', () => {
+    // Settled 27 → 2 rows, perRow pinned at the cap (14).
+    const html = renderStack('north', 27);
+    expect(html).toContain('--gd-stack-rows:2');
+    expect(html).toContain('--gd-stack-perrow:14');
+    // A mid-play count still uses the cap perRow (constant lay extent) — a full
+    // top row and a short second row, NOT a balanced ceil(20/2)=10 split.
+    const mid = renderStack('west', 20);
+    expect(mid).toContain('--gd-stack-rows:2');
+    expect(mid).toContain('--gd-stack-perrow:14');
+    // A short hand stays a single row that spans the whole count.
+    const small = renderStack('east', 6);
+    expect(small).toContain('--gd-stack-rows:1');
+    expect(small).toContain('--gd-stack-perrow:6');
+  });
+
+  it('each slot carries its row-major (row, pos): pos = i mod perrow, row = ⌊i / perrow⌋', () => {
+    const html = renderStack('north', 27); // perrow 14
+    const slots = [...html.matchAll(/--gd-stack-i:\s*(\d+);--gd-stack-pos:\s*(\d+);--gd-stack-row:\s*(\d+)/g)].map(
+      (m) => ({ i: Number(m[1]), pos: Number(m[2]), row: Number(m[3]) }),
+    );
+    expect(slots).toHaveLength(27);
+    for (const s of slots) {
+      expect(s.pos, `slot ${s.i} pos`).toBe(s.i % 14);
+      expect(s.row, `slot ${s.i} row`).toBe(Math.floor(s.i / 14));
+    }
+    // Row 0 fills first (cards 0–13), row 1 holds the rest (14–26).
+    expect(slots.filter((s) => s.row === 0)).toHaveLength(14);
+    expect(slots.filter((s) => s.row === 1)).toHaveLength(13);
+  });
+
+  it('the wrap shape is derived from the reservation mid-deal, so it never reflows as cards land', () => {
+    // Only 3 backs landed, but the block is already shaped for the final 27
+    // (2 rows, perRow 14) — and the landed backs carry the SAME row-major
+    // (pos = i mod 14) the settled block uses, so they are laid into the first
+    // reserved slots, not a mid-deal balance that would shift when the rest
+    // land (Grok audit — assert the tuples, not just the shape/count).
+    const html = renderToStaticMarkup(createElement(SeatStack, { dir: 'west', count: 3, reserve: 27 }));
+    expect(html).toContain('--gd-stack-rows:2');
+    expect(html).toContain('--gd-stack-perrow:14');
+    expect(backCount(html)).toBe(3);
+    const slots = [...html.matchAll(/--gd-stack-i:\s*(\d+);--gd-stack-pos:\s*(\d+);--gd-stack-row:\s*(\d+)/g)].map(
+      (m) => [Number(m[1]), Number(m[2]), Number(m[3])],
+    );
+    expect(slots).toEqual([
+      [0, 0, 0],
+      [1, 1, 0],
+      [2, 2, 0],
+    ]);
   });
 });
 
@@ -378,6 +507,16 @@ describe('exposure constant + card-width lockstep (T5)', () => {
     expect(stripped).not.toMatch(/\*\s*0\.09\b/);
     // No TS mirror exists: the component passes counts/indices/aspect only.
     expect(stripTsComments(seatStackSrc)).not.toContain('0.09');
+  });
+
+  it('--gd-stack-linefrac (the cross-axis row step) is declared exactly once (0.5) with no re-typed literal or TS mirror', () => {
+    const stripped = stripCssComments(tableCss);
+    expect([...stripped.matchAll(/--gd-stack-linefrac:/g)]).toHaveLength(1);
+    expect(stripped).toMatch(/--gd-stack-linefrac:\s*0\.5\s*;/);
+    // The wrap depth is aspect-relative (× --gd-stack-aspect in the calcs), and
+    // no rule re-types the fraction as a literal.
+    expect(stripped).not.toMatch(/\*\s*0\.5\b/);
+    expect(stripTsComments(seatStackSrc)).not.toContain('0.5');
   });
 
   it(".gd-seatstack's --gd-cardw clamp is IDENTICAL to .gd-card--hand's (lockstep pin)", () => {
@@ -524,6 +663,11 @@ describe('deal-time layout reservation (review fix: flights vs once-measured rec
       const html = renderReserved(dir, 3, 27);
       expect(backCount(html), `${dir}: landed backs`).toBe(3);
       expect(html, `${dir}: container sized for the reservation`).toContain('--gd-stack-n:27');
+      // The LAYOUT sizes off the wrap shape (rows + perrow), not --gd-stack-n:
+      // both must be reserved for the final 27 too, or the block would reflow
+      // as cards land even with --gd-stack-n frozen (Grok audit).
+      expect(html, `${dir}: rows reserved`).toContain('--gd-stack-rows:2');
+      expect(html, `${dir}: perrow reserved`).toContain('--gd-stack-perrow:14');
     }
   });
 

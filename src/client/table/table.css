@@ -1474,19 +1474,28 @@
 
 /* The remote stack: one REAL theme CardBack per remaining card (R2 — the
    SAME art the deal flights and the deck pile use), at hand size under heavy
-   overlap (R5). ALL geometry lives here, driven by two inline vars the
-   component sets — --gd-stack-n (the count) and --gd-stack-aspect (the
-   ACTIVE theme's DeckThemeMetrics.aspect, read never hardcoded, HandFan's
-   discipline) — and the ONE exposure constant below. --gd-cardw must be
-   declared on this container for its own width/height calcs (custom
-   properties resolve against ancestors; the card's own --gd-cardw lives on a
-   DESCENDANT frame) — lockstep-pinned with .gd-card--hand's clamp. */
+   overlap (R5). ALL layout geometry lives here, driven by inline vars the
+   component sets — the wrap shape --gd-stack-rows / --gd-stack-perrow, the
+   per-slot --gd-stack-pos / --gd-stack-row, and --gd-stack-aspect (the ACTIVE
+   theme's DeckThemeMetrics.aspect, read never hardcoded, HandFan's discipline)
+   — plus the two overlap constants below. (--gd-stack-n, the sized count, is
+   set too but read by NO calc here; it is the reserve/deal signal the tests
+   pin.) --gd-cardw must be declared on this container for its own width/height
+   calcs (custom properties resolve against ancestors; the card's own --gd-cardw
+   lives on a DESCENDANT frame) — lockstep-pinned with .gd-card--hand's clamp. */
 .gd-seatstack {
-  /* R5: exposure per covered card, in --gd-cardw units — the single source
-     of truth (27 cards ≈ 3.34 card-widths of run). Owner rule: if a live
-     390px pass shows the centre squeezed, tighten toward 0.06 BEFORE
-     shrinking anything else. */
+  /* Two single sources of truth for the block's overlap, both in --gd-cardw
+     units. --gd-stack-exposure is the lay-axis step per covered card within a
+     row; --gd-stack-linefrac is the CROSS-axis step per wrapped row, as a
+     fraction of the card's cross dimension (× --gd-stack-aspect in the calcs,
+     so a taller-carded theme reveals the same PROPORTION of each row). Owner
+     compaction (two or three rows): a full 27-hand wraps into 2 rows of 14/13
+     (capped at 2 — 3 rows would crush a phone's centre trick area), so the
+     strip runs ~2.2 card-widths along its lay axis (down from ~3.34) and
+     ~1.5× the card's cross dimension deep. Owner rule: if a live 390px pass
+     shows the centre squeezed, tighten these BEFORE shrinking anything else. */
   --gd-stack-exposure: 0.09;
+  --gd-stack-linefrac: 0.5;
   --gd-cardw: clamp(2.75rem, 13vw, 4.25rem);
   position: relative;
   display: block;
@@ -1496,56 +1505,85 @@
   position: absolute;
   line-height: 0;
 }
-/* North: a horizontal run, NO rotation — the container is explicitly sized
-   by the count (1 + (n-1) × exposure card-widths wide, one card tall), each
-   card offset by its index × exposure. Later DOM siblings paint over
-   earlier — which already satisfies R10 for north: facing the viewer, the
-   player's right is the screen's LEFT, so laying right→left indexes
-   left→right on screen with the newest card on top at the right end. */
+/* Each block wraps its hand into `--gd-stack-rows` rows of at most
+   `--gd-stack-perrow` backs (SeatStack derives both from the SIZED count, so
+   the block never reflows as cards land). Every slot carries `--gd-stack-pos`
+   (its position along the lay axis, 0…perrow−1) and `--gd-stack-row` (its
+   cross-axis row, 0…rows−1); the container is sized off perrow (lay axis) and
+   rows (cross axis). Paint order is DOM order alone (no z-index anywhere in
+   these rules): later slots — later positions, and later ROWS — paint on top,
+   so the newest row sits in front, toward the centre. */
+
+/* North: a horizontal run, NO rotation. Lay axis = width (perrow backs at
+   exposure step); cross axis = height (rows offset downward toward the centre
+   by linefrac × the card's height). R10 for north: facing the viewer, the
+   player's right is the screen's LEFT, so laying right→left indexes left→right
+   on screen with the newest card on top at each row's right end. */
 .gd-seatstack--north {
-  width: calc(var(--gd-cardw) * (1 + (var(--gd-stack-n) - 1) * var(--gd-stack-exposure)));
-  height: calc(var(--gd-cardw) * var(--gd-stack-aspect));
+  width: calc(var(--gd-cardw) * (1 + (var(--gd-stack-perrow) - 1) * var(--gd-stack-exposure)));
+  height: calc(
+    var(--gd-cardw) * var(--gd-stack-aspect) *
+      (1 + (var(--gd-stack-rows) - 1) * var(--gd-stack-linefrac))
+  );
 }
 .gd-seatstack--north > .gd-seatstack__slot {
-  left: calc(var(--gd-cardw) * var(--gd-stack-i) * var(--gd-stack-exposure));
-  top: 0;
+  left: calc(var(--gd-cardw) * var(--gd-stack-pos) * var(--gd-stack-exposure));
+  top: calc(
+    var(--gd-cardw) * var(--gd-stack-aspect) * var(--gd-stack-row) * var(--gd-stack-linefrac)
+  );
 }
 /* East/west (R4, top-view): the strip runs VERTICALLY — each w × (aspect·w)
-   card rotates ±90° into an (aspect·w) × w visual footprint, so the
-   container is one ROTATED card wide and (1 + (n-1) × exposure) card-widths
-   tall. Rotation happens about the unrotated centre, so each slot's
-   ±(aspect−1)/2 offsets re-centre the rotated box inside the strip. */
+   card rotates ±90° into an (aspect·w) × w footprint. Lay axis = height
+   (perrow backs at exposure step); cross axis = width (rows offset SIDEWAYS
+   toward the centre by linefrac × the card's height). Rotation happens about
+   the unrotated centre, so each slot's ±(aspect−1)/2 offset re-centres the
+   rotated box, and the per-row cross offset then slides whole rows inward. */
 .gd-seatstack--east,
 .gd-seatstack--west {
-  width: calc(var(--gd-cardw) * var(--gd-stack-aspect));
-  height: calc(var(--gd-cardw) * (1 + (var(--gd-stack-n) - 1) * var(--gd-stack-exposure)));
-}
-.gd-seatstack--east > .gd-seatstack__slot,
-.gd-seatstack--west > .gd-seatstack__slot {
-  left: calc(var(--gd-cardw) * (var(--gd-stack-aspect) - 1) / 2);
+  width: calc(
+    var(--gd-cardw) * var(--gd-stack-aspect) *
+      (1 + (var(--gd-stack-rows) - 1) * var(--gd-stack-linefrac))
+  );
+  height: calc(var(--gd-cardw) * (1 + (var(--gd-stack-perrow) - 1) * var(--gd-stack-exposure)));
 }
 /* R10 (owner follow-up): every player lays cards from THEIR OWN right to
-   THEIR OWN left, each new card ON TOP — and paint order is DOM order alone
-   (no z-index in any stack rule). Screen translation: east faces west, so
-   its right is the strip's TOP end — it indexes straight down the strip and
-   its newest card sits at the bottom end; west faces east, so its right is
-   the strip's BOTTOM end — its formula REVERSES the index and its newest
-   card sits at the top end. The two sides therefore MIRROR (the owner's
-   "opposite direction"), the way two facing players' piles really would.
-   The rotation signs (east +90°, west −90°) keep each hand "facing" its own
-   player; north declares no rotation at all. */
+   THEIR OWN left, each new card ON TOP. Screen translation, per row: east
+   faces west, so its right is the strip's TOP end — it indexes straight down
+   and its newest card sits at the bottom; west faces east, so its right is
+   the strip's BOTTOM end — its formula REVERSES the position and its newest
+   card sits at the top. The row-wrap mirrors too: east hugs the right edge
+   and its rows grow LEFT toward the centre (row 0 rightmost), west hugs the
+   left edge and its rows grow RIGHT toward the centre (row 0 leftmost). The
+   two sides therefore MIRROR on both axes (the owner's "opposite direction"),
+   the way two facing players' piles really would. Rotation signs (east +90°,
+   west −90°) keep each hand "facing" its own player; north has no rotation. */
 .gd-seatstack--east > .gd-seatstack__slot {
+  left: calc(
+    var(--gd-cardw) *
+      (
+        (var(--gd-stack-rows) - 1 - var(--gd-stack-row)) * var(--gd-stack-linefrac) *
+          var(--gd-stack-aspect) +
+          (var(--gd-stack-aspect) - 1) / 2
+      )
+  );
   top: calc(
     var(--gd-cardw) *
-      (var(--gd-stack-i) * var(--gd-stack-exposure) - (var(--gd-stack-aspect) - 1) / 2)
+      (var(--gd-stack-pos) * var(--gd-stack-exposure) - (var(--gd-stack-aspect) - 1) / 2)
   );
   transform: rotate(90deg);
 }
 .gd-seatstack--west > .gd-seatstack__slot {
+  left: calc(
+    var(--gd-cardw) *
+      (
+        var(--gd-stack-row) * var(--gd-stack-linefrac) * var(--gd-stack-aspect) +
+          (var(--gd-stack-aspect) - 1) / 2
+      )
+  );
   top: calc(
     var(--gd-cardw) *
       (
-        (var(--gd-stack-n) - 1 - var(--gd-stack-i)) * var(--gd-stack-exposure) -
+        (var(--gd-stack-perrow) - 1 - var(--gd-stack-pos)) * var(--gd-stack-exposure) -
           (var(--gd-stack-aspect) - 1) / 2
       )
   );
