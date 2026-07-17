@@ -14,6 +14,9 @@
   --cinnabar: #c3392b;
   --ink: #1f2430;
   --goldleaf: #c9a227;
+  /* Card-table felt: a deep green disc under the rosewood rim (lobby table). */
+  --felt: #1f4d3a;
+  --felt-hi: #2c6a50;
 
   --font-ui: -apple-system, 'PingFang TC', 'Hiragino Sans TC', 'Noto Sans TC',
     'Microsoft JhengHei', sans-serif;
@@ -343,83 +346,165 @@ a {
   font-weight: 600;
   opacity: 0.75;
 }
-.lobby-code {
-  background: var(--rosewood);
-  border-radius: 12px;
-  padding: 1rem 1.125rem 0.5rem;
-  text-align: center;
-  margin-bottom: 1rem;
-}
-.lobby-code__label {
-  display: block;
-  font-size: 0.75rem;
-  letter-spacing: 0.1em;
-  opacity: 0.7;
-}
-.lobby-code__row {
+
+/* --- name panel (§1): a SEPARATE input above the table. NOT a form — the
+   name never submits anywhere (you claim by clicking a seat chip). ------- */
+.lobby-namepanel {
   display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0 0 1.25rem;
+}
+.lobby-namepanel__label {
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
+  opacity: 0.85;
+}
+.lobby-namepanel__input {
+  background: var(--lacquer);
+  border: 1px solid rgba(245, 239, 227, 0.35);
+  border-radius: 8px;
+  color: var(--ivory);
+  font-family: inherit;
+  font-size: 1rem; /* >=16px so iOS Safari never zoom-jumps on focus */
+  padding: 0.5rem 0.625rem;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
+}
+.lobby-namepanel__hint {
+  margin: 0;
+  font-size: 0.75rem;
+  opacity: 0.6;
+}
+
+/* --- round table (§2): a felt disc with a rosewood rim ring; four seats
+   (§3) sit around it in FIXED geographic areas (0 bottom, 1 right, 2 top,
+   3 left) so partners always face ACROSS. The disc is the only fixed-width
+   track; the flank columns are minmax(0, 1fr) so the whole grid shrinks to
+   the phone with ZERO horizontal overflow (390 content = 358px: the disc
+   clamps to ~156px, leaving each flank only ~93px). That flank is too narrow
+   for a roomy button, so the take-a-seat CTA (below) is deliberately compact
+   (small font, minimal inset) to keep "Take a seat" on ONE line down to a
+   375px viewport; the disc stays >= 8.5rem so the room code stays legible.
+   ------------------------------------------------------------------------ */
+.lobby-table {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas:
+    '.    top     .'
+    'left disc  right'
+    '.    bottom  .';
+  align-items: center;
+  justify-items: center;
+  gap: 0.6rem 0.5rem;
+  margin: 0 0 1.25rem;
+}
+.lobby-table__disc {
+  grid-area: disc;
+  width: clamp(8.5rem, 40vw, 12rem);
+  aspect-ratio: 1 / 1;
+  border-radius: 50%;
+  box-sizing: border-box;
+  padding: 0.85rem;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.875rem;
-  flex-wrap: wrap;
-  margin-top: 0.25rem;
+  gap: 0.25rem;
+  text-align: center;
+  /* felt sheen: a soft top-lit radial so the disc reads as cloth, not a
+     flat coin */
+  background: radial-gradient(circle at 50% 38%, var(--felt-hi), var(--felt) 74%);
+  /* rosewood rim ring + subtle depth: the ring, a dark rim edge, a drop
+     shadow to lift it off the lacquer, and inset felt shading */
+  box-shadow:
+    0 0 0 0.55rem var(--rosewood),
+    0 0 0 0.62rem rgba(0, 0, 0, 0.35),
+    0 12px 24px rgba(0, 0, 0, 0.4),
+    inset 0 2px 10px rgba(255, 255, 255, 0.06),
+    inset 0 -14px 26px rgba(0, 0, 0, 0.32);
 }
-.lobby-code__value {
+.lobby-table__codelabel {
+  font-size: 0.625rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+.lobby-table__code {
   font-family: var(--font-card);
-  font-size: clamp(2rem, 9vw, 2.75rem);
-  letter-spacing: 0.18em;
+  font-size: clamp(1.35rem, 6.5vw, 2rem);
+  letter-spacing: 0.12em;
   font-weight: 600;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
 }
-.lobby-code__copy {
-  background: none;
-  border: 1px solid rgba(245, 239, 227, 0.35);
+.lobby-table__copy {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(245, 239, 227, 0.4);
   color: var(--ivory);
   border-radius: 999px;
-  padding: 0.3rem 0.875rem;
-  font-size: 0.8125rem;
+  padding: 0.2rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.75rem;
   cursor: pointer;
 }
-.lobby-code__copy:hover {
-  background: rgba(245, 239, 227, 0.1);
+.lobby-table__copy:hover {
+  background: rgba(0, 0, 0, 0.4);
 }
-.lobby-code__status {
-  margin: 0.375rem 0 0;
-  min-height: 1.25em; /* reserved line: no layout jump when the toast shows */
-  font-size: 0.8125rem;
+.lobby-table__status {
+  margin: 0;
+  min-height: 1.1em; /* reserved line: the toast never reflows the felt */
+  font-size: 0.6875rem;
   opacity: 0.85;
 }
 
-.lobby-seats {
-  list-style: none;
-  margin: 0 0 1rem;
-  padding: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.625rem;
+/* Seat wrappers: FIXED geographic areas by seat index (never re-anchored). */
+.lobby-tableseat {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-width: 0;
 }
+.lobby-tableseat--s0 {
+  grid-area: bottom;
+}
+.lobby-tableseat--s1 {
+  grid-area: right;
+}
+.lobby-tableseat--s2 {
+  grid-area: top;
+}
+.lobby-tableseat--s3 {
+  grid-area: left;
+}
+
 .lobby-seat {
   background: var(--rosewood);
   border-radius: 10px;
   border: 1px solid transparent;
-  padding: 0.625rem 0.75rem 0.75rem;
-  min-height: 4.75rem;
+  padding: 0.5rem 0.6rem;
+  width: 100%;
+  max-width: 11rem;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  align-items: center;
+  gap: 0.4rem;
   min-width: 0;
 }
 .lobby-seat--empty {
   background: transparent;
-  border: 1px dashed rgba(245, 239, 227, 0.35);
-}
-.lobby-seat__label {
-  font-size: 0.75rem;
-  opacity: 0.65;
+  border: 1px dashed rgba(245, 239, 227, 0.3);
+  /* Minimal inset: the take-button fills the chip (width:100%), so this only
+     sets the gap between the dashed rim and the button. Kept tight so the
+     narrow flank seats have room for the CTA on one line (see table header). */
+  padding: 0.25rem;
 }
 .lobby-seat__row {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 0.4rem;
   min-width: 0;
   flex-wrap: wrap;
@@ -441,6 +526,7 @@ a {
   font-weight: 600;
   overflow-wrap: anywhere;
   min-width: 0;
+  text-align: center;
 }
 .lobby-seat__you {
   background: var(--ivory);
@@ -449,25 +535,31 @@ a {
   font-size: 0.6875rem;
   padding: 0 0.3125rem;
 }
-.lobby-seat__empty {
-  opacity: 0.55;
-  font-size: 0.875rem;
-}
-.lobby-seat__partner {
-  background: rgba(245, 239, 227, 0.14);
+/* Empty-seat take-a-seat button: the chip IS the button (§5). Compact by
+   design: font and horizontal inset are minimized so "Take a seat" stays on a
+   single line inside the ~93px flank seats down to a 375px viewport (the felt
+   disc owns the center track and cannot shrink without breaking the circle or
+   the room code). width:100% means the horizontal padding is text inset only,
+   never the tap target, so trimming it costs no touch area. */
+.lobby-seat__take {
+  background: var(--cinnabar);
   color: var(--ivory);
-  border: 1px solid rgba(245, 239, 227, 0.4);
-  border-radius: 4px;
-  font-size: 0.6875rem;
-  padding: 0 0.3125rem;
+  border: none;
+  border-radius: 8px;
+  padding: 0.35rem;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: 100%;
 }
-
-/* item 1: quiet per-seat controls (rename / leave / sit-here) */
-.lobby-seat__controls {
-  display: flex;
-  gap: 0.375rem;
+.lobby-seat__take:disabled {
+  background: none;
+  border: 1px solid rgba(245, 239, 227, 0.3);
+  opacity: 0.6;
+  cursor: not-allowed;
 }
-.lobby-seat__ctl {
+.lobby-seat__leave {
   background: none;
   border: 1px solid rgba(245, 239, 227, 0.35);
   border-radius: 999px;
@@ -477,101 +569,8 @@ a {
   padding: 0.125rem 0.6rem;
   cursor: pointer;
 }
-.lobby-seat__ctl:hover:not(:disabled) {
+.lobby-seat__leave:hover {
   background: rgba(245, 239, 227, 0.1);
-}
-.lobby-seat__ctl:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-}
-
-/* --- lobby ring (pre-M5 §2): partners across the table, as in play -------
-   North/south span the FULL row (centered) so the claim form and seat
-   labels never inherit the narrow centre column's width — the true-390
-   find of the refinement round: at 390px the old middle column collapsed
-   to ~100px and seat/nickname wrapped one character per line. */
-.lobby-ring {
-  display: grid;
-  grid-template-columns: 1fr minmax(1.5rem, 0.6fr) 1fr;
-  grid-template-areas:
-    'north north north'
-    'west  center east'
-    'south south south';
-  gap: 0.5rem;
-  align-items: stretch;
-  margin: 0 0 1rem;
-}
-.lobby-ring__seat {
-  display: flex;
-}
-.lobby-ring__seat > .lobby-seat {
-  flex: 1;
-  margin: 0;
-}
-.lobby-ring__seat--north,
-.lobby-ring__seat--south {
-  justify-self: center;
-  width: min(100%, 15rem);
-}
-.lobby-ring__seat--north {
-  grid-area: north;
-}
-.lobby-ring__seat--west {
-  grid-area: west;
-}
-.lobby-ring__seat--east {
-  grid-area: east;
-}
-.lobby-ring__seat--south {
-  grid-area: south;
-}
-.lobby-ring__center {
-  grid-area: center;
-  align-self: center;
-  min-height: 3rem;
-  border-radius: 50%;
-  border: 1px dashed rgba(245, 239, 227, 0.2);
-  background: color-mix(in srgb, var(--rosewood) 25%, transparent);
-}
-
-.lobby-claim {
-  display: flex;
-  flex-direction: column;
-  gap: 0.375rem;
-}
-.lobby-claim label {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  font-size: 0.75rem;
-  opacity: 0.9;
-}
-.lobby-claim input {
-  background: var(--lacquer);
-  border: 1px solid rgba(245, 239, 227, 0.35);
-  border-radius: 8px;
-  color: var(--ivory);
-  font-family: inherit;
-  font-size: 0.9375rem;
-  padding: 0.4rem 0.5rem;
-  width: 100%;
-  box-sizing: border-box;
-  min-width: 0;
-}
-.lobby-claim button {
-  align-self: flex-start;
-  background: var(--cinnabar);
-  color: var(--ivory);
-  border: none;
-  border-radius: 8px;
-  padding: 0.4rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 600;
-  cursor: pointer;
-}
-.lobby-claim button:disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
 }
 
 .lobby-start {

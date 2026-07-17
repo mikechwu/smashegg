@@ -1,10 +1,13 @@
-// Lobby screen (M3 shell, PLAN.md §4 lobby phase). Layout (visual-iteration
-// round 1): the room code is the page's hero — a large serif code chip with
-// a copy-link button — followed by four rosewood seat plates (the nickname +
-// claim flow lives inside the FIRST empty plate; claiming stays repeatable,
-// one client may claim multiple seats for self-play), the big cinnabar
-// start button (any seated player, once every seat is claimed, with a
-// localized disabled-reason line), and the rule-picker panel beneath.
+// Lobby screen (M3 shell, PLAN.md §4 lobby phase). Owner-designed redesign:
+// a SEPARATE name panel above a round card table. The table is a felt disc
+// with a rosewood rim — the thing people gather around — carrying the room
+// code and its copy-link button ON the felt. Four seats sit around it in
+// FIXED geographic positions (0 bottom, 1 right, 2 top, 3 left) that never
+// re-anchor to the viewer, so partners (0&2, 1&3) always face ACROSS the
+// table and the geometry itself carries the team structure. Each empty seat
+// is a take-a-seat button that claims EXACTLY that seat (multi-seat self-play
+// stays: one client may claim several seats, one name typed per claim); a
+// held seat shows a connection dot, the name, a you-badge, and a leave button.
 
 import { useEffect, useState } from 'react';
 import type { Seat } from '../engine/core/game';
@@ -12,9 +15,8 @@ import type { RoomInfo } from '../shared/protocol';
 import type { RoomSnapshot, RoomStore } from './room/store';
 import { RulePicker } from './RulePicker';
 import { TimingPicker } from './TimingPicker';
-import { seatLayout } from './table/helpers';
 import { roomHash } from './router';
-import { t } from './i18n';
+import { t, type TranslationKey } from './i18n';
 
 export interface LobbyProps {
   snapshot: RoomSnapshot;
@@ -32,12 +34,38 @@ export function configEditable(status: RoomInfo['status'], holdsSeat: boolean): 
 
 type CopyState = 'idle' | 'copied' | 'failed';
 
+/** The four seats in a FIXED render order (owner design §3). This order is
+ *  the DOM order of the chips and never re-anchors to the viewer — geography
+ *  is the identity, so seat 0 is always bottom, 1 right, 2 top, 3 left, and
+ *  partners always sit across. */
+const SEATS: readonly Seat[] = [0, 1, 2, 3];
+
+/** Localized position word per seat, for aria ONLY (§4): the visual carries
+ *  no seat index, but assistive tech still needs to tell the four
+ *  take-a-seat buttons apart, so their accessible names name the position. */
+const POSITION_KEY: Record<number, TranslationKey> = {
+  0: 'lobby.position.bottom',
+  1: 'lobby.position.right',
+  2: 'lobby.position.top',
+  3: 'lobby.position.left',
+};
+
+/** A take-a-seat button claims EXACTLY its own seat with the panel's trimmed
+ *  name, then resets the panel to empty (the returned next value). The seat
+ *  is always the button's own index — there is never a defaulted target
+ *  (owner bugs: the old first-empty-seat form both submitted to the WRONG
+ *  seat and let a pre-filled name MIGRATE). Clearing the name on every claim
+ *  is what stops it pre-filling or migrating to another seat. Pure over the
+ *  store (a recorder in tests) so the seat→claimSeat(_, seat) mapping and the
+ *  name-clear are both unit-pinned with no DOM. */
+export function takeSeat(store: RoomStore, name: string, seat: Seat): string {
+  store.claim(name.trim(), seat);
+  return '';
+}
+
 export function Lobby({ snapshot, store }: LobbyProps) {
   const [name, setName] = useState('');
   const [copyState, setCopyState] = useState<CopyState>('idle');
-  // Inline rename (item 1): which of MY seats has its rename form open.
-  const [renamingSeat, setRenamingSeat] = useState<Seat | null>(null);
-  const [renameValue, setRenameValue] = useState('');
   const room = snapshot.room as RoomInfo; // RoomPage only renders Lobby with a room
 
   useEffect(() => {
@@ -46,15 +74,20 @@ export function Lobby({ snapshot, store }: LobbyProps) {
     return () => clearTimeout(timer);
   }, [copyState]);
 
-  const freeSeats = room.seats.filter((s) => !s.claimed).length;
+  // Seat status is read against the FIXED 0..3 set, never against whatever
+  // subset room.seats happens to carry (owner bug 6c: a short/partial roster
+  // must not collapse the ring to a lone card — every seat below renders a
+  // chip regardless).
+  const claimedOf = (s: Seat): boolean =>
+    room.seats.find((x) => x.seat === s)?.claimed ?? false;
+  const freeSeats = SEATS.filter((s) => !claimedOf(s)).length;
   const allClaimed = freeSeats === 0;
   const holdsSeat = snapshot.seats.size > 0;
   const editable = configEditable(room.status, holdsSeat);
-  const canClaim = snapshot.connected && freeSeats > 0 && name.trim().length > 0;
+  const nameReady = name.trim().length > 0;
   // Start rule (PLAN §4): any seated player may start once all seats are
   // claimed. The server re-validates; this only gates the button.
   const canStart = snapshot.connected && holdsSeat && allClaimed;
-  const firstEmptySeat = room.seats.find((s) => !s.claimed)?.seat ?? null;
 
   const startReason = !allClaimed
     ? t('lobby.waitingForSeats', { count: freeSeats })
@@ -75,120 +108,62 @@ export function Lobby({ snapshot, store }: LobbyProps) {
     }
   };
 
-  // Ring layout: anchor the viewer's first held seat at the bottom (south),
-  // partner across the top (north), opponents left/right — the SAME seatLayout
-  // convention as the table, so partnership reads identically in the lobby and
-  // in play (§2). With no seat held yet, seat 1 anchors the bottom and the ring
-  // still shows the team structure spatially (1&3 across, 2&4 across).
-  const anchor: Seat = [...snapshot.seats.keys()].sort((a, b) => a - b)[0] ?? 0;
-  const ring = seatLayout(anchor);
-
-  const seatCell = (s: Seat) => {
+  const seatChip = (s: Seat) => {
     const seat = room.seats.find((x) => x.seat === s);
-    if (seat === undefined) return null;
+    const claimed = seat?.claimed ?? false;
     const isYou = snapshot.seats.has(s);
-    const isPartner = holdsSeat && s === ring.north && !isYou;
+    const positionLabel = t(POSITION_KEY[s]!);
+    // An empty seat is claimable directly (multi-seat self-play): the button
+    // claims THIS seat with the name panel's current name; disabled while the
+    // name is blank, we're disconnected, or the seat is already taken.
+    const canTake = snapshot.connected && nameReady && !claimed;
     return (
-      <div className={seat.claimed ? 'lobby-seat' : 'lobby-seat lobby-seat--empty'}>
-        <span className="lobby-seat__label">{t('lobby.seatLabel', { seat: s + 1 })}</span>
-        {seat.claimed ? (
-          <>
-            <span className="lobby-seat__row">
-              <span
-                className={
-                  seat.connected
-                    ? 'lobby-seat__dot lobby-seat__dot--on'
-                    : 'lobby-seat__dot lobby-seat__dot--off'
-                }
-                role="img"
-                aria-label={seat.connected ? t('lobby.seatConnected') : t('lobby.seatDisconnected')}
-              />
-              <span className="lobby-seat__name">{seat.name ?? ''}</span>
-              {isYou && <span className="lobby-seat__you">{t('lobby.seatYou')}</span>}
-              {isPartner && <span className="lobby-seat__partner">{t('game.seat.partner')}</span>}
-            </span>
-            {isYou && renamingSeat === s && (
-              <form
-                className="lobby-claim"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const v = renameValue.trim();
-                  if (v.length === 0) return;
-                  store.rename(s, v);
-                  setRenamingSeat(null);
-                }}
-              >
-                <input
-                  type="text"
-                  value={renameValue}
-                  onChange={(e) => setRenameValue(e.target.value)}
-                  maxLength={32}
-                  aria-label={t('lobby.nameLabel')}
+      <div key={s} className={`lobby-tableseat lobby-tableseat--s${s}`}>
+        <div
+          className={claimed ? 'lobby-seat lobby-seat--taken' : 'lobby-seat lobby-seat--empty'}
+        >
+          {claimed ? (
+            <>
+              <span className="lobby-seat__row">
+                <span
+                  className={
+                    seat!.connected
+                      ? 'lobby-seat__dot lobby-seat__dot--on'
+                      : 'lobby-seat__dot lobby-seat__dot--off'
+                  }
+                  role="img"
+                  aria-label={
+                    seat!.connected ? t('lobby.seatConnected') : t('lobby.seatDisconnected')
+                  }
                 />
-                <button type="submit" disabled={renameValue.trim().length === 0}>
-                  {t('lobby.renameSave')}
-                </button>
-              </form>
-            )}
-            {isYou && (
-              <span className="lobby-seat__controls">
+                <span className="lobby-seat__name">{seat!.name ?? ''}</span>
+                {isYou && <span className="lobby-seat__you">{t('lobby.seatYou')}</span>}
+              </span>
+              {isYou && (
                 <button
                   type="button"
-                  className="lobby-seat__ctl"
-                  onClick={() => {
-                    setRenamingSeat(renamingSeat === s ? null : s);
-                    setRenameValue(seat.name ?? '');
-                  }}
+                  className="lobby-seat__leave"
+                  onClick={() => store.release(s)}
                 >
-                  {t('lobby.rename')}
-                </button>
-                <button type="button" className="lobby-seat__ctl" onClick={() => store.release(s)}>
                   {t('lobby.leaveSeat')}
                 </button>
-              </span>
-            )}
-          </>
-        ) : s === firstEmptySeat ? (
-          // The full claim flow (name input) lives in the first empty seat;
-          // it claims THIS seat explicitly, so what you click is where you
-          // sit (item 1 choose-your-seat).
-          <form
-            className="lobby-claim"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (!canClaim) return;
-              store.claim(name.trim(), s);
-            }}
-          >
-            <label>
-              {t('lobby.nameLabel')}
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder={t('lobby.namePlaceholder')}
-                maxLength={32}
-              />
-            </label>
-            <button type="submit" disabled={!canClaim}>
-              {t('lobby.claimButton')}
-            </button>
-          </form>
-        ) : (
-          // Any other empty seat is claimable directly with the name typed
-          // in the form — sit exactly where you want (item 1).
-          <span className="lobby-seat__row">
-            <span className="lobby-seat__empty">{t('lobby.seatEmpty')}</span>
+              )}
+            </>
+          ) : (
             <button
               type="button"
-              className="lobby-seat__ctl"
-              disabled={!canClaim}
-              onClick={() => store.claim(name.trim(), s)}
+              className="lobby-seat__take"
+              disabled={!canTake}
+              // Aria carries the position word so the four otherwise-identical
+              // take-a-seat buttons are distinguishable (§4); the visible label
+              // is the same plain "take a seat" for every seat.
+              aria-label={t('lobby.takeSeatAt', { position: positionLabel })}
+              onClick={() => setName(takeSeat(store, name, s))}
             >
               {t('lobby.claimButton')}
             </button>
-          </span>
-        )}
+          )}
+        </div>
       </div>
     );
   };
@@ -197,37 +172,54 @@ export function Lobby({ snapshot, store }: LobbyProps) {
     <section className="lobby">
       <h2 className="lobby-heading">{t('lobby.heading')}</h2>
 
-      <div className="lobby-code">
-        <span className="lobby-code__label">{t('lobby.roomCode')}</span>
-        <div className="lobby-code__row">
-          <strong className="lobby-code__value">{store.code}</strong>
+      {/* Name panel (§1): a SEPARATE input above the table. Deliberately NOT a
+          <form> — Enter/submit here must claim NOTHING (there is no default
+          seat; you claim only by clicking a specific chip, owner bug 6b). */}
+      <div className="lobby-namepanel">
+        <label className="lobby-namepanel__label" htmlFor="lobby-name">
+          {t('lobby.nameLabel')}
+        </label>
+        <input
+          id="lobby-name"
+          className="lobby-namepanel__input"
+          type="text"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t('lobby.namePlaceholder')}
+          maxLength={32}
+        />
+        <p className="lobby-namepanel__hint">{t('lobby.nameHint')}</p>
+      </div>
+
+      {/* The round table (§2): a felt disc with a rosewood rim ring. The room
+          code and its copy-link button live ON the felt, centered — the table
+          earns its existence as the thing people gather around. Four seats
+          (§3) sit around it in FIXED geographic positions, so partners face
+          across. */}
+      <div className="lobby-table" role="group" aria-label={t('lobby.heading')}>
+        <div className="lobby-table__disc">
+          <span className="lobby-table__codelabel">{t('lobby.roomCode')}</span>
+          <strong className="lobby-table__code">{store.code}</strong>
           <button
             type="button"
-            className="lobby-code__copy"
+            className="lobby-table__copy"
             onClick={() => {
               void copyLink();
             }}
           >
             {t('lobby.copyLink')}
           </button>
+          {/* Persistent live region: the copied-toast swaps into a reserved
+              line, so announcing works and the felt never reflows. */}
+          <p className="lobby-table__status" role="status">
+            {copyState === 'copied'
+              ? t('lobby.copied')
+              : copyState === 'failed'
+                ? t('lobby.copyFailed')
+                : ' '}
+          </p>
         </div>
-        {/* Persistent live region: the copied-toast swaps into a reserved
-            line, so announcing works and the chip never jumps. */}
-        <p className="lobby-code__status" role="status">
-          {copyState === 'copied'
-            ? t('lobby.copied')
-            : copyState === 'failed'
-              ? t('lobby.copyFailed')
-              : ' '}
-        </p>
-      </div>
-
-      <div className="lobby-ring" role="group" aria-label={t('lobby.heading')}>
-        <div className="lobby-ring__seat lobby-ring__seat--north">{seatCell(ring.north)}</div>
-        <div className="lobby-ring__seat lobby-ring__seat--west">{seatCell(ring.west)}</div>
-        <div className="lobby-ring__center" aria-hidden="true" />
-        <div className="lobby-ring__seat lobby-ring__seat--east">{seatCell(ring.east)}</div>
-        <div className="lobby-ring__seat lobby-ring__seat--south">{seatCell(ring.south)}</div>
+        {SEATS.map((s) => seatChip(s))}
       </div>
 
       <button
