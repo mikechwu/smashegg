@@ -32,8 +32,9 @@ import {
   tributeKind,
 } from '../../../src/client/table/helpers';
 import { comboRankLabel } from '../../../src/client/table/CardFace';
-import { EMPTY_DERIVED, foldEvents } from '../../../src/client/GameTable';
-import { resolveFeedParams } from '../../../src/client/table/EventFeed';
+import { EMPTY_DERIVED, foldEvents, GameTable } from '../../../src/client/GameTable';
+import { EventFeed, FEED_LIMIT, resolveFeedParams, type FeedLine } from '../../../src/client/table/EventFeed';
+import { RoomStore, type RoomSnapshot } from '../../../src/client/room/store';
 import { getLocale, setLocale, t } from '../../../src/client/i18n';
 
 function play(cards: Card[], decl: CanonicalForm): GuandanAction {
@@ -668,5 +669,164 @@ describe('isCeremonyShowing (hand-1 ceremony overlay + dimTimer gate)', () => {
   it('hides the instant the match is decided, even mid-hand-1', () => {
     expect(isCeremonyShowing({ ...base, matchWinner: 0 })).toBe(false);
     expect(isCeremonyShowing({ ...base, matchWinner: 1 })).toBe(false);
+  });
+});
+
+// Owner round: the log moved to a thin bottom-bar box, newest line first
+// (its default, unscrolled position already shows the latest lines — no
+// scripted scrolling), and FEED_LIMIT grew from 6 to 20 so scrollback under
+// it is real history. foldEvents itself is untouched by the render-order
+// flip (component-layer accumulation stays oldest-first, table.test.ts's m1
+// tests above keep asserting derived.feed[0] as the FIRST folded line) — only
+// EventFeed's render order changes, proven here directly on the component.
+describe('EventFeed render order + retention (owner bottom-bar round)', () => {
+  // Distinct `hand` numbers make each line's RENDERED TEXT distinguishable
+  // ("Hand 0 begins…", "Hand 1 begins…", …) — a stronger proof of DOM order
+  // than comparing ids or React keys, neither of which survive into
+  // renderToStaticMarkup's output.
+  function line(hand: number): FeedLine {
+    return { id: hand, key: 'game.feed.handStarted', params: { hand, rank: '2' } };
+  }
+
+  it('renders newest-first: the first <li> in the DOM is the LAST pushed line', () => {
+    const original = getLocale();
+    try {
+      setLocale('en'); // pin the locale the expected text below is written in
+      const lines = [line(0), line(1), line(2)];
+      const html = renderToStaticMarkup(createElement(EventFeed, { lines }));
+      const liTexts = [...html.matchAll(/<li[^>]*>([^<]*)<\/li>/g)].map((m) => m[1]);
+      expect(liTexts).toHaveLength(3);
+      expect(liTexts[0]).toContain('Hand 2');
+      expect(liTexts[1]).toContain('Hand 1');
+      expect(liTexts[2]).toContain('Hand 0');
+    } finally {
+      setLocale(original);
+    }
+  });
+
+  it('FEED_LIMIT is 20 (raised from 6) and foldEvents retains exactly the newest 20', () => {
+    expect(FEED_LIMIT).toBe(20);
+    const nameFor = (s: number) => `Seat${s}`;
+    let nextId = 0;
+    const idGen = () => nextId++;
+    const events: GuandanEvent[] = Array.from({ length: 25 }, (_, i) => ({
+      type: 'playerFinished',
+      seat: i % 4,
+      place: 1,
+    }));
+    const derived = foldEvents(EMPTY_DERIVED, events, 0, nameFor, idGen);
+    expect(derived.feed).toHaveLength(20);
+    // Oldest-first fold order (unchanged): the surviving window is the
+    // LAST 20 ids folded (5..24), the first 5 (0..4) fell off the front.
+    expect(derived.feed[0]!.id).toBe(5);
+    expect(derived.feed[19]!.id).toBe(24);
+  });
+});
+
+// Own-seat markup: does the plate that used to render in the ring's south
+// slot now render inside .gd-bottombar, and has the south slot itself been
+// removed from the ring? No existing suite renders <GameTable> (it is the
+// one component whose props are a live RoomSnapshot + RoomStore, not a pure
+// prop bag), so this constructs the smallest fixture that satisfies
+// GameTable's prop contract directly (a plain RoomSnapshot object literal —
+// RoomSnapshot has no reducer-only invariants, unlike ServerMessage replay in
+// store.test.ts — plus a real, unconnected RoomStore for its method surface)
+// rather than driving the full message-reduction pipeline, which nothing
+// here needs.
+describe('GameTable bottom bar markup (owner round: own seat + log move off the ring)', () => {
+  function minimalView(): GuandanView {
+    return {
+      seat: 0,
+      phase: 'playing',
+      handNo: 1,
+      currentLevel: '2',
+      declarerTeam: null,
+      levels: ['2', '2'],
+      aAttempts: [0, 0],
+      aAttemptsExhausted: [false, false],
+      hand: [],
+      cardCounts: [27, 27, 27, 27],
+      ceremonyCutter: null,
+      ceremonyFlips: null,
+      finishOrder: [],
+      trick: null,
+      tribute: null,
+      matchWinner: null,
+    };
+  }
+
+  function minimalSnapshot(): RoomSnapshot {
+    return {
+      room: {
+        gameId: 'guandan',
+        status: 'playing',
+        config: null,
+        seats: [0, 1, 2, 3].map((seat) => ({
+          seat,
+          name: seat === 0 ? 'ViewerName' : `Seat${seat + 1}`,
+          claimed: true,
+          connected: true,
+        })),
+        timing: null,
+        seq: 1,
+      },
+      seats: new Map([[0, { token: 'tok' }]]),
+      perSeat: new Map([[0, { view: minimalView(), hints: null, lastEventBatch: null }]]),
+      seq: 1,
+      connected: true,
+      rejections: [],
+      deadlines: [],
+    };
+  }
+
+  /** Finds the FIRST element carrying `className` and returns its full outer
+   *  HTML (balanced by counting nested <div> opens/closes) so a later assert
+   *  can check what's rendered INSIDE it, not just that the class string
+   *  appears somewhere in the document. */
+  function outerHtmlByClass(html: string, className: string): string {
+    const markerIndex = html.indexOf(className);
+    if (markerIndex < 0) throw new Error(`class not found in markup: ${className}`);
+    const tagStart = html.lastIndexOf('<div', markerIndex);
+    let i = tagStart;
+    let depth = 0;
+    while (i < html.length) {
+      if (html.startsWith('<div', i)) {
+        depth++;
+        i += 4;
+      } else if (html.startsWith('</div>', i)) {
+        depth--;
+        i += 6;
+        if (depth === 0) return html.slice(tagStart, i);
+      } else {
+        i++;
+      }
+    }
+    throw new Error(`unbalanced <div> while scanning for: ${className}`);
+  }
+
+  // Scoped honestly to what this DOM-free harness can drive (vitest.config.ts
+  // pins environment: 'node' — no jsdom, deliberately, per the DeckTheme
+  // suite's own comment): EventFeed's lines come from derivedBySeat, which is
+  // seeded by an effect keyed on the snapshot (GameTable's fold useEffect),
+  // not derivable from props on a first, effect-free renderToStaticMarkup
+  // pass — so an empty feed (EventFeed returns null with no lines) is the
+  // correct render here, and .gd-feed content is proven separately, directly
+  // on <EventFeed>, in the describe block above. What IS provable at this
+  // level, and is this test's actual assertion: the own-seat plate now
+  // renders inside .gd-bottombar (not the ring's old south slot).
+  it('renders the own-seat plate inside .gd-bottombar', () => {
+    const store = new RoomStore('TESTCODE');
+    const html = renderToStaticMarkup(createElement(GameTable, { snapshot: minimalSnapshot(), store }));
+
+    const bottombar = outerHtmlByClass(html, 'gd-bottombar');
+    expect(bottombar).toContain('gd-plate--viewer'); // isViewer's own plate
+    expect(bottombar).toContain('ViewerName');
+  });
+
+  it('no longer renders a south ring slot — the ring is north/west/center/east only', () => {
+    const store = new RoomStore('TESTCODE');
+    const html = renderToStaticMarkup(createElement(GameTable, { snapshot: minimalSnapshot(), store }));
+
+    expect(html).not.toContain('gd-ring__seat--south');
   });
 });

@@ -323,6 +323,12 @@
 }
 
 /* --- event feed ------------------------------------------------------------ */
+/* Bottom-bar log (owner round): thin by construction — max-height caps it at
+ * roughly 2 lines (2 * (font-size * line-height) + the inter-line gap below
+ * + top/bottom padding) so the newest 2 lines are always visible with zero
+ * scroll; overflow-y reveals older history on demand. line-height is pinned
+ * here (rather than left to the browser default) so that arithmetic is
+ * exact, not assumed. */
 .gd-feed {
   list-style: none;
   margin: 0;
@@ -330,8 +336,16 @@
   background: color-mix(in srgb, var(--rosewood) 55%, var(--lacquer));
   border-radius: 8px;
   font-size: 0.75rem;
+  line-height: 1.35;
   opacity: 0.9;
-  max-height: 6.5rem;
+  /* border-box: max-height below is a BOX height (padding already folded into
+   * the calc via the "+ 2 * 0.375rem" term), so it must bound the padding box
+   * itself, not the content box the default content-box sizing would give it
+   * — otherwise the padding gets added on top of a height that already
+   * budgeted for it, inflating the box by 2 * 0.375rem and exposing a 3rd
+   * line. */
+  box-sizing: border-box;
+  max-height: calc(2 * (0.75rem * 1.35) + 0.125rem + 2 * 0.375rem);
   overflow-y: auto;
   overflow-wrap: anywhere;
 }
@@ -1317,14 +1331,17 @@
 }
 
 /* --- the ring grid ------------------------------------------------------- */
+/* South row removed (owner round): your own seat plate now lives in
+ * .gd-bottombar, beside the log, below the hand — so the ring is just
+ * north/west/center/east and genuinely shorter (the hand fan sits closer to
+ * the trick well). */
 .gd-ring__table {
   display: grid;
   grid-template-columns: minmax(3.25rem, auto) 1fr minmax(3.25rem, auto);
-  grid-template-rows: auto minmax(6.5rem, 1fr) auto;
+  grid-template-rows: auto minmax(6.5rem, 1fr);
   grid-template-areas:
     '.    north  .'
-    'west center east'
-    '.    south  .';
+    'west center east';
   gap: 0.375rem;
   align-items: center;
 }
@@ -1339,10 +1356,6 @@
 .gd-ring__seat--east {
   grid-area: east;
   justify-self: end;
-}
-.gd-ring__seat--south {
-  grid-area: south;
-  justify-self: center;
 }
 .gd-ring__center {
   grid-area: center;
@@ -1470,7 +1483,11 @@
   animation: gd-pulse 700ms ease-in-out infinite alternate;
 }
 
-/* --- your zone: log, hand (full width), action bar adjacent -------------- */
+/* --- your zone: hand (full width), action bar adjacent, bottom bar last --- */
+/* The bottom bar hugs the table section's bottom edge because it's simply
+ * the LAST in-flow child (the toast/overlays after it in the markup are all
+ * position: absolute) — no bottom margin/padding is added here on top of
+ * that; .gd-table's own 0.5rem padding is the only air left under it. */
 .gd-handzone {
   display: flex;
   flex-direction: column;
@@ -1480,16 +1497,38 @@
   display: flex;
   justify-content: flex-end;
 }
-/* the game log is secondary on a phone — keep it short here */
-.gd-ring .gd-feed {
-  max-height: 3.25rem;
+
+/* --- bottom bar: your own seat plate + the (now-thin) log, one line ------ */
+/* Owner round: both moved off the ring's south slot down here, on the SAME
+ * horizontal line — the plate identifies the seat the log is talking about,
+ * without duplicating either one across two locations. */
+.gd-bottombar {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  min-width: 0;
+}
+/* The plate keeps its own intrinsic (ring) width — it must never be
+ * squeezed by the log claiming the row — and its content (a column layout,
+ * .gd-ring .gd-plate above) centers vertically to match the log's stretched
+ * height instead of hugging the top. */
+.gd-bottombar .gd-plate {
+  flex: none;
+  justify-content: center;
+}
+/* min-width: 0 is required for a flex item to actually shrink to fit at
+ * 390px — the flex default (auto) would let the log's content push the bar
+ * wider than the viewport instead of wrapping/scrolling inside its own box. */
+.gd-bottombar .gd-feed {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 /* --- desktop air (≥720px) ------------------------------------------------ */
 @media (min-width: 720px) {
   .gd-ring__table {
     grid-template-columns: minmax(7rem, 1fr) minmax(0, 1.5fr) minmax(7rem, 1fr);
-    grid-template-rows: auto minmax(9rem, 1fr) auto;
+    grid-template-rows: auto minmax(9rem, 1fr);
     gap: 0.75rem;
     max-width: 38rem;
     margin: 0 auto;
@@ -1506,9 +1545,6 @@
   .gd-ring__seat--west .gd-plate,
   .gd-ring__seat--east .gd-plate {
     max-width: 9rem;
-  }
-  .gd-ring .gd-feed {
-    max-height: 5rem;
   }
   .gd-handzone {
     max-width: 44rem;

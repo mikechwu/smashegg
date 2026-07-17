@@ -546,13 +546,14 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           )}
         </div>
         <div className="gd-ring__seat gd-ring__seat--east">{plate(layout.east)}</div>
-        <div className="gd-ring__seat gd-ring__seat--south">{plate(layout.south)}</div>
       </div>
 
-      {/* Your zone: game log, then your hand (full width) with its action bar
-          and sort toggle directly adjacent — never across the table. */}
+      {/* Your zone: hand (full width) with its action bar and sort toggle
+          directly adjacent — never across the table — then the bottom bar
+          (owner round: the log moved off the ring's south slot down here,
+          on the same line as your own seat plate, so the hand fan sits
+          closer to the trick well). */}
       <div className="gd-handzone">
-        <EventFeed lines={derived.feed} />
         <div className="gd-handzone__sortrow">
           {/* Owner rule: the sort toggle is meaningless until the player has
               all cards, sorted — hidden through the cut/ceremony/deal. */}
@@ -606,6 +607,15 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           onAntiDecision={(invoke) => act({ type: 'antiTributeDecision', invoke })}
         />
         )}
+
+        {/* Your own seat plate — the SAME element the ring's south slot used
+            to render (plate(layout.south) === plate(activeSeat), seatLayout's
+            invariant) — now sits beside the log on one line, thinning the
+            ring by a full grid row. */}
+        <div className="gd-bottombar">
+          {plate(layout.south)}
+          <EventFeed lines={derived.feed} />
+        </div>
       </div>
 
       {showToast && lastRejection !== undefined && (

@@ -37,7 +37,12 @@ export interface FeedLine {
   params?: FeedParams;
 }
 
-export const FEED_LIMIT = 6;
+// Owner round: the feed moved to a thin ~2-line bottom-bar box (table.css
+// .gd-feed) that shows the newest lines by default and scrolls DOWN for
+// older ones — so the retained scrollback needs to be real history, not
+// just enough to fill the old taller box. 20 is folded by GameTable
+// (foldEvents, component-layer — the store itself keeps no history).
+export const FEED_LIMIT = 20;
 
 /** Resolve a folded line's semantic params into the plain string/number
  *  params t() interpolates, under the CURRENT locale. Exported so a unit
@@ -62,13 +67,29 @@ export function resolveFeedParams(params: FeedParams | undefined): TranslationPa
   return resolved;
 }
 
+// Owner round: DOM order is REVERSE chronological (newest line first) so the
+// box's default (unscrolled) scroll position — top — already shows the
+// latest lines; older history sits below, reached by scrolling down. `lines`
+// itself stays in the fold's natural chronological order (foldEvents keeps
+// appending; nothing about accumulation changes) — only the render order
+// flips, right here, so every other consumer of a FeedLine array (tests
+// included) still sees oldest-first.
+//
+// No scripted scroll-to-bottom: unlike an append-at-the-end log, there is
+// nothing to scroll TO on a new line — it renders at the top, already in
+// view. role="log" was deliberately NOT added: that role tells assistive
+// tech new content arrives at the END of the region, which would misdescribe
+// this prepend order. aria-live="polite" alone still announces each new
+// line without asserting a reading order screen readers would get wrong.
 export function EventFeed({ lines }: { lines: readonly FeedLine[] }) {
   if (lines.length === 0) return null;
   return (
-    <ol className="gd-feed" aria-label={t('game.feed.label')}>
-      {lines.map((line) => (
-        <li key={line.id}>{t(line.key, resolveFeedParams(line.params))}</li>
-      ))}
+    <ol className="gd-feed" aria-label={t('game.feed.label')} aria-live="polite">
+      {[...lines]
+        .reverse()
+        .map((line) => (
+          <li key={line.id}>{t(line.key, resolveFeedParams(line.params))}</li>
+        ))}
     </ol>
   );
 }
