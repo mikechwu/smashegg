@@ -46,6 +46,7 @@ import {
   multisetKey,
   NO_REMOTE_DEALT,
   placeOf,
+  remainingSeconds,
   remoteDealtCounts,
   rankText,
   seatLayout,
@@ -508,7 +509,10 @@ export function GameTable({ snapshot, store }: GameTableProps) {
 
   const committedSet = new Set<Seat>(view.tribute?.committed ?? []);
 
-  const plate = (seat: Seat) => (
+  // The pill: identity + state. `cardCount` (remote zones only) puts the count
+  // chip inside it (refinement round item 5); the countdown lives on the
+  // headline now (item 6), so no timing props remain here.
+  const plate = (seat: Seat, cardCount?: number | null) => (
     <SeatPlate
       seat={seat}
       name={nameFor(seat)}
@@ -517,21 +521,37 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       partner={teamOf(seat) === viewerTeam && seat !== activeSeat}
       place={placeOf(view.finishOrder, seat)}
       active={(ringSeats.has(seat) || (seat === activeSeat && yourTurn)) && seat !== leaderConcealed}
-      dueAt={
-        // Owner rule (live-build feedback): countdown chips — the planning
-        // window included — appear only once the player HAS their sorted
-        // hand; during the ceremony and the deal they are meaningless.
-        ceremonyShowing || dealing || seat === leaderConcealed
-          ? null
-          : (deadlineBySeat.get(seat)?.dueAt ?? null)
-      }
-      planning={deadlineBySeat.get(seat)?.timingClass === 'planning'}
-      dimTimer={ceremonyShowing}
-      now={now}
       passed={derived.passed.includes(seat)}
       committed={inTributeCenter && committedSet.has(seat)}
+      cardCount={cardCount}
+      dealing={dealing}
     />
   );
+
+  // Headline clock (refinement round item 6): the countdown moved OFF the
+  // seat pills onto the turn line. The chip binds to the seat the turn
+  // sentence NAMES — your own seat on your turn, else the named actor
+  // (actorSeats[0], the same seat actorName reads) — never to some other
+  // timed seat: concurrent deadlines are per-seat budgets and genuinely
+  // diverge (the server clamps a disconnected actor's dueAt to its grace,
+  // room-helpers), so a global "soonest" could pin another payer's dying
+  // clock (and its urgency) on "Your turn" (panel HIGH, Codex+Grok
+  // concurring). Other timed actors keep their active rings. The old pill
+  // gates are relocated intact: nothing during the ceremony/the deal
+  // (countdowns are meaningless before the player HAS a sorted hand),
+  // nothing for the concealed hand-1 leader, and the planning word only for
+  // a CONNECTED actor (a disconnected player is not thinking).
+  const clockSeat = yourTurn ? activeSeat : (actorSeats[0] ?? null);
+  const clockDeadline =
+    clockSeat === null || clockSeat === leaderConcealed
+      ? undefined
+      : deadlineBySeat.get(clockSeat);
+  const dueSeconds =
+    ceremonyShowing || dealing || clockDeadline === undefined
+      ? null
+      : remainingSeconds(clockDeadline.dueAt, now);
+  const clockConnected =
+    clockSeat !== null && (room?.seats.find((s) => s.seat === clockSeat)?.connected ?? false);
 
   // R3 displayed-count rule (ONE ternary, spec-pinned): a hidden count
   // (null — the config says this viewer may not see it) wins over EVERYTHING,
@@ -563,16 +583,27 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // strips fill in place instead of growing the grid under the flights.
   const seatZone = (dir: SeatStackDir) => {
     const seat = layout[dir];
+    const finished = placeOf(view.finishOrder, seat) !== null;
+    const count = finished ? null : stackCountFor(seat, dir);
+    const reserve = dealing ? HAND_SIZE : undefined;
+    // Mirrors SeatStack's own render gate: it draws backs only for an unfinished
+    // seat with a visible count and a non-zero sized extent. When it will, the
+    // zone gets the --stacked modifier and the pill goes absolute, LAPPING the
+    // block's outer edge (refinement round item 5: the count line it used to
+    // need is gone, so the pill rides the space the boundary clip freed instead
+    // of costing the zone a layout row). Otherwise (finished seat's badge,
+    // hidden-count "—", the pre-deal hold) the pill stays in flow, as before.
+    const hasStack = !finished && count !== null && Math.max(count, reserve ?? 0) > 0;
+    // The pill's count chip (item 5): finished seats and the pre-deal hold show
+    // a bare pill (undefined), a hidden-count seat shows the "—" chip (null),
+    // and the deal counts it up from 0 in place.
+    const cardCount = finished || (count === 0 && !dealing) ? undefined : count;
     return (
-      <div className={`gd-seatzone gd-seatzone--${dir}`}>
-        {plate(seat)}
-        {placeOf(view.finishOrder, seat) === null && (
-          <SeatStack
-            dir={dir}
-            count={stackCountFor(seat, dir)}
-            reserve={dealing ? HAND_SIZE : undefined}
-          />
-        )}
+      <div
+        className={`gd-seatzone gd-seatzone--${dir}${hasStack ? ' gd-seatzone--stacked' : ''}`}
+      >
+        {plate(seat, cardCount)}
+        {!finished && <SeatStack dir={dir} count={count} reserve={reserve} />}
       </div>
     );
   };
@@ -595,6 +626,8 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         viewerTeam={viewerTeam}
         yourTurn={leaderConcealed !== null ? false : yourTurn}
         actorName={leaderConcealed !== null ? null : actorName}
+        dueSeconds={leaderConcealed !== null ? null : dueSeconds}
+        planning={clockDeadline?.timingClass === 'planning' && clockConnected}
       />
 
       {/* The ring: you at the bottom, partner across the top, opponents left

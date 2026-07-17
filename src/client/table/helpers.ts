@@ -762,6 +762,37 @@ export function seatStackPerRow(count: number): number {
   return seatStackRows(count) === 1 ? Math.max(0, count) : SEAT_STACK_ROW_CAP;
 }
 
+/** Which (row, lay-position) the index-th back occupies inside a block sized
+ *  for `sized` cards. Two mappings over the SAME shape (owner realism rule):
+ *  • dealing — cards land the way a person lays them out, ALTERNATING rows
+ *    column by column (1st card row 0, 2nd card row 1, 3rd card row 0 of the
+ *    next column…): row = i mod rows, pos = ⌊i / rows⌋.
+ *  • settled — row-major (row 0 fills to the cap, the remainder wraps), so
+ *    play-time shrinkage peels the mostly-hidden inner row first and the
+ *    lay-axis extent stays constant across every wrapped count (see
+ *    seatStackPerRow).
+ *  The two occupy IDENTICAL (row, pos) sets exactly when every used column is
+ *  full-height: any single-row count (≤ cap) and the full deal (27 or 28) —
+ *  NOT the wrapped middle (15…26, where alternating balances but row-major
+ *  top-loads). That is sufficient: on the normal choreography GameTable flips
+ *  `dealing` off at the settled 27, an invisible swap (backs are
+ *  indistinguishable; the unit test pins the equality AND the 20-count
+ *  inequality that bounds it). The skip/reduced-motion path ends the deal
+ *  with partial landed counts, but the same render that flips `dealing` also
+ *  switches the count source to the settled view — a COUNT jump to 27 (the
+ *  instant fill skipping always meant), never a same-count remap (Grok
+ *  audit: the "only at 27" framing overclaimed). Pure + exported. */
+export function seatStackSlot(
+  index: number,
+  sized: number,
+  dealing: boolean,
+): { row: number; pos: number } {
+  const rows = seatStackRows(sized);
+  return dealing
+    ? { row: index % rows, pos: Math.floor(index / rows) }
+    : { row: Math.floor(index / seatStackPerRow(sized)), pos: index % seatStackPerRow(sized) };
+}
+
 // ---------------------------------------------------------------------------
 // Loose-cast guards for the opaque wire payloads.
 // ---------------------------------------------------------------------------

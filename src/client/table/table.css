@@ -111,27 +111,31 @@
   border-radius: 4px;
   padding: 0 0.25rem;
 }
-.gd-plate__timer {
+/* The count chip (R6, refinement round item 5: moved INTO the pill — the
+   zone's separate count line is gone, freeing the pill to lap the card
+   block). Quiet tabular numerals with the unit; escalation keeps the
+   handSizeTier boundaries (≤10 low cinnabar/600, ≤2 critical cinnabar/700)
+   — and the stack LENGTH says the same thing structurally, 1:1 (2 cards
+   cannot look like 27). NOTE the pill carries NO countdown anymore (owner
+   item 6): turn timing lives on TableHeadline's turn line, once. */
+.gd-plate__count {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  color: var(--ivory);
-  background: var(--cinnabar);
-  border-radius: 999px;
-  min-width: 1.5em;
-  text-align: center;
-  padding: 0 0.25rem;
-}
-/* Planning-window countdown label (M4 WireDeadline.timingClass). */
-.gd-plate__timerNote {
-  font-size: 0.7rem;
-  color: rgba(245, 239, 227, 0.72);
+  font-size: 0.72rem;
+  opacity: 0.85;
   white-space: nowrap;
 }
-/* Ceremony overlay up: the planning window absorbs the ceremony
- * (room-timing.md §4), so the clock quietly runs de-emphasized. */
-.gd-plate__timer--dim,
-.gd-plate__timerNote--dim {
-  opacity: 0.35;
+.gd-plate__count--low {
+  color: var(--cinnabar);
+  font-weight: 600;
+  opacity: 1;
+}
+.gd-plate__count--critical {
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+.gd-plate__count--hidden {
+  opacity: 0.6;
 }
 
 /* --- trick well ----------------------------------------------------------- */
@@ -1311,10 +1315,56 @@
   font-size: 0.9rem;
   font-weight: 600;
   opacity: 0.9;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 .gd-headline__turn--you {
   color: var(--cinnabar);
   opacity: 1;
+}
+.gd-headline__turnText {
+  min-width: 0;
+}
+/* The turn CLOCK (owner item 6: the countdown moved off the seat pills onto
+   this line — table-wide timing said ONCE, where the turn already is). One
+   scan: the sentence reads left, the seconds sit anchored at the line's far
+   right in the same quiet chip language as the wild pill. The planning-window
+   word rides inside the chip (M4 timingClass), so a long first think never
+   reads as a stuck turn. Urgency is reserved for YOUR turn running short
+   (≤10s — the moment you are about to be auto-passed): cinnabar fill + the
+   same gd-pulse the jiefeng banner uses; meaning never rides on colour alone
+   (the aria states the seconds). */
+.gd-headline__clock {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: var(--lacquer);
+  border: 1px solid rgba(245, 239, 227, 0.25);
+  border-radius: 999px;
+  padding: 0.06rem 0.5rem;
+  color: var(--ivory);
+  flex: none;
+}
+.gd-headline__clockNote {
+  font-size: 0.62rem;
+  font-weight: 400;
+  opacity: 0.8;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.gd-headline__clockNum {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  min-width: 1.3em;
+  text-align: center;
+}
+.gd-headline__clock--urgent {
+  background: var(--cinnabar);
+  border-color: var(--cinnabar);
+  animation: gd-pulse 700ms ease-in-out infinite alternate;
 }
 
 /* two anchored team badges (never one banner) */
@@ -1447,15 +1497,21 @@
   border: 1px solid rgba(245, 239, 227, 0.4);
 }
 
-/* --- seat zone: identity pill + the seat's REAL hand outside it ----------- */
-/* Seat-zone round, R1/R7: the rosewood pill wraps ONLY identity/state; the
-   card backs and the count live directly on the table surface as the pill's
-   SIBLINGS inside this zone (top-view logic — pill toward the table edge,
-   cards between the name and the centre, like a physical player's hand).
-   The zone sits INSIDE the existing .gd-ring__seat--* cells, so DealOverlay's
-   seat-rect reads are untouched. The active-turn ring stays on the pill (R8);
-   nothing here ever carries it. */
+/* --- seat zone: identity pill lapping the seat's REAL hand ---------------- */
+/* Seat-zone round, R1/R7 + refinement item 5: the rosewood pill wraps ONLY
+   identity/state (the count chip now rides INSIDE it), and when the zone has
+   a card block the pill goes absolute and LAPS the block's OUTER edge — a
+   nameplate resting on the cropped front row — so the zone's layout box is
+   the block alone and the whole old pill-and-count band of ring height is
+   returned to the table. Where the pill outruns a narrow side strip it
+   overhangs absolutely (over the empty felt near the strip's top) without
+   widening the ring column. Without a block (finished seat's badge,
+   hidden-count "—", the pre-deal hold) the pill stays in flow exactly as
+   before. The zone sits INSIDE the existing .gd-ring__seat--* cells, so
+   DealOverlay's seat-rect reads are untouched. The active-turn ring stays on
+   the pill (R8); nothing here ever carries it. */
 .gd-seatzone {
+  position: relative;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1471,6 +1527,37 @@
 .gd-seatzone--west {
   align-items: flex-start;
 }
+/* The lap itself. The pill anchors at the block's outer (top) edge and must
+   paint OVER the backs: the stack gets an explicit z-index: 0 — which also
+   makes it a stacking context, sealing the per-slot row z-indexes inside —
+   and the pill sits above it. Per direction the pill hugs the seat's own
+   table edge: north centres on its block, west/east pin to their own screen
+   edge so any overhang rides INWARD over empty felt (the trick well is
+   vertically centred, far from the strip tops). */
+.gd-seatzone--stacked > .gd-plate {
+  position: absolute;
+  top: 0;
+  z-index: 1;
+  /* Size to the pill's OWN content, not the shrink-to-fit cap of its
+     containing block (the zone = the card block): a partner-tagged name is
+     wider than a side strip and would squeeze into an ellipsis (zh-Hant 390
+     live find). The .gd-ring max-width caps still bound it; whatever outruns
+     the block overhangs absolutely over empty felt, costing no ring width. */
+  width: max-content;
+}
+.gd-seatzone--stacked > .gd-seatstack {
+  z-index: 0;
+}
+.gd-seatzone--north.gd-seatzone--stacked > .gd-plate {
+  left: 50%;
+  transform: translateX(-50%);
+}
+.gd-seatzone--west.gd-seatzone--stacked > .gd-plate {
+  left: 0;
+}
+.gd-seatzone--east.gd-seatzone--stacked > .gd-plate {
+  right: 0;
+}
 
 /* The remote stack: one REAL theme CardBack per remaining card (R2 — the
    SAME art the deal flights and the deck pile use), at hand size under heavy
@@ -1484,52 +1571,78 @@
    calcs (custom properties resolve against ancestors; the card's own --gd-cardw
    lives on a DESCENDANT frame) — lockstep-pinned with .gd-card--hand's clamp. */
 .gd-seatstack {
-  /* Two single sources of truth for the block's overlap, both in --gd-cardw
+  /* THREE single sources of truth for the block's overlap, all in --gd-cardw
      units. --gd-stack-exposure is the lay-axis step per covered card within a
-     row; --gd-stack-linefrac is the CROSS-axis step per wrapped row, as a
+     row. --gd-stack-linefrac is the CROSS-axis step between row origins, as a
      fraction of the card's cross dimension (× --gd-stack-aspect in the calcs,
-     so a taller-carded theme reveals the same PROPORTION of each row). Owner
-     compaction (two or three rows): a full 27-hand wraps into 2 rows of 14/13
-     (capped at 2 — 3 rows would crush a phone's centre trick area), so the
-     strip runs ~2.2 card-widths along its lay axis (down from ~3.34) and
-     ~1.5× the card's cross dimension deep. Owner rule: if a live 390px pass
+     so a taller-carded theme reveals the same PROPORTION of each row) — and
+     because the FRONT row paints on top (see the z rule), it is exactly the
+     sliver of the covered inner row left showing. --gd-stack-peek is how much
+     of the front row's own height survives the boundary clip (owner item 4:
+     the front row rides half outside the block so the table only pays for
+     what shows). A wrapped block is therefore peek + linefrac ≈ 0.86 of ONE
+     card deep — shallower than a single unwrapped card — while a full 27
+     still reads as 2 lapped rows of 14/13. Owner rule: if a live 390px pass
      shows the centre squeezed, tighten these BEFORE shrinking anything else. */
   --gd-stack-exposure: 0.09;
-  --gd-stack-linefrac: 0.5;
+  --gd-stack-linefrac: 0.36;
+  --gd-stack-peek: 0.5;
+  /* Derived: the cross-axis span hidden past the block's OUTER boundary.
+     One term, subtracted from the container's cross size and from each row's
+     cross offset (so row 0 goes negative — off the edge — and the overflow
+     rule below crops it). The (rows − 1) factor collapses it to 0 for a
+     single-line block; it is correct ONLY while the row cap is 2
+     (SEAT_STACK_MAX_ROWS — three rows would need a per-row term). */
+  --gd-stack-clip: calc((var(--gd-stack-rows) - 1) * (1 - var(--gd-stack-peek)));
   --gd-cardw: clamp(2.75rem, 13vw, 4.25rem);
   position: relative;
   display: block;
   flex: none;
 }
+/* Only a WRAPPED block crops (the front row's outer half rides past the
+   boundary); an unwrapped strip still shows whole cards edge to edge, exactly
+   as the pre-wrap build did, shadows and all. */
+.gd-seatstack--wrapped {
+  overflow: hidden;
+}
 .gd-seatstack__slot {
   position: absolute;
   line-height: 0;
+  /* Row stacking (owner item 3): the FRONT row (row 0, the seat's own edge)
+     paints OVER the inner row — a real table reads outer-lap-over-inner.
+     z-index carries ONLY the row flip; WITHIN a row slots keep DOM order
+     (arrival order), so the newest card still lands on top of its
+     neighbours (R10) in both deal-time and settled mappings. */
+  z-index: calc(var(--gd-stack-rows) - 1 - var(--gd-stack-row));
 }
 /* Each block wraps its hand into `--gd-stack-rows` rows of at most
    `--gd-stack-perrow` backs (SeatStack derives both from the SIZED count, so
    the block never reflows as cards land). Every slot carries `--gd-stack-pos`
    (its position along the lay axis, 0…perrow−1) and `--gd-stack-row` (its
    cross-axis row, 0…rows−1); the container is sized off perrow (lay axis) and
-   rows (cross axis). Paint order is DOM order alone (no z-index anywhere in
-   these rules): later slots — later positions, and later ROWS — paint on top,
-   so the newest row sits in front, toward the centre. */
+   rows + peek/linefrac (cross axis). WHICH (row, pos) an index occupies is
+   helpers.seatStackSlot's business (deal-time alternation vs settled
+   row-major); the geometry here only places whatever pair it is handed. */
 
 /* North: a horizontal run, NO rotation. Lay axis = width (perrow backs at
    exposure step); cross axis = height (rows offset downward toward the centre
-   by linefrac × the card's height). R10 for north: facing the viewer, the
-   player's right is the screen's LEFT, so laying right→left indexes left→right
-   on screen with the newest card on top at each row's right end. */
+   by linefrac × the card's height, the whole block then pulled UP by clip so
+   the front row's top half hangs past the boundary and is cropped). R10 for
+   north: facing the viewer, the player's right is the screen's LEFT, so
+   laying right→left indexes left→right on screen with the newest card on top
+   at each row's right end. */
 .gd-seatstack--north {
   width: calc(var(--gd-cardw) * (1 + (var(--gd-stack-perrow) - 1) * var(--gd-stack-exposure)));
   height: calc(
     var(--gd-cardw) * var(--gd-stack-aspect) *
-      (1 + (var(--gd-stack-rows) - 1) * var(--gd-stack-linefrac))
+      (1 + (var(--gd-stack-rows) - 1) * var(--gd-stack-linefrac) - var(--gd-stack-clip))
   );
 }
 .gd-seatstack--north > .gd-seatstack__slot {
   left: calc(var(--gd-cardw) * var(--gd-stack-pos) * var(--gd-stack-exposure));
   top: calc(
-    var(--gd-cardw) * var(--gd-stack-aspect) * var(--gd-stack-row) * var(--gd-stack-linefrac)
+    var(--gd-cardw) * var(--gd-stack-aspect) *
+      (var(--gd-stack-row) * var(--gd-stack-linefrac) - var(--gd-stack-clip))
   );
 }
 /* East/west (R4, top-view): the strip runs VERTICALLY — each w × (aspect·w)
@@ -1542,7 +1655,7 @@
 .gd-seatstack--west {
   width: calc(
     var(--gd-cardw) * var(--gd-stack-aspect) *
-      (1 + (var(--gd-stack-rows) - 1) * var(--gd-stack-linefrac))
+      (1 + (var(--gd-stack-rows) - 1) * var(--gd-stack-linefrac) - var(--gd-stack-clip))
   );
   height: calc(var(--gd-cardw) * (1 + (var(--gd-stack-perrow) - 1) * var(--gd-stack-exposure)));
 }
@@ -1555,8 +1668,13 @@
    and its rows grow LEFT toward the centre (row 0 rightmost), west hugs the
    left edge and its rows grow RIGHT toward the centre (row 0 leftmost). The
    two sides therefore MIRROR on both axes (the owner's "opposite direction"),
-   the way two facing players' piles really would. Rotation signs (east +90°,
-   west −90°) keep each hand "facing" its own player; north has no rotation. */
+   the way two facing players' piles really would — and the boundary clip
+   crops each front row at its OWN outer edge: west subtracts clip from its
+   row offsets (row 0 hangs LEFT, off-screen-ward), while east leaves its
+   offsets alone and lets the container's clip-narrowed width crop row 0 at
+   the RIGHT — the same mirror, expressed at whichever edge is outer.
+   Rotation signs (east +90°, west −90°) keep each hand "facing" its own
+   player; north has no rotation. */
 .gd-seatstack--east > .gd-seatstack__slot {
   left: calc(
     var(--gd-cardw) *
@@ -1576,7 +1694,8 @@
   left: calc(
     var(--gd-cardw) *
       (
-        var(--gd-stack-row) * var(--gd-stack-linefrac) * var(--gd-stack-aspect) +
+        (var(--gd-stack-row) * var(--gd-stack-linefrac) - var(--gd-stack-clip)) *
+          var(--gd-stack-aspect) +
           (var(--gd-stack-aspect) - 1) / 2
       )
   );
@@ -1590,30 +1709,6 @@
   transform: rotate(-90deg);
 }
 
-/* The count with its unit (R6): quiet/small tabular numerals on the table
-   surface. Escalation keeps the handSizeTier boundaries (≤10 low
-   cinnabar/600, ≤2 critical cinnabar/700) — and the stack LENGTH now says
-   the same thing structurally, 1:1 (2 cards cannot look like 27). */
-.gd-seatstack__count {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.72rem;
-  opacity: 0.85;
-  white-space: nowrap;
-}
-.gd-seatstack__count--low {
-  color: var(--cinnabar);
-  font-weight: 600;
-  opacity: 1;
-}
-.gd-seatstack__count--critical {
-  font-weight: 700;
-  font-size: 0.85rem;
-}
-.gd-seatstack__count--hidden {
-  opacity: 0.6;
-}
-
 .gd-plate__state {
   display: inline-flex;
   align-items: center;
@@ -1621,10 +1716,6 @@
   flex-wrap: wrap;
   justify-content: center;
   min-height: 0.85rem;
-}
-.gd-plate__timer--urgent {
-  box-shadow: 0 0 0 2px var(--cinnabar);
-  animation: gd-pulse 700ms ease-in-out infinite alternate;
 }
 
 /* --- your zone: hand (full width), action bar adjacent, bottom bar last --- */

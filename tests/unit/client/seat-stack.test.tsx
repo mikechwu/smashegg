@@ -1,13 +1,16 @@
-// Seat-zone round ratchet (remote seats: realistic hands, name-only overlay).
-// R1 the pill wraps ONLY identity/state (stack + count are its SIBLINGS in
-// the zone), R2 one REAL theme CardBack per card (the stack length IS the
-// count — F11 with no cap), R3 one-by-one growth during the deal, R4 the
-// ±90° top-view side strips, R5 the single exposure constant, R6 the count
-// with its unit + tier escalation. The DOM-free suite (environment: 'node')
-// pins the component markup, the GameTable zone structure on an effect-free
-// static render, and the CSS/source-text geometry the same way the
-// stacking-trap and --gd-cardw lockstep pins do — the moving-picture half
-// (flights landing, stacks growing) stays eyes/browser-gated.
+// Seat-zone round ratchet (remote seats: realistic hands, name-only overlay;
+// refinement round: lapped rows + the pill as the zone's one text surface).
+// R1 the pill wraps identity/state — WITH the count chip since the refinement
+// round (item 5) — and laps the stack it sits over, R2 one REAL theme
+// CardBack per card (the stack length IS the count — F11 with no cap), R3
+// one-by-one growth during the deal (alternating rows, item 1), R4 the ±90°
+// top-view side strips, R5 the single exposure constant, R6 the count with
+// its unit + tier escalation (in the pill now). The DOM-free suite
+// (environment: 'node') pins the component markup, the GameTable zone
+// structure on an effect-free static render, and the CSS/source-text geometry
+// the same way the stacking-trap and --gd-cardw lockstep pins do — the
+// moving-picture half (flights landing, stacks growing) stays
+// eyes/browser-gated.
 
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
@@ -15,6 +18,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SeatStack, type SeatStackDir } from '../../../src/client/table/SeatStack';
+import { SeatPlate, type SeatPlateProps } from '../../../src/client/table/SeatPlate';
 import { GameTable } from '../../../src/client/GameTable';
 import {
   landRemoteDealt,
@@ -22,6 +26,7 @@ import {
   remoteDealtCounts,
   seatStackRows,
   seatStackPerRow,
+  seatStackSlot,
   SEAT_STACK_ROW_CAP,
   SEAT_STACK_MAX_ROWS,
 } from '../../../src/client/table/helpers';
@@ -66,6 +71,26 @@ function renderStack(dir: SeatStackDir, count: number | null): string {
   return renderToStaticMarkup(createElement(SeatStack, { dir, count }));
 }
 
+/** The pill, with the identity fields a remote seat carries by default —
+ *  tests override what they exercise (cardCount for the chip, dealing for
+ *  the deal-time suppression). */
+function renderPlate(over: Partial<SeatPlateProps> = {}): string {
+  return renderToStaticMarkup(
+    createElement(SeatPlate, {
+      seat: 1,
+      name: '阿美',
+      connected: true,
+      isViewer: false,
+      partner: false,
+      place: null,
+      active: false,
+      passed: false,
+      committed: false,
+      ...over,
+    }),
+  );
+}
+
 /** Every CardBack the framework renders is one `gd-cardframe gd-card--hand`
  *  span (CardFace.tsx co-classes frame + size on ONE element), so counting
  *  that exact class attribute counts real hand-size backs and nothing else. */
@@ -74,8 +99,9 @@ function backCount(html: string): number {
 }
 
 // ---------------------------------------------------------------------------
-// T1 — the stack is real and exact: N backs for count N, nothing at 0, the
-// "—" chip (and NO backs — a stack's length would leak the number) at null.
+// T1 — the stack is real and exact: N backs for count N, nothing at 0 and
+// nothing AT ALL at null (a stack's length would leak the number; the pill's
+// "—" chip — T2 — is the visible signal).
 // ---------------------------------------------------------------------------
 
 describe('SeatStack backs are 1:1 with the count (T1)', () => {
@@ -85,8 +111,8 @@ describe('SeatStack backs are 1:1 with the count (T1)', () => {
       expect(backCount(html), `count ${n}`).toBe(n);
       expect([...html.matchAll(/gd-seatstack__slot/g)], `count ${n} slots`).toHaveLength(n);
     }
-    // Decorative: the WHOLE stack container is aria-hidden (the visible count
-    // label beside it is the accessible source of the number).
+    // Decorative: the WHOLE stack container is aria-hidden (the pill's count
+    // chip is the accessible source of the number).
     expect(renderStack('north', 3)).toMatch(/class="gd-seatstack gd-seatstack--north" aria-hidden="true"/);
   });
 
@@ -95,78 +121,95 @@ describe('SeatStack backs are 1:1 with the count (T1)', () => {
     expect(renderStack('east', 0)).toBe('');
   });
 
-  it('count null (hidden-count config) renders ZERO backs and the "—" chip with the hiddenCount aria', () => {
-    const original = getLocale();
-    try {
-      setLocale('en');
-      const html = renderStack('west', null);
-      expect(backCount(html)).toBe(0);
-      expect(html).not.toContain('gd-seatstack__slot');
-      expect(html).toContain('gd-seatstack__count--hidden');
-      expect(html).toContain('—');
-      expect(html).toContain(`aria-label="${t('game.plate.hiddenCount')}"`);
-    } finally {
-      setLocale(original);
-    }
+  it('count null (hidden-count config) renders NOTHING — zero backs, zero markup', () => {
+    expect(renderStack('west', null)).toBe('');
   });
 
-  it('count null beats a deal-time reservation: still the "—" chip, zero backs, no reserved strip (Codex audit)', () => {
+  it('count null beats a deal-time reservation: still nothing, no reserved strip (Codex audit)', () => {
     // The visibility contract wins over the choreography: even mid-deal
-    // (reserve set), a hidden count must never render a stack or a growing
-    // label — the null branch precedes every reserve read.
-    const html = renderToStaticMarkup(
-      createElement(SeatStack, { dir: 'west', count: null, reserve: 27 }),
-    );
-    expect(backCount(html)).toBe(0);
-    expect(html).not.toContain('gd-seatstack__slot');
-    expect(html).not.toContain('gd-seatstack gd-seatstack--');
-    expect(html).toContain('gd-seatstack__count--hidden');
+    // (reserve set), a hidden count must never render a stack — the null
+    // branch precedes every reserve read.
+    expect(
+      renderToStaticMarkup(createElement(SeatStack, { dir: 'west', count: null, reserve: 27 })),
+    ).toBe('');
   });
 });
 
 // ---------------------------------------------------------------------------
-// T2 — the count label carries its UNIT as visible text, and the tier
-// classes flip exactly at the handSizeTier boundaries.
+// T2 — the count chip lives IN the pill (refinement item 5): unit as visible
+// text, tier classes flipping exactly at the handSizeTier boundaries, the
+// "—" chip for hidden counts, and NO chip at all when cardCount is omitted
+// (the viewer's own pill, finished seats).
 // ---------------------------------------------------------------------------
 
-describe('SeatStack count label: unit + tier escalation (T2)', () => {
-  it('the visible label text is t(game.stack.cards) — unit present in en ("27 cards") and zh-Hant ("27 張")', () => {
+describe('SeatPlate count chip: unit + tier escalation (T2)', () => {
+  it('the visible chip text is t(game.stack.cards) — unit present in en ("27 cards") and zh-Hant ("27 張")', () => {
     const original = getLocale();
     try {
       setLocale('en');
-      expect(renderStack('north', 27)).toContain('27 cards');
+      expect(renderPlate({ cardCount: 27 })).toContain('27 cards');
       setLocale('zh-Hant');
-      expect(renderStack('north', 27)).toContain('27 張');
+      expect(renderPlate({ cardCount: 27 })).toContain('27 張');
     } finally {
       setLocale(original);
     }
   });
 
   it('low flips exactly at 11→10 (11 normal, 10 low, neither critical)', () => {
-    const at11 = renderStack('east', 11);
-    expect(at11).not.toContain('gd-seatstack__count--low');
-    expect(at11).not.toContain('gd-seatstack__count--critical');
-    const at10 = renderStack('east', 10);
-    expect(at10).toContain('gd-seatstack__count--low');
-    expect(at10).not.toContain('gd-seatstack__count--critical');
+    const at11 = renderPlate({ cardCount: 11 });
+    expect(at11).not.toContain('gd-plate__count--low');
+    expect(at11).not.toContain('gd-plate__count--critical');
+    const at10 = renderPlate({ cardCount: 10 });
+    expect(at10).toContain('gd-plate__count--low');
+    expect(at10).not.toContain('gd-plate__count--critical');
   });
 
   it('critical flips exactly at 3→2, and the critical aria reuses game.plate.cardsLow', () => {
     const original = getLocale();
     try {
       setLocale('en');
-      const at3 = renderStack('west', 3);
-      expect(at3).toContain('gd-seatstack__count--low');
-      expect(at3).not.toContain('gd-seatstack__count--critical');
-      const at2 = renderStack('west', 2);
-      expect(at2).toContain('gd-seatstack__count--critical');
+      const at3 = renderPlate({ cardCount: 3 });
+      expect(at3).toContain('gd-plate__count--low');
+      expect(at3).not.toContain('gd-plate__count--critical');
+      const at2 = renderPlate({ cardCount: 2 });
+      expect(at2).toContain('gd-plate__count--critical');
       expect(at2).toContain(`aria-label="${t('game.plate.cardsLow', { count: 2 })}"`);
-      // The non-critical label carries NO aria override — its visible text
+      // The non-critical chip carries NO aria override — its visible text
       // (unit included) is the accessible name.
       expect(at3).not.toContain(t('game.plate.cardsLow', { count: 3 }));
     } finally {
       setLocale(original);
     }
+  });
+
+  it('cardCount null renders the "—" chip with the hiddenCount aria; omitted renders no chip at all', () => {
+    const original = getLocale();
+    try {
+      setLocale('en');
+      const hidden = renderPlate({ cardCount: null });
+      expect(hidden).toContain('gd-plate__count--hidden');
+      expect(hidden).toContain('—');
+      expect(hidden).toContain(`aria-label="${t('game.plate.hiddenCount')}"`);
+      const bare = renderPlate();
+      expect(bare).not.toContain('gd-plate__count');
+    } finally {
+      setLocale(original);
+    }
+  });
+
+  it('dealing suppresses tier escalation — the chip must not swell/recolor while counting up', () => {
+    // Undealt, 2 cards IS critical (pinned above); mid-deal the same count is
+    // just deal progress.
+    const html = renderPlate({ cardCount: 2, dealing: true });
+    expect(html).toContain('gd-plate__count');
+    expect(html).not.toContain('gd-plate__count--low');
+    expect(html).not.toContain('gd-plate__count--critical');
+  });
+
+  it('the pill carries NO countdown and no planning note (item 6: timing lives on the headline)', () => {
+    const html = renderPlate({ cardCount: 27, active: true });
+    expect(html).not.toContain('gd-plate__timer');
+    expect(html).not.toContain('gd-plate__timerNote');
   });
 });
 
@@ -246,22 +289,22 @@ function outerHtmlByClass(html: string, className: string): string {
   throw new Error(`unbalanced <div> while scanning for: ${className}`);
 }
 
-describe('seat-zone structure: pill and stack are decoupled siblings (T3)', () => {
-  it('each remote zone renders the plate WITHOUT stack/count inside it, and the zone itself carries both', () => {
+describe('seat-zone structure: pill (with count chip) lapping the stack (T3)', () => {
+  it('each remote zone renders the count chip INSIDE the pill, the stack beside it, and the --stacked lap modifier', () => {
     const store = new RoomStore('TESTCODE');
     const html = renderToStaticMarkup(createElement(GameTable, { snapshot: minimalSnapshot(), store }));
 
     for (const dir of ['north', 'east', 'west'] as const) {
       const zone = outerHtmlByClass(html, `gd-seatzone--${dir}`);
       const plate = outerHtmlByClass(zone, 'gd-plate');
+      expect(plate, `${dir}: pill carries the count chip (item 5)`).toContain('gd-plate__count');
       expect(plate, `${dir}: pill must not contain the stack`).not.toContain('gd-seatstack');
-      expect(plate, `${dir}: pill must not contain the count label`).not.toContain(
-        'gd-seatstack__count',
-      );
-      expect(zone, `${dir}: zone carries the count label`).toContain('gd-seatstack__count');
       expect(zone, `${dir}: zone carries the direction-modified stack`).toContain(
         `gd-seatstack--${dir}`,
       );
+      // The lap: a zone WITH a card block advertises it, so the pill goes
+      // absolute over the block's outer edge instead of costing a layout row.
+      expect(zone, `${dir}: zone advertises the lap`).toContain('gd-seatzone--stacked');
       // R2 end to end: the settled 27-card seat shows exactly 27 real backs.
       expect(backCount(zone), `${dir}: 1:1 backs`).toBe(27);
     }
@@ -272,12 +315,29 @@ describe('seat-zone structure: pill and stack are decoupled siblings (T3)', () =
     }
   });
 
-  it('the viewer bottom-bar plate is unchanged: no stack, no count (R9)', () => {
+  it('the viewer bottom-bar plate is unchanged: no stack, no count chip (R9)', () => {
     const store = new RoomStore('TESTCODE');
     const html = renderToStaticMarkup(createElement(GameTable, { snapshot: minimalSnapshot(), store }));
     const bottombar = outerHtmlByClass(html, 'gd-bottombar');
     expect(bottombar).toContain('gd-plate--viewer');
     expect(bottombar).not.toContain('gd-seatstack');
+    expect(bottombar).not.toContain('gd-plate__count');
+  });
+
+  it('the pill-lap CSS: the zone is the anchor, the stacked pill sits absolute above a z-sealed stack', () => {
+    const stripped = stripCssComments(tableCss);
+    expect(stripped).toMatch(/\.gd-seatzone\s*\{[^}]*position:\s*relative/);
+    expect(stripped).toMatch(/\.gd-seatzone--stacked > \.gd-plate\s*\{[^}]*position:\s*absolute/);
+    expect(stripped).toMatch(/\.gd-seatzone--stacked > \.gd-plate\s*\{[^}]*z-index:\s*1/);
+    // The stack's explicit z-index: 0 both layers it under the pill and makes
+    // it a stacking context, sealing the per-slot row z-indexes inside.
+    expect(stripped).toMatch(/\.gd-seatzone--stacked > \.gd-seatstack\s*\{[^}]*z-index:\s*0/);
+    // Regression pin (zh-Hant 390 live find): an absolute pill's shrink-to-fit
+    // width is CAPPED at its containing block — the zone, i.e. the card block
+    // — so a partner-tagged name squeezed and ellipsized ("阿…") the moment
+    // the head row outran the block. The lapping pill must size to its OWN
+    // content (the max-width caps still apply; the overhang rides empty felt).
+    expect(stripped).toMatch(/\.gd-seatzone--stacked > \.gd-plate\s*\{[^}]*width:\s*max-content/);
   });
 });
 
@@ -326,21 +386,40 @@ describe('side-strip rotation geometry (T4)', () => {
 // ---------------------------------------------------------------------------
 // T10 — placement direction (owner follow-up), now through the multi-row wrap.
 // Every player lays cards from THEIR OWN right to THEIR OWN left, each new card
-// on top; paint order is DOM order alone. Two axes now:
+// on top. Two axes:
 //  · LAY axis (within a row, --gd-stack-pos): north/east cascade straight,
-//    west REVERSES (perrow−1−pos), so the sides mirror end-to-end.
+//    west REVERSES (perrow−1−pos), so the sides mirror end-to-end. Within a
+//    row paint order is DOM order (arrival order) — newest on top.
 //  · WRAP axis (across rows, --gd-stack-row): every side's rows grow INWARD
 //    toward the centre from the seat's own edge — east from the right so it
 //    reverses the row index (rows−1−row), west from the left straight; north's
 //    rows step downward straight. The two sides therefore mirror on BOTH axes.
-// No z-index exists to override any of it.
+// ACROSS rows the refinement round flipped the paint order (owner item 3):
+// the FRONT row (row 0) paints OVER the inner row via a z-index that carries
+// ONLY the row flip — nothing else in the stack rules touches z.
 // ---------------------------------------------------------------------------
 
 describe('placement direction — top-view physics, multi-row (T10)', () => {
   const stackRules = seatstackRules(tableCss);
 
-  it('paint order is DOM order alone: no z-index in any stack rule', () => {
-    expect(stackRules.join('\n')).not.toContain('z-index');
+  it('the front row paints over the inner row: one z-index, carrying exactly the row flip (item 3)', () => {
+    const slotRule = stackRules.find((r) => r.startsWith('.gd-seatstack__slot'));
+    expect(slotRule, 'slot rule not found').toBeDefined();
+    // Row 0 (the seat's own edge) wins: z = rows − 1 − row, so 1 vs 0 for a
+    // wrapped pair and a harmless 0 for a single line.
+    expect(slotRule).toMatch(
+      /z-index:\s*calc\(var\(--gd-stack-rows\)\s*-\s*1\s*-\s*var\(--gd-stack-row\)\)/,
+    );
+    // …and no OTHER stack rule re-orders slots: the only z-index besides the
+    // row flip is the zone seal (.gd-seatzone--stacked > .gd-seatstack's
+    // z-index: 0, which layers the whole block under the lapping pill and
+    // contains the slot z-indexes — T3 pins it). WITHIN a row, DOM order
+    // (arrival order) still decides — the newest card lands on top (R10).
+    const others = stackRules.filter((r) => r !== slotRule && r.includes('z-index'));
+    expect(others).toHaveLength(1);
+    // (The scan clips the selector at its .gd-seatstack token, so only the
+    // body is visible here; T3 pins the full .gd-seatzone--stacked selector.)
+    expect(others[0]).toMatch(/^\.gd-seatstack\s*\{\s*z-index:\s*0;\s*\}$/);
   });
 
   it('within a row north/east lay straight with --gd-stack-pos (newest at the screen right / strip bottom)', () => {
@@ -370,14 +449,16 @@ describe('placement direction — top-view physics, multi-row (T10)', () => {
     // East hugs the right edge, so its rows count inward as (rows−1−row). The
     // row step MUST carry `* var(--gd-stack-aspect)` (Grok audit): the offset
     // is a fraction of the card's CROSS dimension — drop the aspect factor and
-    // the rows stop tiling flush inside the widened side container even though
-    // the coarse `(rows−1−row) * linefrac` fragment still matches.
+    // the rows stop tiling flush inside the side container even though the
+    // coarse `(rows−1−row) * linefrac` fragment still matches.
     expect(east).toMatch(
       /left:[^;]*\(var\(--gd-stack-rows\)\s*-\s*1\s*-\s*var\(--gd-stack-row\)\)\s*\*\s*var\(--gd-stack-linefrac\)\s*\*\s*var\(--gd-stack-aspect\)/,
     );
-    // West hugs the left edge, so its rows step straight with the row index.
+    // West hugs the left edge, so its rows step straight with the row index —
+    // minus the boundary clip (item 4: west's OUTER edge is its left, so its
+    // front row hangs negative there), the whole bracket × aspect.
     expect(west).toMatch(
-      /left:[^;]*var\(--gd-stack-row\)\s*\*\s*var\(--gd-stack-linefrac\)\s*\*\s*var\(--gd-stack-aspect\)/,
+      /left:[^;]*\(var\(--gd-stack-row\)\s*\*\s*var\(--gd-stack-linefrac\)\s*-\s*var\(--gd-stack-clip\)\)\s*\*\s*var\(--gd-stack-aspect\)/,
     );
     expect(west).not.toMatch(/-\s*1\s*-\s*var\(--gd-stack-row\)/);
     // Both sides re-centre the rotated box with the SAME ±(aspect−1)/2 term
@@ -391,9 +472,10 @@ describe('placement direction — top-view physics, multi-row (T10)', () => {
     const north = stackRules.find((r) => r.includes('--north') && r.includes('top:'));
     expect(north, 'north slot rule not found').toBeDefined();
     // Row step carries the aspect factor here too (cross dimension = the card
-    // height for the un-rotated north strip).
+    // height for the un-rotated north strip), minus the boundary clip (item 4:
+    // north's outer edge is its top, so its front row hangs negative there).
     expect(north).toMatch(
-      /top:[^;]*var\(--gd-stack-aspect\)\s*\*\s*var\(--gd-stack-row\)\s*\*\s*var\(--gd-stack-linefrac\)/,
+      /top:[^;]*var\(--gd-stack-aspect\)\s*\*\s*\(var\(--gd-stack-row\)\s*\*\s*var\(--gd-stack-linefrac\)\s*-\s*var\(--gd-stack-clip\)\)/,
     );
     expect(north).not.toMatch(/-\s*1\s*-\s*var\(--gd-stack-row\)/);
   });
@@ -454,8 +536,8 @@ describe('multi-row wrap policy + per-slot mapping (T11)', () => {
     expect(small).toContain('--gd-stack-perrow:6');
   });
 
-  it('each slot carries its row-major (row, pos): pos = i mod perrow, row = ⌊i / perrow⌋', () => {
-    const html = renderStack('north', 27); // perrow 14
+  it('settled slots carry the row-major (row, pos): pos = i mod perrow, row = ⌊i / perrow⌋', () => {
+    const html = renderStack('north', 27); // perrow 14, no reserve → settled
     const slots = [...html.matchAll(/--gd-stack-i:\s*(\d+);--gd-stack-pos:\s*(\d+);--gd-stack-row:\s*(\d+)/g)].map(
       (m) => ({ i: Number(m[1]), pos: Number(m[2]), row: Number(m[3]) }),
     );
@@ -464,17 +546,64 @@ describe('multi-row wrap policy + per-slot mapping (T11)', () => {
       expect(s.pos, `slot ${s.i} pos`).toBe(s.i % 14);
       expect(s.row, `slot ${s.i} row`).toBe(Math.floor(s.i / 14));
     }
-    // Row 0 fills first (cards 0–13), row 1 holds the rest (14–26).
+    // Row 0 holds the cap (cards 0–13), row 1 the rest (14–26) — so play-time
+    // shrinkage (the last index leaving) peels the mostly-hidden inner row
+    // first and the lay-axis extent never moves.
     expect(slots.filter((s) => s.row === 0)).toHaveLength(14);
     expect(slots.filter((s) => s.row === 1)).toHaveLength(13);
   });
 
+  it('seatStackSlot: dealing alternates rows column by column (owner item 1); settled is row-major', () => {
+    // The owner's exact description: 1st card row 0 col 0, 2nd card row 1
+    // col 0, 3rd card row 0 col 1 — row = i mod 2, col = ⌊i / 2⌋.
+    expect(seatStackSlot(0, 27, true)).toEqual({ row: 0, pos: 0 });
+    expect(seatStackSlot(1, 27, true)).toEqual({ row: 1, pos: 0 });
+    expect(seatStackSlot(2, 27, true)).toEqual({ row: 0, pos: 1 });
+    expect(seatStackSlot(3, 27, true)).toEqual({ row: 1, pos: 1 });
+    expect(seatStackSlot(26, 27, true)).toEqual({ row: 0, pos: 13 });
+    // Settled: row-major over the pinned perRow.
+    expect(seatStackSlot(13, 27, false)).toEqual({ row: 0, pos: 13 });
+    expect(seatStackSlot(14, 27, false)).toEqual({ row: 1, pos: 0 });
+    expect(seatStackSlot(26, 27, false)).toEqual({ row: 1, pos: 12 });
+    // A single-line block is the identity mapping in BOTH modes (a short hand
+    // never alternates — there is only one row to alternate into).
+    for (const dealing of [true, false]) {
+      expect(seatStackSlot(0, 5, dealing)).toEqual({ row: 0, pos: 0 });
+      expect(seatStackSlot(4, 5, dealing)).toEqual({ row: 0, pos: 4 });
+    }
+  });
+
+  it('the deal-end mapping swap is invisible where it happens — and ONLY there (bounded set equality)', () => {
+    // The two mappings occupy the same slot set exactly when every used
+    // column is full-height: single-row counts and the full 27. That is the
+    // load-bearing invariant — the normal choreography flips `dealing` off at
+    // the settled 27, so the swap never repaints (backs indistinguishable).
+    // The bound matters too (Grok audit: "invisible at any count" would
+    // overclaim): in the wrapped middle the sets DIFFER, and the skip path is
+    // safe for a different reason — the same render that flips `dealing`
+    // jumps the count source to the settled 27, a fill jump, never a
+    // same-count remap.
+    const occupancy = (count: number, dealing: boolean) =>
+      new Set(
+        Array.from({ length: count }, (_, i) => {
+          const { row, pos } = seatStackSlot(i, count, dealing);
+          return `${row}:${pos}`;
+        }),
+      );
+    for (const n of [1, 5, 14, 27]) {
+      expect(occupancy(n, true), `count ${n}`).toEqual(occupancy(n, false));
+    }
+    // …and the wrapped middle is NOT swap-safe (20: alternating fills 10+10,
+    // row-major 14+6) — pinning the boundary keeps anyone from "simplifying"
+    // to a mid-hand mapping flip.
+    expect(occupancy(20, true)).not.toEqual(occupancy(20, false));
+  });
+
   it('the wrap shape is derived from the reservation mid-deal, so it never reflows as cards land', () => {
     // Only 3 backs landed, but the block is already shaped for the final 27
-    // (2 rows, perRow 14) — and the landed backs carry the SAME row-major
-    // (pos = i mod 14) the settled block uses, so they are laid into the first
-    // reserved slots, not a mid-deal balance that would shift when the rest
-    // land (Grok audit — assert the tuples, not just the shape/count).
+    // (2 rows, perRow 14) — and the landed backs alternate rows (item 1): the
+    // 1st card opens row 0, the 2nd opens row 1 beneath it, the 3rd starts
+    // column 1 — assert the tuples, not just the shape/count (Grok audit).
     const html = renderToStaticMarkup(createElement(SeatStack, { dir: 'west', count: 3, reserve: 27 }));
     expect(html).toContain('--gd-stack-rows:2');
     expect(html).toContain('--gd-stack-perrow:14');
@@ -484,9 +613,73 @@ describe('multi-row wrap policy + per-slot mapping (T11)', () => {
     );
     expect(slots).toEqual([
       [0, 0, 0],
-      [1, 1, 0],
-      [2, 2, 0],
+      [1, 0, 1],
+      [2, 1, 0],
     ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T12 — the boundary clip (owner item 4): a wrapped block's front row rides
+// (1 − peek) past its outer edge and is cropped, so the table only pays for
+// the peek + the inner row's linefrac sliver. The clip is ONE derived var,
+// subtracted from every cross-axis size, and only --wrapped blocks crop.
+// ---------------------------------------------------------------------------
+
+describe('boundary clip: front row half outside, cropped (T12)', () => {
+  const stackRules = seatstackRules(tableCss);
+
+  it('--gd-stack-clip is derived ONCE, off rows and peek, collapsing to 0 for a single line', () => {
+    const stripped = stripCssComments(tableCss);
+    expect([...stripped.matchAll(/--gd-stack-clip:/g)]).toHaveLength(1);
+    expect(stripped).toMatch(
+      /--gd-stack-clip:\s*calc\(\(var\(--gd-stack-rows\)\s*-\s*1\)\s*\*\s*\(1\s*-\s*var\(--gd-stack-peek\)\)\);/,
+    );
+  });
+
+  it('every cross-axis container size subtracts the clip (north height, east/west width)', () => {
+    const north = stackRules.find((r) => r.includes('--north') && r.includes('height:'));
+    const sides = stackRules.find(
+      (r) => r.includes('--east') && r.includes('--west') && r.includes('width:'),
+    );
+    expect(north, 'north container rule not found').toBeDefined();
+    expect(sides, 'east/west container rule not found').toBeDefined();
+    for (const rule of [north!, sides!]) {
+      expect(rule).toMatch(
+        /\(1\s*\+\s*\(var\(--gd-stack-rows\)\s*-\s*1\)\s*\*\s*var\(--gd-stack-linefrac\)\s*-\s*var\(--gd-stack-clip\)\)/,
+      );
+    }
+  });
+
+  it('only a WRAPPED block crops: overflow rides the --wrapped modifier, not the base rule', () => {
+    const stripped = stripCssComments(tableCss);
+    expect(stripped).toMatch(/\.gd-seatstack--wrapped\s*\{[^}]*overflow:\s*hidden/);
+    // The base container must NOT crop — an unwrapped strip still shows whole
+    // cards edge to edge (shadows and all), exactly as the pre-wrap build did.
+    const base = stripped.match(/^\.gd-seatstack\s*\{[^}]*\}/m)?.[0] ?? '';
+    expect(base, 'base .gd-seatstack rule not found').not.toBe('');
+    expect(base).not.toContain('overflow');
+  });
+
+  it('the component adds --wrapped exactly when the block wraps (sized count, reserve included)', () => {
+    expect(renderStack('north', 27)).toContain('gd-seatstack--wrapped');
+    expect(renderStack('east', 15)).toContain('gd-seatstack--wrapped');
+    expect(renderStack('east', 14)).not.toContain('gd-seatstack--wrapped');
+    expect(renderStack('west', 6)).not.toContain('gd-seatstack--wrapped');
+    // Mid-deal, 3 landed backs in a 27-reservation already crop — the block
+    // must hold its final cropped extent from frame one.
+    expect(
+      renderToStaticMarkup(createElement(SeatStack, { dir: 'west', count: 3, reserve: 27 })),
+    ).toContain('gd-seatstack--wrapped');
+  });
+
+  it('east needs no per-slot clip term: its container narrows at the OUTER (right) edge instead', () => {
+    // West/north subtract the clip in their slot offsets (their outer edge is
+    // at coordinate 0); east's outer edge is the container's far side, so the
+    // width subtraction above IS its crop and its slot offsets stay clip-free.
+    const east = stackRules.find((r) => r.startsWith('.gd-seatstack--east >') && r.includes('left:'));
+    expect(east, 'east slot rule not found').toBeDefined();
+    expect(east).not.toContain('--gd-stack-clip');
   });
 });
 
@@ -509,13 +702,28 @@ describe('exposure constant + card-width lockstep (T5)', () => {
     expect(stripTsComments(seatStackSrc)).not.toContain('0.09');
   });
 
-  it('--gd-stack-linefrac (the cross-axis row step) is declared exactly once (0.5) with no re-typed literal or TS mirror', () => {
+  it('--gd-stack-linefrac (the cross-axis row step) is declared exactly once (0.36) with no re-typed literal or TS mirror', () => {
     const stripped = stripCssComments(tableCss);
     expect([...stripped.matchAll(/--gd-stack-linefrac:/g)]).toHaveLength(1);
-    expect(stripped).toMatch(/--gd-stack-linefrac:\s*0\.5\s*;/);
+    // 0.36 (refinement item 2, tightened from 0.5): with the front row on top
+    // this IS the inner row's visible sliver, so smaller = deeper lap.
+    expect(stripped).toMatch(/--gd-stack-linefrac:\s*0\.36\s*;/);
     // The wrap depth is aspect-relative (× --gd-stack-aspect in the calcs), and
-    // no rule re-types the fraction as a literal.
-    expect(stripped).not.toMatch(/\*\s*0\.5\b/);
+    // no STACK rule re-types the fraction as a literal (scoped: unrelated
+    // card-face font calcs elsewhere in the sheet legitimately use 0.36).
+    expect(seatstackRules(tableCss).join('\n')).not.toMatch(/\*\s*0\.36\b/);
+    expect(stripTsComments(seatStackSrc)).not.toContain('0.36');
+  });
+
+  it('--gd-stack-peek (the front row’s surviving height) is declared exactly once (0.5) with no re-typed literal or TS mirror', () => {
+    const stripped = stripCssComments(tableCss);
+    expect([...stripped.matchAll(/--gd-stack-peek:/g)]).toHaveLength(1);
+    // Half a card of the front row stays visible (owner item 4: "showing only
+    // the half of the height of the 1st row cards").
+    expect(stripped).toMatch(/--gd-stack-peek:\s*0\.5\s*;/);
+    // Every consumer reads the var (the --gd-stack-clip derivation is the only
+    // arithmetic over it); no STACK rule multiplies by a re-typed 0.5 literal.
+    expect(seatstackRules(tableCss).join('\n')).not.toMatch(/\*\s*0\.5\b/);
     expect(stripTsComments(seatStackSrc)).not.toContain('0.5');
   });
 
@@ -671,27 +879,20 @@ describe('deal-time layout reservation (review fix: flights vs once-measured rec
     }
   });
 
-  it('at ZERO landed cards the reserved strip and its counting label already hold their space', () => {
+  it('at ZERO landed cards the reserved strip already holds its space, and the pill chip counts from zero', () => {
     const original = getLocale();
     try {
       setLocale('en');
       const html = renderReserved('east', 0, 27);
       expect(backCount(html)).toBe(0);
       expect(html).toContain('--gd-stack-n:27');
-      // The label renders from frame one (its later appearance would shift
-      // the zone column mid-deal) and counts up from zero.
-      expect(html).toContain('0 cards');
+      // The chip (in the pill since item 5) renders from frame one — its later
+      // appearance would jitter the pill mid-deal — and counts up from zero,
+      // tier escalation suppressed (T2 pins the suppression boundary).
+      expect(renderPlate({ cardCount: 0, dealing: true })).toContain('0 cards');
     } finally {
       setLocale(original);
     }
-  });
-
-  it('reservation suppresses tier escalation — the label must not swell/recolor mid-deal', () => {
-    // Unreserved, 2 cards IS critical (T2 pins it); reserved, the same count
-    // is just deal progress.
-    const html = renderReserved('west', 2, 27);
-    expect(html).not.toContain('gd-seatstack__count--low');
-    expect(html).not.toContain('gd-seatstack__count--critical');
   });
 
   it('a reservation can never CLIP landed cards (max of count and reserve wins)', () => {
@@ -707,7 +908,8 @@ describe('deal-time layout reservation (review fix: flights vs once-measured rec
 
   it('GameTable reserves exactly while dealing, at the per-seat deal size (source pin)', () => {
     const table = stripTsComments(gameTableSrc);
-    expect(table).toMatch(/reserve=\{dealing \? HAND_SIZE : undefined\}/);
+    expect(table).toMatch(/const reserve = dealing \? HAND_SIZE : undefined;/);
+    expect(table).toMatch(/reserve=\{reserve\}/);
   });
 });
 
