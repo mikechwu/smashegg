@@ -6,10 +6,11 @@
 // F11 "2 must look unlike 27" doctrine holds structurally with no cap. A pure
 // presenter — GameTable computes the displayed count (the deal-time one-by-one
 // growth and the pre-deal hold). The block is DECORATIVE end to end
-// (aria-hidden): the number itself rides the seat pill's count chip
-// (SeatPlate, refinement round), which is where the accessible name lives.
-// Hidden-count configs (count null) render NOTHING here — a stack's length
-// would leak the count; the pill shows the "—" chip.
+// (aria-hidden): the number itself rides the standalone SeatCount chip
+// (below) on the side of the cards OPPOSITE the name pill (flank round),
+// which is where the accessible name lives. Hidden-count configs (count
+// null) render NOTHING here — a stack's length would leak the count;
+// SeatCount shows the "—" chip.
 //
 // Geometry contract: ALL layout arithmetic lives in table.css off inline vars
 // set here — --gd-stack-aspect (the ACTIVE theme's DeckThemeMetrics.aspect,
@@ -45,10 +46,48 @@
 
 import { memo, type CSSProperties } from 'react';
 import { CardBack } from './CardFace';
-import { seatStackRows, seatStackPerRow, seatStackSlot } from './helpers';
+import { handSizeTier, seatStackRows, seatStackPerRow, seatStackSlot } from './helpers';
 import { useDeckTheme } from './useDeckTheme';
+import { t } from '../i18n';
 
 export type SeatStackDir = 'east' | 'north' | 'west';
+
+export interface SeatCountProps {
+  /** Cards remaining. null = hidden from this viewer (spec §8) — the "—"
+   *  chip; undefined = no chip at all (finished seats, the pre-deal hold). */
+  count: number | null | undefined;
+  /** True while the deal counts the chip up from 0 — tier escalation is
+   *  suppressed (a hand mid-deal is not a low-hand alarm). */
+  dealing: boolean;
+}
+
+/** The count chip, with its unit (R6) — a standalone zone element on the
+ *  side of the cards OPPOSITE the name pill (flank round, owner item 2:
+ *  "show the card count on the other side of the cards, not in the name
+ *  overlay"). Carries the handSizeTier escalation and the accessible number
+ *  (the stack itself is decorative). */
+export function SeatCount({ count, dealing }: SeatCountProps) {
+  if (count === undefined) return null;
+  if (count === null) {
+    return (
+      <span className="gd-seatcount gd-seatcount--hidden" aria-label={t('game.plate.hiddenCount')}>
+        —
+      </span>
+    );
+  }
+  const tier = dealing ? 'normal' : handSizeTier(count);
+  const classes = ['gd-seatcount'];
+  if (tier === 'low' || tier === 'critical') classes.push('gd-seatcount--low');
+  if (tier === 'critical') classes.push('gd-seatcount--critical');
+  return (
+    <span
+      className={classes.join(' ')}
+      aria-label={tier === 'critical' ? t('game.plate.cardsLow', { count }) : undefined}
+    >
+      {t('game.stack.cards', { count })}
+    </span>
+  );
+}
 
 export interface SeatStackProps {
   dir: SeatStackDir;

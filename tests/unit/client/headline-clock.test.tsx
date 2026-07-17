@@ -191,6 +191,62 @@ describe('headline clock through GameTable (integration)', () => {
     // No pill anywhere carries a clock; the acting seat still shows its ring.
     expect(html).not.toContain('gd-plate__timer');
     expect(html).toContain('gd-plate--active');
+    // A REMOTE turn puts nothing beside your own controls (the hand clock is
+    // your-turn-only, flank round item 3).
+    expect(html).not.toContain('gd-handclock');
+  });
+
+  it('the chip rides BESIDE the turn sentence, not the bar far end (flank round: no margin-left auto)', () => {
+    const stripped = readFileSync(
+      join(__dirname, '../../../src/client/table/table.css'),
+      'utf8',
+    ).replace(/\/\*[\s\S]*?\*\//g, '');
+    const rule = stripped.match(/\.gd-headline__clock\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(rule, 'headline clock rule not found').not.toBe('');
+    expect(rule).not.toContain('margin-left: auto');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The hand clock (flank round item 3): on YOUR turn the same number ALSO
+// shows above the sort pill, next to your controls — same urgency rule.
+// ---------------------------------------------------------------------------
+
+describe('own-turn hand clock above the sort pill', () => {
+  function yourTurnSnapshot(secondsFromNow: number): RoomSnapshot {
+    const snap = snapshotWithDeadline() as unknown as {
+      perSeat: Map<number, { view: GuandanView; hints: unknown; lastEventBatch: null }>;
+      deadlines: { seat: number; dueAt: number; timingClass: string }[];
+    };
+    const view = playingView() as unknown as {
+      trick: { leader: number; toAct: number; top: null; jiefengTo: null };
+    };
+    view.trick = { leader: 0, toAct: 0, top: null, jiefengTo: null };
+    snap.perSeat.set(0, { view: view as unknown as GuandanView, hints: [], lastEventBatch: null });
+    snap.deadlines = [{ seat: 0, dueAt: Date.now() + secondsFromNow * 1000, timingClass: 'turn' }];
+    return snap as unknown as RoomSnapshot;
+  }
+
+  it('renders in the sort cell on your turn with the same seconds, quiet above 10s', () => {
+    const store = new RoomStore('TESTCODE');
+    const html = renderToStaticMarkup(
+      createElement(GameTable, { snapshot: yourTurnSnapshot(30), store }),
+    );
+    const cell = html.match(/gd-actionsRow__sort[\s\S]*?<\/div>/)?.[0] ?? '';
+    expect(cell, 'sort cell not found').not.toBe('');
+    expect(cell).toContain('gd-handclock');
+    expect(cell).not.toContain('gd-handclock--urgent');
+    const num = Number(cell.match(/gd-handclock[^>]*>(\d+)</)?.[1]);
+    expect(num).toBeGreaterThanOrEqual(28);
+    expect(num).toBeLessThanOrEqual(30);
+  });
+
+  it('escalates at ≤10s exactly like the headline chip', () => {
+    const store = new RoomStore('TESTCODE');
+    const html = renderToStaticMarkup(
+      createElement(GameTable, { snapshot: yourTurnSnapshot(8), store }),
+    );
+    expect(html).toContain('gd-handclock--urgent');
   });
 });
 

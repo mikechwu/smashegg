@@ -103,7 +103,11 @@
   padding: 0 0.3125rem;
   font-size: 0.75em;
 }
-.gd-plate__pass {
+/* The committed-tribute chip — the one persistent STATE the pill still
+   carries (flank round: pass became a transient fade over the cards, the
+   count a standalone chip on their other side, the clock a headline/hand
+   chip). */
+.gd-plate__chip {
   color: var(--ivory);
   opacity: 0.7;
   font-size: 0.75em;
@@ -111,30 +115,30 @@
   border-radius: 4px;
   padding: 0 0.25rem;
 }
-/* The count chip (R6, refinement round item 5: moved INTO the pill — the
-   zone's separate count line is gone, freeing the pill to lap the card
-   block). Quiet tabular numerals with the unit; escalation keeps the
-   handSizeTier boundaries (≤10 low cinnabar/600, ≤2 critical cinnabar/700)
-   — and the stack LENGTH says the same thing structurally, 1:1 (2 cards
-   cannot look like 27). NOTE the pill carries NO countdown anymore (owner
-   item 6): turn timing lives on TableHeadline's turn line, once. */
-.gd-plate__count {
+/* The count chip (R6, flank round item 2: a STANDALONE zone element on the
+   side of the cards OPPOSITE the name pill — never inside it). Quiet
+   tabular numerals with the unit; escalation keeps the handSizeTier
+   boundaries (≤10 low cinnabar/600, ≤2 critical cinnabar/700) — and the
+   stack LENGTH says the same thing structurally, 1:1 (2 cards cannot look
+   like 27). */
+.gd-seatcount {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   font-size: 0.72rem;
   opacity: 0.85;
   white-space: nowrap;
+  flex: none;
 }
-.gd-plate__count--low {
+.gd-seatcount--low {
   color: var(--cinnabar);
   font-weight: 600;
   opacity: 1;
 }
-.gd-plate__count--critical {
+.gd-seatcount--critical {
   font-weight: 700;
   font-size: 0.85rem;
 }
-.gd-plate__count--hidden {
+.gd-seatcount--hidden {
   opacity: 0.6;
 }
 
@@ -220,20 +224,23 @@
   font-size: 0.8125rem;
   opacity: 0.85;
 }
-/* The spread ribbon (obs 1): CUT_RIBBON_SLIVERS overlapping mini backs
+/* The spread ribbon (obs 1): CUT_RIBBON_SLIVERS overlapping card backs
    distributed across the SAME width as the slider below, so the spatial
    mapping is obvious. Each sliver past the split shifts right by --gap; the
    transition slides the split along the ribbon as the slider drags — the deck
-   visibly parting into two packets. The gap (1.4rem) is clearly wider than the
-   per-sliver pitch (~0.7rem at 390px), never a numeric index. */
+   visibly parting into two packets. The gap (1.4rem) is clearly wider than
+   the per-sliver pitch (~0.55rem at 390px), never a numeric index. Flank
+   round, owner item 5: the slivers are HAND-size backs now — the same cards
+   the table plays — so --sliver-w is lockstep-pinned with .gd-card--hand's
+   clamp (cut-panel test). */
 .gd-cut__ribbon {
   --slivers: 24;
-  --sliver-w: 2rem;
+  --sliver-w: clamp(2.75rem, 13vw, 4.25rem);
   --gap: 1.4rem;
   position: relative;
   align-self: center;
   width: 100%;
-  max-width: 18rem;
+  max-width: 20rem;
   height: calc(var(--sliver-w) * 1.45);
   margin: 0.25rem auto 0.35rem;
 }
@@ -1125,7 +1132,9 @@
   flex-wrap: wrap;
   gap: 0.375rem;
   margin: 0.125rem 0;
-  min-height: 3.75rem;
+  /* No reserved min-height: the block only ever renders WITH a card in it,
+     and the old 3.75rem floor was sized for the retired mini faces (panel
+     LOW, Grok round 1) — inert under the hand-size cards, so gone. */
 }
 .gd-ceremony__flip {
   display: inline-flex;
@@ -1326,17 +1335,17 @@
 .gd-headline__turnText {
   min-width: 0;
 }
-/* The turn CLOCK (owner item 6: the countdown moved off the seat pills onto
-   this line — table-wide timing said ONCE, where the turn already is). One
-   scan: the sentence reads left, the seconds sit anchored at the line's far
-   right in the same quiet chip language as the wild pill. The planning-window
-   word rides inside the chip (M4 timingClass), so a long first think never
-   reads as a stuck turn. Urgency is reserved for YOUR turn running short
-   (≤10s — the moment you are about to be auto-passed): cinnabar fill + the
-   same gd-pulse the jiefeng banner uses; meaning never rides on colour alone
-   (the aria states the seconds). */
+/* The turn CLOCK (owner item 6, position tuned in the flank round: the chip
+   sits DIRECTLY BESIDE the turn sentence — one glance reads "whose turn ·
+   how long", instead of the eye jumping to the bar's far end). Same quiet
+   chip language as the wild pill. The planning-window word rides inside the
+   chip (M4 timingClass), so a long first think never reads as a stuck turn.
+   Urgency is reserved for YOUR turn running short (≤10s — the moment you are
+   about to be auto-passed): cinnabar fill + the same gd-pulse the jiefeng
+   banner uses; meaning never rides on colour alone (the aria states the
+   seconds). On your turn the SAME number also rides above the sort pill
+   (.gd-handclock below), next to where your hands already are. */
 .gd-headline__clock {
-  margin-left: auto;
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -1497,66 +1506,113 @@
   border: 1px solid rgba(245, 239, 227, 0.4);
 }
 
-/* --- seat zone: identity pill lapping the seat's REAL hand ---------------- */
-/* Seat-zone round, R1/R7 + refinement item 5: the rosewood pill wraps ONLY
-   identity/state (the count chip now rides INSIDE it), and when the zone has
-   a card block the pill goes absolute and LAPS the block's OUTER edge — a
-   nameplate resting on the cropped front row — so the zone's layout box is
-   the block alone and the whole old pill-and-count band of ring height is
-   returned to the table. Where the pill outruns a narrow side strip it
-   overhangs absolutely (over the empty felt near the strip's top) without
-   widening the ring column. Without a block (finished seat's badge,
-   hidden-count "—", the pre-deal hold) the pill stays in flow exactly as
-   before. The zone sits INSIDE the existing .gd-ring__seat--* cells, so
-   DealOverlay's seat-rect reads are untouched. The active-turn ring stays on
-   the pill (R8); nothing here ever carries it. */
+/* --- seat zone: name at the seat's right hand, count opposite ------------- */
+/* Flank round (owner items 1-2): NOTHING overlays the cards. The zone is one
+   flex line along the seat's own handedness — DOM order is always
+   [pill, cards, count], and each seat's RIGHT HAND picks the direction (the
+   same top-view translation R10 uses): north faces the viewer, so its right
+   is the screen's LEFT → a row, pill left / count right; east faces west, so
+   its right is its strip's TOP → a column, pill above / count below; west
+   faces east, so its right is its strip's BOTTOM → column-REVERSE, which
+   flips the same DOM order into count above / pill below. The zone sits
+   INSIDE the existing .gd-ring__seat--* cells, so DealOverlay's seat-rect
+   reads are untouched. The active-turn ring stays on the pill (R8); the ONE
+   transient exception to "nothing on the cards" is the pass fade below. */
 .gd-seatzone {
-  position: relative;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.375rem;
   min-width: 0;
 }
-/* Mirrored side columns: each zone hugs its own table edge (the ring cell
-   already justifies start/end), the vertical strip runs below the pill,
-   toward the centre row. */
 .gd-seatzone--east {
+  flex-direction: column;
   align-items: flex-end;
 }
 .gd-seatzone--west {
+  flex-direction: column-reverse;
   align-items: flex-start;
 }
-/* The lap itself. The pill anchors at the block's outer (top) edge and must
-   paint OVER the backs: the stack gets an explicit z-index: 0 — which also
-   makes it a stacking context, sealing the per-slot row z-indexes inside —
-   and the pill sits above it. Per direction the pill hugs the seat's own
-   table edge: north centres on its block, west/east pin to their own screen
-   edge so any overhang rides INWARD over empty felt (the trick well is
-   vertically centred, far from the strip tops). */
-.gd-seatzone--stacked > .gd-plate {
+/* North's flanks are ABSOLUTE (390 live find, two dead ends first: letting
+   the row size its grid track grew the ring past the viewport and shoved
+   EAST off-screen; letting it squeeze crushed the pill to a bare dot). The
+   zone's layout box is the card block alone — the ring's centre track never
+   learns about the flanks — while the pill hangs at the block's LEFT
+   (north's right hand) and the count at its RIGHT, over the ring's empty
+   corner cells. width: max-content is load-bearing: with only a `right`/
+   `left` offset the shrink-to-fit width would be 0 (the zh-Hant ellipsis
+   find, same physics), so both flanks size to their own content. Neither
+   ever covers a card: they sit strictly OUTSIDE the block's edges. */
+.gd-seatzone--north {
+  position: relative;
+}
+/* The flanks hang ONLY off a real card block (--flanked = the zone renders a
+   sized stack): a blockless zone — finished badge, hidden-count "—", the
+   pre-deal hold — keeps pill and chip in normal row flow, so nothing anchors
+   to a collapsed box (panel MED, Grok round 1). */
+.gd-seatzone--north.gd-seatzone--flanked > .gd-plate {
   position: absolute;
-  top: 0;
-  z-index: 1;
-  /* Size to the pill's OWN content, not the shrink-to-fit cap of its
-     containing block (the zone = the card block): a partner-tagged name is
-     wider than a side strip and would squeeze into an ellipsis (zh-Hant 390
-     live find). The .gd-ring max-width caps still bound it; whatever outruns
-     the block overhangs absolutely over empty felt, costing no ring width. */
+  right: 100%;
+  margin-right: 0.375rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: max-content;
+  /* Phone cap (panel MED, Codex): the flank must stay inside the clipped
+     table when the block sits near centre — ~50vw minus half a block minus
+     the margins. Desktop keeps the ring's own 9rem pill cap. */
+  max-width: min(9rem, calc(50vw - 5rem));
+}
+.gd-seatzone--north.gd-seatzone--flanked > .gd-seatcount {
+  position: absolute;
+  left: 100%;
+  margin-left: 0.375rem;
+  top: 50%;
+  transform: translateY(-50%);
   width: max-content;
 }
-.gd-seatzone--stacked > .gd-seatstack {
-  z-index: 0;
+/* The wrap anchors the pass fade over the block without joining the flex
+   math (SeatStack keeps owning its own box). */
+.gd-seatzone__stackwrap {
+  position: relative;
+  display: block;
+  flex: none;
 }
-.gd-seatzone--north.gd-seatzone--stacked > .gd-plate {
+/* PASS (owner item 2): a transient word IN FRONT of the seat's cards — fades
+   in, holds ~2s, lets go. Base opacity 0 with a fill-forwards run, so once
+   the animation finishes (or under reduced motion, which kills animations
+   wholesale) nothing lingers over the cards; the event feed remains the
+   durable record of who passed. Keyed per seat: the element mounts when the
+   seat passes and unmounts at the sweep, so each trick's pass replays. */
+.gd-seatzone__pass {
+  position: absolute;
   left: 50%;
-  transform: translateX(-50%);
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--lacquer) 84%, transparent);
+  color: var(--ivory);
+  border: 1px solid rgba(245, 239, 227, 0.45);
+  border-radius: 999px;
+  padding: 0.18rem 0.7rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  animation: gd-passfade 2.8s ease-out forwards;
 }
-.gd-seatzone--west.gd-seatzone--stacked > .gd-plate {
-  left: 0;
-}
-.gd-seatzone--east.gd-seatzone--stacked > .gd-plate {
-  right: 0;
+@keyframes gd-passfade {
+  0% {
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  71% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 /* The remote stack: one REAL theme CardBack per remaining card (R2 — the
@@ -1598,6 +1654,10 @@
   position: relative;
   display: block;
   flex: none;
+  /* An explicit stacking context: the per-slot row z-indexes are sealed
+     INSIDE the block, so they can never climb over zone siblings or the
+     transient pass fade (z 2) that laps it. */
+  z-index: 0;
 }
 /* Only a WRAPPED block crops (the front row's outer half rides past the
    boundary); an unwrapped strip still shows whole cards edge to edge, exactly
@@ -1760,6 +1820,34 @@
 .gd-actionsRow__sort {
   grid-column: 3;
   justify-self: end;
+  /* Flank round, owner item 3: on YOUR turn an additional countdown chip
+     rides ABOVE the sort pill — a column, right-aligned. */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+/* Your own turn's clock beside your controls — the same number the headline
+   chip carries, same urgency rule; numeric only (the headline holds the
+   planning word). */
+.gd-handclock {
+  display: inline-flex;
+  justify-content: center;
+  background: var(--lacquer);
+  border: 1px solid rgba(245, 239, 227, 0.25);
+  border-radius: 999px;
+  padding: 0.06rem 0.5rem;
+  color: var(--ivory);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.85rem;
+  min-width: 1.6em;
+  text-align: center;
+}
+.gd-handclock--urgent {
+  background: var(--cinnabar);
+  border-color: var(--cinnabar);
+  animation: gd-pulse 700ms ease-in-out infinite alternate;
 }
 
 /* --- bottom bar: your own seat plate + the (now-thin) log, one line ------ */
@@ -1853,5 +1941,12 @@
   .gd-table *::after {
     animation: none !important;
     transition: none !important;
+  }
+  /* The pass word must still be SEEN with animations killed (panel HIGH,
+     Grok round 1: base opacity 0 + animation:none = an invisible pass).
+     Static full opacity, no motion; the render gate's ~3s wall-clock
+     unmount (GameTable passedAt) makes it transient all the same. */
+  .gd-seatzone__pass {
+    opacity: 1;
   }
 }

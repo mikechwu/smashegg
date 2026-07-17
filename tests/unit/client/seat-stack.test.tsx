@@ -17,9 +17,14 @@ import { createElement } from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { SeatStack, type SeatStackDir } from '../../../src/client/table/SeatStack';
+import { SeatCount, SeatStack, type SeatStackDir } from '../../../src/client/table/SeatStack';
 import { SeatPlate, type SeatPlateProps } from '../../../src/client/table/SeatPlate';
-import { GameTable } from '../../../src/client/GameTable';
+import {
+  EMPTY_DERIVED,
+  foldEvents,
+  GameTable,
+  type SeatDerived,
+} from '../../../src/client/GameTable';
 import {
   landRemoteDealt,
   NO_REMOTE_DEALT,
@@ -72,8 +77,8 @@ function renderStack(dir: SeatStackDir, count: number | null): string {
 }
 
 /** The pill, with the identity fields a remote seat carries by default —
- *  tests override what they exercise (cardCount for the chip, dealing for
- *  the deal-time suppression). */
+ *  tests override what they exercise. Identity ONLY since the flank round:
+ *  no count, no pass, no clock props exist at all. */
 function renderPlate(over: Partial<SeatPlateProps> = {}): string {
   return renderToStaticMarkup(
     createElement(SeatPlate, {
@@ -84,11 +89,15 @@ function renderPlate(over: Partial<SeatPlateProps> = {}): string {
       partner: false,
       place: null,
       active: false,
-      passed: false,
       committed: false,
       ...over,
     }),
   );
+}
+
+/** The standalone count chip (flank round: the cards' OTHER side). */
+function renderCount(count: number | null | undefined, dealing = false): string {
+  return renderToStaticMarkup(createElement(SeatCount, { count, dealing }));
 }
 
 /** Every CardBack the framework renders is one `gd-cardframe gd-card--hand`
@@ -136,43 +145,44 @@ describe('SeatStack backs are 1:1 with the count (T1)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// T2 — the count chip lives IN the pill (refinement item 5): unit as visible
-// text, tier classes flipping exactly at the handSizeTier boundaries, the
-// "—" chip for hidden counts, and NO chip at all when cardCount is omitted
-// (the viewer's own pill, finished seats).
+// T2 — the count is a STANDALONE chip (flank round item 2: the cards' other
+// side, never inside the name pill): unit as visible text, tier classes
+// flipping exactly at the handSizeTier boundaries, the "—" chip for hidden
+// counts, NO chip when count is undefined (finished seats, pre-deal hold) —
+// and the pill itself is identity-only by construction.
 // ---------------------------------------------------------------------------
 
-describe('SeatPlate count chip: unit + tier escalation (T2)', () => {
+describe('SeatCount chip: unit + tier escalation (T2)', () => {
   it('the visible chip text is t(game.stack.cards) — unit present in en ("27 cards") and zh-Hant ("27 張")', () => {
     const original = getLocale();
     try {
       setLocale('en');
-      expect(renderPlate({ cardCount: 27 })).toContain('27 cards');
+      expect(renderCount(27)).toContain('27 cards');
       setLocale('zh-Hant');
-      expect(renderPlate({ cardCount: 27 })).toContain('27 張');
+      expect(renderCount(27)).toContain('27 張');
     } finally {
       setLocale(original);
     }
   });
 
   it('low flips exactly at 11→10 (11 normal, 10 low, neither critical)', () => {
-    const at11 = renderPlate({ cardCount: 11 });
-    expect(at11).not.toContain('gd-plate__count--low');
-    expect(at11).not.toContain('gd-plate__count--critical');
-    const at10 = renderPlate({ cardCount: 10 });
-    expect(at10).toContain('gd-plate__count--low');
-    expect(at10).not.toContain('gd-plate__count--critical');
+    const at11 = renderCount(11);
+    expect(at11).not.toContain('gd-seatcount--low');
+    expect(at11).not.toContain('gd-seatcount--critical');
+    const at10 = renderCount(10);
+    expect(at10).toContain('gd-seatcount--low');
+    expect(at10).not.toContain('gd-seatcount--critical');
   });
 
   it('critical flips exactly at 3→2, and the critical aria reuses game.plate.cardsLow', () => {
     const original = getLocale();
     try {
       setLocale('en');
-      const at3 = renderPlate({ cardCount: 3 });
-      expect(at3).toContain('gd-plate__count--low');
-      expect(at3).not.toContain('gd-plate__count--critical');
-      const at2 = renderPlate({ cardCount: 2 });
-      expect(at2).toContain('gd-plate__count--critical');
+      const at3 = renderCount(3);
+      expect(at3).toContain('gd-seatcount--low');
+      expect(at3).not.toContain('gd-seatcount--critical');
+      const at2 = renderCount(2);
+      expect(at2).toContain('gd-seatcount--critical');
       expect(at2).toContain(`aria-label="${t('game.plate.cardsLow', { count: 2 })}"`);
       // The non-critical chip carries NO aria override — its visible text
       // (unit included) is the accessible name.
@@ -182,16 +192,15 @@ describe('SeatPlate count chip: unit + tier escalation (T2)', () => {
     }
   });
 
-  it('cardCount null renders the "—" chip with the hiddenCount aria; omitted renders no chip at all', () => {
+  it('count null renders the "—" chip with the hiddenCount aria; undefined renders nothing at all', () => {
     const original = getLocale();
     try {
       setLocale('en');
-      const hidden = renderPlate({ cardCount: null });
-      expect(hidden).toContain('gd-plate__count--hidden');
+      const hidden = renderCount(null);
+      expect(hidden).toContain('gd-seatcount--hidden');
       expect(hidden).toContain('—');
       expect(hidden).toContain(`aria-label="${t('game.plate.hiddenCount')}"`);
-      const bare = renderPlate();
-      expect(bare).not.toContain('gd-plate__count');
+      expect(renderCount(undefined)).toBe('');
     } finally {
       setLocale(original);
     }
@@ -200,16 +209,27 @@ describe('SeatPlate count chip: unit + tier escalation (T2)', () => {
   it('dealing suppresses tier escalation — the chip must not swell/recolor while counting up', () => {
     // Undealt, 2 cards IS critical (pinned above); mid-deal the same count is
     // just deal progress.
-    const html = renderPlate({ cardCount: 2, dealing: true });
-    expect(html).toContain('gd-plate__count');
-    expect(html).not.toContain('gd-plate__count--low');
-    expect(html).not.toContain('gd-plate__count--critical');
+    const html = renderCount(2, true);
+    expect(html).toContain('gd-seatcount');
+    expect(html).not.toContain('gd-seatcount--low');
+    expect(html).not.toContain('gd-seatcount--critical');
   });
 
-  it('the pill carries NO countdown and no planning note (item 6: timing lives on the headline)', () => {
-    const html = renderPlate({ cardCount: 27, active: true });
+  it('the pill is identity-only: no count, no countdown, no pass chip — committed is its one state chip', () => {
+    const html = renderPlate({ active: true });
+    expect(html).not.toContain('gd-seatcount');
     expect(html).not.toContain('gd-plate__timer');
-    expect(html).not.toContain('gd-plate__timerNote');
+    expect(html).not.toContain('gd-plate__pass');
+    expect(html).not.toContain('gd-plate__chip');
+    // The committed-tribute chip (a persistent phase state) still renders.
+    const original = getLocale();
+    try {
+      setLocale('en');
+      expect(renderPlate({ committed: true })).toContain('gd-plate__chip');
+      expect(renderPlate({ committed: true })).toContain(t('game.tribute.committedChip'));
+    } finally {
+      setLocale(original);
+    }
   });
 });
 
@@ -289,24 +309,33 @@ function outerHtmlByClass(html: string, className: string): string {
   throw new Error(`unbalanced <div> while scanning for: ${className}`);
 }
 
-describe('seat-zone structure: pill (with count chip) lapping the stack (T3)', () => {
-  it('each remote zone renders the count chip INSIDE the pill, the stack beside it, and the --stacked lap modifier', () => {
+describe('seat-zone structure: name at the seat right hand, count opposite (T3)', () => {
+  it('each remote zone renders [pill, cards, count] with NOTHING inside the pill but identity', () => {
     const store = new RoomStore('TESTCODE');
     const html = renderToStaticMarkup(createElement(GameTable, { snapshot: minimalSnapshot(), store }));
 
     for (const dir of ['north', 'east', 'west'] as const) {
       const zone = outerHtmlByClass(html, `gd-seatzone--${dir}`);
       const plate = outerHtmlByClass(zone, 'gd-plate');
-      expect(plate, `${dir}: pill carries the count chip (item 5)`).toContain('gd-plate__count');
       expect(plate, `${dir}: pill must not contain the stack`).not.toContain('gd-seatstack');
+      expect(plate, `${dir}: pill must not contain the count`).not.toContain('gd-seatcount');
       expect(zone, `${dir}: zone carries the direction-modified stack`).toContain(
         `gd-seatstack--${dir}`,
       );
-      // The lap: a zone WITH a card block advertises it, so the pill goes
-      // absolute over the block's outer edge instead of costing a layout row.
-      expect(zone, `${dir}: zone advertises the lap`).toContain('gd-seatzone--stacked');
+      expect(zone, `${dir}: zone carries the standalone count chip`).toContain('gd-seatcount');
+      // DOM order is ALWAYS [pill, cards, count] — the CSS flex direction
+      // (row / column / column-reverse) turns that into each seat's own
+      // handedness; the order itself must never vary per dir.
+      const plateAt = zone.indexOf('gd-plate');
+      const stackAt = zone.indexOf('gd-seatzone__stackwrap');
+      const countAt = zone.indexOf('gd-seatcount');
+      expect(plateAt, `${dir}: pill first`).toBeGreaterThan(-1);
+      expect(stackAt, `${dir}: wrap second`).toBeGreaterThan(plateAt);
+      expect(countAt, `${dir}: count last`).toBeGreaterThan(stackAt);
       // R2 end to end: the settled 27-card seat shows exactly 27 real backs.
       expect(backCount(zone), `${dir}: 1:1 backs`).toBe(27);
+      // The lap era is over: nothing advertises an absolute pill.
+      expect(zone).not.toContain('gd-seatzone--stacked');
     }
     // The zones live INSIDE the existing ring cells, so DealOverlay's
     // .gd-ring__seat--* rect reads keep working untouched.
@@ -321,23 +350,185 @@ describe('seat-zone structure: pill (with count chip) lapping the stack (T3)', (
     const bottombar = outerHtmlByClass(html, 'gd-bottombar');
     expect(bottombar).toContain('gd-plate--viewer');
     expect(bottombar).not.toContain('gd-seatstack');
-    expect(bottombar).not.toContain('gd-plate__count');
+    expect(bottombar).not.toContain('gd-seatcount');
   });
 
-  it('the pill-lap CSS: the zone is the anchor, the stacked pill sits absolute above a z-sealed stack', () => {
+  it('the handedness CSS: north a row, east a column, west a REVERSED column; no lap rules remain', () => {
     const stripped = stripCssComments(tableCss);
-    expect(stripped).toMatch(/\.gd-seatzone\s*\{[^}]*position:\s*relative/);
-    expect(stripped).toMatch(/\.gd-seatzone--stacked > \.gd-plate\s*\{[^}]*position:\s*absolute/);
-    expect(stripped).toMatch(/\.gd-seatzone--stacked > \.gd-plate\s*\{[^}]*z-index:\s*1/);
-    // The stack's explicit z-index: 0 both layers it under the pill and makes
-    // it a stacking context, sealing the per-slot row z-indexes inside.
-    expect(stripped).toMatch(/\.gd-seatzone--stacked > \.gd-seatstack\s*\{[^}]*z-index:\s*0/);
-    // Regression pin (zh-Hant 390 live find): an absolute pill's shrink-to-fit
-    // width is CAPPED at its containing block — the zone, i.e. the card block
-    // — so a partner-tagged name squeezed and ellipsized ("阿…") the moment
-    // the head row outran the block. The lapping pill must size to its OWN
-    // content (the max-width caps still apply; the overhang rides empty felt).
-    expect(stripped).toMatch(/\.gd-seatzone--stacked > \.gd-plate\s*\{[^}]*width:\s*max-content/);
+    // Base zone = a row (north: pill left = north's right hand, count right).
+    const base = stripped.match(/\.gd-seatzone\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(base, 'base zone rule not found').not.toBe('');
+    expect(base).toContain('display: flex');
+    expect(base).not.toContain('flex-direction');
+    // East: a column (pill above = east's right hand at its strip top).
+    expect(stripped).toMatch(/\.gd-seatzone--east\s*\{[^}]*flex-direction:\s*column\s*;/);
+    // West: column-REVERSE — the same [pill, cards, count] DOM flips so the
+    // pill lands at the strip's BOTTOM (west's right hand) and the count on
+    // top. This is the load-bearing line of the whole mirror.
+    expect(stripped).toMatch(/\.gd-seatzone--west\s*\{[^}]*flex-direction:\s*column-reverse/);
+    // The lap CSS is gone wholesale (owner item 1: nothing overlays the
+    // cards): no --stacked selector, and the ONLY zone-scoped plate rule is
+    // north's absolute flank below — which anchors strictly BESIDE the block
+    // (right: 100%), never over it. (The transient pass fade is the one
+    // deliberate element over the cards; T13 pins it.)
+    expect(stripped).not.toContain('gd-seatzone--stacked');
+    const platesInZones = [...stripped.matchAll(/\.gd-seatzone[^{,]*\.gd-plate[^{]*\{[^}]*\}/g)].map(
+      (m) => m[0],
+    );
+    expect(platesInZones).toHaveLength(1);
+    expect(platesInZones[0]).toContain('.gd-seatzone--north');
+  });
+
+  it("north's flanks are absolute BESIDE the block — gated on --flanked, phone-capped (live + panel finds)", () => {
+    // Regression pins, three layers deep: (1) 390 live find — sizing the
+    // centre track by the [pill, cards, count] row grew the ring past the
+    // viewport, and a flex squeeze crushed the pill to a bare dot; the
+    // flanks hang absolutely at the block's edges (pill right: 100% =
+    // north's right hand, count left: 100%), each with the load-bearing
+    // width: max-content (shrink-to-fit against a lone inset is 0 wide —
+    // the zh-Hant ellipsis physics). (2) Panel MED (Grok): only a zone WITH
+    // a block flanks — the --flanked modifier — so a finished/hidden/held
+    // zone never anchors to a collapsed box. (3) Panel MED (Codex): a phone
+    // cap keeps a long-name flank inside the overflow-clipped table.
+    const stripped = stripCssComments(tableCss);
+    const pill =
+      stripped.match(/\.gd-seatzone--north\.gd-seatzone--flanked > \.gd-plate\s*\{[^}]*\}/)?.[0] ??
+      '';
+    const count =
+      stripped.match(
+        /\.gd-seatzone--north\.gd-seatzone--flanked > \.gd-seatcount\s*\{[^}]*\}/,
+      )?.[0] ?? '';
+    expect(pill, 'north pill flank rule not found').not.toBe('');
+    expect(count, 'north count flank rule not found').not.toBe('');
+    expect(pill).toMatch(/position:\s*absolute/);
+    expect(pill).toMatch(/right:\s*100%/);
+    expect(pill).toMatch(/width:\s*max-content/);
+    expect(pill).toMatch(/max-width:\s*min\(9rem,\s*calc\(50vw - 5rem\)\)/);
+    expect(count).toMatch(/position:\s*absolute/);
+    expect(count).toMatch(/left:\s*100%/);
+    expect(count).toMatch(/width:\s*max-content/);
+    // No UNGATED north flank rule may sneak back.
+    expect(stripped).not.toMatch(/\.gd-seatzone--north > \.gd-plate/);
+  });
+
+  it('a zone renders --flanked exactly when it has a block; a finished seat keeps everything in flow', () => {
+    const store = new RoomStore('TESTCODE');
+    // Settled 27s everywhere: every remote zone is flanked.
+    const html = renderToStaticMarkup(createElement(GameTable, { snapshot: minimalSnapshot(), store }));
+    for (const dir of ['north', 'east', 'west'] as const) {
+      expect(outerHtmlByClass(html, `gd-seatzone--${dir}`)).toContain('gd-seatzone--flanked');
+    }
+    // North seat (viewer 0 → seat 2) finished: badge-only pill, no block, no
+    // flank anchor, no count chip.
+    const finishedSnap = minimalSnapshot() as unknown as {
+      perSeat: Map<number, { view: { finishOrder: number[] }; hints: null; lastEventBatch: null }>;
+    };
+    finishedSnap.perSeat.get(0)!.view.finishOrder = [2];
+    const html2 = renderToStaticMarkup(
+      createElement(GameTable, { snapshot: finishedSnap as unknown as RoomSnapshot, store }),
+    );
+    const north = outerHtmlByClass(html2, 'gd-seatzone--north');
+    expect(north).not.toContain('gd-seatzone--flanked');
+    expect(north).not.toContain('gd-seatzone__stackwrap');
+    expect(north).not.toContain('gd-seatcount');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T13 — the transient PASS fade (flank round item 2): when a seat passes, the
+// word shows IN FRONT of that seat's cards, fades in, holds ~2s, and lets go
+// — never a pill chip. DOM-free pins: the GameTable wiring (render gate +
+// per-seat key) and the CSS lifecycle (base opacity 0, a forwards run with a
+// hold ending back at 0); the moving picture stays eyes/browser-gated.
+// ---------------------------------------------------------------------------
+
+describe('pass: a transient fade over the cards, not a pill chip (T13)', () => {
+  it('GameTable gates the fade on the fold WALL-CLOCK stamp over a real block (source pins)', () => {
+    const table = stripTsComments(gameTableSrc);
+    // Panel MED (Codex + Grok concurring): rendering from the durable
+    // `passed` set replayed the fade on every zone remount (seat-tab switch)
+    // for as long as the trick ran. The gate must be the fold's wall-clock
+    // stamp, expiring right after the 2.8s animation — and only over a real
+    // block (a hidden-count zone has no cards to fade over; panel MED).
+    expect(table).toMatch(/const passedStamp = derived\.passedAt\[seat\];/);
+    expect(table).toMatch(
+      /const passFresh = hasStack && passedStamp !== undefined && now - passedStamp < 3000;/,
+    );
+    expect(table).toMatch(/\{passFresh && \(/);
+    expect(table).toMatch(/className="gd-seatzone__pass"/);
+    // No stale-remount-prone key; the conditional mount IS the lifecycle.
+    expect(table).not.toContain('`pass-${seat}`');
+    // The unmount clock cannot depend on deadlines alone (panel round 2,
+    // Grok: an untimed room would freeze `now` and pin a reduced-motion
+    // pass to the table until the sweep): the tick effect runs while any
+    // pass stamp is fresh and self-expires after.
+    expect(table).toMatch(/const latestPassAt = Math\.max\(/);
+    expect(table).toMatch(/deadlines\.length === 0 && Date\.now\(\) >= passFreshUntil/);
+    // The pill renders NO pass state at all — SeatPlate has no passed prop.
+    const plate = stripTsComments(
+      readFileSync(join(__dirname, '../../../src/client/table/SeatPlate.tsx'), 'utf8'),
+    );
+    expect(plate).not.toContain('passed');
+  });
+
+  it('the fold stamps passedAt on a pass and clears it with the trick/hand/play (unit)', () => {
+    const nameFor = (s: number) => `S${s}`;
+    let id = 0;
+    const fold = (prev: SeatDerived, ev: object) =>
+      foldEvents(prev, [ev as never], 0, nameFor, () => id++);
+    const before = Date.now();
+    const passedState = fold(EMPTY_DERIVED, { type: 'passed', seat: 1 });
+    expect(passedState.passed).toEqual([1]);
+    expect(passedState.passedAt[1]).toBeGreaterThanOrEqual(before);
+    expect(passedState.passedAt[1]).toBeLessThanOrEqual(Date.now());
+    // The sweep clears both the set and the stamps…
+    const swept = fold(passedState, { type: 'trickWon', seat: 2 });
+    expect(swept.passed).toEqual([]);
+    expect(swept.passedAt).toEqual({});
+    // …a later play by the passer (jiefeng continuation) drops its stamp…
+    const played = fold(passedState, {
+      type: 'played',
+      seat: 1,
+      decl: { type: 'single', keyRank: '9', size: 1 },
+    });
+    expect(played.passed).toEqual([]);
+    expect(played.passedAt[1]).toBeUndefined();
+    // …and a fresh hand starts clean.
+    const dealt = fold(passedState, {
+      type: 'handStarted',
+      handNo: 2,
+      currentLevel: '3',
+      hands: [[], [], [], []],
+    });
+    expect(dealt.passedAt).toEqual({});
+  });
+
+  it('reduced motion still SHOWS the pass: a static opacity 1 override inside the reduce block (panel HIGH)', () => {
+    // Panel HIGH (Grok): base opacity 0 + the blanket animation:none meant a
+    // reduced-motion user never saw a pass at all. The reduce block must
+    // re-assert full opacity; the wall-clock unmount keeps it transient.
+    const stripped = stripCssComments(tableCss);
+    const reduceBlock = stripped.match(/@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\n\}/g)?.join('\n') ?? '';
+    expect(reduceBlock, 'reduced-motion block not found').not.toBe('');
+    expect(reduceBlock).toMatch(/\.gd-seatzone__pass\s*\{\s*opacity:\s*1;\s*\}/);
+  });
+
+  it('the fade CSS: base opacity 0, a ~2s-hold forwards animation that ends at 0, centred over the block', () => {
+    const stripped = stripCssComments(tableCss);
+    const rule = stripped.match(/\.gd-seatzone__pass\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(rule, 'pass rule not found').not.toBe('');
+    expect(rule).toMatch(/position:\s*absolute/);
+    expect(rule).toMatch(/opacity:\s*0;/);
+    expect(rule).toMatch(/animation:[^;]*gd-passfade[^;]*forwards/);
+    expect(rule).toMatch(/pointer-events:\s*none/);
+    // The lifecycle: in fast, hold past the 2s mark, out — and the LAST frame
+    // is opacity 0, so with fill-forwards nothing lingers over the cards.
+    const frames = stripped.match(/@keyframes gd-passfade\s*\{[\s\S]*?\n\}/)?.[0] ?? '';
+    expect(frames, 'gd-passfade keyframes not found').not.toBe('');
+    expect(frames).toMatch(/100%\s*\{\s*opacity:\s*0;\s*\}/);
+    // ~2s visible: the animation runs 2.8s with the hold ending ~71% (≈2.0s).
+    expect(rule).toMatch(/animation:[^;]*2\.8s/);
+    expect(frames).toMatch(/71%\s*\{\s*opacity:\s*1;\s*\}/);
   });
 });
 
@@ -411,15 +602,15 @@ describe('placement direction — top-view physics, multi-row (T10)', () => {
       /z-index:\s*calc\(var\(--gd-stack-rows\)\s*-\s*1\s*-\s*var\(--gd-stack-row\)\)/,
     );
     // …and no OTHER stack rule re-orders slots: the only z-index besides the
-    // row flip is the zone seal (.gd-seatzone--stacked > .gd-seatstack's
-    // z-index: 0, which layers the whole block under the lapping pill and
-    // contains the slot z-indexes — T3 pins it). WITHIN a row, DOM order
-    // (arrival order) still decides — the newest card lands on top (R10).
+    // row flip is the BASE container's z-index: 0 — an explicit stacking
+    // context that seals the slot z-indexes inside the block, so they can
+    // never climb over zone siblings or the transient pass fade. WITHIN a
+    // row, DOM order (arrival order) still decides — the newest card lands
+    // on top (R10).
     const others = stackRules.filter((r) => r !== slotRule && r.includes('z-index'));
     expect(others).toHaveLength(1);
-    // (The scan clips the selector at its .gd-seatstack token, so only the
-    // body is visible here; T3 pins the full .gd-seatzone--stacked selector.)
-    expect(others[0]).toMatch(/^\.gd-seatstack\s*\{\s*z-index:\s*0;\s*\}$/);
+    expect(others[0]).toMatch(/^\.gd-seatstack\s*\{/);
+    expect(others[0]).toMatch(/z-index:\s*0;/);
   });
 
   it('within a row north/east lay straight with --gd-stack-pos (newest at the screen right / strip bottom)', () => {
@@ -886,10 +1077,11 @@ describe('deal-time layout reservation (review fix: flights vs once-measured rec
       const html = renderReserved('east', 0, 27);
       expect(backCount(html)).toBe(0);
       expect(html).toContain('--gd-stack-n:27');
-      // The chip (in the pill since item 5) renders from frame one — its later
-      // appearance would jitter the pill mid-deal — and counts up from zero,
-      // tier escalation suppressed (T2 pins the suppression boundary).
-      expect(renderPlate({ cardCount: 0, dealing: true })).toContain('0 cards');
+      // The standalone chip (the cards' other side since the flank round)
+      // renders from frame one — its later appearance would jitter the zone
+      // mid-deal — and counts up from zero, tier escalation suppressed (T2
+      // pins the suppression boundary).
+      expect(renderCount(0, true)).toContain('0 cards');
     } finally {
       setLocale(original);
     }

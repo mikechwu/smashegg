@@ -29,7 +29,7 @@ import { HandFan } from './table/HandFan';
 import { TableHeadline } from './table/TableHeadline';
 import { ResultOverlay } from './table/ResultOverlay';
 import { SeatPlate } from './table/SeatPlate';
-import { SeatStack, type SeatStackDir } from './table/SeatStack';
+import { SeatCount, SeatStack, type SeatStackDir } from './table/SeatStack';
 import { TributePanel } from './table/TributePanel';
 import { TrickWell } from './table/TrickWell';
 import {
@@ -109,6 +109,13 @@ function writeHandSortDescending(descending: boolean): void {
 export interface SeatDerived {
   feed: FeedLine[];
   passed: Seat[];
+  /** Wall-clock fold time of each seat's pass THIS trick (cleared with
+   *  `passed`). The transient pass fade renders from THIS, gated on
+   *  now − passedAt < the animation's span — so a zone remount (seat-tab
+   *  switch) after the fade has let go can never replay it (panel MED,
+   *  Codex + Grok concurring); `passed` itself stays the durable
+   *  trick-state fact. */
+  passedAt: Partial<Record<Seat, number>>;
   jiefeng: { finisher: Seat; leader: Seat } | null;
   anti: { seat: Seat; card: Card }[] | null;
   ceremony: Ceremony | null;
@@ -130,6 +137,7 @@ export interface SeatDerived {
 export const EMPTY_DERIVED: SeatDerived = {
   feed: [],
   passed: [],
+  passedAt: {},
   jiefeng: null,
   anti: null,
   ceremony: null,
@@ -174,6 +182,7 @@ export function foldEvents(
         d = {
           ...d,
           passed: [],
+          passedAt: {},
           jiefeng: null,
           anti: null,
           level: ev.currentLevel,
@@ -186,6 +195,10 @@ export function foldEvents(
       }
       case 'played':
         d.passed = d.passed.filter((s) => s !== ev.seat);
+        if (d.passedAt[ev.seat] !== undefined) {
+          const { [ev.seat]: _dropped, ...rest } = d.passedAt;
+          d.passedAt = rest;
+        }
         d.jiefeng = null;
         d.anti = null; // the anti-tribute reveal yields the center back to the trick
         push('game.feed.played', {
@@ -200,10 +213,11 @@ export function foldEvents(
         break;
       case 'passed':
         if (!d.passed.includes(ev.seat)) d.passed = [...d.passed, ev.seat];
+        d.passedAt = { ...d.passedAt, [ev.seat]: Date.now() };
         push('game.feed.passed', { name: nameFor(ev.seat) });
         break;
       case 'trickWon':
-        d = { ...d, passed: [], anti: null, sweep: d.sweep + 1 };
+        d = { ...d, passed: [], passedAt: {}, anti: null, sweep: d.sweep + 1 };
         push('game.feed.trickWon', { name: nameFor(ev.seat) });
         break;
       case 'jiefeng':
@@ -329,13 +343,26 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot]);
 
-  // Countdown tick — only while a deadline is outstanding.
+  // Countdown tick — while a deadline is outstanding, OR while a pass fade's
+  // wall-clock window is still open (panel round 2, Grok: an UNTIMED room
+  // folds a pass with no deadline armed, so without this leg `now` freezes
+  // and the reduced-motion static pass stays visible until the trick
+  // clears). The pass leg self-expires: once every stamp has aged past the
+  // render gate (+ slack), the interval's own tick clears it.
   const deadlines = snapshot.deadlines;
+  const latestPassAt = Math.max(
+    0,
+    ...[...derivedBySeat.values()].flatMap((d) => Object.values(d.passedAt) as number[]),
+  );
   useEffect(() => {
-    if (deadlines.length === 0) return;
-    const timer = setInterval(() => setNow(Date.now()), 500);
+    const passFreshUntil = latestPassAt + 3500;
+    if (deadlines.length === 0 && Date.now() >= passFreshUntil) return;
+    const timer = setInterval(() => {
+      setNow(Date.now());
+      if (deadlines.length === 0 && Date.now() >= passFreshUntil) clearInterval(timer);
+    }, 500);
     return () => clearInterval(timer);
-  }, [deadlines.length]);
+  }, [deadlines.length, latestPassAt]);
 
   // The selected tab must always be a seat we still hold (a takeover by
   // another tab can shrink the held set); fall back to the lowest seat.
@@ -509,10 +536,11 @@ export function GameTable({ snapshot, store }: GameTableProps) {
 
   const committedSet = new Set<Seat>(view.tribute?.committed ?? []);
 
-  // The pill: identity + state. `cardCount` (remote zones only) puts the count
-  // chip inside it (refinement round item 5); the countdown lives on the
-  // headline now (item 6), so no timing props remain here.
-  const plate = (seat: Seat, cardCount?: number | null) => (
+  // The pill: identity only (flank round) — the count is a standalone
+  // SeatCount chip on the cards' other side, pass is a transient fade over
+  // the cards, and the countdown lives on the headline (+ above the sort
+  // pill on your turn), so no state beyond committed rides here.
+  const plate = (seat: Seat) => (
     <SeatPlate
       seat={seat}
       name={nameFor(seat)}
@@ -521,10 +549,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       partner={teamOf(seat) === viewerTeam && seat !== activeSeat}
       place={placeOf(view.finishOrder, seat)}
       active={(ringSeats.has(seat) || (seat === activeSeat && yourTurn)) && seat !== leaderConcealed}
-      passed={derived.passed.includes(seat)}
       committed={inTributeCenter && committedSet.has(seat)}
-      cardCount={cardCount}
-      dealing={dealing}
     />
   );
 
@@ -581,29 +606,57 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // 27-card extent (review fix): DealOverlay reads its flight-target rects
   // once at mount, so the ring layout must hold still while cards land —
   // strips fill in place instead of growing the grid under the flights.
+  // Flank round (owner items 1-2): the zone is a flex line along the seat's
+  // own handedness — the NAME pill at the seat's RIGHT HAND (the same
+  // top-view translation R10 uses: north's right is the screen's left,
+  // east's is its strip top, west's is its strip bottom), the cards in the
+  // middle, and the COUNT chip at the opposite end. DOM order is always
+  // [pill, cards, count]; the CSS turns it into a row for north and a
+  // column for east — west flips with column-reverse, which is what puts
+  // its pill at the strip's bottom. Nothing overlaps the cards; PASS is the
+  // one exception and it is transient — a fade over the block that lets go
+  // after ~2s (the .gd-seatzone__pass animation), keyed per seat so a new
+  // trick's pass replays it.
   const seatZone = (dir: SeatStackDir) => {
     const seat = layout[dir];
     const finished = placeOf(view.finishOrder, seat) !== null;
     const count = finished ? null : stackCountFor(seat, dir);
     const reserve = dealing ? HAND_SIZE : undefined;
-    // Mirrors SeatStack's own render gate: it draws backs only for an unfinished
-    // seat with a visible count and a non-zero sized extent. When it will, the
-    // zone gets the --stacked modifier and the pill goes absolute, LAPPING the
-    // block's outer edge (refinement round item 5: the count line it used to
-    // need is gone, so the pill rides the space the boundary clip freed instead
-    // of costing the zone a layout row). Otherwise (finished seat's badge,
-    // hidden-count "—", the pre-deal hold) the pill stays in flow, as before.
+    // Finished seats and the pre-deal hold show no chip at all (undefined);
+    // a hidden-count seat shows the "—" chip (null); the deal counts up
+    // from 0 in place.
+    const chipCount = finished || (count === 0 && !dealing) ? undefined : count;
+    // Mirrors SeatStack's own render gate: backs exist only for an unfinished
+    // seat with a visible count and a non-zero sized extent. Only then do
+    // north's flanks hang absolutely (--flanked) — a zone WITHOUT a block
+    // (finished badge, hidden-count "—", the pre-deal hold) keeps everything
+    // in flow, so nothing anchors to a collapsed box (panel MED, Grok).
     const hasStack = !finished && count !== null && Math.max(count, reserve ?? 0) > 0;
-    // The pill's count chip (item 5): finished seats and the pre-deal hold show
-    // a bare pill (undefined), a hidden-count seat shows the "—" chip (null),
-    // and the deal counts it up from 0 in place.
-    const cardCount = finished || (count === 0 && !dealing) ? undefined : count;
+    // The pass fade renders from the fold's wall-clock stamp, not the durable
+    // passed set: a zone remount (seat-tab switch) after the fade has let go
+    // must never replay it (panel MED, Codex + Grok concurring). 3s covers
+    // the 2.8s animation; the `now` tick — which runs for fresh passes even
+    // in an untimed room (see the tick effect) — unmounts it right after.
+    // And only over a real block — a hidden-count zone has no cards to fade
+    // over (the feed still records the pass).
+    const passedStamp = derived.passedAt[seat];
+    const passFresh = hasStack && passedStamp !== undefined && now - passedStamp < 3000;
     return (
       <div
-        className={`gd-seatzone gd-seatzone--${dir}${hasStack ? ' gd-seatzone--stacked' : ''}`}
+        className={`gd-seatzone gd-seatzone--${dir}${hasStack ? ' gd-seatzone--flanked' : ''}`}
       >
-        {plate(seat, cardCount)}
-        {!finished && <SeatStack dir={dir} count={count} reserve={reserve} />}
+        {plate(seat)}
+        {hasStack && (
+          <span className="gd-seatzone__stackwrap">
+            <SeatStack dir={dir} count={count} reserve={reserve} />
+            {passFresh && (
+              <span className="gd-seatzone__pass" aria-hidden="true">
+                {t('game.action.pass')}
+              </span>
+            )}
+          </span>
+        )}
+        <SeatCount count={chipCount} dealing={dealing} />
       </div>
     );
   };
@@ -716,6 +769,19 @@ export function GameTable({ snapshot, store }: GameTableProps) {
             )}
           </div>
           <div className="gd-actionsRow__sort">
+            {/* Your OWN turn's clock, doubled next to your controls (owner
+                item 3: "if it is the player's turn the additional countdown
+                can show above" the sort pill) — the same number the headline
+                chip shows, so your eyes never have to leave your hand. Same
+                urgency rule (≤10s). */}
+            {yourTurn && leaderConcealed === null && dueSeconds !== null && (
+              <span
+                className={`gd-handclock${dueSeconds <= 10 ? ' gd-handclock--urgent' : ''}`}
+                aria-label={t('game.turn.countdown', { seconds: dueSeconds })}
+              >
+                {dueSeconds}
+              </span>
+            )}
             {/* Owner rule: the sort toggle is meaningless until the player has
                 all cards, sorted — hidden through the cut/ceremony/deal (the
                 same pre-deal hold that empties the fan) and while dealing. */}

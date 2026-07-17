@@ -152,7 +152,7 @@ export function CeremonyOverlay({ ceremony, level, twoCard, nameFor, onDone }: C
               role="img"
               aria-label={cardLabel(ceremony.flips[ceremony.flips.length - 1]!, level)}
             >
-              <CardFace card={ceremony.flips[ceremony.flips.length - 1]!} level={level} size="mini" />
+              <CardFace card={ceremony.flips[ceremony.flips.length - 1]!} level={level} size="hand" />
               <span className="gd-ceremony__cardLabel">
                 {twoCard
                   ? t('game.ceremony.countLabel')
@@ -165,7 +165,7 @@ export function CeremonyOverlay({ ceremony, level, twoCard, nameFor, onDone }: C
                 role="img"
                 aria-label={cardLabel(ceremony.marker, level)}
               >
-                <CardFace card={ceremony.marker} level={level} size="mini" />
+                <CardFace card={ceremony.marker} level={level} size="hand" />
                 <span className="gd-ceremony__cardLabel gd-ceremony__cardLabel--marker">
                   {t('game.ceremony.markerLabel')}
                 </span>

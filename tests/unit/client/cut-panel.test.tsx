@@ -65,3 +65,53 @@ describe('CutPanel (obs 1)', () => {
     expect(spectatorHtml).not.toContain('gd-cut__slider');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Flank round, owner item 5: the ceremony/cut/deal cards are the SAME cards
+// the table plays — hand size, same framework style — never a private mini or
+// trick size. Source pins on all three components plus the ribbon's
+// --sliver-w lockstep with .gd-card--hand's clamp.
+// ---------------------------------------------------------------------------
+
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+describe('ceremony/cut/deal cards match the playing cards (owner item 5)', () => {
+  const src = (name: string) =>
+    readFileSync(join(__dirname, `../../../src/client/table/${name}`), 'utf8')
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/\/\/[^\n]*/g, '');
+
+  it('CutPanel, CeremonyOverlay and DealOverlay render ONLY hand-size cards', () => {
+    for (const name of ['CutPanel.tsx', 'CeremonyOverlay.tsx', 'DealOverlay.tsx']) {
+      const text = src(name);
+      expect(text, `${name}: no mini cards`).not.toContain('size="mini"');
+      expect(text, `${name}: no trick cards`).not.toContain('size="trick"');
+      expect(text, `${name}: hand cards present`).toContain('size="hand"');
+    }
+  });
+
+  it("the cut ribbon's --sliver-w is IDENTICAL to .gd-card--hand's clamp (lockstep pin)", () => {
+    const css = readFileSync(join(__dirname, '../../../src/client/table/table.css'), 'utf8').replace(
+      /\/\*[\s\S]*?\*\//g,
+      '',
+    );
+    const clampOf = (re: RegExp, what: string): string => {
+      const block = css.match(re)?.[0] ?? '';
+      expect(block, `rule not found: ${what}`).not.toBe('');
+      const m = block.match(/(?:--gd-cardw|--sliver-w):\s*(clamp\([^)]+\))/);
+      expect(m, `clamp not found: ${what}`).not.toBeNull();
+      return m![1]!.replace(/\s+/g, ' ').trim();
+    };
+    const handClamp = clampOf(/\.gd-card--hand\s*\{[^}]*\}/, '.gd-card--hand');
+    const ribbonClamp = clampOf(/\.gd-cut__ribbon\s*\{[^}]*\}/, '.gd-cut__ribbon');
+    expect(ribbonClamp).toBe(handClamp);
+  });
+
+  it('the rendered ribbon slivers are real hand-size framework backs', () => {
+    const html = render(true);
+    expect(html.match(/class="gd-cardframe gd-card--hand"/g) ?? []).toHaveLength(
+      CUT_RIBBON_SLIVERS,
+    );
+  });
+});

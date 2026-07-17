@@ -57,7 +57,7 @@ function CutRibbon({ leftCount }: { leftCount: number }) {
           data-side={i < leftCount ? 'left' : 'right'}
           style={{ '--i': i } as CSSProperties}
         >
-          <CardBack size="mini" />
+          <CardBack size="hand" />
         </span>
       ))}
     </div>
@@ -73,7 +73,7 @@ function FlipRow({ flips, level }: { flips: readonly Card[]; level: Rank }) {
   return (
     <div className="gd-cut__flips">
       <span className="gd-cut__flip" role="img" aria-label={cardLabel(last, level)}>
-        <CardFace card={last} level={level} size="mini" />
+        <CardFace card={last} level={level} size="hand" />
       </span>
     </div>
   );

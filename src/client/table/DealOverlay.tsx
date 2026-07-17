@@ -263,15 +263,15 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onMarkerLand
     <div ref={rootRef} className="gd-deal" role="status" aria-label={t('game.deal.label')}>
       <div className="gd-deal__flights" />
       <div className="gd-deal__deck" data-depth-tier="3">
-        <CardBack size="trick" />
+        <CardBack size="hand" />
         {marker !== null && (
           <span className="gd-deal__marker">
-            <CardFace card={marker.card} level={level} size="trick" />
+            <CardFace card={marker.card} level={level} size="hand" />
           </span>
         )}
       </div>
       <span className="gd-deal__backTemplate">
-        <CardBack size="trick" />
+        <CardBack size="hand" />
       </span>
       <p className="gd-deal__skip">{t('game.ceremony.skipHint')}</p>
     </div>
