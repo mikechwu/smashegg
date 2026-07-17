@@ -768,18 +768,21 @@
      the same column count, regardless of which line a stack lands on. */
   margin-left: calc(clamp(2.75rem, 13vw, 4.25rem) * -0.3);
 }
+/* Owner refinement: a picked (or hovered) card STAYS IN ITS PILE — no
+   z-index promotion, so later siblings keep painting over it and the pile's
+   lower strips stay readable; the cinnabar ring marks the visible strip
+   (its covered portion hides under the next card, exactly like the owner's
+   reference). The small translateY nudge is the non-colour selection cue
+   (nothing encodes meaning in colour alone) — it pokes the strip's top edge
+   up without uncovering the pile. */
 .gd-fan__card:hover {
-  position: relative;
-  z-index: 1;
   transform: translateY(-4px);
 }
 .gd-fan__card--selected {
-  position: relative;
-  z-index: 1;
-  transform: translateY(-12px);
+  transform: translateY(-6px);
 }
 .gd-fan__card--selected:hover {
-  transform: translateY(-12px);
+  transform: translateY(-6px);
 }
 .gd-fan__card--selected .gd-card {
   box-shadow: 0 0 0 2px var(--cinnabar);
