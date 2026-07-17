@@ -665,17 +665,14 @@ describe('TrickWell (quiet-table round: cards only, no prose)', () => {
   };
   const trick = { leader: 1, toAct: 1, top: bombTop, jiefengTo: null } as unknown as never;
 
-  it('renders no text besides card markup (jokers are wordless, so a tag-strip must be empty) with no jiefeng pending', () => {
+  it('renders no text besides card markup (jokers are wordless, so a tag-strip must be empty)', () => {
+    // Audit cleanup: the well used to take a jiefeng prop "to exercise both
+    // states", but the component never read it, so the two states rendered
+    // identical markup and the second case was vacuous — the prop is gone
+    // (the banner lives in the log as the upgraded feed.jiefeng sentence),
+    // and this single strong pin is the real guard: NO prose in the well.
     const html = renderToStaticMarkup(
-      createElement(TrickWell, { trick, level: '2', sweepKey: 0, jiefeng: null }),
-    );
-    const textOnly = html.replace(/<[^>]*>/g, '');
-    expect(textOnly.trim(), `"${textOnly}"`).toBe('');
-  });
-
-  it('renders no text besides card markup with a jiefeng pending — the banner moved into the log, it never re-appears in the well', () => {
-    const html = renderToStaticMarkup(
-      createElement(TrickWell, { trick, level: '2', sweepKey: 0, jiefeng: { finisher: 0, leader: 1 } }),
+      createElement(TrickWell, { trick, level: '2', sweepKey: 0 }),
     );
     const textOnly = html.replace(/<[^>]*>/g, '');
     expect(textOnly.trim(), `"${textOnly}"`).toBe('');
@@ -683,7 +680,7 @@ describe('TrickWell (quiet-table round: cards only, no prose)', () => {
 
   it('the played cards render at HAND size, not the old trick size', () => {
     const html = renderToStaticMarkup(
-      createElement(TrickWell, { trick, level: '2', sweepKey: 0, jiefeng: null }),
+      createElement(TrickWell, { trick, level: '2', sweepKey: 0 }),
     );
     expect(html).toContain('gd-card--hand');
     expect(html).not.toContain('gd-card--trick');
@@ -692,7 +689,7 @@ describe('TrickWell (quiet-table round: cards only, no prose)', () => {
   it('the empty well (no top play) still renders no text', () => {
     const emptyTrick = { leader: 1, toAct: 1, top: null, jiefengTo: null } as unknown as never;
     const html = renderToStaticMarkup(
-      createElement(TrickWell, { trick: emptyTrick, level: '2', sweepKey: 0, jiefeng: null }),
+      createElement(TrickWell, { trick: emptyTrick, level: '2', sweepKey: 0 }),
     );
     expect(html.replace(/<[^>]*>/g, '').trim()).toBe('');
   });
@@ -1006,7 +1003,8 @@ describe('GameTable bottom bar markup (owner round: own seat + log move off the 
   // Scoped honestly to what this DOM-free harness can drive (vitest.config.ts
   // pins environment: 'node' — no jsdom, deliberately, per the DeckTheme
   // suite's own comment): EventFeed's lines come from derivedBySeat, which is
-  // seeded by an effect keyed on the snapshot (GameTable's fold useEffect),
+  // seeded by an effect keyed on the snapshot (GameTable's fold, an isomorphic
+  // useLayoutEffect since the pre-deal-gate round — still an effect, so still
   // not derivable from props on a first, effect-free renderToStaticMarkup
   // pass — so an empty feed (EventFeed returns null with no lines) is the
   // correct render here, and .gd-feed content is proven separately, directly

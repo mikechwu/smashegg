@@ -561,12 +561,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           ) : inTributeCenter || showAnti ? (
             <TributePanel view={view} nameFor={nameFor} antiReveals={derived.anti} />
           ) : (
-            <TrickWell
-              trick={view.trick}
-              level={view.currentLevel}
-              sweepKey={derived.sweep}
-              jiefeng={derived.jiefeng}
-            />
+            <TrickWell trick={view.trick} level={view.currentLevel} sweepKey={derived.sweep} />
           )}
         </div>
         <div className="gd-ring__seat gd-ring__seat--east">{plate(layout.east)}</div>

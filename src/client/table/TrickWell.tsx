@@ -8,7 +8,6 @@
 // of the three render here anymore. The sweep animation on trickWon and the
 // empty-well state are the only "table talk" left.
 
-import type { Seat } from '../../engine/core/game';
 import type { Rank } from '../../engine/guandan/cards';
 import type { TrickState } from '../../engine/guandan/types';
 import { CardFace } from './CardFace';
@@ -18,12 +17,6 @@ export interface TrickWellProps {
   level: Rank;
   /** Bumped by each trickWon event — keys the sweep animation. */
   sweepKey: number;
-  /** No longer rendered (the banner moved into the log as the upgraded
-   *  feed.jiefeng sentence) — kept as a required prop only so the "no
-   *  leader/jiefeng text at all" regression test can exercise both states
-   *  against the SAME component contract GameTable already feeds from the
-   *  fold, without the well growing a visual difference between them. */
-  jiefeng: { finisher: Seat; leader: Seat } | null;
 }
 
 export function TrickWell({ trick, level, sweepKey }: TrickWellProps) {
