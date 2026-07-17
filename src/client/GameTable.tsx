@@ -3,8 +3,9 @@
 // drives multi-seat self-play (PLAN §4), and every panel renders the ACTIVE
 // seat's view. Internals: the Lacquer Ledger seat RING (you bottom, partner
 // across, opponents flanking a bounded centre), a TableHeadline topbar
-// (the level (rank) / wild / whose-turn) as the signature, value-dependent seat
-// plates, HandFan selection → hint matching → ActionBar, trick well /
+// (the level (rank) / wild / whose-turn) as the signature, per-seat zones
+// (identity pill + a real card-back stack, SeatPlate/SeatStack),
+// HandFan selection → hint matching → ActionBar, trick well /
 // tribute panel, hand-1 draw ceremony, result overlay, event feed.
 //
 // The store keeps only each seat's LATEST event batch (view-carrying
@@ -12,7 +13,7 @@
 // jiefeng banner, anti-tribute reveals, the ceremony payload, the feed) is folded
 // here from batches as they arrive.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Seat } from '../engine/core/game';
 import { teamOf } from '../engine/guandan/types';
 import type { GuandanAction, GuandanEvent } from '../engine/guandan/types';
@@ -22,12 +23,13 @@ import { ActionBar } from './table/ActionBar';
 import { CeremonyOverlay } from './table/CeremonyOverlay';
 import { CutPanel } from './table/CutPanel';
 import { DealOverlay } from './table/DealOverlay';
-import { dealDirOrder, markerDealBeat } from './table/deal';
+import { HAND_SIZE, dealDirOrder, markerDealBeat } from './table/deal';
 import { EventFeed, FEED_LIMIT, type FeedLine } from './table/EventFeed';
 import { HandFan } from './table/HandFan';
 import { TableHeadline } from './table/TableHeadline';
 import { ResultOverlay } from './table/ResultOverlay';
 import { SeatPlate } from './table/SeatPlate';
+import { SeatStack, type SeatStackDir } from './table/SeatStack';
 import { TributePanel } from './table/TributePanel';
 import { TrickWell } from './table/TrickWell';
 import {
@@ -39,19 +41,22 @@ import {
   concealedLeader,
   holdPreDealFan,
   isCeremonyShowing,
+  landRemoteDealt,
   matchSelection,
   multisetKey,
+  NO_REMOTE_DEALT,
   placeOf,
+  remoteDealtCounts,
   rankText,
   seatLayout,
   tributeEligibleCards,
   tributeKind,
   type Ceremony,
   type PlayMatch,
+  type RemoteDealt,
 } from './table/helpers';
 import { t } from './i18n';
 import { describeError } from './errors';
-import { useDeckTheme } from './table/useDeckTheme';
 import './table/table.css';
 
 export interface GameTableProps {
@@ -273,6 +278,17 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // landed so far (null = not dealing, the whole fan shows).
   const [dealShown, setDealShown] = useState(0);
   const [dealRevealed, setDealRevealed] = useState<number | null>(null);
+  // Seat-zone round (R3), review-hardened: per-deal remote landing counters,
+  // KEYED by the deal they were landed during — while the deal choreography
+  // runs, each remote seat's back stack shows EXACTLY this many cards (grown
+  // one per DealOverlay onRemoteLanded callback), so the stacks build in
+  // lockstep with the flights. The keying (helpers.remoteDealtCounts) makes
+  // "a new deal starts from zero" a property of the READ: no reset effect
+  // exists, so hands 2+ can never paint a frame of the previous deal's full
+  // stacks (the old post-paint reset's flash — which DealOverlay's mount
+  // effect then measured its flight rects against), and a mid-deal seat-tab
+  // switch to a lagging seat cannot zero a running deal's counters.
+  const [dealtRemote, setDealtRemote] = useState<RemoteDealt>(NO_REMOTE_DEALT);
   // Suspense reveal (owner rule): true once the face-up marker has LANDED
   // this deal — before that, the leader's seat ring stays unlit.
   const [dealLeadRevealed, setDealLeadRevealed] = useState(false);
@@ -349,6 +365,13 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     setChooserOpen(false);
   }, [handKey]);
 
+  // R3: no reset effect for the remote counters — they are keyed by dealNo
+  // (see the dealtRemote declaration above), so a NEW deal reads zeros in its
+  // very first render. onDone needs no reset either: dealing flips false
+  // there and the settled view counts take over, so a skipped or
+  // reduced-motion deal lands on the true numbers regardless of how many
+  // callbacks fired.
+
   const selectionCards: Card[] = useMemo(() => {
     if (view === null) return [];
     return [...selected]
@@ -367,12 +390,10 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     return matchSelection(selectionCards, hints, view.currentLevel, variant);
   }, [selectionCards, hints, view, variant]);
 
-  // Item 5: the active theme's back tokens ride CSS vars, so the F11
-  // mini-fan (framework-owned geometry) renders any theme's back colors.
-  // MUST live up here with the other hooks (this file's own rule: hooks
-  // before any early return) — the lobby renders take the view===null
-  // return below, so a hook after it changes hook order mid-session.
-  const themeMetrics = useDeckTheme().metrics;
+  // Seat-zone round: the old F11 mini-fan (and the --theme-back-* CSS-var
+  // injection that themed its slivers) is gone — remote hands now render as
+  // REAL theme CardBacks in SeatStack, which reads the active theme itself,
+  // so GameTable no longer consumes the theme here at all.
 
   if (activeSeat === undefined) {
     // Connected without any seat token (e.g. joined a game already going):
@@ -494,7 +515,6 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       connected={room?.seats.find((s) => s.seat === seat)?.connected ?? false}
       isViewer={seat === activeSeat}
       partner={teamOf(seat) === viewerTeam && seat !== activeSeat}
-      cardCount={view.cardCounts[seat] ?? null}
       place={placeOf(view.finishOrder, seat)}
       active={(ringSeats.has(seat) || (seat === activeSeat && yourTurn)) && seat !== leaderConcealed}
       dueAt={
@@ -513,6 +533,50 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     />
   );
 
+  // R3 displayed-count rule (ONE ternary, spec-pinned): a hidden count
+  // (null — the config says this viewer may not see it) wins over EVERYTHING,
+  // the deal included (Codex audit: rendering the growing stack/label mid-deal
+  // in a hidden-count room contradicts the visibility contract and then
+  // visibly flips to the "—" chip at settle — SeatStack renders the chip and
+  // NO backs, since a stack's length would state the number). Otherwise:
+  // while the choreography runs the stack length IS the landed count (read
+  // through the dealNo key, so an older deal's counters can never leak into
+  // this one); the pre-deal hold (owner: nothing before cards are dealt)
+  // empties remote stacks through the cut/ceremony window exactly like the
+  // fan; the settled table reads the view's counts.
+  const remoteCounts = remoteDealtCounts(dealtRemote, derived.dealNo);
+  const stackCountFor = (seat: Seat, dir: SeatStackDir): number | null => {
+    const settledCount = view.cardCounts[seat] ?? null;
+    if (settledCount === null) return null;
+    return dealing ? remoteCounts[dir] : holdFan ? 0 : settledCount;
+  };
+
+  // R1/R7 seat zone: the identity pill plus the seat's REAL hand OUTSIDE it,
+  // as siblings — top-view logic, the pill toward the table edge, the cards
+  // between the name and the centre, count adjacent on the name side
+  // (identity → status → cards, one scan line). Wrapped INSIDE the existing
+  // .gd-ring__seat--* cells so DealOverlay's seat-rect reads keep working
+  // untouched. A finished seat keeps its place badge in the pill and shows
+  // no stack and no count (R6). While dealing, each stack RESERVES its final
+  // 27-card extent (review fix): DealOverlay reads its flight-target rects
+  // once at mount, so the ring layout must hold still while cards land —
+  // strips fill in place instead of growing the grid under the flights.
+  const seatZone = (dir: SeatStackDir) => {
+    const seat = layout[dir];
+    return (
+      <div className={`gd-seatzone gd-seatzone--${dir}`}>
+        {plate(seat)}
+        {placeOf(view.finishOrder, seat) === null && (
+          <SeatStack
+            dir={dir}
+            count={stackCountFor(seat, dir)}
+            reserve={dealing ? HAND_SIZE : undefined}
+          />
+        )}
+      </div>
+    );
+  };
+
   const act = (action: GuandanAction) => {
     store.act(activeSeat, action);
     setSelected(new Set());
@@ -520,15 +584,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   };
 
   return (
-    <section
-      className="gd-table gd-ring"
-      style={
-        {
-          '--theme-back-edge': themeMetrics.backEdge,
-          '--theme-back-gradient': themeMetrics.backGradient,
-        } as CSSProperties
-      }
-    >
+    <section className="gd-table gd-ring">
       <SeatTabs heldSeats={heldSeats} activeSeat={activeSeat} onSelect={setSelectedSeat} />
 
       <TableHeadline
@@ -545,8 +601,8 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           and right flanking a bounded centre (trick / tribute). seatLayout
           already maps the directions — this is the visual frame for them. */}
       <div className="gd-ring__table">
-        <div className="gd-ring__seat gd-ring__seat--north">{plate(layout.north)}</div>
-        <div className="gd-ring__seat gd-ring__seat--west">{plate(layout.west)}</div>
+        <div className="gd-ring__seat gd-ring__seat--north">{seatZone('north')}</div>
+        <div className="gd-ring__seat gd-ring__seat--west">{seatZone('west')}</div>
         <div className="gd-ring__center">
           {view.phase === 'ceremonyCut' && view.ceremonyCutter !== null ? (
             // Item 3: the REAL cut — one actor, three spectators, all named.
@@ -564,7 +620,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
             <TrickWell trick={view.trick} level={view.currentLevel} sweepKey={derived.sweep} />
           )}
         </div>
-        <div className="gd-ring__seat gd-ring__seat--east">{plate(layout.east)}</div>
+        <div className="gd-ring__seat gd-ring__seat--east">{seatZone('east')}</div>
       </div>
 
       {/* Your zone: hand (full width) first, then an actions row directly
@@ -681,6 +737,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           level={view.currentLevel}
           onOwnLanded={setDealRevealed}
           onMarkerLanded={() => setDealLeadRevealed(true)}
+          onRemoteLanded={(dir) => setDealtRemote((prev) => landRemoteDealt(prev, derived.dealNo, dir))}
           onDone={() => {
             setDealShown(derived.dealNo);
             setDealRevealed(null);

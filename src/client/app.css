@@ -167,6 +167,27 @@ a {
   max-width: 72rem; /* the table screen widens; the table itself is full-bleed */
 }
 
+/* Narrow-width shell compression (seat-zone review follow-up): the remote
+   seats now carry REAL 27-card strips, so at phone widths every pre-table
+   pixel pushes the player's own hand further below the fold — shave the
+   chrome (wordmark + switcher rows, page-column air), never the game. The
+   719px cap complements table.css's 720px desktop-air breakpoint, which
+   compresses the seat tabs and the level banner on its side. AFTER the base
+   .app-header/.app-wordmark/.app-main rules on purpose: a media query adds
+   no specificity, so these overrides must win by source order. */
+@media (max-width: 719px) {
+  .app-header {
+    padding: 0.5rem 1rem 0;
+    gap: 0.25rem 0.75rem;
+  }
+  .app-wordmark {
+    font-size: 1.05rem;
+  }
+  .app-main {
+    padding-top: 0.25rem;
+  }
+}
+
 .app-alert {
   background: color-mix(in srgb, var(--cinnabar) 26%, var(--lacquer));
   border-left: 3px solid var(--cinnabar);

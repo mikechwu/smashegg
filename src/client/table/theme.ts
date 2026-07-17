@@ -15,9 +15,10 @@
 // suite), and a theme emitting the marker's own markup fails conformance.
 // What it deliberately does NOT claim: code cannot detect a LOOKALIKE decoy
 // a hostile theme paints inside its face — that is the 390px eyes-gate's
-// job, like every other purely visual property. The F11 value-dependent mini-fan reads the
-// theme's back tokens from metrics, so 2-vs-27 legibility survives any
-// back design. TRUE-390px legibility is the hard gate a theme must pass
+// job, like every other purely visual property. F11 (2-vs-27 legibility) is
+// carried by SeatStack rendering one REAL theme Back per remaining card —
+// the stack length IS the count — so it survives any back design by
+// construction. TRUE-390px legibility is the hard gate a theme must pass
 // visually before shipping (conformance suite covers the code-checkable
 // half; the eyes-gate covers the rest — a theme that fails it does not
 // ship).
@@ -44,9 +45,15 @@ export interface DeckThemeMetrics {
    *  identity column (cinnabar-court's vertical rank+suit strip).
    *  Conformance range: [0.3, 1.0]. */
   stackStripW: number;
-  /** CSS color for the F11 mini-fan sliver edges. */
+  /** CSS color describing this theme's back-art edge. Honest status
+   *  (seat-zone round): the F11 mini-fan slivers — the last framework
+   *  consumer — were replaced by real CardBack stacks (SeatStack), so no
+   *  framework CSS reads this today; it stays in the metrics contract
+   *  (conformance-pinned) as the declared token for any future surface that
+   *  needs the back palette without rendering the Back component. */
   backEdge: string;
-  /** CSS background for mini-fan slivers and back fills. */
+  /** CSS background describing this theme's back fill — same status as
+   *  backEdge above: contract-retained, currently consumer-free. */
   backGradient: string;
 }
 
@@ -120,8 +127,9 @@ export function activeDeckTheme(): DeckTheme {
 /** Set the active deck-theme preference (item 2, the switcher's write
  *  side): an unregistered id is silently rejected — no crash, no persist,
  *  no notify — the same "invalid input is a no-op" idiom as setLocale.
- *  Notifies every subscriber (useDeckTheme() render sites, the F11 mini-fan
- *  metrics reader) so the switch is a pure re-render everywhere at once. */
+ *  Notifies every subscriber (useDeckTheme() render sites — faces, backs,
+ *  SeatStack's aspect metric) so the switch is a pure re-render everywhere
+ *  at once. */
 export function setDeckTheme(id: string): void {
   if (!registry.has(id)) return;
   overrideThemeId = id;

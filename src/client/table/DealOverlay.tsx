@@ -22,6 +22,7 @@ import {
   DECK_SIZE,
   MARKER_FLY_MS,
   type DealDir,
+  type DealTick,
   dealChoreographyMs,
   dealSchedule,
   deckDepthTier,
@@ -45,6 +46,13 @@ export interface DealOverlayProps {
    *  announcement (no extra text — the middle is clear enough). UI-level
    *  suspense, not concealment: the payload is public. */
   onMarkerLanded?: () => void;
+  /** Seat-zone round (R3): fired as each REMOTE (non-south) card lands —
+   *  back flights and the face-up marker alike (both routes go through
+   *  onCardLanded) — so the seat's visible back stack grows one real card
+   *  per landing, in lockstep with the choreography. Skip (.finish()) still
+   *  fires every landing; reduced-motion fires none and relies on onDone
+   *  flipping the table to the settled counts. */
+  onRemoteLanded?: (dir: 'east' | 'north' | 'west') => void;
   onDone: () => void;
 }
 
@@ -77,12 +85,14 @@ function readRects(overlay: HTMLElement): Rects | null {
   };
 }
 
-export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onMarkerLanded, onDone }: DealOverlayProps) {
+export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onMarkerLanded, onRemoteLanded, onDone }: DealOverlayProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
   const onOwnLandedRef = useRef(onOwnLanded);
   onOwnLandedRef.current = onOwnLanded;
   const onMarkerLandedRef = useRef(onMarkerLanded);
   onMarkerLandedRef.current = onMarkerLanded;
+  const onRemoteLandedRef = useRef(onRemoteLanded);
+  onRemoteLandedRef.current = onRemoteLanded;
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
 
@@ -115,12 +125,21 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onMarkerLand
     const originX = rects.origin.left + rects.origin.width / 2;
     const originY = rects.origin.top + rects.origin.height / 2;
 
-    const onCardLanded = (ownSlot: number | null): void => {
+    // BOTH landing routes (flyBack's node.remove() callback and the marker's
+    // own onfinish) funnel through here, so the R3 remote-stack growth can
+    // never miss the marker's landing at the leader's seat.
+    const onCardLanded = (tick: DealTick): void => {
       dealt++;
       deckEl.dataset.depthTier = String(deckDepthTier(DECK_SIZE - dealt));
-      if (ownSlot !== null) {
-        landedOwn = Math.max(landedOwn, ownSlot + 1);
-        onOwnLandedRef.current(landedOwn);
+      if (tick.target === 'south') {
+        if (tick.ownSlot !== null) {
+          landedOwn = Math.max(landedOwn, tick.ownSlot + 1);
+          onOwnLandedRef.current(landedOwn);
+        }
+      } else {
+        // R3 (seat-zone round): a non-south landing grows that seat's
+        // visible back stack by exactly one — the stack IS the choreography.
+        onRemoteLandedRef.current?.(tick.target);
       }
     };
 
@@ -146,16 +165,16 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onMarkerLand
       animations.push(anim);
     };
 
-    const flyBack = (target: DOMRect, delayMs: number, ownSlot: number | null): void => {
+    const flyBack = (target: DOMRect, tick: DealTick): void => {
       const node = backTemplate.cloneNode(true) as HTMLElement;
       node.classList.remove('gd-deal__backTemplate');
       node.classList.add('gd-deal__flight');
       node.style.left = `${rects.origin.left}px`;
       node.style.top = `${rects.origin.top}px`;
       layer.appendChild(node);
-      flyNode(node, target, delayMs, DEAL_FLIGHT_MS, () => {
+      flyNode(node, target, tick.delayMs, DEAL_FLIGHT_MS, () => {
         node.remove();
-        onCardLanded(ownSlot);
+        onCardLanded(tick);
       });
     };
 
@@ -190,7 +209,7 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onMarkerLand
           setTimeout(() => markerEl.classList.add('gd-deal__marker--flying'), tick.delayMs),
         );
         flyNode(markerEl, target, tick.delayMs, MARKER_FLY_MS, () => {
-          onCardLanded(tick.ownSlot);
+          onCardLanded(tick);
           // THE reveal (owner suspense rule, refined): the landing itself is
           // the announcement — the concealment gate lifts here, lighting the
           // leader's seat ring; no extra text (owner: what shows in the
@@ -206,7 +225,7 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onMarkerLand
           markerEl.remove();
         });
       } else {
-        flyBack(target, tick.delayMs, tick.ownSlot);
+        flyBack(target, tick);
       }
     }
 

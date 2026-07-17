@@ -661,6 +661,59 @@ export function beatState(
   return hints.some((h) => h.type === 'play') ? 'canBeat' : 'cannotBeat';
 }
 
+// ---------------------------------------------------------------------------
+// Seat-zone R3, review-hardened: the per-deal remote landing counters are
+// KEYED BY THE DEAL THEY BELONG TO, so "a new deal starts from zero" is a
+// property of the READ, not of a reset effect. The old shape (a bare
+// {east,north,west} record zeroed by a post-paint useEffect on dealNo) had
+// two live defects: hands 2+ painted one frame of the PREVIOUS deal's full
+// 27-card stacks before the reset effect ran (and DealOverlay, whose mount
+// effect runs before the parent's, measured its flight rects against that
+// stale layout); and a mid-deal seat-tab switch to a seat whose events had
+// not folded yet fired the reset and zeroed a RUNNING deal's counters.
+// Keyed state fixes both: a dealNo mismatch simply reads as zeros — in the
+// very first render of the new deal, with nothing to reset — and a transient
+// dip in the active seat's dealNo cannot destroy counters it merely stops
+// looking at.
+// ---------------------------------------------------------------------------
+
+export type RemoteStackDir = 'east' | 'north' | 'west';
+
+export interface RemoteDealt {
+  /** The deal these counters were landed during (GameTable's derived.dealNo). */
+  dealNo: number;
+  counts: Readonly<Record<RemoteStackDir, number>>;
+}
+
+const ZERO_REMOTE_COUNTS: Readonly<Record<RemoteStackDir, number>> = {
+  east: 0,
+  north: 0,
+  west: 0,
+};
+
+export const NO_REMOTE_DEALT: RemoteDealt = { dealNo: 0, counts: ZERO_REMOTE_COUNTS };
+
+/** The counters as seen by deal `dealNo`: a mismatch (older deal's landings,
+ *  or a lagging seat's dealNo) reads as all-zero WITHOUT touching the stored
+ *  state — no reset effect, no flash frame, no cross-deal bleed. */
+export function remoteDealtCounts(
+  state: RemoteDealt,
+  dealNo: number,
+): Readonly<Record<RemoteStackDir, number>> {
+  return state.dealNo === dealNo ? state.counts : ZERO_REMOTE_COUNTS;
+}
+
+/** One remote landing during deal `dealNo`: increments that direction,
+ *  re-keying (from zeros) if the stored counters belong to an older deal. */
+export function landRemoteDealt(
+  state: RemoteDealt,
+  dealNo: number,
+  dir: RemoteStackDir,
+): RemoteDealt {
+  const counts = remoteDealtCounts(state, dealNo);
+  return { dealNo, counts: { ...counts, [dir]: counts[dir] + 1 } };
+}
+
 /** Remaining-count urgency tier for a seat plate (F11 / low-card alert): the rule-defined
  *  alert line is ≤10, sharpening at 1–2 (about to go out). Drives both the
  *  numeral escalation and its aria wording. Pure + exported for the unit test. */

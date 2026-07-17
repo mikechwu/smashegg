@@ -1,25 +1,20 @@
-// SeatPlate — one seat on the ring (pre-M5 Lacquer Ledger restyle). Two reads:
-//  • remote seat (partner / opponent): name, a VALUE-DEPENDENT mini card-back
-//    fan whose width tracks the remaining count (2 cards must LOOK different
-//    from 27 — the structural fix for low-card alert / F11), the count numeral escalating
-//    at the ≤10 alert line, the active-turn ring + clock, connection, and the
-//    partner tag (a non-colour team cue, F5).
+// SeatPlate — one seat's IDENTITY-AND-STATE pill (seat-zone round: the pill
+// wraps ONLY identity and state; a remote seat's card backs and count now
+// live OUTSIDE it, as siblings inside the .gd-seatzone container — see
+// SeatStack.tsx). Two reads:
+//  • remote seat (partner / opponent): connection dot, name, the partner tag
+//    (a non-colour team cue, F5), pass/committed chips, the planning note,
+//    the countdown, and the finish-place badge once the seat goes out.
 //  • self seat (you): name + you tag + the active-turn ring/clock; your own
-//    hand fan shows your count, so no mini-fan here.
+//    hand fan shows your count, so nothing card-shaped here either.
 // Meaning is never colour-only: the active turn = an active ring on the plate
-// PLUS the turn-in-words line on TableHeadline (the plate itself carries no turn
-// label); connection = dot + aria label; partner = a text tag; count = a fan
-// length + a numeral.
+// PLUS the turn-in-words line on TableHeadline (the plate itself carries no
+// turn label); connection = dot + aria label; partner = a text tag. The
+// active-turn ring stays on THIS pill (owner rule R8), never on the cards.
 
 import type { Seat } from '../../engine/core/game';
-import { handSizeTier, placeKey, remainingSeconds } from './helpers';
+import { placeKey, remainingSeconds } from './helpers';
 import { t } from '../i18n';
-
-/** Mini-fan sliver cap: 2..27 must read differently, but the fan needn't grow
- *  past a phone-friendly width — the numeral carries the exact count above the
- *  cap, and every count in the danger zone (≤ cap) shows its true width. Kept
- *  modest so a full fan + a 2-digit count still fits the compact side plate. */
-const FAN_CAP = 12;
 
 export interface SeatPlateProps {
   seat: Seat;
@@ -29,8 +24,6 @@ export interface SeatPlateProps {
   /** True when this seat is the viewer's partner (across the ring) — a text
    *  tag, so partnership never rides on position or colour alone (F5). */
   partner: boolean;
-  /** null = hidden from this viewer (spec §8 card-count visibility). */
-  cardCount: number | null;
   /** 1-based finish place, or null while still holding cards. */
   place: number | null;
   active: boolean;
@@ -47,27 +40,12 @@ export interface SeatPlateProps {
   committed: boolean;
 }
 
-/** A value-dependent mini card-back fan: N overlapping slivers, N tracking the
- *  remaining count (capped). Decorative — the numeral beside it is the
- *  accessible source of the exact number. */
-function MiniFan({ count }: { count: number }) {
-  const slivers = Math.max(1, Math.min(count, FAN_CAP));
-  return (
-    <span className="gd-plate__fan" aria-hidden="true">
-      {Array.from({ length: slivers }, (_, i) => (
-        <span key={i} className="gd-plate__fanCard" />
-      ))}
-    </span>
-  );
-}
-
 export function SeatPlate(props: SeatPlateProps) {
   const {
     name,
     connected,
     isViewer,
     partner,
-    cardCount,
     place,
     active,
     dueAt,
@@ -85,16 +63,6 @@ export function SeatPlate(props: SeatPlateProps) {
 
   const badge = place !== null ? placeKey(place) : null;
   const seconds = active && dueAt !== null ? remainingSeconds(dueAt, now) : null;
-  // A count is shown only for a remote seat that still holds cards (no finish
-  // badge) and whose count is visible; your own hand carries your count.
-  const showCount = !isViewer && badge === null && cardCount !== null;
-  const tier = cardCount === null ? 'normal' : handSizeTier(cardCount);
-  const low = tier === 'low' || tier === 'critical';
-  const critical = tier === 'critical';
-
-  const countClasses = ['gd-plate__count'];
-  if (low) countClasses.push('gd-plate__count--low');
-  if (critical) countClasses.push('gd-plate__count--critical');
 
   return (
     <div className={classes.join(' ')}>
@@ -111,27 +79,7 @@ export function SeatPlate(props: SeatPlateProps) {
         )}
       </span>
 
-      {showCount && (
-        <span className="gd-plate__hand">
-          <MiniFan count={cardCount} />
-          <span
-            className={countClasses.join(' ')}
-            aria-label={
-              critical
-                ? t('game.plate.cardsLow', { count: cardCount })
-                : t('game.plate.cards', { count: cardCount })
-            }
-          >
-            {cardCount}
-          </span>
-        </span>
-      )}
       {badge !== null && <span className="gd-plate__badge">{t(badge)}</span>}
-      {!isViewer && cardCount === null && badge === null && (
-        <span className="gd-plate__count gd-plate__count--hidden" aria-label={t('game.plate.hiddenCount')}>
-          —
-        </span>
-      )}
 
       <span className="gd-plate__state">
         {passed && <span className="gd-plate__pass">{t('game.action.pass')}</span>}

@@ -12,6 +12,7 @@ const ALLOWLIST = new Map<string, string>([
   ['src/client/config.ts', 'Locale switcher endonym constants are product data, not prose.'],
   ['tests/unit/i18n.test.ts', 'Pins endonym constants and locale-file data.'],
   ['tests/unit/client/table.test.ts', 'Asserts rendered locale output for zh-Hant and zh-Hans.'],
+  ['tests/unit/client/seat-stack.test.tsx', 'Asserts the rendered zh-Hant count-unit label.'],
 ]);
 
 const SCAN_ROOTS = ['src', 'tests', 'scripts'];

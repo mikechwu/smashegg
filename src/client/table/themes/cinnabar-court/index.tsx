@@ -9,7 +9,7 @@
 // ♥/♦ a platform's font ships) and paints a full body illustration (court
 // bust / pip field / joker figure) under the corner index at 'hand'/'trick'
 // sizes — 'mini' stays index-only, matching lacquer's own size discipline
-// (the F11 mini-fan and decl-chooser chips need the compact form). As with
+// (the decl-chooser chips need the compact form). As with
 // lacquer, NO game-state indicator is rendered here: the wild marker is
 // framework-drawn over this face by CardFace.tsx.
 
@@ -140,8 +140,8 @@ export const CINNABAR_COURT_THEME: DeckTheme = {
     // Unchanged (its own design round): the vertical rank+suit column needs
     // the taller strip a one-line horizontal index (lacquer) does not.
     stackStripW: 0.841,
-    // Distinct hue family from lacquer's ivory-edge/rosewood-brown pair, so
-    // the F11 mini-fan visibly changes when the player switches theme.
+    // Distinct hue family from lacquer's ivory-edge/rosewood-brown pair —
+    // contract-retained back tokens (see DeckThemeMetrics.backEdge).
     backEdge: 'rgba(201, 162, 39, 0.45)',
     backGradient: 'linear-gradient(160deg, #8a2b21, #3a0f0a)',
   },
