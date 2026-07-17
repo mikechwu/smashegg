@@ -50,8 +50,9 @@ export function cardLabel(card: Card, level: Rank): string {
 }
 
 /** The combo label's "rank" segment: every call site that renders a decl as
- *  `${t(comboKey(decl))} ${<rank segment>}` (TrickWell caption, ActionBar's
- *  chooser + its aria label) must route the rank segment through here so a
+ *  `${t(comboKey(decl))} ${<rank segment>}` (ActionBar's chooser + its aria
+ *  label — the trick well no longer captions its own play, quiet-table
+ *  round) must route the rank segment through here so a
  *  joker-keyed single/pair (decl.jokerRank set, FROZEN-TYPES NOTE in
  *  combos.ts) names the joker instead of printing the never-compared
  *  keyRank 'A' placeholder. Total over every CanonicalForm shape — the

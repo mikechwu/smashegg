@@ -4,7 +4,7 @@
 // isCeremonyShowing extraction is the precedent).
 
 import { describe, expect, it } from 'vitest';
-import { beatState, handSizeTier, leadPromptKey } from '../../../src/client/table/helpers';
+import { beatState, handSizeTier } from '../../../src/client/table/helpers';
 
 describe('beatState (F9 binary legal-play cue)', () => {
   const play = { type: 'play' } as const;
@@ -53,13 +53,7 @@ describe('handSizeTier (F11 / low-card alert escalation)', () => {
   });
 });
 
-describe('leadPromptKey (F8: the centre well never spectator-phrases YOUR lead)', () => {
-  it('your own lead reads "your lead", not "waiting for [your name]"', () => {
-    expect(leadPromptKey(2, 2)).toBe('game.trick.yourLead');
-  });
-
-  it("another seat's lead reads the waiting-for line", () => {
-    expect(leadPromptKey(3, 0)).toBe('game.trick.waitingLead');
-    expect(leadPromptKey(1, 2)).toBe('game.trick.waitingLead');
-  });
-});
+// leadPromptKey (F8) is DELETED (quiet-table round): its only caller was the
+// well's own waiting/lead prompt, which is gone — the headline's turn
+// sentence plus the active seat plate's ring/timer already carry whose turn
+// it is, so the helper had no remaining caller and became dead code.

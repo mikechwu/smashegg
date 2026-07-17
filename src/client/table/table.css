@@ -159,27 +159,38 @@
   gap: 0;
 }
 .gd-well__cards .gd-cardframe + .gd-cardframe {
-  margin-left: calc(var(--gd-cardw, 2.5rem) * -0.55);
+  /* Quiet-table round: played cards now render at HAND size (gd-card--hand),
+     not the old smaller trick size — so the overlap below must track that
+     clamp: -0.55 (the old trick-size well's ratio) no longer packs the
+     widest legal plays into the ring's bounded centre column now that cards
+     run up to ~1.9x wider, so it's tightened to -0.6 (HandFan's own
+     .gd-fan__row overlap ratio at this exact clamp). --gd-cardw resolves
+     straight off .gd-card--hand on THIS SAME element (CardFace.tsx co-classes
+     gd-cardframe and gd-card--{size} on one span — unlike .gd-fan__row's
+     overlap margin, which is an inline style on a wrapping BUTTON that is a
+     true ancestor of the CardFace span and so genuinely needs its own
+     duplicate --gd-cardw; no such ancestor/descendant gap exists here, so no
+     extra declaration is needed on .gd-well__cards).
+     Arithmetic (first card full width, each further card contributing
+     (1-0.6)*w): the widest legal play is a 10-CARD BOMB (combos.ts caps
+     bombs at cards.length <= 10; rules §joker-bomb names it), which rows
+     out to (1+9*0.4)*w = 4.6w: ~233px at the 390px clamp floor (50.7px)
+     and ~313px at the desktop clamp ceiling (68px); common plays (2-6
+     cards) stay well under both. Whatever the bounded centre still can't
+     fit at that width wraps (flex-wrap: wrap, above) exactly the way
+     HandFan's own fan wraps an oversized hand — graceful degradation, not
+     a new failure mode. */
+  margin-left: calc(var(--gd-cardw) * -0.6);
 }
-.gd-well__meta {
-  margin: 0.375rem 0 0;
-  font-size: 0.8125rem;
-  opacity: 0.85;
-}
-/* The lead prompt FADES IN once the centre is clear (owner rule: it only
-   shows after the deal overlay is gone). */
+/* Shared fade-in "waiting for X" text style — the TRICK well itself no
+ * longer has a waiting prompt (quiet-table round deleted it: the headline's
+ * turn sentence and the active seat plate's ring/timer already carry whose
+ * turn it is), but CutPanel's own waiting-for-the-cutter line still uses
+ * this exact style, so the rule stays; only its use inside TrickWell is
+ * gone. */
 .gd-well__waiting {
   animation: gd-fade-in 300ms ease-out;
   opacity: 0.7;
-  font-size: 0.875rem;
-}
-.gd-well__jiefeng {
-  color: var(--goldleaf);
-  border: 1px solid var(--goldleaf);
-  border-radius: 6px;
-  display: inline-block;
-  padding: 0.25rem 0.625rem;
-  margin: 0 0 0.375rem;
   font-size: 0.875rem;
 }
 @keyframes gd-sweep-in {
@@ -655,10 +666,10 @@
 
 /* --- hand fan ----------------------------------------------------------------- */
 /* Quiet toggle for the hand's sort direction — a UI preference, not a
- * signature element, so it stays visually subordinate to the fan below it. */
+ * signature element, so it sits below the fan (gd-actionsRow__sort), right-
+ * aligned and visually subordinate to Play/Pass beside it. */
 .gd-handSort {
   animation: gd-fade-in 300ms ease-out;
-  align-self: flex-end;
   background: transparent;
   color: var(--ivory);
   opacity: 0.65;
@@ -788,12 +799,26 @@
 }
 /* Fixed playing-phase geometry: reason line space is ALWAYS reserved and
  * the two buttons hold fixed slots with a wide gap, so a mid-tick rerender
- * can never move Pass under a tap aimed at Play. */
+ * can never move Pass under a tap aimed at Play.
+ * The reason paragraph is taken OUT of flow (position: absolute over a
+ * reserved band) rather than sized in-line: .gd-actionsRow's middle grid
+ * track is `auto`, sized off .gd-actions's own intrinsic (unwrapped)
+ * content width — an in-flow reason line as wide as its longest configured
+ * string (game.action.noMatch, the longest of the three) forced that track
+ * wider than .gd-actions__slots ever needs, starving the two 1fr flank
+ * tracks unevenly (2026-07-16 regression: Play/Pass visibly off-center
+ * whenever the reason held real copy). Absolutely positioning the reason
+ * line removes it from .gd-actions's intrinsic-size contribution entirely
+ * (spec: out-of-flow boxes don't contribute to their containing block's
+ * content-based sizing) — so the auto track is sized by .gd-actions__slots
+ * ALONE, constant across every reason state, restoring genuine centering. */
 .gd-actions__reason {
-  width: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
   text-align: center;
   margin: 0;
-  min-height: 1rem;
   font-size: 0.75rem;
   color: color-mix(in srgb, var(--ivory) 85%, var(--cinnabar));
 }
@@ -802,6 +827,15 @@
   align-items: center;
   justify-content: center;
   gap: 2.25rem;
+  /* Reserves the reason line's band above (out of flow, so it doesn't push
+     this row itself — see .gd-actions__reason comment). Sized for TWO lines
+     at the reason line's own font-size/line-height (0.75rem * 1.5 body
+     line-height = 1.125rem per line): the longest configured reason string
+     (game.action.noMatch, en) wraps to exactly 2 lines at the width
+     .gd-actions__slots's own two buttons + gap need — verified live at the
+     390px floor (no overlap, no clipped text; CJK reason strings stay a
+     single line and just leave the band's lower half blank). */
+  margin-top: 2.25rem;
 }
 .gd-actions__slots button {
   min-width: 5.5rem;
@@ -1493,9 +1527,38 @@
   flex-direction: column;
   gap: 0.375rem;
 }
-.gd-handzone__sortrow {
-  display: flex;
-  justify-content: flex-end;
+/* Quiet-table round: the sort pill moved BELOW the hand (was
+ * .gd-handzone__sortrow, above the fan). 3 explicit, ALWAYS-present grid
+ * cells — not conditional siblings — so ActionBar stays centered in the
+ * middle (auto) track whether or not it (or the pill) renders anything this
+ * phase. The middle track's own width must in turn stay INDEPENDENT of the
+ * reason line's text (.gd-actions__reason is taken out of flow — see its
+ * comment, table.css's action-bar section): an in-flow reason line as wide
+ * as its longest string would size this auto track past what the flanks'
+ * automatic minimums (0 for the empty spacer, the sort pill's own width for
+ * the sort cell) can evenly split, leaving the two 1fr flanks UNEQUAL and
+ * the bar visibly off-center (2026-07-16 regression) — not "equal
+ * regardless of content" the way a plain 1fr vs 1fr split would be. */
+.gd-actionsRow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  column-gap: 0.5rem;
+}
+.gd-actionsRow__spacer {
+  /* Explicit (not relying on grid auto-placement filling the gap) — empty
+     on purpose, its only job is to be an equal-width 1fr twin of the sort
+     cell so the middle track is genuinely centered, not just left-heavy. */
+  grid-column: 1;
+}
+.gd-actionsRow__bar {
+  grid-column: 2;
+  justify-self: center;
+  min-width: 0;
+}
+.gd-actionsRow__sort {
+  grid-column: 3;
+  justify-self: end;
 }
 
 /* --- bottom bar: your own seat plate + the (now-thin) log, one line ------ */

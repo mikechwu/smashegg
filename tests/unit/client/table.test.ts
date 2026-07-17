@@ -491,6 +491,38 @@ describe('foldEvents + EventFeed render-time localization (m1)', () => {
       setLocale(original);
     }
   });
+
+  // Quiet-table round: the well's own jiefeng goldleaf banner is deleted;
+  // its content is UNIFIED into the log by upgrading feed.jiefeng from the
+  // old leader-only "{name} takes the jiefeng lead" to the banner's fuller
+  // sentence (both finisher and leader) — so the fold must now carry BOTH
+  // names, not just the leader's.
+  it('a folded "jiefeng" line carries BOTH names and resolves the full sentence in all three locales', () => {
+    const original = getLocale();
+    const seatName = (s: number) => (s === 0 ? 'Alice' : 'Bob');
+    let localNextId = 0;
+    const localIdGen = () => localNextId++;
+    try {
+      const events: GuandanEvent[] = [{ type: 'jiefeng', finisher: 0, leader: 1 }];
+      const derived = foldEvents(EMPTY_DERIVED, events, 0, seatName, localIdGen);
+      const line = derived.feed[0]!;
+      expect(line.key).toBe('game.feed.jiefeng');
+      expect(line.params).toEqual({ leader: 'Bob', finisher: 'Alice' });
+
+      setLocale('en');
+      const en = t(line.key, resolveFeedParams(line.params));
+      setLocale('zh-Hant');
+      const zhHant = t(line.key, resolveFeedParams(line.params));
+      setLocale('zh-Hans');
+      const zhHans = t(line.key, resolveFeedParams(line.params));
+
+      expect(en).toBe('Jiefeng — Bob leads for Alice');
+      expect(zhHant).toBe('接風:Bob 替 Alice 領出');
+      expect(zhHans).toBe('接风:Bob 替 Alice 领出');
+    } finally {
+      setLocale(original);
+    }
+  });
 });
 
 // REGRESSION (M4 computer-use visual round): playing a lone big joker rendered as
@@ -611,21 +643,53 @@ describe('joker-keyed combo labels (regression: BJ/SJ singles & pairs)', () => {
   });
 });
 
-describe('TrickWell lead-prompt concealment (the well paints ABOVE the deal overlay)', () => {
-  it('renders NO lead prompt while the marker is still flying, and the normal prompt after', () => {
-    // The visual pass caught the well leaking the leader mid-deal at true
-    // 390 (zh-Hant): the well sits at z-10 over the deal overlay (z-9) by
-    // design (the prompt-occlusion fix), so it must be gated explicitly.
-    const trick = { leader: 2, toAct: 2, top: null, passes: [] } as never;
-    const nameFor = (s: number) => `Seat${s}`;
-    const concealed = renderToStaticMarkup(
-      createElement(TrickWell, { trick, level: '2', nameFor, sweepKey: 0, jiefeng: null, viewerSeat: 0, concealLeader: true }),
+// Quiet-table round: the well's own waiting/lead prompt (and its
+// concealLeader gate) is DELETED outright — the headline's turn sentence and
+// the active seat plate's ring/timer already carry whose turn it is, so a
+// second, well-local copy of that fact had no value to the player. The old
+// "renders NO lead prompt while concealed, the normal prompt once revealed"
+// pin is replaced by the STRONGER property below: the well never renders any
+// leader-naming (or any other) text, in ANY phase, concealed or not — there
+// is no more prompt to reveal. The HEADLINE's own suspense gate
+// (concealedLeader, pinned separately below) is untouched.
+describe('TrickWell (quiet-table round: cards only, no prose)', () => {
+  const bombTop = {
+    seat: 1 as const,
+    cards: ['BJ', 'BJ', 'SJ', 'SJ'] as Card[],
+    decl: { type: 'jokerBomb', size: 4, keyRank: 'A' } as CanonicalForm,
+  };
+  const trick = { leader: 1, toAct: 1, top: bombTop, jiefengTo: null } as unknown as never;
+
+  it('renders no text besides card markup (jokers are wordless, so a tag-strip must be empty) with no jiefeng pending', () => {
+    const html = renderToStaticMarkup(
+      createElement(TrickWell, { trick, level: '2', sweepKey: 0, jiefeng: null }),
     );
-    expect(concealed).not.toContain('gd-well__waiting');
-    const revealed = renderToStaticMarkup(
-      createElement(TrickWell, { trick, level: '2', nameFor, sweepKey: 0, jiefeng: null, viewerSeat: 0 }),
+    const textOnly = html.replace(/<[^>]*>/g, '');
+    expect(textOnly.trim(), `"${textOnly}"`).toBe('');
+  });
+
+  it('renders no text besides card markup with a jiefeng pending — the banner moved into the log, it never re-appears in the well', () => {
+    const html = renderToStaticMarkup(
+      createElement(TrickWell, { trick, level: '2', sweepKey: 0, jiefeng: { finisher: 0, leader: 1 } }),
     );
-    expect(revealed).toContain('gd-well__waiting');
+    const textOnly = html.replace(/<[^>]*>/g, '');
+    expect(textOnly.trim(), `"${textOnly}"`).toBe('');
+  });
+
+  it('the played cards render at HAND size, not the old trick size', () => {
+    const html = renderToStaticMarkup(
+      createElement(TrickWell, { trick, level: '2', sweepKey: 0, jiefeng: null }),
+    );
+    expect(html).toContain('gd-card--hand');
+    expect(html).not.toContain('gd-card--trick');
+  });
+
+  it('the empty well (no top play) still renders no text', () => {
+    const emptyTrick = { leader: 1, toAct: 1, top: null, jiefengTo: null } as unknown as never;
+    const html = renderToStaticMarkup(
+      createElement(TrickWell, { trick: emptyTrick, level: '2', sweepKey: 0, jiefeng: null }),
+    );
+    expect(html.replace(/<[^>]*>/g, '').trim()).toBe('');
   });
 });
 

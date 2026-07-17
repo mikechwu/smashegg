@@ -191,7 +191,10 @@ export function foldEvents(
         break;
       case 'jiefeng':
         d.jiefeng = { finisher: ev.finisher, leader: ev.leader };
-        push('game.feed.jiefeng', { name: nameFor(ev.leader) });
+        // feed.jiefeng carries BOTH names (the upgraded sentence names who
+        // leads and on whose behalf) — the well's old goldleaf banner said
+        // this same thing visually; the log is now the only place it's said.
+        push('game.feed.jiefeng', { leader: nameFor(ev.leader), finisher: nameFor(ev.finisher) });
         break;
       case 'playerFinished':
         push('game.feed.playerFinished', {
@@ -537,38 +540,23 @@ export function GameTable({ snapshot, store }: GameTableProps) {
             <TrickWell
               trick={view.trick}
               level={view.currentLevel}
-              nameFor={nameFor}
               sweepKey={derived.sweep}
               jiefeng={derived.jiefeng}
-              viewerSeat={activeSeat}
-              concealLeader={dealing || leaderConcealed !== null}
             />
           )}
         </div>
         <div className="gd-ring__seat gd-ring__seat--east">{plate(layout.east)}</div>
       </div>
 
-      {/* Your zone: hand (full width) with its action bar and sort toggle
-          directly adjacent — never across the table — then the bottom bar
-          (owner round: the log moved off the ring's south slot down here,
-          on the same line as your own seat plate, so the hand fan sits
-          closer to the trick well). */}
+      {/* Your zone: hand (full width) first, then an actions row directly
+          below it — never across the table — then the bottom bar (owner
+          round: the log moved off the ring's south slot down here, on the
+          same line as your own seat plate, so the hand fan sits closer to
+          the trick well). The sort toggle moved BELOW the fan (quiet-table
+          round): it's a secondary per-client preference, not a primary
+          action, so it no longer sits above the cards competing with them
+          for the first thing the eye meets. */}
       <div className="gd-handzone">
-        <div className="gd-handzone__sortrow">
-          {/* Owner rule: the sort toggle is meaningless until the player has
-              all cards, sorted — hidden through the cut/ceremony/deal. */}
-          {view.phase !== 'ceremonyCut' && !ceremonyShowing && !dealing && (
-          <button
-            type="button"
-            className="gd-handSort"
-            aria-label={t('game.sort.label')}
-            aria-pressed={handDescending}
-            onClick={toggleHandSort}
-          >
-            {handDescending ? t('game.sort.descending') : t('game.sort.ascending')}
-          </button>
-          )}
-        </div>
         <HandFan
           hand={view.hand}
           level={view.currentLevel}
@@ -586,27 +574,54 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           revealed={dealing ? (dealRevealed ?? 0) : undefined}
           dealOrder={dealing ? derived.dealOrder : undefined}
         />
-        {view.phase !== 'ceremonyCut' && (
-        <ActionBar
-          hints={hints}
-          phase={view.phase}
-          level={view.currentLevel}
-          matches={matches}
-          passAvailable={hints !== null && hints.some((h) => h.type === 'pass')}
-          selectionCount={selected.size}
-          tributeAction={tributeAction}
-          tributePhase={tributePhase}
-          chooserOpen={chooserOpen}
-          onPlay={(match) => act({ type: 'play', cards: match.cards, decl: match.decl })}
-          onOpenChooser={() => setChooserOpen(true)}
-          onCloseChooser={() => setChooserOpen(false)}
-          onPass={() => act({ type: 'pass' })}
-          onTribute={() => {
-            if (tributeAction !== null) act(tributeAction);
-          }}
-          onAntiDecision={(invoke) => act({ type: 'antiTributeDecision', invoke })}
-        />
-        )}
+
+        {/* 3-column grid, ActionBar centered in the middle cell and the sort
+            pill right-aligned in the right cell — three ALWAYS-present grid
+            cells (not conditional siblings) so Play/Pass stay centered
+            whether or not the sort pill renders, and the pill sits far
+            enough from Pass to avoid a mis-tap (owner rule: secondary
+            control at the edge, primary actions centered). */}
+        <div className="gd-actionsRow">
+          <div className="gd-actionsRow__spacer" aria-hidden="true" />
+          <div className="gd-actionsRow__bar">
+            {view.phase !== 'ceremonyCut' && (
+              <ActionBar
+                hints={hints}
+                phase={view.phase}
+                level={view.currentLevel}
+                matches={matches}
+                passAvailable={hints !== null && hints.some((h) => h.type === 'pass')}
+                selectionCount={selected.size}
+                tributeAction={tributeAction}
+                tributePhase={tributePhase}
+                chooserOpen={chooserOpen}
+                onPlay={(match) => act({ type: 'play', cards: match.cards, decl: match.decl })}
+                onOpenChooser={() => setChooserOpen(true)}
+                onCloseChooser={() => setChooserOpen(false)}
+                onPass={() => act({ type: 'pass' })}
+                onTribute={() => {
+                  if (tributeAction !== null) act(tributeAction);
+                }}
+                onAntiDecision={(invoke) => act({ type: 'antiTributeDecision', invoke })}
+              />
+            )}
+          </div>
+          <div className="gd-actionsRow__sort">
+            {/* Owner rule: the sort toggle is meaningless until the player has
+                all cards, sorted — hidden through the cut/ceremony/deal. */}
+            {view.phase !== 'ceremonyCut' && !ceremonyShowing && !dealing && (
+              <button
+                type="button"
+                className="gd-handSort"
+                aria-label={t('game.sort.label')}
+                aria-pressed={handDescending}
+                onClick={toggleHandSort}
+              >
+                {handDescending ? t('game.sort.descending') : t('game.sort.ascending')}
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Your own seat plate — the SAME element the ring's south slot used
             to render (plate(layout.south) === plate(activeSeat), seatLayout's

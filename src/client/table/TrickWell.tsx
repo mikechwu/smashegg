@@ -1,61 +1,40 @@
-// TrickWell — the table center during play: the current top play (cards +
-// localized combo name + seat), a subtle sweep on trickWon, and the jiefeng
-// goldleaf moment (banner from finisher to leader). Pass state renders on
-// the seat plates; the well stays quiet (design-system restraint).
+// TrickWell — the table center during play: ONLY the current top play's
+// cards, at hand size (owner "quiet table" round). The combo-name meta line,
+// the waiting/lead prompt, and the jiefeng goldleaf banner all duplicated a
+// signal the log or the turn indicators already carry — the log's
+// feed.played line names the combo, the headline's turn sentence plus the
+// active seat plate's ring/timer name whose turn it is, and the log's
+// upgraded feed.jiefeng line now carries the full jiefeng sentence — so none
+// of the three render here anymore. The sweep animation on trickWon and the
+// empty-well state are the only "table talk" left.
 
 import type { Seat } from '../../engine/core/game';
 import type { Rank } from '../../engine/guandan/cards';
 import type { TrickState } from '../../engine/guandan/types';
-import { CardFace, comboRankLabel } from './CardFace';
-import { comboKey, leadPromptKey } from './helpers';
-import { t } from '../i18n';
+import { CardFace } from './CardFace';
 
 export interface TrickWellProps {
   trick: TrickState | null;
   level: Rank;
-  nameFor: (seat: Seat) => string;
   /** Bumped by each trickWon event — keys the sweep animation. */
   sweepKey: number;
-  /** Set while a jiefeng is pending/being granted. */
+  /** No longer rendered (the banner moved into the log as the upgraded
+   *  feed.jiefeng sentence) — kept as a required prop only so the "no
+   *  leader/jiefeng text at all" regression test can exercise both states
+   *  against the SAME component contract GameTable already feeds from the
+   *  fold, without the well growing a visual difference between them. */
   jiefeng: { finisher: Seat; leader: Seat } | null;
-  /** The viewer's active seat — so "waiting for X to lead" becomes "your lead"
-   *  when it is the viewer's own turn (F8). */
-  viewerSeat: Seat;
-  /** Suspense gate (owner rule): while the hand-1 marker is still flying,
-   *  the well's lead prompt must not name the leader — the well paints
-   *  ABOVE the deal overlay (the prompt-occlusion fix), so without this
-   *  gate it would leak the leader mid-deal, before the marker lands. */
-  concealLeader?: boolean;
 }
 
-export function TrickWell({ trick, level, nameFor, sweepKey, jiefeng, viewerSeat, concealLeader = false }: TrickWellProps) {
+export function TrickWell({ trick, level, sweepKey }: TrickWellProps) {
   const top = trick?.top ?? null;
   return (
     <div className="gd-well" key={sweepKey}>
-      {jiefeng !== null && (
-        <p className="gd-well__jiefeng">
-          {t('game.trick.jiefeng', {
-            finisher: nameFor(jiefeng.finisher),
-            leader: nameFor(jiefeng.leader),
-          })}
-        </p>
-      )}
-      {top === null ? (
-        trick !== null && !concealLeader && (
-          <p className="gd-well__waiting">
-            {t(leadPromptKey(trick.toAct, viewerSeat), { name: nameFor(trick.toAct) })}
-          </p>
-        )
-      ) : (
-        <div className="gd-well__top">
-          <div className="gd-well__cards">
-            {top.cards.map((card, i) => (
-              <CardFace key={i} card={card} level={level} size="trick" />
-            ))}
-          </div>
-          <p className="gd-well__meta">
-            {nameFor(top.seat)} · {t(comboKey(top.decl))} {comboRankLabel(top.decl)}
-          </p>
+      {top !== null && (
+        <div className="gd-well__cards">
+          {top.cards.map((card, i) => (
+            <CardFace key={i} card={card} level={level} size="hand" />
+          ))}
         </div>
       )}
     </div>
