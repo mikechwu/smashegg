@@ -162,6 +162,7 @@ export function HandFan({
   const cardRefs = useRef(new Map<number, HTMLElement>());
   const prevRects = useRef(new Map<number, DOMRect>());
   const wasDealing = useRef(false);
+  const wasDescending = useRef(descending);
 
   // Display order = sorted-hand indices in display sequence. During the deal it
   // follows arrival order; otherwise ascending (or the descending pref).
@@ -179,20 +180,22 @@ export function HandFan({
   const rows = dealing ? splitIndexRows(order, MAX_PER_ROW) : [];
   const columns = dealing ? [] : groupHandColumns(order, hand, level);
 
-  // FLIP, but ONLY on the deal→sorted re-lay (the sanctioned sort beat): the
-  // moment `dealing` turns false after having been true, slide every card from
-  // its arrival slot to its sorted slot. We keep every OTHER render (reveal,
-  // selection, a play that shrinks the hand and remaps indices, the descending
-  // toggle) instant — those must not animate, so the fan reflow after a play
-  // stays crisp. Cards are keyed by sorted index, so a card that changes ROWS
-  // (React remounts it) still slides: cardRefs resolves the key to the CURRENT
-  // node. prevRects is refreshed every render so the sort baseline is the last
-  // arrival-order layout.
+  // FLIP on exactly TWO re-lays: the deal→sorted transition (the sanctioned
+  // sort beat) and the asc/desc TOGGLE (owner feature: the same cards-fly-to-
+  // their-new-slots beat, so re-ordering always reads consistently). Every
+  // OTHER render (reveal, selection, a play that shrinks the hand and remaps
+  // indices) stays instant — those must not animate, so the fan reflow after
+  // a play stays crisp. Cards are keyed by sorted index, so a card that
+  // changes ROWS/COLUMNS (React remounts it) still slides: cardRefs resolves
+  // the key to the CURRENT node. prevRects is refreshed every render so the
+  // slide baseline is whatever the user last SAW — a toggle spammed
+  // mid-flight starts from the mid-flight rects and stays graceful.
   useLayoutEffect(() => {
     const next = new Map<number, DOMRect>();
     cardRefs.current.forEach((el, key) => next.set(key, el.getBoundingClientRect()));
     const isSortBeat = wasDealing.current && !dealing;
-    if (isSortBeat && !prefersReducedMotion()) {
+    const isToggleBeat = wasDescending.current !== descending && !dealing;
+    if ((isSortBeat || isToggleBeat) && !prefersReducedMotion()) {
       prevRects.current.forEach((prev, key) => {
         const el = cardRefs.current.get(key);
         const now = next.get(key);
@@ -208,6 +211,7 @@ export function HandFan({
     }
     prevRects.current = next;
     wasDealing.current = dealing;
+    wasDescending.current = descending;
   });
 
   // Pre-deal gate: render the empty fan group (keeps the a11y landmark and
