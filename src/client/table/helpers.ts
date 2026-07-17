@@ -493,6 +493,29 @@ export function isCeremonyShowing(args: {
   return args.hasCeremony && !args.ceremonyDone && args.handNo === 1 && args.matchWinner === null;
 }
 
+/** The pre-deal fan gate (owner bug: the player's full sorted hand rendered,
+ *  dimmed, behind the hand-1 ceremony overlay — cards must not be visible
+ *  before the deal choreography deals them). From the moment a fresh deal
+ *  exists until that choreography STARTS revealing it, the fan must render
+ *  NOTHING — no faces, no backs, no stacks. That window spans the interactive
+ *  cut (phase 'ceremonyCut'), the flip/marker overlay (ceremonyShowing), and
+ *  any pre-deal beat where a pending deal (dealNo > dealShown) has not yet
+ *  begun choreographing. The dealing beat itself is NOT held: the fan then
+ *  renders arrival SLOTS (visibility-hidden) so the DealOverlay can measure
+ *  their rects — so `dealing` short-circuits to false first. Extracted pure so
+ *  the full truth table is unit-pinned independently of the effect-seeded
+ *  derived state the live table feeds it. */
+export function holdPreDealFan(args: {
+  phase: string;
+  dealNo: number;
+  dealShown: number;
+  ceremonyShowing: boolean;
+  dealing: boolean;
+}): boolean {
+  if (args.dealing) return false;
+  return args.phase === 'ceremonyCut' || args.ceremonyShowing || args.dealNo > args.dealShown;
+}
+
 /** The suspense gate (owner rule, suspense/re-cut round): from the hand-1
  *  ceremony overlay until the face-up marker LANDS in the deal, NO UI surface
  *  may name the leader — not the seat ring, not the headline's turn sentence

@@ -12,7 +12,7 @@
 // jiefeng banner, anti-tribute reveals, the ceremony payload, the feed) is folded
 // here from batches as they arrive.
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import type { Seat } from '../engine/core/game';
 import { teamOf } from '../engine/guandan/types';
 import type { GuandanAction, GuandanEvent } from '../engine/guandan/types';
@@ -37,6 +37,7 @@ import {
   asRuleVariant,
   declJokerRank,
   concealedLeader,
+  holdPreDealFan,
   isCeremonyShowing,
   matchSelection,
   multisetKey,
@@ -64,6 +65,16 @@ export interface GameTableProps {
 // localStorage rather than folded through the snapshot/store like the rest
 // of this file's state.
 // ---------------------------------------------------------------------------
+
+// The fold must commit the new deal's dealNo in the SAME paint as the new
+// view.hand — otherwise, for one render, view.hand holds the fresh deal while
+// derived.dealNo still lags (dealing false, no gate), flashing the full hand
+// before the DealOverlay/ceremony overlay mounts (hand 1 AND hands 2+). A
+// layout effect flushes the fold synchronously before the browser paints, so
+// that intermediate frame is never shown. `useEffect` on the server (no DOM,
+// and renderToStaticMarkup runs no effects anyway) avoids React's SSR
+// useLayoutEffect warning.
+const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
 
 const HAND_SORT_STORAGE_KEY = 'pref:handSort';
 
@@ -279,8 +290,11 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   const nameFor = (seat: Seat): string =>
     room?.seats.find((s) => s.seat === seat)?.name ?? t('room.seatTab', { seat: seat + 1 });
 
-  // Fold newly arrived event batches into per-seat presentation state.
-  useEffect(() => {
+  // Fold newly arrived event batches into per-seat presentation state. A
+  // LAYOUT effect (see useIsomorphicLayoutEffect): the deal-gate reads
+  // derived.dealNo, which must land in the same paint as the snapshot's new
+  // view.hand or the full hand flashes for one frame before the overlays mount.
+  useIsomorphicLayoutEffect(() => {
     let next: Map<Seat, SeatDerived> | null = null;
     for (const [seat, perSeat] of snapshot.perSeat) {
       const batch = perSeat.lastEventBatch;
@@ -411,6 +425,16 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // at the deepest cut where the 900ms marker lands last; deal.ts pins).
   const dealing =
     derived.dealNo > dealShown && !ceremonyShowing && view.phase !== 'ceremonyCut' && view.hand.length > 0;
+  // Owner bug: the hand must show NOTHING from the moment a fresh deal exists
+  // until the deal choreography starts revealing it (the cut/ceremony window).
+  // The dealing beat itself is not held — the fan then renders arrival slots.
+  const holdFan = holdPreDealFan({
+    phase: view.phase,
+    dealNo: derived.dealNo,
+    dealShown,
+    ceremonyShowing,
+    dealing,
+  });
   const dirFor = (seat: Seat): 'south' | 'east' | 'north' | 'west' =>
     seat === layout.south ? 'south' : seat === layout.east ? 'east' : seat === layout.north ? 'north' : 'west';
   // Hand 1 deals FROM the first drawer (public, from the ceremony) so the
@@ -573,6 +597,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           descending={handDescending}
           revealed={dealing ? (dealRevealed ?? 0) : undefined}
           dealOrder={dealing ? derived.dealOrder : undefined}
+          hidden={holdFan}
         />
 
         {/* 3-column grid, ActionBar centered in the middle cell and the sort
@@ -608,8 +633,9 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           </div>
           <div className="gd-actionsRow__sort">
             {/* Owner rule: the sort toggle is meaningless until the player has
-                all cards, sorted — hidden through the cut/ceremony/deal. */}
-            {view.phase !== 'ceremonyCut' && !ceremonyShowing && !dealing && (
+                all cards, sorted — hidden through the cut/ceremony/deal (the
+                same pre-deal hold that empties the fan) and while dealing. */}
+            {!holdFan && !dealing && (
               <button
                 type="button"
                 className="gd-handSort"

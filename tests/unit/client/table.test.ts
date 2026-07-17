@@ -5,8 +5,12 @@
 
 import { describe, expect, it } from 'vitest';
 import { createElement } from 'react';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { TrickWell } from '../../../src/client/table/TrickWell';
+import { HandFan } from '../../../src/client/table/HandFan';
+import { DealOverlay } from '../../../src/client/table/DealOverlay';
 import { sortCards, type Card, type Rank } from '../../../src/engine/guandan/cards';
 import type { CanonicalForm, GuandanAction, GuandanEvent, GuandanView } from '../../../src/engine/guandan/types';
 import { GuandanGame, JIANGSU_OFFICIAL_ONLINE } from '../../../src/engine/guandan';
@@ -20,6 +24,7 @@ import {
   declSignature,
   handRows,
   concealedLeader,
+  holdPreDealFan,
   isCeremonyShowing,
   matchSelection,
   multisetKey,
@@ -711,6 +716,38 @@ describe('concealedLeader (suspense gate — the visual pass caught the headline
   });
 });
 
+// Owner bug: the player's full sorted hand rendered (dimmed) behind the
+// hand-1 ceremony overlay — nothing may show before the deal choreography
+// deals it. holdPreDealFan is the pure predicate GameTable feeds HandFan's
+// `hidden` prop; its full truth table is pinned here (the effect-seeded
+// derived.dealNo/ceremonyShowing the live table supplies are exercised
+// directly as values, DOM-free — the same technique as concealedLeader above).
+describe('holdPreDealFan (pre-deal fan gate — no hand before the deal)', () => {
+  const base = { phase: 'playing', dealNo: 1, dealShown: 0, ceremonyShowing: false, dealing: false };
+
+  it('holds while a fresh deal exists (dealNo > dealShown) that has not begun choreographing', () => {
+    expect(holdPreDealFan(base)).toBe(true);
+  });
+
+  it('holds through the hand-1 flip/marker ceremony overlay window', () => {
+    expect(holdPreDealFan({ ...base, ceremonyShowing: true })).toBe(true);
+  });
+
+  it('holds through the interactive cut (phase ceremonyCut), before any hand is dealt', () => {
+    expect(holdPreDealFan({ ...base, phase: 'ceremonyCut', dealNo: 0, dealShown: 0 })).toBe(true);
+  });
+
+  it('RELEASES the moment the deal choreography is revealing — the fan then renders measurable arrival slots, so dealing wins over every hold clause', () => {
+    expect(holdPreDealFan({ ...base, dealing: true })).toBe(false);
+    expect(holdPreDealFan({ ...base, dealing: true, ceremonyShowing: true })).toBe(false);
+    expect(holdPreDealFan({ ...base, phase: 'ceremonyCut', dealing: true })).toBe(false);
+  });
+
+  it('does NOT hold the settled table (deal already shown, no ceremony, not dealing)', () => {
+    expect(holdPreDealFan({ ...base, dealNo: 3, dealShown: 3 })).toBe(false);
+  });
+});
+
 describe('isCeremonyShowing (hand-1 ceremony overlay + dimTimer gate)', () => {
   const base = { hasCeremony: true, ceremonyDone: false, handNo: 1, matchWinner: null as 0 | 1 | null };
 
@@ -784,6 +821,104 @@ describe('EventFeed render order + retention (owner bottom-bar round)', () => {
     // LAST 20 ids folded (5..24), the first 5 (0..4) fell off the front.
     expect(derived.feed[0]!.id).toBe(5);
     expect(derived.feed[19]!.id).toBe(24);
+  });
+});
+
+// Owner bug (pre-deal gate): HandFan's two mutually exclusive states, pinned
+// directly on the component (DOM-free static markup, same as the TrickWell
+// block above — the live table's `dealing`/`hidden` are effect-seeded and not
+// reachable through a GameTable prop bag on an effect-free render).
+describe('HandFan pre-deal gate vs arrival-slot render', () => {
+  const hand: Card[] = ['2S', '3S', '4S'];
+  const noop = () => {};
+
+  it('hidden renders the empty fan group — zero faces, zero stacks, zero slots (nothing before the deal)', () => {
+    const html = renderToStaticMarkup(
+      createElement(HandFan, {
+        hand,
+        level: '2',
+        selected: new Set<number>(),
+        onToggle: noop,
+        glow: new Set<Card>(),
+        hidden: true,
+      }),
+    );
+    expect(html).toContain('gd-fan'); // the a11y group/landmark is preserved
+    expect(html, html).not.toContain('gd-card--hand'); // no rendered card faces
+    expect(html).not.toContain('gd-fan__stack'); // no settled stack columns
+    expect(html).not.toContain('gd-fan__card'); // no slots at all
+  });
+
+  it('the dealing beat renders flat arrival SLOTS (the DealOverlay measures these rects) — the gate leaves this path untouched', () => {
+    const html = renderToStaticMarkup(
+      createElement(HandFan, {
+        hand,
+        level: '2',
+        selected: new Set<number>(),
+        onToggle: noop,
+        glow: new Set<Card>(),
+        dealOrder: hand, // matches hand length ⇒ arrival (dealing) layout
+        revealed: 0, // nothing revealed yet ⇒ every slot is undealt (hidden by CSS, present in DOM)
+      }),
+    );
+    expect(html).toContain('gd-fan__row'); // flat rows, not settled columns
+    expect(html).toContain('gd-fan__card'); // measurable slot rects present
+    expect(html).toContain('gd-fan__card--undealt'); // revealed:0 ⇒ all undealt
+    expect(html).not.toContain('gd-fan__stack');
+  });
+});
+
+// Owner bug (marker despawn): the hand-1 ceremony marker flew to the leader
+// but stayed painted on the table afterward. The despawn is a WAAPI onfinish
+// side-effect (markerEl.remove(), mirroring the remote backs' node.remove()),
+// so its RUNTIME behavior is eyes/browser-gated — the DOM-free node suite runs
+// no effects. What IS structurally pinnable here: the overlay renders exactly
+// ONE face-up marker element (the single source the landing removes) alongside
+// the back template it now mirrors.
+describe('DealOverlay marker element (despawn is runtime/eyes-gated)', () => {
+  it('renders a single face-up marker source plus the remote-back template it now despawns like', () => {
+    const noop = () => {};
+    const html = renderToStaticMarkup(
+      createElement(DealOverlay, {
+        dirOrder: ['south', 'east', 'north', 'west'],
+        marker: { card: '8H' as Card, beat: 3 },
+        level: '2',
+        onOwnLanded: noop,
+        onDone: noop,
+      }),
+    );
+    expect([...html.matchAll(/gd-deal__marker/g)]).toHaveLength(1);
+    expect(html).toContain('gd-deal__backTemplate');
+  });
+
+  it('the marker stays hidden until its flight BEAT (rest opacity 0; the flying class is timer-scheduled)', () => {
+    // Owner bug (slow-motion find): the --flying class used to be added
+    // synchronously at schedule time, leaving the face-up marker peeking out
+    // of the deck pile for its whole pre-beat delay. The timing itself is
+    // runtime/eyes-gated (WAAPI + timers, no effects run here); what is
+    // pinnable: (a) the marker's REST state is opacity: 0 in the stylesheet,
+    // and (b) the source schedules the class-add inside a setTimeout pushed
+    // to the shared skip-cleared timer list, never synchronously. (b) is a
+    // source-text pin — brittle to refactors by design: anyone restructuring
+    // the flight scheduling must consciously re-satisfy it.
+    const css = readFileSync(join(__dirname, '../../../src/client/table/table.css'), 'utf8');
+    const restRule = (css.match(/^\.gd-deal__marker\s*\{[^}]*\}/m)?.[0] ?? '').replace(
+      /\/\*[\s\S]*?\*\//g,
+      '',
+    );
+    expect(restRule, '.gd-deal__marker rest rule not found').not.toBe('');
+    expect(restRule).toMatch(/opacity:\s*0\s*;/);
+
+    const src = readFileSync(
+      join(__dirname, '../../../src/client/table/DealOverlay.tsx'),
+      'utf8',
+    );
+    const scheduled =
+      /timers\.push\(\s*setTimeout\(\(\) => markerEl\.classList\.add\('gd-deal__marker--flying'\)/;
+    expect(src, 'the flying class must be timer-scheduled at the beat').toMatch(scheduled);
+    // And never added synchronously anywhere else:
+    const adds = [...src.matchAll(/classList\.add\('gd-deal__marker--flying'\)/g)];
+    expect(adds).toHaveLength(1);
   });
 });
 
@@ -892,5 +1027,37 @@ describe('GameTable bottom bar markup (owner round: own seat + log move off the 
     const html = renderToStaticMarkup(createElement(GameTable, { snapshot: minimalSnapshot(), store }));
 
     expect(html).not.toContain('gd-ring__seat--south');
+  });
+
+  // Owner bug (pre-deal gate), wired end to end at the GameTable level for the
+  // ONE pre-deal beat reachable through a prop bag on an effect-free render:
+  // the hand-1 interactive cut (phase 'ceremonyCut'). The flip-overlay and
+  // hands-2+ beats reach the same hold via effect-seeded ceremonyShowing /
+  // derived.dealNo — covered by holdPreDealFan's truth table above. This pins
+  // the WIRING: before the fix GameTable rendered the (settled, stacked) hand
+  // here; now the fan holds empty. Verified red-then-green (with the gate off,
+  // the fan region carried gd-card--hand faces and gd-fan__stack columns).
+  function ceremonyCutSnapshot(): RoomSnapshot {
+    const snap = minimalSnapshot();
+    const view = {
+      ...minimalView(),
+      phase: 'ceremonyCut',
+      ceremonyCutter: 1,
+      ceremonyFlips: [],
+      hand: ['2S', '3S', '4S'],
+    } as unknown as GuandanView;
+    snap.perSeat = new Map([[0, { view, hints: null, lastEventBatch: null }]]);
+    return snap;
+  }
+
+  it('holds the fan empty during the hand-1 cut beat — no card faces, no stack columns (the sorted hand must not show before the deal)', () => {
+    const store = new RoomStore('TESTCODE');
+    const html = renderToStaticMarkup(
+      createElement(GameTable, { snapshot: ceremonyCutSnapshot(), store }),
+    );
+    const fan = outerHtmlByClass(html, 'gd-fan');
+    expect(fan, fan).not.toContain('gd-card--hand'); // no rendered card faces behind the cut
+    expect(fan).not.toContain('gd-fan__stack'); // no settled stack columns
+    expect(fan).not.toContain('gd-fan__card'); // no slots
   });
 });

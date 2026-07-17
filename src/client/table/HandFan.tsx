@@ -71,6 +71,15 @@ export interface HandFanProps {
   /** Obs 3: the seat's own DEAL ORDER. While set (and matching the hand's
    *  size), the fan lays out in this order; when it clears the fan sorts. */
   dealOrder?: readonly Card[] | null;
+  /** Pre-deal gate (owner bug): while a fresh deal exists but the deal
+   *  choreography has not started revealing it — the hand-1 cut/ceremony
+   *  window — the fan must show NOTHING (no faces, no backs, no stacks). An
+   *  explicit prop (not an empty `hand`, not CSS display:none) so the empty
+   *  render returns BEFORE either layout branch: the dealing slot-measurement
+   *  path the DealOverlay reads is reached only when NOT hidden, and stays
+   *  byte-for-byte untouched. `dealing` and `hidden` are mutually exclusive by
+   *  construction (the gate short-circuits on dealing). */
+  hidden?: boolean;
 }
 
 /** Split an index sequence into at most two balanced rows, same arithmetic as
@@ -147,6 +156,7 @@ export function HandFan({
   descending = false,
   revealed,
   dealOrder,
+  hidden = false,
 }: HandFanProps) {
   const theme = useDeckTheme();
   const cardRefs = useRef(new Map<number, HTMLElement>());
@@ -199,6 +209,14 @@ export function HandFan({
     prevRects.current = next;
     wasDealing.current = dealing;
   });
+
+  // Pre-deal gate: render the empty fan group (keeps the a11y landmark and
+  // layout slot stable) with NO cards — returns before either layout branch,
+  // so the dealing slot-measurement path stays untouched. Hooks above run
+  // unconditionally (this file's rule); only the card render is skipped.
+  if (hidden) {
+    return <div className="gd-fan" role="group" aria-label={t('game.hand.label')} />;
+  }
 
   let displayIndex = -1;
   return (

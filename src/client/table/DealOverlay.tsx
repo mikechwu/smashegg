@@ -177,7 +177,18 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onMarkerLand
         // The marker sits at the deck centre already (absolute, inset:0), so —
         // unlike the fixed-position back flights — it needs no left/top; the
         // translate delta (origin→target) alone carries it to the leader.
-        markerEl.classList.add('gd-deal__marker--flying');
+        //
+        // Owner bug (slow-motion find): the --flying class (opacity: 1) must
+        // land exactly WHEN THE FLIGHT STARTS, not at schedule time — the
+        // flight animation idles for tick.delayMs before its beat, and a
+        // synchronous class-add left the face-up marker peeking out of the
+        // deck pile for that whole pre-beat window. Scheduled via the shared
+        // `timers` list, which skip() clears: a skipped deal keeps the marker
+        // invisible end to end (its .finish() still fires onfinish, so the
+        // reveal + despawn below run as usual).
+        timers.push(
+          setTimeout(() => markerEl.classList.add('gd-deal__marker--flying'), tick.delayMs),
+        );
         flyNode(markerEl, target, tick.delayMs, MARKER_FLY_MS, () => {
           onCardLanded(tick.ownSlot);
           // THE reveal (owner suspense rule, refined): the landing itself is
@@ -185,6 +196,14 @@ export function DealOverlay({ dirOrder, marker, level, onOwnLanded, onMarkerLand
           // leader's seat ring; no extra text (owner: what shows in the
           // middle is clear enough).
           onMarkerLandedRef.current?.();
+          // Owner bug: the face-up marker must DESPAWN on landing exactly like
+          // a remote back (flyBack's node.remove()) — the seat/fan it landed at
+          // owns the card now. Without this it reverts (fill:'backwards') to
+          // the deck centre at opacity:1 and lingers as a stray face-up card
+          // for the rest of the deal. Removed AFTER the reveal fires, so the
+          // suspense timing is unchanged; the skip path (.finish() → onfinish)
+          // runs this same callback, so a skipped deal also ends marker-free.
+          markerEl.remove();
         });
       } else {
         flyBack(target, tick.delayMs, tick.ownSlot);
