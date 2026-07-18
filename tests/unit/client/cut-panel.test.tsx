@@ -115,3 +115,73 @@ describe('ceremony/cut/deal cards match the playing cards (owner item 5)', () =>
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// Cut-by-hand round (owner): the ribbon IS the control — the visible slider
+// bar is gone; an invisible native range input lies over the cards, so
+// dragging the deck drags the slider while keyboard/AT semantics survive.
+// ---------------------------------------------------------------------------
+
+describe('cut by dragging the cards (ribbon-overlay slider)', () => {
+  it("the cutter's range input lives INSIDE the live ribbon; spectators get the bare ribbon", () => {
+    const cutterHtml = render(true);
+    const ribbon = cutterHtml.match(/<div class="gd-cut__ribbon[^"]*"[^>]*>[\s\S]*?<\/div>/)?.[0] ?? '';
+    expect(ribbon).toContain('gd-cut__ribbon--live');
+    expect(ribbon).toContain('gd-cut__slider');
+    expect(ribbon).toContain('type="range"');
+    // ONE slider, and only inside the ribbon (the old bar below is gone).
+    expect(cutterHtml.match(/gd-cut__slider/g) ?? []).toHaveLength(1);
+    const spectatorHtml = render(false);
+    expect(spectatorHtml).not.toContain('gd-cut__ribbon--live');
+    expect(spectatorHtml).not.toContain('gd-cut__slider');
+    // The touch affordance (panel MED, Grok): the goldleaf handle rides the
+    // split for the cutter only, positioned off the same --split var the
+    // ribbon advertises; decorative.
+    expect(cutterHtml).toContain('gd-cut__handle');
+    expect(cutterHtml).toMatch(/--split:\s*\d+/);
+    expect(spectatorHtml).not.toContain('gd-cut__handle');
+    // The handle's geometry (panel round-2, Grok): the parted-midpoint
+    // formula — (split − 0.5) pitches + half a sliver + half a gap —
+    // CLAMPED to the two edge gaps' centres (splits 0 and 24 are
+    // reachable), z-29 under the z-30 input, and inert to the hit test.
+    const css2 = readFileSync(join(__dirname, '../../../src/client/table/table.css'), 'utf8').replace(
+      /\/\*[\s\S]*?\*\//g,
+      '',
+    );
+    const handle = css2.match(/\.gd-cut__handle\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(handle, 'handle rule not found').not.toBe('');
+    expect(handle).toMatch(/\(var\(--split\) - 0\.5\) \/ \(var\(--slivers\) - 1\)/);
+    expect(handle).toMatch(/var\(--sliver-w\) \/ 2 \+ var\(--gap\) \/ 2/);
+    // The reachable edge splits (0 and 24) lie OUTSIDE the interior line —
+    // the component marks them and the overrides pin the handle to the edge
+    // gaps' own centres (panel round-2 geometry, corrected twice).
+    expect(css2).toMatch(/\[data-split-edge='low'\] \.gd-cut__handle\s*\{\s*left:\s*calc\(var\(--gap\) \/ 2\);/);
+    expect(css2).toMatch(/\[data-split-edge='high'\] \.gd-cut__handle\s*\{\s*left:\s*calc\(100% - var\(--gap\) \/ 2\);/);
+    expect(handle).toMatch(/z-index:\s*29/);
+    expect(handle).toMatch(/pointer-events:\s*none/);
+  });
+
+  it('the overlay CSS: invisible, full-ribbon hit area, no page-scroll steal, visible focus via the ribbon frame', () => {
+    const css = readFileSync(join(__dirname, '../../../src/client/table/table.css'), 'utf8').replace(
+      /\/\*[\s\S]*?\*\//g,
+      '',
+    );
+    const slider = css.match(/\.gd-cut__slider\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(slider, 'slider rule not found').not.toBe('');
+    expect(slider).toMatch(/position:\s*absolute/);
+    expect(slider).toMatch(/inset:\s*0/);
+    expect(slider).toMatch(/opacity:\s*0/);
+    // Above every sliver (their z runs 0..23) or the cards swallow the drag
+    // (390 live find: the first overlay sat UNDER the slivers and dragging
+    // did nothing).
+    expect(slider).toMatch(/z-index:\s*30/);
+    const live = css.match(/\.gd-cut__ribbon--live\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(live).toMatch(/touch-action:\s*none/);
+    // The input must always TAKE the hit: pointer-events none would kill
+    // the whole interaction silently (panel LOW, Grok).
+    expect(slider).toMatch(/pointer-events:\s*auto/);
+    expect(slider).not.toMatch(/pointer-events:\s*none/);
+    // Keyboard focus stays visible even though the input is not.
+    expect(css).toMatch(/\.gd-cut__ribbon--live:has\(\.gd-cut__slider:focus-visible\)\s*\{[^}]*outline/);
+  });
+});

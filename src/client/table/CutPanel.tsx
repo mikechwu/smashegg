@@ -45,21 +45,68 @@ export interface CutPanelProps {
 
 /** The spread ribbon: CUT_RIBBON_SLIVERS overlapping card backs, each shifted
  *  right by the gap once it falls past the split (data-side='right'). The CSS
- *  transitions the shift, so dragging the slider slides the split along the
- *  ribbon — the deck visibly parting into two packets. */
-function CutRibbon({ leftCount }: { leftCount: number }) {
+ *  transitions the shift, so moving the split slides it along the ribbon —
+ *  the deck visibly parting into two packets.
+ *
+ *  Owner cut-by-hand round: the ribbon ITSELF is the control — the visible
+ *  slider bar is gone. For the cutter, an INVISIBLE native range input lies
+ *  over the cards (absolute, inset 0, opacity 0): a finger or mouse dragged
+ *  across the deck IS the native slider drag, so the split follows the touch
+ *  like really cutting a deck — while keyboard arrows, Home/End and the
+ *  aria slider semantics all survive untouched (the §leak note about
+ *  aria-valuenow exposing exact positions is unchanged: same input, same
+ *  documented PARTIAL mitigation). Spectators get the bare ribbon. */
+function CutRibbon({
+  leftCount,
+  value,
+  onChange,
+  sliderLabel,
+}: {
+  leftCount: number;
+  /** Present only for the CUTTER — mounts the invisible drag surface. */
+  value?: number;
+  onChange?: (position: number) => void;
+  sliderLabel?: string;
+}) {
   return (
-    <div className="gd-cut__ribbon" aria-hidden>
+    <div
+      className={`gd-cut__ribbon${value !== undefined ? ' gd-cut__ribbon--live' : ''}`}
+      style={{ '--split': leftCount } as CSSProperties}
+      data-split-edge={
+        leftCount === 0 ? 'low' : leftCount === CUT_RIBBON_SLIVERS ? 'high' : undefined
+      }
+    >
       {Array.from({ length: CUT_RIBBON_SLIVERS }, (_, i) => (
         <span
           key={i}
           className="gd-cut__sliver"
           data-side={i < leftCount ? 'left' : 'right'}
           style={{ '--i': i } as CSSProperties}
+          aria-hidden
         >
           <CardBack size="hand" />
         </span>
       ))}
+      {value !== undefined && (
+        <>
+          {/* The touch affordance (panel MED, Grok): with the bar gone, a
+              small goldleaf handle rides the split itself — visible chrome
+              saying "drag here", moving with the cut. Decorative (the
+              invisible input carries the semantics). */}
+          <span className="gd-cut__handle" aria-hidden="true">
+            ⟨⟩
+          </span>
+          <input
+            className="gd-cut__slider"
+            type="range"
+            min={CUT_MIN}
+            max={CUT_MAX}
+            value={value}
+            onChange={(e) => onChange?.(Number(e.target.value))}
+            aria-label={sliderLabel}
+          />
+        </>
+      )}
     </div>
   );
 }
@@ -101,22 +148,18 @@ export function CutPanel({ cutter, isCutter, flips, level, nameFor, onCut }: Cut
   return (
     <div className="gd-cut">
       <p className="gd-cut__title">{t('game.ceremony.title')}</p>
-      <CutRibbon leftCount={cutLeftCount(position)} />
+      <CutRibbon
+        leftCount={cutLeftCount(position)}
+        value={position}
+        onChange={setPosition}
+        sliderLabel={t('game.cut.sliderLabel')}
+      />
       <FlipRow flips={flips} level={level} />
       <p className="gd-cut__prompt">
         {lastFlip !== null
           ? t('game.cut.flipped', { card: cardLabel(lastFlip, level) })
           : t('game.cut.prompt')}
       </p>
-      <input
-        className="gd-cut__slider"
-        type="range"
-        min={CUT_MIN}
-        max={CUT_MAX}
-        value={position}
-        onChange={(e) => setPosition(Number(e.target.value))}
-        aria-label={t('game.cut.sliderLabel')}
-      />
       <button type="button" className="gd-cut__confirm" onClick={() => onCut(position)}>
         {t('game.cut.confirm')}
       </button>

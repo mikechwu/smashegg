@@ -290,9 +290,77 @@ button.gd-plate {
   animation: gd-flip-in 300ms ease-out;
   opacity: 0.75;
 }
+/* Cut-by-hand round (owner): the ribbon IS the control. The native range
+   input lies INVISIBLY over the cards — a finger or mouse dragged across
+   the deck is the native slider drag (the split follows the touch), while
+   keyboard arrows / Home/End / the aria slider semantics survive
+   untouched. The visible bar below the ribbon is gone. */
+.gd-cut__ribbon--live {
+  cursor: ew-resize;
+  /* The drag must never scroll the page out from under the cut. */
+  touch-action: none;
+}
 .gd-cut__slider {
+  position: absolute;
+  inset: 0;
   width: 100%;
-  accent-color: var(--cinnabar);
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: ew-resize;
+  /* Above every sliver (their split-order z runs 0…23): the invisible
+     input must WIN the hit test or the cards swallow the drag. It must
+     also always TAKE the hit (an opacity-0 element still receives events;
+     pointer-events: none would kill the whole interaction — pinned). */
+  pointer-events: auto;
+  touch-action: none;
+  z-index: 30;
+}
+/* The split-riding handle (panel MED, Grok: with the bar gone, touch users
+   get no conventional "drag here" chrome — the cursor hint is
+   mouse-only). A small goldleaf chevron pair rides the parted interface
+   itself, moving with the cut; decorative (the invisible input carries the
+   semantics). Geometry (panel round-2, Grok — the first formula sat half a
+   card into the right packet): the parted midpoint between left-packet
+   sliver S−1's right edge and the gap-shifted sliver S is EXACTLY
+   pitch·(S − 0.5) + sliver/2 + gap/2 for 1 ≤ S ≤ 23 (pitch = the sliver
+   step). The all-right / all-left ends (S = 0 / 24, both reachable) lie
+   OUTSIDE that interior line — their gaps hug the ribbon's own edges — so
+   the component marks them (data-split-edge) and the two overrides below
+   pin the handle to those edge gaps' centres exactly. */
+.gd-cut__handle {
+  position: absolute;
+  top: 50%;
+  left: calc(
+    (100% - var(--sliver-w) - var(--gap)) * (var(--split) - 0.5) / (var(--slivers) - 1) +
+      var(--sliver-w) / 2 + var(--gap) / 2
+  );
+  transform: translate(-50%, -50%);
+  z-index: 29;
+  pointer-events: none;
+  color: var(--goldleaf);
+  font-size: 0.95rem;
+  letter-spacing: -0.08em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  transition: left 160ms cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+.gd-cut__ribbon[data-split-edge='low'] .gd-cut__handle {
+  left: calc(var(--gap) / 2);
+}
+.gd-cut__ribbon[data-split-edge='high'] .gd-cut__handle {
+  left: calc(100% - var(--gap) / 2);
+}
+@media (prefers-reduced-motion: reduce) {
+  .gd-cut__handle {
+    transition: none;
+  }
+}
+/* Focus must stay VISIBLE even though the input is not: the ribbon frames
+   itself when its invisible slider holds keyboard focus. */
+.gd-cut__ribbon--live:has(.gd-cut__slider:focus-visible) {
+  outline: 2px solid var(--goldleaf);
+  outline-offset: 3px;
+  border-radius: 6px;
 }
 .gd-cut__confirm {
   align-self: center;
