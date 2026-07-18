@@ -148,18 +148,22 @@ describe('cut by dragging the cards (ribbon-overlay slider)', () => {
     expect(handleSpan).toContain('<circle');
     expect(handleSpan).toContain('<path');
     expect(handleSpan).not.toMatch(/[\u2329\u232A\u27E8\u27E9\u25C7\u2B27]/);
-    // The handle's geometry (panel round-2, Grok): the parted-midpoint
-    // formula — (split − 0.5) pitches + half a sliver + half a gap —
-    // CLAMPED to the two edge gaps' centres (splits 0 and 24 are
-    // reachable), z-29 under the z-30 input, and inert to the hit test.
+    // The badge's geometry, THIRD derivation (the owner's screenshots
+    // caught both priors): the packets OVERLAP, so the eye's split is the
+    // SEAM where the right packet's first gap-shifted card lifts off —
+    // pitch*S + gap — with the reachable edge splits (0/24) pinned to
+    // their felt strips; z-29 under the z-30 input, inert to the hit test.
     const css2 = readFileSync(join(__dirname, '../../../src/client/table/table.css'), 'utf8').replace(
       /\/\*[\s\S]*?\*\//g,
       '',
     );
     const handle = css2.match(/\.gd-cut__handle\s*\{[^}]*\}/)?.[0] ?? '';
     expect(handle, 'handle rule not found').not.toBe('');
-    expect(handle).toMatch(/\(var\(--split\) - 0\.5\) \/ \(var\(--slivers\) - 1\)/);
-    expect(handle).toMatch(/var\(--sliver-w\) \/ 2 \+ var\(--gap\) \/ 2/);
+    // Third derivation (owner screenshots caught both priors): the packets
+    // OVERLAP, so the visible split is the SEAM where the right packet's
+    // first gap-shifted card lifts off — pitch*S + gap, no midpoint math.
+    expect(handle).toMatch(/var\(--split\) \/ \(var\(--slivers\) - 1\) \+ var\(--gap\)/);
+    expect(handle).not.toMatch(/- 0\.5/);
     // The reachable edge splits (0 and 24) lie OUTSIDE the interior line —
     // the component marks them and the overrides pin the handle to the edge
     // gaps' own centres (panel round-2 geometry, corrected twice).

@@ -318,22 +318,25 @@ button.gd-plate {
 }
 /* The split-riding handle (panel MED, Grok: with the bar gone, touch users
    get no conventional "drag here" chrome — the cursor hint is
-   mouse-only). A goldleaf pointing-hand coin badge rides the parted interface
-   itself, moving with the cut; decorative (the invisible input carries the
-   semantics). Geometry (panel round-2, Grok — the first formula sat half a
-   card into the right packet): the parted midpoint between left-packet
-   sliver S−1's right edge and the gap-shifted sliver S is EXACTLY
-   pitch·(S − 0.5) + sliver/2 + gap/2 for 1 ≤ S ≤ 23 (pitch = the sliver
-   step). The all-right / all-left ends (S = 0 / 24, both reachable) lie
-   OUTSIDE that interior line — their gaps hug the ribbon's own edges — so
-   the component marks them (data-split-edge) and the two overrides below
-   pin the handle to those edge gaps' centres exactly. */
+   mouse-only). A goldleaf pointing-hand coin badge rides the parted SEAM,
+   moving with the cut; decorative (the invisible input carries the
+   semantics). Geometry, third derivation (owner screenshots caught both
+   prior ones): the packets OVERLAP — a sliver (~50.7px at 390) is wider
+   than pitch + gap (~27px) — so parting exposes NO felt between them and
+   any "midpoint of the gap" formula floats over the left packet's cards.
+   What the eye reads as the split is the SEAM where the right packet's
+   first, gap-shifted card lifts off the left packet's exposed top card:
+   left = pitch·S + gap, exactly. The all-right / all-left ends (S = 0 /
+   24, both reachable) have no second packet to seam against — their felt
+   strips hug the ribbon's own edges — so the component marks them
+   (data-split-edge) and the two overrides below pin the badge to those
+   strips' centres. Empirically verified against the DOM's own sliver
+   rects at multiple drag points (probe-cutdrag), not just re-derived. */
 .gd-cut__handle {
   position: absolute;
   top: 50%;
   left: calc(
-    (100% - var(--sliver-w) - var(--gap)) * (var(--split) - 0.5) / (var(--slivers) - 1) +
-      var(--sliver-w) / 2 + var(--gap) / 2
+    (100% - var(--sliver-w) - var(--gap)) * var(--split) / (var(--slivers) - 1) + var(--gap)
   );
   transform: translate(-50%, -50%);
   z-index: 29;

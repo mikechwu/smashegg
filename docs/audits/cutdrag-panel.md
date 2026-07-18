@@ -99,3 +99,25 @@ handle's geometry to pixel-exact. Gate 932/932 + typecheck + lint:hooks +
 build, green locally and in Grok's clone every round; live-driven at 390
 (drag 12 → 20 slivers, Home/End to the exact edge-gap centres, Cut →
 deal).
+
+## Round 4 (owner screenshots — the geometry was STILL off; third derivation)
+
+The owner's two screenshots showed the badge visibly off the split at
+interior positions — catching BOTH prior derivations, including the one
+round 3 confirmed. Root cause, found by measuring the DOM instead of
+deriving: the packets OVERLAP (a sliver ~50.7px at 390 is wider than
+pitch + gap ~27px), so parting exposes NO felt between them and any
+"midpoint of the gap" formula floats over the left packet's cards. What
+the eye reads as the split is the SEAM — the line where the right packet's
+first gap-shifted card lifts off the left packet's exposed top card:
+left = pitch·S + gap exactly. Fixed, with the probe now measuring the
+badge centre against the DOM's own first right-side sliver at three drag
+points (errors [0, 0, 0] px) plus both edge overrides (11.2 /
+width−11.2). Grok's targeted verification CONFIRMED the seam claim under
+the z-order, the exact CSS identity for all interior splits, the edge
+overrides, and the gate (932/932 + typecheck in its clone); its one
+doc-drift nit (a stale midpoint phrase in the test comment) fixed
+immediately. Lesson recorded in the CSS comment so the next reader starts
+from the overlap fact, not the gap-midpoint intuition — and in this file:
+two independent auditors CONFIRMING a derivation is not a substitute for
+measuring the rendered truth.
