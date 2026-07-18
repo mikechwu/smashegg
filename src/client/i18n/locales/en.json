@@ -42,7 +42,6 @@
   "error.protocol": "Connection hiccup — please refresh the page",
   "error.generic": "That didn't go through — please try again",
   "room.spectating": "You have no seat here, so there is no game view to show.",
-  "room.seatTabsLabel": "Switch seat",
   "room.seatTab": "Seat {seat}",
   "room.waitingForView": "Waiting for game data...",
   "lobby.heading": "Lobby",
@@ -234,5 +233,6 @@
   "theme.lacquer.name": "Classic lacquer",
   "theme.label": "Deck",
   "theme.cinnabarCourt.name": "Cinnabar Court",
-  "game.deal.label": "Dealing"
+  "game.deal.label": "Dealing",
+  "game.seat.switchTo": "Switch to {name}"
 }

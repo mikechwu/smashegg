@@ -25,6 +25,7 @@ import { CutPanel } from './table/CutPanel';
 import { DealOverlay } from './table/DealOverlay';
 import { HAND_SIZE, dealDirOrder, markerDealBeat } from './table/deal';
 import { EventFeed, FEED_LIMIT, type FeedLine } from './table/EventFeed';
+import { PlayOverlay } from './table/PlayOverlay';
 import { HandFan } from './table/HandFan';
 import { TableHeadline } from './table/TableHeadline';
 import { ResultOverlay } from './table/ResultOverlay';
@@ -116,6 +117,12 @@ export interface SeatDerived {
    *  Codex + Grok concurring); `passed` itself stays the durable
    *  trick-state fact. */
   passedAt: Partial<Record<Seat, number>>;
+  /** The latest play's flight trigger (owner: cards fly from the pile to the
+   *  table like the deal): stamped on every 'played' fold, rendered by
+   *  PlayOverlay while fresh (same wall-clock discipline as passedAt — a
+   *  remount never replays a settled flight), cleared by a new hand.
+   *  `id` keys the overlay so consecutive plays remount it. */
+  playFx: { seat: Seat; cards: Card[]; at: number; id: number } | null;
   jiefeng: { finisher: Seat; leader: Seat } | null;
   anti: { seat: Seat; card: Card }[] | null;
   ceremony: Ceremony | null;
@@ -138,6 +145,7 @@ export const EMPTY_DERIVED: SeatDerived = {
   feed: [],
   passed: [],
   passedAt: {},
+  playFx: null,
   jiefeng: null,
   anti: null,
   ceremony: null,
@@ -183,6 +191,7 @@ export function foldEvents(
           ...d,
           passed: [],
           passedAt: {},
+          playFx: null,
           jiefeng: null,
           anti: null,
           level: ev.currentLevel,
@@ -199,6 +208,10 @@ export function foldEvents(
           const { [ev.seat]: _dropped, ...rest } = d.passedAt;
           d.passedAt = rest;
         }
+        // The play flight (owner: from the pile to the table, like the
+        // deal). Cards on the table are public — viewEvent never redacts a
+        // played hand — so every seat's fold can fly them.
+        d.playFx = { seat: ev.seat, cards: ev.cards, at: Date.now(), id: nextId() };
         d.jiefeng = null;
         d.anti = null; // the anti-tribute reveal yields the center back to the trick
         push('game.feed.played', {
@@ -217,7 +230,10 @@ export function foldEvents(
         push('game.feed.passed', { name: nameFor(ev.seat) });
         break;
       case 'trickWon':
-        d = { ...d, passed: [], passedAt: {}, anti: null, sweep: d.sweep + 1 };
+        // playFx dies with the trick (panel MED, Grok): the sweep re-keys the
+        // well, and a still-airborne flight would sail into the cleared
+        // centre chasing detached rects.
+        d = { ...d, passed: [], passedAt: {}, playFx: null, anti: null, sweep: d.sweep + 1 };
         push('game.feed.trickWon', { name: nameFor(ev.seat) });
         break;
       case 'jiefeng':
@@ -343,26 +359,30 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot]);
 
-  // Countdown tick — while a deadline is outstanding, OR while a pass fade's
-  // wall-clock window is still open (panel round 2, Grok: an UNTIMED room
-  // folds a pass with no deadline armed, so without this leg `now` freezes
-  // and the reduced-motion static pass stays visible until the trick
-  // clears). The pass leg self-expires: once every stamp has aged past the
-  // render gate (+ slack), the interval's own tick clears it.
+  // Countdown tick — while a deadline is outstanding, OR while a transient
+  // effect's wall-clock window is still open (panel round 2, Grok: an
+  // UNTIMED room folds a pass with no deadline armed, so without this leg
+  // `now` freezes and the reduced-motion static pass stays visible until
+  // the trick clears; the play flight rides the same clock). The fx leg
+  // self-expires: once every stamp has aged past the widest render gate
+  // (+ slack), the interval's own tick clears it.
   const deadlines = snapshot.deadlines;
-  const latestPassAt = Math.max(
+  const latestFxAt = Math.max(
     0,
-    ...[...derivedBySeat.values()].flatMap((d) => Object.values(d.passedAt) as number[]),
+    ...[...derivedBySeat.values()].flatMap((d) => [
+      ...(Object.values(d.passedAt) as number[]),
+      ...(d.playFx !== null ? [d.playFx.at] : []),
+    ]),
   );
   useEffect(() => {
-    const passFreshUntil = latestPassAt + 3500;
-    if (deadlines.length === 0 && Date.now() >= passFreshUntil) return;
+    const fxFreshUntil = latestFxAt + 3500;
+    if (deadlines.length === 0 && Date.now() >= fxFreshUntil) return;
     const timer = setInterval(() => {
       setNow(Date.now());
-      if (deadlines.length === 0 && Date.now() >= passFreshUntil) clearInterval(timer);
+      if (deadlines.length === 0 && Date.now() >= fxFreshUntil) clearInterval(timer);
     }, 500);
     return () => clearInterval(timer);
-  }, [deadlines.length, latestPassAt]);
+  }, [deadlines.length, latestFxAt]);
 
   // The selected tab must always be a seat we still hold (a takeover by
   // another tab can shrink the held set); fall back to the lowest seat.
@@ -373,6 +393,21 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   const view = perSeat === undefined ? null : asGuandanView(perSeat.view);
   const hints =
     perSeat?.hints == null ? null : (perSeat.hints as GuandanAction[]);
+
+  // The tab bar's one non-redundant power, preserved (panel MED, Grok; Codex
+  // noting): per-seat views arrive staggered (seats and perSeat are separate
+  // maps), and while THIS seat's view is missing the ring — and therefore
+  // every switcher pill — does not render. The old tabs still worked on that
+  // waiting screen; without them a multi-seat client could sit on a viewless
+  // seat while another held seat already has a table. Fall back
+  // automatically: a "Waiting for game data" screen has nothing to preserve.
+  useEffect(() => {
+    if (view !== null || activeSeat === undefined) return;
+    const alt = heldSeats.find(
+      (s) => s !== activeSeat && asGuandanView(snapshot.perSeat.get(s)?.view ?? null) !== null,
+    );
+    if (alt !== undefined) setSelectedSeat(alt);
+  });
 
   // Selection resets whenever the active seat or the hand contents change
   // (a play/tribute/deal replaced the cards under the indices), whenever
@@ -431,10 +466,13 @@ export function GameTable({ snapshot, store }: GameTableProps) {
 
   const derived = derivedBySeat.get(activeSeat) ?? EMPTY_DERIVED;
 
+  // Owner flank follow-up: the Seat 1-4 tab bar is GONE — it was pure
+  // same-user view switching for multi-seat self-play (verified: client
+  // state only, rendered nothing for a single held seat), redundant now that
+  // clicking a held seat's name pill switches the view (see plate()).
   if (view === null) {
     return (
       <section className="gd-table">
-        <SeatTabs heldSeats={heldSeats} activeSeat={activeSeat} onSelect={setSelectedSeat} />
         <p>{t('room.waitingForView')}</p>
       </section>
     );
@@ -539,19 +577,26 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // The pill: identity only (flank round) — the count is a standalone
   // SeatCount chip on the cards' other side, pass is a transient fade over
   // the cards, and the countdown lives on the headline (+ above the sort
-  // pill on your turn), so no state beyond committed rides here.
-  const plate = (seat: Seat) => (
-    <SeatPlate
-      seat={seat}
-      name={nameFor(seat)}
-      connected={room?.seats.find((s) => s.seat === seat)?.connected ?? false}
-      isViewer={seat === activeSeat}
-      partner={teamOf(seat) === viewerTeam && seat !== activeSeat}
-      place={placeOf(view.finishOrder, seat)}
-      active={(ringSeats.has(seat) || (seat === activeSeat && yourTurn)) && seat !== leaderConcealed}
-      committed={inTributeCenter && committedSet.has(seat)}
-    />
-  );
+  // pill on your turn), so no state beyond committed rides here. In
+  // multi-seat self-play the pill of another HELD seat is ALSO the seat
+  // switcher (the Seat 1-4 tab bar is gone — clicking the name overlay is
+  // the selection): same client-local setSelectedSeat the tabs called.
+  const plate = (seat: Seat) => {
+    const selectable = heldSeats.length > 1 && heldSeats.includes(seat) && seat !== activeSeat;
+    return (
+      <SeatPlate
+        seat={seat}
+        name={nameFor(seat)}
+        connected={room?.seats.find((s) => s.seat === seat)?.connected ?? false}
+        isViewer={seat === activeSeat}
+        partner={teamOf(seat) === viewerTeam && seat !== activeSeat}
+        place={placeOf(view.finishOrder, seat)}
+        active={(ringSeats.has(seat) || (seat === activeSeat && yourTurn)) && seat !== leaderConcealed}
+        committed={inTributeCenter && committedSet.has(seat)}
+        onSelect={selectable ? () => setSelectedSeat(seat) : undefined}
+      />
+    );
+  };
 
   // Headline clock (refinement round item 6): the countdown moved OFF the
   // seat pills onto the turn line. The chip binds to the seat the turn
@@ -577,6 +622,15 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       : remainingSeconds(clockDeadline.dueAt, now);
   const clockConnected =
     clockSeat !== null && (room?.seats.find((s) => s.seat === clockSeat)?.connected ?? false);
+
+  // The play flight (owner: cards fly face-up from the pile to the table,
+  // like the deal): rendered while the fold's stamp is fresh — 1600ms covers
+  // the widest bomb's staggered flight — and never during the deal/ceremony
+  // (their own choreography owns the table then). Keyed by the fold id so
+  // consecutive plays remount cleanly.
+  const playFx = derived.playFx;
+  const playFlight =
+    playFx !== null && !dealing && !ceremonyShowing && now - playFx.at < 1600 ? playFx : null;
 
   // R3 displayed-count rule (ONE ternary, spec-pinned): a hidden count
   // (null — the config says this viewer may not see it) wins over EVERYTHING,
@@ -669,8 +723,6 @@ export function GameTable({ snapshot, store }: GameTableProps) {
 
   return (
     <section className="gd-table gd-ring">
-      <SeatTabs heldSeats={heldSeats} activeSeat={activeSeat} onSelect={setSelectedSeat} />
-
       <TableHeadline
         currentLevel={view.currentLevel}
         levels={view.levels}
@@ -828,6 +880,15 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         />
       )}
 
+      {playFlight !== null && (
+        <PlayOverlay
+          key={playFlight.id}
+          dir={dirFor(playFlight.seat)}
+          cards={playFlight.cards}
+          level={view.currentLevel}
+        />
+      )}
+
       {dealing && (
         <DealOverlay
           key={derived.dealNo}
@@ -857,28 +918,3 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   );
 }
 
-function SeatTabs({
-  heldSeats,
-  activeSeat,
-  onSelect,
-}: {
-  heldSeats: Seat[];
-  activeSeat: Seat;
-  onSelect: (seat: Seat) => void;
-}) {
-  if (heldSeats.length <= 1) return null;
-  return (
-    <nav className="gd-tabs" aria-label={t('room.seatTabsLabel')}>
-      {heldSeats.map((seat) => (
-        <button
-          key={seat}
-          type="button"
-          disabled={seat === activeSeat}
-          onClick={() => onSelect(seat)}
-        >
-          {t('room.seatTab', { seat: seat + 1 })}
-        </button>
-      ))}
-    </nav>
-  );
-}

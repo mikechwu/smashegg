@@ -42,7 +42,6 @@
   "error.protocol": "連線出了點問題,請重新整理頁面",
   "error.generic": "動作無法完成,請再試一次",
   "room.spectating": "你尚未入座,看不到牌局內容。",
-  "room.seatTabsLabel": "切換座位",
   "room.seatTab": "座位 {seat}",
   "room.waitingForView": "等待牌局資料…",
   "lobby.heading": "牌桌大廳",
@@ -234,5 +233,6 @@
   "theme.lacquer.name": "經典漆案",
   "theme.label": "牌面",
   "theme.cinnabarCourt.name": "朱砂宮廷",
-  "game.deal.label": "發牌中"
+  "game.deal.label": "發牌中",
+  "game.seat.switchTo": "切換到 {name}"
 }

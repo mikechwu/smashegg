@@ -461,9 +461,10 @@ describe('pass: a transient fade over the cards, not a pill chip (T13)', () => {
     // The unmount clock cannot depend on deadlines alone (panel round 2,
     // Grok: an untimed room would freeze `now` and pin a reduced-motion
     // pass to the table until the sweep): the tick effect runs while any
-    // pass stamp is fresh and self-expires after.
-    expect(table).toMatch(/const latestPassAt = Math\.max\(/);
-    expect(table).toMatch(/deadlines\.length === 0 && Date\.now\(\) >= passFreshUntil/);
+    // transient-fx stamp (pass fade OR play flight) is fresh and
+    // self-expires after.
+    expect(table).toMatch(/const latestFxAt = Math\.max\(/);
+    expect(table).toMatch(/deadlines\.length === 0 && Date\.now\(\) >= fxFreshUntil/);
     // The pill renders NO pass state at all — SeatPlate has no passed prop.
     const plate = stripTsComments(
       readFileSync(join(__dirname, '../../../src/client/table/SeatPlate.tsx'), 'utf8'),
@@ -1138,13 +1139,15 @@ describe('narrow-width chrome compression (review follow-up: hand above the fold
     expect(block).toContain('.app-main');
   });
 
-  it('table.css compresses the pre-ring chrome below 720px: level numeral strictly smaller, tabs tightened', () => {
+  it('table.css compresses the pre-ring chrome below 720px: level numeral strictly smaller', () => {
     const block = narrowBlock(tableCss, 'table.css');
     const base = fontSizeRem(stripCssComments(tableCss), '.gd-headline__rank');
     const narrow = fontSizeRem(block, '.gd-headline__rank');
     expect(narrow).toBeLessThan(base);
-    expect(block).toContain('.gd-tabs');
     expect(block).toContain('.gd-headline {');
+    // The seat-tab bar is gone entirely (owner: pills are the switcher) —
+    // nothing may compress what no longer exists.
+    expect(stripCssComments(tableCss)).not.toContain('.gd-tabs');
   });
 
   it('the compression never touches the stacks: no .gd-seatstack rule inside the narrow block (R5 stays whole)', () => {
@@ -1173,5 +1176,180 @@ describe('game.stack.cards locale coverage (T8)', () => {
       expect(template!.replace('{count}', '').trim().length, `${name}: unit present`).toBeGreaterThan(0);
     }
     expect(locales['en']!['game.stack.cards']).toBe('{count} cards');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T14 — the play flight (owner: "like the dealing process"): the pile's count
+// drop and N face-up cards flying from BEHIND the pile to their own trick-well
+// slots. DOM-free pins: PlayOverlay's markup + source discipline, the fold
+// trigger, the render gate, and the layering CSS; the moving picture stays
+// eyes/browser-gated.
+// ---------------------------------------------------------------------------
+
+import { PlayOverlay } from '../../../src/client/table/PlayOverlay';
+
+describe('play flight: from behind the pile to the table (T14)', () => {
+  const playOverlaySrc = readFileSync(
+    join(__dirname, '../../../src/client/table/PlayOverlay.tsx'),
+    'utf8',
+  );
+
+  it('renders one face-up hand-size card per played card, in an aria-hidden fixed layer', () => {
+    const html = renderToStaticMarkup(
+      createElement(PlayOverlay, { dir: 'east', cards: ['9H', '9S', '9D'], level: '2' }),
+    );
+    expect(html).toMatch(/class="gd-playfx" aria-hidden="true"/);
+    expect(html.match(/gd-playfx__card/g) ?? []).toHaveLength(3);
+    expect(html.match(/class="gd-cardframe gd-card--hand"/g) ?? []).toHaveLength(3);
+  });
+
+  it("the fold stamps playFx on every 'played' (distinct ids) and a new hand clears it", () => {
+    const nameFor = (s: number) => `S${s}`;
+    let id = 0;
+    const fold = (prev: SeatDerived, ev: object) =>
+      foldEvents(prev, [ev as never], 0, nameFor, () => id++);
+    const play = {
+      type: 'played',
+      seat: 2,
+      cards: ['9H', '9S'],
+      decl: { type: 'pair', keyRank: '9', size: 2 },
+    };
+    const first = fold(EMPTY_DERIVED, play);
+    expect(first.playFx?.seat).toBe(2);
+    expect(first.playFx?.cards).toEqual(['9H', '9S']);
+    expect(first.playFx?.at).toBeLessThanOrEqual(Date.now());
+    const second = fold(first, { ...play, seat: 3 });
+    expect(second.playFx?.seat).toBe(3);
+    expect(second.playFx?.id).not.toBe(first.playFx?.id);
+    const dealt = fold(second, {
+      type: 'handStarted',
+      handNo: 2,
+      currentLevel: '3',
+      hands: [[], [], [], []],
+    });
+    expect(dealt.playFx).toBeNull();
+    // The sweep kills a flight too (panel MED, Grok: the well re-keys empty
+    // and an airborne flight would sail into the cleared centre).
+    const swept = fold(second, { type: 'trickWon', seat: 3 });
+    expect(swept.playFx).toBeNull();
+  });
+
+  it('GameTable renders the overlay only while fresh, outside the deal/ceremony, keyed by the fold id (source pins)', () => {
+    const table = stripTsComments(gameTableSrc);
+    expect(table).toMatch(
+      /playFx !== null && !dealing && !ceremonyShowing && now - playFx\.at < 1600 \? playFx : null/,
+    );
+    expect(table).toMatch(/key=\{playFlight\.id\}/);
+    expect(table).toMatch(/dir=\{dirFor\(playFlight\.seat\)\}/);
+    // The tick's fx leg covers the flight's window too (untimed rooms).
+    expect(table).toMatch(/d\.playFx !== null \? \[d\.playFx\.at\] : \[\]/);
+  });
+
+  it('PlayOverlay source discipline: reduced-motion bail, mismatch bail, restore-on-cleanup, display-not-remove', () => {
+    const src = stripTsComments(playOverlaySrc);
+    // LAYOUT effect (panel MED, Grok): the well's fresh cards commit visible
+    // in the same render — a post-paint useEffect would flash them for a
+    // frame before the flight hides them.
+    expect(src).toMatch(/useIsomorphicLayoutEffect\(\(\) => \{/);
+    expect(src).toMatch(
+      /const useIsomorphicLayoutEffect = typeof window !== 'undefined' \? useLayoutEffect : useEffect;/,
+    );
+    // Queries scope to THIS overlay's table, and no ring means NO flight —
+    // never a page-global fallback (DealOverlay's discipline; panel round-2
+    // LOW, Codex).
+    expect(src).toMatch(/const scope = root\.closest\('\.gd-ring'\);\s*if \(scope === null\) return;/);
+    expect(src).not.toContain('?? document');
+    // Reduced motion: the settled well is the whole story — no flights, no
+    // well hiding.
+    expect(src).toMatch(/if \(prefersReducedMotion\(\)\) return;/);
+    // A well that does not exactly hold this play bails to settled layout.
+    expect(src).toMatch(/targets\.length !== nodes\.length \|\| targets\.length === 0\) return;/);
+    // The unmount cleanup can NEVER leave the well hidden…
+    expect(src).toMatch(/for \(const a of animations\) a\.cancel\(\);\s*restore\(\);/);
+    // …and React-owned flight nodes are display-hidden, never .remove()d.
+    expect(src).toContain("node.style.display = 'none'");
+    expect(src).not.toContain('node.remove()');
+  });
+
+  it('the layer CSS: fixed at z 8 (under the well cards at 10), cards base opacity 0, pointer-inert', () => {
+    const stripped = stripCssComments(tableCss);
+    const layer = stripped.match(/\.gd-playfx\s*\{[^}]*\}/)?.[0] ?? '';
+    const card = stripped.match(/\.gd-playfx__card\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(layer, 'layer rule not found').not.toBe('');
+    expect(layer).toMatch(/position:\s*fixed/);
+    expect(layer).toMatch(/z-index:\s*8/);
+    expect(layer).toMatch(/pointer-events:\s*none/);
+    expect(card).toMatch(/opacity:\s*0/);
+    // The well keeps painting its revealed cards OVER a landed flight.
+    expect(stripped).toMatch(/\.gd-well\s*\{[^}]*z-index:\s*10/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T15 — the seat switcher IS the name pill (owner: the Seat 1-4 tab bar was
+// redundant same-user chrome — verified: client-local view switching only,
+// nothing rendered for a single held seat).
+// ---------------------------------------------------------------------------
+
+describe('seat switching via the name pill; the tab bar is gone (T15)', () => {
+  it('a pill WITH onSelect is a real button (switchTo aria, --held); without it, a plain div', () => {
+    const original = getLocale();
+    try {
+      setLocale('en');
+      const held = renderPlate({ onSelect: () => {} });
+      expect(held).toMatch(/<button type="button" class="gd-plate gd-plate--held"/);
+      expect(held).toContain(`aria-label="${t('game.seat.switchTo', { name: '阿美' })}"`);
+      const plain = renderPlate();
+      expect(plain).toMatch(/<div class="gd-plate"/);
+      expect(plain).not.toContain('<button');
+    } finally {
+      setLocale(original);
+    }
+  });
+
+  it('single held seat: no switcher pills anywhere and no tab bar markup', () => {
+    const store = new RoomStore('TESTCODE');
+    const html = renderToStaticMarkup(createElement(GameTable, { snapshot: minimalSnapshot(), store }));
+    expect(html).not.toContain('gd-plate--held');
+    expect(html).not.toContain('gd-tabs');
+  });
+
+  it('multi-seat self-play: a HELD remote seat pill is the switcher; the active pill and stranger pills are not', () => {
+    const snap = minimalSnapshot() as unknown as { seats: Map<number, { token: string }> };
+    snap.seats.set(2, { token: 'tok2' }); // viewer also holds seat 2 (north)
+    const store = new RoomStore('TESTCODE');
+    const html = renderToStaticMarkup(
+      createElement(GameTable, { snapshot: snap as unknown as RoomSnapshot, store }),
+    );
+    const north = outerHtmlByClass(html, 'gd-seatzone--north');
+    expect(north).toContain('gd-plate--held');
+    // East/west (seats 1 and 3) are NOT held — plain pills.
+    for (const dir of ['east', 'west'] as const) {
+      expect(outerHtmlByClass(html, `gd-seatzone--${dir}`)).not.toContain('gd-plate--held');
+    }
+    // The bottombar (the ACTIVE seat) is never a switcher.
+    expect(outerHtmlByClass(html, 'gd-bottombar')).not.toContain('gd-plate--held');
+  });
+
+  it('the tab component is gone from the source, and the switcher reuses the SAME client state', () => {
+    const table = stripTsComments(gameTableSrc);
+    expect(table).not.toContain('SeatTabs');
+    expect(table).not.toContain('gd-tabs');
+    expect(table).toMatch(
+      /const selectable = heldSeats\.length > 1 && heldSeats\.includes\(seat\) && seat !== activeSeat;/,
+    );
+    expect(table).toMatch(/onSelect=\{selectable \? \(\) => setSelectedSeat\(seat\) : undefined\}/);
+    // The tabs' one non-redundant power, preserved (panel MED, Grok): a
+    // viewless active seat auto-falls back to any held seat whose view has
+    // already arrived — the waiting screen renders no switcher pills.
+    expect(table).toMatch(/if \(view !== null \|\| activeSeat === undefined\) return;/);
+    expect(table).toMatch(
+      /heldSeats\.find\(\s*\(s\) => s !== activeSeat && asGuandanView\(snapshot\.perSeat\.get\(s\)\?\.view \?\? null\) !== null,?\s*\)/,
+    );
+    // The button shell strips its UA chrome (panel LOW, Grok).
+    const css = stripCssComments(tableCss).match(/button\.gd-plate\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(css).toMatch(/appearance:\s*none/);
+    expect(css).toMatch(/margin:\s*0/);
   });
 });
