@@ -403,55 +403,78 @@ describe('chooser 390px fit — CSS-token arithmetic (render verified by visual 
     return Number(m![1]);
   }
 
-  it('re-proves the §3.1 inequality from the stylesheet text (390px and the 375px floor)', () => {
-    const miniCardw = token(tableCss, /\.gd-card--mini\s*\{[^}]*--gd-cardw:\s*([\d.]+)rem/, 'mini cardw') * REM;
+  it('re-proves the fit inequality at HAND size (owner: chooser cards match hand cards) — 390px and the 375px floor', () => {
+    // The chooser renders full hand-size faces now (the mini era's §3.1/§5.4
+    // arithmetic is superseded): the result row rides the trick well's own
+    // -0.6 overlap — it IS the play as it will hit the table — and the chip
+    // row (wild → target) stays flat.
+    const handVw = token(tableCss, /\.gd-card--hand\s*\{[^}]*--gd-cardw:\s*clamp\([\d.]+rem,\s*([\d.]+)vw/, 'hand vw');
+    const handFloor = token(tableCss, /\.gd-card--hand\s*\{[^}]*--gd-cardw:\s*clamp\(([\d.]+)rem/, 'hand floor') * REM;
     const chooserBlock = tableCss.match(/\.gd-chooser\s*\{([^}]*)\}/)![1]!;
     const chooserPad = token(chooserBlock, /padding:\s*([\d.]+)rem/, 'chooser padding') * REM;
     const chooserBorder = token(chooserBlock, /border:\s*([\d.]+)px/, 'chooser border');
     const capRem = token(chooserBlock, /max-width:\s*min\(([\d.]+)rem/, 'chooser max-width cap') * REM;
     const capViewportSub = token(chooserBlock, /max-width:[^;]*calc\(100vw\s*-\s*([\d.]+)rem\)/, 'viewport sub') * REM;
-    const resultGap = token(tableCss, /\.gd-chooser__result\s*\{[^}]*gap:\s*([\d.]+)rem/, 'result gap') * REM;
+    // Comment-stripped for the overlap rules: their comment bodies carry
+    // literal braces (e.g. "gd-card--{size}") that break [^}]* scans.
+    const bareCss = tableCss.replace(/\/\*[\s\S]*?\*\//g, '');
+    const overlap = token(
+      bareCss,
+      /\.gd-chooser__result > \* \+ \*\s*\{[^}]*margin-left:\s*calc\(var\(--gd-cardw\)\s*\*\s*(-[\d.]+)\)/,
+      'result overlap',
+    );
+    const wellOverlap = token(
+      bareCss,
+      /\.gd-well__cards \.gd-cardframe \+ \.gd-cardframe\s*\{[^}]*margin-left:\s*calc\(var\(--gd-cardw\)\s*\*\s*(-[\d.]+)\)/,
+      'well overlap',
+    );
     const chipGap = token(tableCss, /\.gd-chooser__chip\s*\{[^}]*gap:\s*([\d.]+)rem/, 'chip gap') * REM;
     const headerGap = token(tableCss, /\.gd-chooser__header\s*\{[^}]*gap:\s*([\d.]+)rem/, 'header gap') * REM;
     const arrow = token(tableCss, /\.gd-chooser__arrow\s*\{[^}]*font-size:\s*([\d.]+)rem/, 'arrow size') * REM;
     const appPad = token(appCss, /\.app-main\s*\{[^}]*padding:\s*[\d.]+rem\s+([\d.]+)rem/, 'app-main x-padding') * REM;
     const tablePad = token(tableCss, /\.gd-table\s*\{[^}]*?padding:\s*([\d.]+)rem/, 'gd-table padding') * REM;
 
-    const chrome = 2 * (chooserPad + chooserBorder);
-    // Worst result row: 6 mini faces (7–10-card selections are single-
-    // reading bombs; the chooser needs ≥2 readings), no overlap.
-    const worstRow = 6 * miniCardw + 5 * resultGap;
-    // One chip: wild face + gap + arrow + gap + target face.
-    const chip = 2 * miniCardw + 2 * chipGap + arrow;
-    const twoChips = 2 * chip + headerGap;
+    // LOCKSTEP: the chooser preview overlaps exactly like the table it
+    // previews.
+    expect(overlap).toBe(wellOverlap);
 
+    const chrome = 2 * (chooserPad + chooserBorder);
     for (const viewport of [390, 375]) {
+      const cardw = Math.max(handFloor, (handVw / 100) * viewport);
+      // Worst result row: 6 hand faces under the well overlap (7–10-card
+      // selections are single-reading bombs; the chooser needs ≥2 readings).
+      const worstRow = cardw * (1 + 5 * (1 + overlap));
+      // One chip: wild face + gap + arrow + gap + target face; two distinct
+      // chips side by side is the widest header.
+      const chip = 2 * cardw + 2 * chipGap + arrow;
+      const twoChips = 2 * chip + headerGap;
       const budget = viewport - 2 * appPad - 2 * tablePad;
       const outerCap = Math.min(capRem, viewport - capViewportSub);
       expect(outerCap, `outer cap must stay within the ${viewport}px content column`).toBeLessThanOrEqual(budget);
-      expect(worstRow + chrome, `6-face result row must fit at ${viewport}px`).toBeLessThanOrEqual(budget);
-      expect(twoChips + chrome, `two distinct chips must fit at ${viewport}px`).toBeLessThanOrEqual(budget);
+      expect(worstRow + chrome, `6-face result row must fit at ${viewport}px`).toBeLessThanOrEqual(outerCap);
+      expect(twoChips + chrome, `two distinct chips must fit at ${viewport}px`).toBeLessThanOrEqual(outerCap);
     }
-    // The exact §5.4 numbers, so silent drift is visible in review.
-    expect(miniCardw).toBe(32);
-    expect(worstRow).toBe(202);
-    expect(chip).toBe(88);
-    expect(chrome).toBe(22);
+
+    // The chooser's markup no longer knows the mini size at all.
+    const actionBarSrc = readFileSync(
+      new URL('../../../src/client/table/ActionBar.tsx', import.meta.url),
+      'utf8',
+    );
+    expect(actionBarSrc).not.toContain('size="mini"');
+    expect(actionBarSrc).toContain('size="hand"');
   });
 
-  // Superseded pin (item 1): the wild marker is now a language-neutral SVG
-  // seal, not a sized glyph — there is no more per-size font-size ratio to
-  // pin against a text legibility floor. What replaces it: the seal reads
-  // as a stamp (not a smear) at the smallest shipped size, i.e. its
-  // diameter clears ~8px at mini's --gd-cardw.
-  it('pins the mini wild-seal diameter at ~8px (reads as a stamp, not a smear)', () => {
-    const miniCardw = token(tableCss, /\.gd-card--mini\s*\{[^}]*--gd-cardw:\s*([\d.]+)rem/, 'mini cardw') * REM;
+  // The wild seal must read as a stamp (not a smear) at the smallest size
+  // the game UI now ships: the HAND clamp floor (2.75rem) — the chooser,
+  // well, fan, piles, cut, ceremony and deal all render hand faces.
+  it('pins the wild-seal diameter at the hand floor (reads as a stamp, not a smear)', () => {
+    const handFloor = token(tableCss, /\.gd-card--hand\s*\{[^}]*--gd-cardw:\s*clamp\(([\d.]+)rem/, 'hand floor') * REM;
     const ratio = token(
       tableCss,
       /\.gd-card__wild\s*\{[^}]*width:\s*calc\(var\(--gd-cardw\)\s*\*\s*([\d.]+)\)/,
       'wild seal width ratio',
     );
-    expect(ratio * miniCardw).toBeGreaterThanOrEqual(8);
+    expect(ratio * handFloor).toBeGreaterThanOrEqual(8);
   });
 
   it('keeps Cancel outside the scroll region (only the options list scrolls)', () => {

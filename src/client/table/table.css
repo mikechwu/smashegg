@@ -427,9 +427,10 @@ button.gd-plate {
 .gd-card--trick {
   --gd-cardw: 2.25rem;
 }
-/* Mini: the decl chooser's chips and result rows. 2rem = 32px is the
- * number the chooser's 390px-fit arithmetic depends on (wild-chooser-ux.md
- * §3.1) — pinned by the CSS-token ratchet test (chooser-faces.test.ts). */
+/* Mini: DORMANT since the chooser moved to hand-size faces (the game UI
+ * ships no mini cards anywhere now). The token stays because the theme
+ * contract's CardFaceSize union still names the size — narrowing a type
+ * the frozen cinnabar-court art references is out of scope. */
 .gd-card--mini {
   --gd-cardw: 2rem;
 }
@@ -901,9 +902,11 @@ button.gd-plate {
   font-size: 0.75rem;
   opacity: 0.75;
 }
-/* Card-face decl chooser (wild-chooser-ux.md §2–§3): the outer width cap
-   and the mini card/gap tokens below are the inputs of the PROVED 390px
-   fit — worst row (6 mini faces) 202px + 22px chrome ≤ the 342px budget —
+/* Card-face decl chooser (wild-chooser-ux.md §2, faces superseded to HAND
+   size — owner: chooser cards consistent with hand cards): the outer width
+   cap, the hand clamp and the well-lockstep overlap are the inputs of the
+   PROVED 390/375px fit — worst result row (6 hand faces under the -0.6
+   overlap) ≈ 152px + 22px chrome, two distinct chips ≈ 259px + chrome —
    re-proved from this stylesheet's text by the CSS-token ratchet test in
    tests/unit/client/chooser-faces.test.ts. */
 .gd-chooser {
@@ -979,9 +982,19 @@ button.gd-plate {
   font-size: 0.75rem;
   opacity: 0.8;
 }
+/* The combo as it will hit the table — literally (owner: chooser cards
+   consistent with hand cards): full HAND-size faces under the trick well's
+   own -0.6 overlap, so the row previews exactly the presentation the play
+   will have on the felt. Ghost faces (gd-card, no cardframe wrapper) and
+   real faces (gd-cardframe) both carry gd-card--hand — the child selector
+   covers the mixed row and --gd-cardw resolves on each element itself. */
 .gd-chooser__result {
   display: flex;
-  gap: 0.125rem;
+  flex-wrap: wrap;
+  gap: 0;
+}
+.gd-chooser__result > * + * {
+  margin-left: calc(var(--gd-cardw) * -0.6);
 }
 /* Unplayable readings stay listed (spec v1.4 disambiguation: the chooser
    shows the FULL offered set; the server stays the arbiter) but read as

@@ -84,11 +84,10 @@ function LacquerFace({ card, size }: DeckThemeFaceProps) {
   // shared .gd-card__index span, not a change to the generic column layout
   // itself — GhostFace and cinnabar-court reuse that generic layout and must
   // stay untouched (both keep rendering a plain .gd-card__index column).
-  // NEVER at 'mini' either, same reason the body pip below is gated: the
-  // decl chooser's real (non-ghost) card faces render at size="mini"
-  // (ActionBar.tsx), and its 390px arithmetic depends on mini's current
-  // metrics — including .gd-card__index's plain column layout — staying
-  // byte-identical to before this round.
+  // NEVER at 'mini' either — the size is DORMANT now (the decl chooser
+  // moved to hand-size faces; the game UI ships no mini cards anywhere),
+  // but the gate stays so a future mini consumer inherits the plain column
+  // layout, not the hand row.
   // rankText('T') is the only two-glyph rank ('10'); at the shared row
   // font-size the extra glyph would push the row past its 0.65w fit budget,
   // so it alone takes the reduced --row10 modifier.

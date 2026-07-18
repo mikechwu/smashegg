@@ -237,11 +237,11 @@ export function ActionBar(props: ActionBarProps) {
                   <span className="gd-chooser__header">
                     {chips.map((chip, j) => (
                       <span className="gd-chooser__chip" key={j}>
-                        <CardFace card={chip.wild} level={level} size="mini" />
+                        <CardFace card={chip.wild} level={level} size="hand" />
                         <span className="gd-chooser__arrow" aria-hidden="true">
                           →
                         </span>
-                        <GhostFace rank={chip.becomesRank} suit={chip.becomesSuit} size="mini" />
+                        <GhostFace rank={chip.becomesRank} suit={chip.becomesSuit} size="hand" />
                         {chip.count > 1 && <span className="gd-chooser__mult">×{chip.count}</span>}
                       </span>
                     ))}
@@ -262,10 +262,10 @@ export function ActionBar(props: ActionBarProps) {
                           key={j}
                           rank={face.displayRank!}
                           suit={face.displaySuit}
-                          size="mini"
+                          size="hand"
                         />
                       ) : (
-                        <CardFace key={j} card={face.card} level={level} size="mini" />
+                        <CardFace key={j} card={face.card} level={level} size="hand" />
                       ),
                     )}
                   </span>
