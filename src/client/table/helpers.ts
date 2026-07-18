@@ -562,6 +562,25 @@ export function remainingSeconds(dueAt: number, now: number): number {
   return Math.max(0, Math.ceil((dueAt - now) / 1000));
 }
 
+/** Which team's LEVEL the current hand is actually played at — the badge
+ *  that gets the "in play" tag (compact-headline round, panel round-2 MED,
+ *  Grok): the declarer's own level normally, but an A-SUSPENDED declarer
+ *  plays at the OPPONENTS' level (suspendPlayOpponentLevel), so binding the
+ *  tag to declarerTeam alone would point at the wrong badge exactly when
+ *  levels diverge. The engine's own currentLevel is the truth: whichever
+ *  team's ladder rank equals it owns the hand (the declarer wins the
+ *  equal-levels tie — both are right there). Null before a declarer
+ *  exists. Pure + exported for the unit test. */
+export function playingLevelTeam(
+  declarerTeam: 0 | 1 | null,
+  levels: readonly [Rank, Rank],
+  currentLevel: Rank,
+): 0 | 1 | null {
+  if (declarerTeam === null) return null;
+  if (levels[declarerTeam] === currentLevel) return declarerTeam;
+  return (1 - declarerTeam) as 0 | 1;
+}
+
 // ---------------------------------------------------------------------------
 // Display projections (locale-free — components pass keys through t()).
 // ---------------------------------------------------------------------------

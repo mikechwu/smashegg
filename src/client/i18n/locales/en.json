@@ -139,8 +139,6 @@
   "game.seat.partner": "Partner",
   "game.turn.yours": "Your turn",
   "game.turn.actor": "{name}'s turn",
-  "game.wild.tag": "Wild",
-  "game.level.playPrefix": "Level",
   "game.plate.cardsLow": "Only {count} cards left!",
   "game.plate.hiddenCount": "Card count hidden",
   "game.stack.cards": "{count} cards",
@@ -153,7 +151,6 @@
   "game.rail.title": "Level ladder",
   "game.rail.us": "Us",
   "game.rail.them": "Them",
-  "game.rail.playing": "Playing {rank}",
   "game.rail.aAttempts": "{count} failed Ace attempt(s)",
   "game.rail.suspended": "Ace attempts exhausted — this hand plays at the opponents' level",
   "game.combo.single": "Single",
@@ -234,5 +231,7 @@
   "theme.label": "Deck",
   "theme.cinnabarCourt.name": "Cinnabar Court",
   "game.deal.label": "Dealing",
-  "game.seat.switchTo": "Switch to {name}"
+  "game.seat.switchTo": "Switch to {name}",
+  "game.rail.teamLevel": "level",
+  "game.rail.playingNow": "in play"
 }

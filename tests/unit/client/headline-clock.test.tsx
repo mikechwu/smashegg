@@ -17,6 +17,7 @@ import { GameTable } from '../../../src/client/GameTable';
 import { RoomStore, type RoomSnapshot } from '../../../src/client/room/store';
 import type { GuandanView } from '../../../src/engine/guandan/types';
 import { getLocale, setLocale, t } from '../../../src/client/i18n';
+import { playingLevelTeam } from '../../../src/client/table/helpers';
 
 const gameTableSrc = readFileSync(join(__dirname, '../../../src/client/GameTable.tsx'), 'utf8');
 const seatPlateSrc = readFileSync(
@@ -31,13 +32,13 @@ function stripTsComments(src: string): string {
 function renderHeadline(over: Partial<TableHeadlineProps> = {}): string {
   return renderToStaticMarkup(
     createElement(TableHeadline, {
-      currentLevel: '2',
       levels: ['2', '2'],
       aAttempts: [0, 0],
       aAttemptsExhausted: [false, false],
       viewerTeam: 0,
       yourTurn: false,
       actorName: 'Actor Two',
+      playingTeam: null,
       dueSeconds: null,
       planning: false,
       ...over,
@@ -390,5 +391,106 @@ describe('concurrent unequal deadlines: the clock follows the NAMED seat (panel 
       }),
     );
     expect(html).toContain('gd-headline__clock--urgent');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Compact-bar round: the badges ARE the level display, and the PLAYING
+// team's badge carries the in-play attribution (panel MED, Codex + Grok
+// converging: once levels diverge, "Us level A · Them level 5" alone no
+// longer says which level — and wild — is live).
+// ---------------------------------------------------------------------------
+
+describe('compact headline: badges carry the levels and the in-play tag', () => {
+  it('the level numeral and wild chip are GONE; badges read label + connective + rank', () => {
+    const original = getLocale();
+    try {
+      setLocale('en');
+      const html = renderHeadline({});
+      expect(html).not.toContain('gd-headline__level');
+      expect(html).not.toContain('gd-headline__wild');
+      expect(html).toContain('gd-team__lvword');
+      // Composed aria says it with real spaces (panel LOW, Codex: the visual
+      // spans rely on flex gap, so raw extraction reads "Uslevel2").
+      expect(html).toContain('aria-label="Us level 2"');
+      expect(html).toContain('aria-label="Them level 2"');
+    } finally {
+      setLocale(original);
+    }
+  });
+
+  it("the playing team's badge gets --playing, the in-play tag, and the aria word; null playingTeam tags nothing", () => {
+    const original = getLocale();
+    try {
+      setLocale('en');
+      const playing = renderHeadline({ playingTeam: 0, levels: ['A', '5'] });
+      const usBadge = playing.match(/<span class="gd-team gd-team--us[^"]*"[^>]*>/)?.[0] ?? '';
+      expect(usBadge).toContain('gd-team--playing');
+      expect(playing).toContain('gd-team__now');
+      expect(playing).toContain(`>${t('game.rail.playingNow')}<`);
+      expect(playing).toContain('aria-label="Us level A in play"');
+      // The other badge stays untagged…
+      expect(playing.match(/gd-team--playing/g) ?? []).toHaveLength(1);
+      // …and with no declarer (hand 1) nothing is tagged at all.
+      const none = renderHeadline({ playingTeam: null });
+      expect(none).not.toContain('gd-team--playing');
+      expect(none).not.toContain('gd-team__now');
+    } finally {
+      setLocale(original);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Panel round-2 MED (Codex + Grok converging): the in-play tag must follow
+// the level the hand is ACTUALLY played at — an A-SUSPENDED declarer plays
+// at the opponents' level, so binding the tag to declarerTeam alone pointed
+// at the wrong badge exactly when levels diverge.
+// ---------------------------------------------------------------------------
+
+describe('the in-play tag follows the LIVE level, not the declarer (suspension redirect)', () => {
+  it('playingLevelTeam: declarer owns its level; a suspended declarer redirects; no declarer, no tag', () => {
+    // Normal hand: the declarer's own ladder rank is live.
+    expect(playingLevelTeam(0, ['5', '3'], '5')).toBe(0);
+    expect(playingLevelTeam(1, ['5', '3'], '3')).toBe(1);
+    // Suspended declarer (suspendPlayOpponentLevel): the hand plays at the
+    // OPPONENTS' level — the tag must cross the bar.
+    expect(playingLevelTeam(0, ['A', '5'], '5')).toBe(1);
+    // Equal levels: the declarer wins the tie (both are right).
+    expect(playingLevelTeam(1, ['2', '2'], '2')).toBe(1);
+    expect(playingLevelTeam(null, ['2', '2'], '2')).toBeNull();
+  });
+
+  it('GameTable derives the tag through the helper, never raw declarerTeam (source pin)', () => {
+    const table = stripTsComments(gameTableSrc);
+    expect(table).toMatch(
+      /playingTeam=\{playingLevelTeam\(view\.declarerTeam, view\.levels, view\.currentLevel\)\}/,
+    );
+    expect(table).not.toMatch(/playingTeam=\{view\.declarerTeam\}/);
+  });
+
+  it('the badge aria carries everything the badge shows: zh wording, suspension, A-attempts', () => {
+    const original = getLocale();
+    try {
+      setLocale('zh-Hant');
+      const zh = renderHeadline({ playingTeam: 0 });
+      expect(zh).toContain(`aria-label="${t('game.rail.us')} ${t('game.rail.teamLevel')} 2 ${t('game.rail.playingNow')}"`);
+      setLocale('en');
+      const susp = renderHeadline({
+        playingTeam: 1,
+        levels: ['A', '5'],
+        aAttempts: [2, 0],
+        aAttemptsExhausted: [true, false],
+      });
+      // The suspended A badge announces its full state even though the
+      // aria-label suppresses its children (attribute apostrophes render as
+      // HTML entities in the static markup).
+      const suspendedAria = `Us level A ${t('game.rail.suspended')} ${t('game.rail.aAttempts', { count: 2 })}`;
+      expect(susp).toContain(`aria-label="${suspendedAria.replaceAll("'", '&#x27;')}"`);
+      // And the OTHER team carries the in-play word (the redirect case).
+      expect(susp).toContain('aria-label="Them level 5 in play"');
+    } finally {
+      setLocale(original);
+    }
   });
 });

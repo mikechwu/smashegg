@@ -47,6 +47,7 @@ import {
   multisetKey,
   NO_REMOTE_DEALT,
   placeOf,
+  playingLevelTeam,
   remainingSeconds,
   remoteDealtCounts,
   rankText,
@@ -753,11 +754,11 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   return (
     <section className="gd-table gd-ring">
       <TableHeadline
-        currentLevel={view.currentLevel}
         levels={view.levels}
         aAttempts={view.aAttempts}
         aAttemptsExhausted={view.aAttemptsExhausted}
         viewerTeam={viewerTeam}
+        playingTeam={playingLevelTeam(view.declarerTeam, view.levels, view.currentLevel)}
         yourTurn={leaderConcealed !== null ? false : yourTurn}
         actorName={leaderConcealed !== null ? null : actorName}
         dueSeconds={leaderConcealed !== null ? null : dueSeconds}

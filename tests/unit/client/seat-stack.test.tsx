@@ -1139,15 +1139,18 @@ describe('narrow-width chrome compression (review follow-up: hand above the fold
     expect(block).toContain('.app-main');
   });
 
-  it('table.css compresses the pre-ring chrome below 720px: level numeral strictly smaller', () => {
+  it('table.css compresses the pre-ring chrome below 720px: headline air + turn line tightened', () => {
     const block = narrowBlock(tableCss, 'table.css');
-    const base = fontSizeRem(stripCssComments(tableCss), '.gd-headline__rank');
-    const narrow = fontSizeRem(block, '.gd-headline__rank');
-    expect(narrow).toBeLessThan(base);
     expect(block).toContain('.gd-headline {');
+    const baseTurn = fontSizeRem(stripCssComments(tableCss), '.gd-headline__turn');
+    const narrowTurn = fontSizeRem(block, '.gd-headline__turn');
+    expect(narrowTurn).toBeLessThan(baseTurn);
     // The seat-tab bar is gone entirely (owner: pills are the switcher) —
-    // nothing may compress what no longer exists.
+    // nothing may compress what no longer exists. Ditto the big level
+    // numeral (compact-bar round: the team badges ARE the level display).
     expect(stripCssComments(tableCss)).not.toContain('.gd-tabs');
+    expect(stripCssComments(tableCss)).not.toContain('.gd-headline__rank');
+    expect(stripCssComments(tableCss)).not.toContain('.gd-headline__wild');
   });
 
   it('the compression never touches the stacks: no .gd-seatstack rule inside the narrow block (R5 stays whole)', () => {

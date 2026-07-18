@@ -139,8 +139,6 @@
   "game.seat.partner": "隊友",
   "game.turn.yours": "輪到你",
   "game.turn.actor": "輪到 {name}",
-  "game.wild.tag": "配",
-  "game.level.playPrefix": "打",
   "game.plate.cardsLow": "只剩 {count} 張!",
   "game.plate.hiddenCount": "張數保密",
   "game.stack.cards": "{count} 張",
@@ -153,7 +151,6 @@
   "game.rail.title": "級位表",
   "game.rail.us": "我隊",
   "game.rail.them": "對方",
-  "game.rail.playing": "打{rank}",
   "game.rail.aAttempts": "攻A失敗 {count} 次",
   "game.rail.suspended": "攻A暫停,本局打對方的級數",
   "game.combo.single": "單張",
@@ -234,5 +231,7 @@
   "theme.label": "牌面",
   "theme.cinnabarCourt.name": "朱砂宮廷",
   "game.deal.label": "發牌中",
-  "game.seat.switchTo": "切換到 {name}"
+  "game.seat.switchTo": "切換到 {name}",
+  "game.rail.teamLevel": "打",
+  "game.rail.playingNow": "本局"
 }
