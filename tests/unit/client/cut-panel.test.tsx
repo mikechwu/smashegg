@@ -140,6 +140,14 @@ describe('cut by dragging the cards (ribbon-overlay slider)', () => {
     expect(cutterHtml).toContain('gd-cut__handle');
     expect(cutterHtml).toMatch(/--split:\s*\d+/);
     expect(spectatorHtml).not.toContain('gd-cut__handle');
+    // The handle is the pointing-hand coin badge (owner refinement: the old
+    // chevron glyph rendered as a confusable diamond) — an inline SVG, no
+    // text glyph left to mis-render.
+    const handleSpan = cutterHtml.match(/<span class="gd-cut__handle"[\s\S]*?<\/span>/)?.[0] ?? '';
+    expect(handleSpan).toContain('<svg');
+    expect(handleSpan).toContain('<circle');
+    expect(handleSpan).toContain('<path');
+    expect(handleSpan).not.toMatch(/[\u2329\u232A\u27E8\u27E9\u25C7\u2B27]/);
     // The handle's geometry (panel round-2, Grok): the parted-midpoint
     // formula — (split − 0.5) pitches + half a sliver + half a gap —
     // CLAMPED to the two edge gaps' centres (splits 0 and 24 are

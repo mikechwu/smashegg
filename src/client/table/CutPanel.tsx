@@ -89,12 +89,22 @@ function CutRibbon({
       ))}
       {value !== undefined && (
         <>
-          {/* The touch affordance (panel MED, Grok): with the bar gone, a
-              small goldleaf handle rides the split itself — visible chrome
-              saying "drag here", moving with the cut. Decorative (the
-              invisible input carries the semantics). */}
+          {/* The touch affordance (panel MED, Grok; glyph refined on owner
+              feedback — the chevrons rendered as a confusable diamond): a
+              small goldleaf POINTING HAND on a coin badge rides the split
+              itself — visible chrome saying "your finger goes here", moving
+              with the cut. Inline SVG in the WildSeal idiom; decorative
+              (the invisible input carries the semantics). */}
           <span className="gd-cut__handle" aria-hidden="true">
-            ⟨⟩
+            <svg viewBox="0 0 28 28" focusable="false">
+              <circle cx="14" cy="14" r="13" fill="var(--lacquer)" stroke="var(--goldleaf)" strokeWidth="1.6" />
+              <g transform="translate(2,2.6)">
+                <path
+                  d="M10.6 4a1.7 1.7 0 0 1 3.4 0v7.2l3.9.9c1.6.4 2.7 1.8 2.7 3.4 0 .6-.1 1.2-.4 1.8l-1.2 2.6a3.4 3.4 0 0 1-3.1 2h-3.2c-1.3 0-2.6-.6-3.4-1.6l-3-3.7c-.6-.7-.5-1.8.2-2.4.7-.6 1.7-.5 2.3.2l1.8 2V4z"
+                  fill="var(--goldleaf)"
+                />
+              </g>
+            </svg>
           </span>
           <input
             className="gd-cut__slider"
