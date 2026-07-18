@@ -120,9 +120,17 @@ export interface SeatDerived {
   /** The latest play's flight trigger (owner: cards fly from the pile to the
    *  table like the deal): stamped on every 'played' fold, rendered by
    *  PlayOverlay while fresh (same wall-clock discipline as passedAt — a
-   *  remount never replays a settled flight), cleared by a new hand.
-   *  `id` keys the overlay so consecutive plays remount it. */
-  playFx: { seat: Seat; cards: Card[]; at: number; id: number } | null;
+   *  remount never replays a settled flight), cleared by a new hand or the
+   *  sweep. `id` keys the overlay so consecutive plays remount it.
+   *  `covered` is the play this one lands ON TOP of (owner physics
+   *  refinement): the previous top's cards stay on the table as a well
+   *  underlay while the new cards fly, then fade once covered. */
+  playFx: { seat: Seat; cards: Card[]; covered: Card[] | null; at: number; id: number } | null;
+  /** The trick's current top play as folded — solely so the NEXT 'played'
+   *  fold knows which cards it covers (playFx.covered). Cleared with the
+   *  trick/hand; null right after a reconnect (the resync drops event
+   *  history), which degrades that one flight to the old instant swap. */
+  topCards: Card[] | null;
   jiefeng: { finisher: Seat; leader: Seat } | null;
   anti: { seat: Seat; card: Card }[] | null;
   ceremony: Ceremony | null;
@@ -146,6 +154,7 @@ export const EMPTY_DERIVED: SeatDerived = {
   passed: [],
   passedAt: {},
   playFx: null,
+  topCards: null,
   jiefeng: null,
   anti: null,
   ceremony: null,
@@ -192,6 +201,7 @@ export function foldEvents(
           passed: [],
           passedAt: {},
           playFx: null,
+          topCards: null,
           jiefeng: null,
           anti: null,
           level: ev.currentLevel,
@@ -210,8 +220,17 @@ export function foldEvents(
         }
         // The play flight (owner: from the pile to the table, like the
         // deal). Cards on the table are public — viewEvent never redacts a
-        // played hand — so every seat's fold can fly them.
-        d.playFx = { seat: ev.seat, cards: ev.cards, at: Date.now(), id: nextId() };
+        // played hand — so every seat's fold can fly them. The play it
+        // covers (the trick's previous top) rides along: those cards stay
+        // on the table under the flight and fade once covered.
+        d.playFx = {
+          seat: ev.seat,
+          cards: ev.cards,
+          covered: d.topCards,
+          at: Date.now(),
+          id: nextId(),
+        };
+        d.topCards = ev.cards;
         d.jiefeng = null;
         d.anti = null; // the anti-tribute reveal yields the center back to the trick
         push('game.feed.played', {
@@ -232,8 +251,17 @@ export function foldEvents(
       case 'trickWon':
         // playFx dies with the trick (panel MED, Grok): the sweep re-keys the
         // well, and a still-airborne flight would sail into the cleared
-        // centre chasing detached rects.
-        d = { ...d, passed: [], passedAt: {}, playFx: null, anti: null, sweep: d.sweep + 1 };
+        // centre chasing detached rects. topCards too — the next trick opens
+        // on a bare table.
+        d = {
+          ...d,
+          passed: [],
+          passedAt: {},
+          playFx: null,
+          topCards: null,
+          anti: null,
+          sweep: d.sweep + 1,
+        };
         push('game.feed.trickWon', { name: nameFor(ev.seat) });
         break;
       case 'jiefeng':
@@ -624,13 +652,14 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     clockSeat !== null && (room?.seats.find((s) => s.seat === clockSeat)?.connected ?? false);
 
   // The play flight (owner: cards fly face-up from the pile to the table,
-  // like the deal): rendered while the fold's stamp is fresh — 1600ms covers
-  // the widest bomb's staggered flight — and never during the deal/ceremony
-  // (their own choreography owns the table then). Keyed by the fold id so
-  // consecutive plays remount cleanly.
+  // like the deal): rendered while the fold's stamp is fresh — 2000ms covers
+  // the widest bomb's staggered flight (~1050ms) PLUS the covered underlay's
+  // last-landing 600ms fade — and never during the deal/ceremony (their own
+  // choreography owns the table then). Keyed by the fold id so consecutive
+  // plays remount cleanly.
   const playFx = derived.playFx;
   const playFlight =
-    playFx !== null && !dealing && !ceremonyShowing && now - playFx.at < 1600 ? playFx : null;
+    playFx !== null && !dealing && !ceremonyShowing && now - playFx.at < 2000 ? playFx : null;
 
   // R3 displayed-count rule (ONE ternary, spec-pinned): a hidden count
   // (null — the config says this viewer may not see it) wins over EVERYTHING,
@@ -755,7 +784,13 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           ) : inTributeCenter || showAnti ? (
             <TributePanel view={view} nameFor={nameFor} antiReveals={derived.anti} />
           ) : (
-            <TrickWell trick={view.trick} level={view.currentLevel} sweepKey={derived.sweep} />
+            <TrickWell
+              trick={view.trick}
+              level={view.currentLevel}
+              sweepKey={derived.sweep}
+              covered={playFlight !== null ? playFlight.covered : null}
+              coveredKey={playFlight !== null ? playFlight.id : undefined}
+            />
           )}
         </div>
         <div className="gd-ring__seat gd-ring__seat--east">{seatZone('east')}</div>

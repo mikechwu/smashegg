@@ -1188,6 +1188,7 @@ describe('game.stack.cards locale coverage (T8)', () => {
 // ---------------------------------------------------------------------------
 
 import { PlayOverlay } from '../../../src/client/table/PlayOverlay';
+import { TrickWell } from '../../../src/client/table/TrickWell';
 
 describe('play flight: from behind the pile to the table (T14)', () => {
   const playOverlaySrc = readFileSync(
@@ -1219,9 +1220,16 @@ describe('play flight: from behind the pile to the table (T14)', () => {
     expect(first.playFx?.seat).toBe(2);
     expect(first.playFx?.cards).toEqual(['9H', '9S']);
     expect(first.playFx?.at).toBeLessThanOrEqual(Date.now());
-    const second = fold(first, { ...play, seat: 3 });
+    // A trick-opening play covers NOTHING; the fold now remembers it as the
+    // table's top (owner physics: the next flight lands ON these).
+    expect(first.playFx?.covered).toBeNull();
+    expect(first.topCards).toEqual(['9H', '9S']);
+    const second = fold(first, { ...play, seat: 3, cards: ['TH', 'TS'] });
     expect(second.playFx?.seat).toBe(3);
     expect(second.playFx?.id).not.toBe(first.playFx?.id);
+    // The covering play carries the play it covers, and takes the top over.
+    expect(second.playFx?.covered).toEqual(['9H', '9S']);
+    expect(second.topCards).toEqual(['TH', 'TS']);
     const dealt = fold(second, {
       type: 'handStarted',
       handNo: 2,
@@ -1229,16 +1237,19 @@ describe('play flight: from behind the pile to the table (T14)', () => {
       hands: [[], [], [], []],
     });
     expect(dealt.playFx).toBeNull();
+    expect(dealt.topCards).toBeNull();
     // The sweep kills a flight too (panel MED, Grok: the well re-keys empty
-    // and an airborne flight would sail into the cleared centre).
+    // and an airborne flight would sail into the cleared centre) — and the
+    // remembered top with it (the next trick opens on a bare table).
     const swept = fold(second, { type: 'trickWon', seat: 3 });
     expect(swept.playFx).toBeNull();
+    expect(swept.topCards).toBeNull();
   });
 
   it('GameTable renders the overlay only while fresh, outside the deal/ceremony, keyed by the fold id (source pins)', () => {
     const table = stripTsComments(gameTableSrc);
     expect(table).toMatch(
-      /playFx !== null && !dealing && !ceremonyShowing && now - playFx\.at < 1600 \? playFx : null/,
+      /playFx !== null && !dealing && !ceremonyShowing && now - playFx\.at < 2000 \? playFx : null/,
     );
     expect(table).toMatch(/key=\{playFlight\.id\}/);
     expect(table).toMatch(/dir=\{dirFor\(playFlight\.seat\)\}/);
@@ -1272,17 +1283,87 @@ describe('play flight: from behind the pile to the table (T14)', () => {
     expect(src).not.toContain('node.remove()');
   });
 
-  it('the layer CSS: fixed at z 8 (under the well cards at 10), cards base opacity 0, pointer-inert', () => {
+  it('the layer CSS: fixed OVER the well (z 11 vs 10 — owner physics), cards base opacity 0, pointer-inert', () => {
     const stripped = stripCssComments(tableCss);
     const layer = stripped.match(/\.gd-playfx\s*\{[^}]*\}/)?.[0] ?? '';
     const card = stripped.match(/\.gd-playfx__card\s*\{[^}]*\}/)?.[0] ?? '';
     expect(layer, 'layer rule not found').not.toBe('');
     expect(layer).toMatch(/position:\s*fixed/);
-    expect(layer).toMatch(/z-index:\s*8/);
+    // Owner physics refinement: while the covered play still sits on the
+    // table, the incoming cards must fly ABOVE it — never slide beneath.
+    expect(layer).toMatch(/z-index:\s*11/);
     expect(layer).toMatch(/pointer-events:\s*none/);
     expect(card).toMatch(/opacity:\s*0/);
-    // The well keeps painting its revealed cards OVER a landed flight.
     expect(stripped).toMatch(/\.gd-well\s*\{[^}]*z-index:\s*10/);
+  });
+
+  it('the covered underlay GRID-STACKS with the top (panel HIGHs): unpositioned, well sized by the larger row', () => {
+    const stripped = stripCssComments(tableCss);
+    // The well stacks both rows into one grid cell — the box takes the
+    // LARGER row, so a longer old play keeps its exact pixels (an absolute
+    // underlay re-laid it inside the NEW top's smaller box — panel HIGH,
+    // Codex + Grok converging).
+    const well = stripped.match(/\.gd-well\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(well).toMatch(/display:\s*grid/);
+    expect(stripped).toMatch(/\.gd-well > \.gd-well__cards\s*\{[^}]*grid-area:\s*1 \/ 1/);
+    const covered = stripped.match(/\.gd-well__cards--covered\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(covered, 'covered rule not found').not.toBe('');
+    // NOT positioned (panel MED, Grok): a positioned z-auto "underlay"
+    // paints ABOVE its in-flow sibling — DOM order must be the paint order.
+    expect(covered).not.toContain('position:');
+    expect(covered).not.toContain('inset:');
+    expect(covered).toMatch(/pointer-events:\s*none/);
+    expect(covered).toMatch(/transition:\s*opacity/);
+    expect(stripped).toMatch(/\.gd-well__cards--fading\s*\{\s*opacity:\s*0;\s*\}/);
+    const reduceBlocks =
+      stripped.match(/@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\n\}/g)?.join('\n') ??
+      '';
+    expect(reduceBlocks).toMatch(/\.gd-well__cards--covered\s*\{\s*display:\s*none;\s*\}/);
+  });
+
+  it('TrickWell renders the covered play beneath the top — and only alongside a top', () => {
+    const trick = { leader: 1, toAct: 2, top: { seat: 1, cards: ['TH', 'TS'], decl: null }, jiefengTo: null };
+    const html = renderToStaticMarkup(
+      createElement(TrickWell, {
+        trick: trick as never,
+        level: '2',
+        sweepKey: 0,
+        covered: ['9H', '9S', '9D'],
+      }),
+    );
+    const coveredAt = html.indexOf('gd-well__cards--covered');
+    const topAt = html.lastIndexOf('<div class="gd-well__cards">');
+    expect(coveredAt).toBeGreaterThan(-1);
+    expect(topAt).toBeGreaterThan(coveredAt);
+    // 3 covered + 2 top faces, all hand-size.
+    expect(html.match(/class="gd-cardframe gd-card--hand"/g) ?? []).toHaveLength(5);
+    // No top (a swept/bare well) → no underlay either, whatever covered says.
+    const bare = renderToStaticMarkup(
+      createElement(TrickWell, { trick: null, level: '2', sweepKey: 0, covered: ['9H'] }),
+    );
+    expect(bare).not.toContain('gd-well__cards--covered');
+  });
+
+  it('the flight targets ONLY the top row; the LAST landing starts the fade; the underlay is keyed per flight', () => {
+    const src = stripTsComments(playOverlaySrc);
+    expect(src).toMatch(/\.gd-well__cards:not\(\.gd-well__cards--covered\) \.gd-cardframe/);
+    // Last landing = the moment the new play has FULLY covered the old
+    // (panel MED, Grok: a first-landing fade let protruding cards start
+    // vanishing while later cards were still airborne).
+    expect(src).toMatch(/let airborne = targets\.length;/);
+    expect(src).toMatch(/airborne--;\s*if \(airborne === 0\) \{/);
+    expect(src).toMatch(/classList\.add\('gd-well__cards--fading'\)/);
+    const table = stripTsComments(gameTableSrc);
+    expect(table).toMatch(/covered=\{playFlight !== null \? playFlight\.covered : null\}/);
+    // Keyed per flight (panel HIGH, Codex + Grok converging): React reuses
+    // the underlay element across back-to-back covering plays, and an
+    // imperatively-added fade class would survive onto the NEXT play's
+    // underlay, starting it invisible.
+    expect(table).toMatch(/coveredKey=\{playFlight !== null \? playFlight\.id : undefined\}/);
+    const wellSrc = stripTsComments(
+      readFileSync(join(__dirname, '../../../src/client/table/TrickWell.tsx'), 'utf8'),
+    );
+    expect(wellSrc).toMatch(/key=\{`covered-\$\{coveredKey \?\? 0\}`\}/);
   });
 });
 

@@ -42,7 +42,8 @@ export interface PlayOverlayProps {
 }
 
 /** Flight timing: fast enough that back-to-back turns never overlap a
- *  living flight (GameTable's freshness gate allows 1600ms). */
+ *  living flight (GameTable's freshness gate allows 2000ms — the widest
+ *  bomb's staggered flight plus the covered underlay's 600ms fade). */
 export const PLAY_FLIGHT_MS = 420;
 export const PLAY_FLIGHT_STAGGER_MS = 70;
 
@@ -89,7 +90,12 @@ export function PlayOverlay({ dir, cards, level }: PlayOverlayProps) {
     // page-global query that could hide an unrelated well).
     const scope = root.closest('.gd-ring');
     if (scope === null) return;
-    const targets = [...scope.querySelectorAll('.gd-well__cards .gd-cardframe')] as HTMLElement[];
+    // The TOP row only — the covered underlay's cards are scenery (they stay
+    // visible under the flight; matching them here would skew the count and
+    // bail every covering play).
+    const targets = [
+      ...scope.querySelectorAll('.gd-well__cards:not(.gd-well__cards--covered) .gd-cardframe'),
+    ] as HTMLElement[];
     const origin = originPoint(scope, dir);
     const nodes = [...root.querySelectorAll('.gd-playfx__card')] as HTMLElement[];
     // The well must exactly hold this play (a same-batch sweep, a re-render
@@ -101,6 +107,7 @@ export function PlayOverlay({ dir, cards, level }: PlayOverlayProps) {
       for (const t of targets) t.style.visibility = '';
     };
     for (const t of targets) t.style.visibility = 'hidden';
+    let airborne = targets.length;
 
     nodes.forEach((node, i) => {
       const rect = targets[i]!.getBoundingClientRect();
@@ -128,9 +135,19 @@ export function PlayOverlay({ dir, cards, level }: PlayOverlayProps) {
       );
       anim.onfinish = () => {
         // The landing reveals the well's own card; the flight node ducks
-        // under it (display, not removal — React owns the node).
+        // under it (display, not removal — React owns the node). The LAST
+        // landing starts the covered underlay's fade (owner physics, panel
+        // MED: the old play stays until the new cards have FULLY covered
+        // it, then lets go — its protruding cards are what the fade
+        // visibly removes).
         targets[i]!.style.visibility = '';
         node.style.display = 'none';
+        airborne--;
+        if (airborne === 0) {
+          scope
+            .querySelector('.gd-well__cards--covered')
+            ?.classList.add('gd-well__cards--fading');
+        }
       };
       animations.push(anim);
     });

@@ -150,6 +150,23 @@ button.gd-plate {
   text-align: center;
   animation: gd-sweep-in 300ms ease-out;
   max-width: 100%;
+  /* Covered-play physics (panel HIGH, Codex + Grok converging): the top row
+     and the covered underlay GRID-STACK into one cell, so the well's box is
+     sized by the LARGER of the two — a longer old play keeps exactly the
+     width, wrap and pixels it held as the top while the shorter new play
+     centres in the same box. Neither row is positioned, so DOM order is
+     paint order (underlay first = genuinely beneath). */
+  display: grid;
+  justify-items: center;
+  align-items: start;
+}
+.gd-well > .gd-well__cards {
+  grid-area: 1 / 1;
+  /* A grid item's auto minimum would let a long row overflow the capped
+     well; these keep every row wrapping at the well's width, exactly as the
+     pre-grid block layout did. */
+  max-width: 100%;
+  min-width: 0;
 }
 .gd-well__cards {
   display: flex;
@@ -991,22 +1008,46 @@ button.gd-plate {
   z-index: 9;
 }
 /* --- play flight (owner: cards fly from the pile to the table) ----------- */
-/* A fixed layer UNDER the well's own z-10 cards: each flight node starts at
-   opacity 0 (100% hidden "behind" its pile), fades in over the first ~18%
-   of flight as it slips past the pile's table-facing edge (PlayOverlay owns
-   the WAAPI keyframes), and the well card it lands on — hidden until that
-   moment — is revealed OVER it, so the landing is seamless. */
+/* A fixed layer OVER the well (z-11 vs the well's 10 — owner physics: while
+   the covered play still sits on the table, the incoming cards must fly
+   ABOVE it, never slide beneath): each flight node starts at opacity 0
+   (100% hidden "behind" its pile), fades in over the first ~18% of flight
+   as it slips past the pile's table-facing edge (PlayOverlay owns the WAAPI
+   keyframes). On landing the well's own card is revealed in the same task
+   the flight node is retired, so the hand-off is one paint. */
 .gd-playfx {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  z-index: 8;
+  z-index: 11;
 }
 .gd-playfx__card {
   position: fixed;
   margin: 0;
   opacity: 0;
   will-change: transform;
+}
+/* The covered play (owner physics): the previous top stays ON the table
+   beneath the incoming flight — grid-stacked with the top row (see .gd-well:
+   the well sizes to the larger of the two, so a longer old play keeps its
+   exact pixels; NOT positioned, so it truly paints beneath). PlayOverlay
+   adds --fading at the LAST landing — the moment the new play has fully
+   covered the old — and the transition's visible work is removing the old
+   play's PROTRUDING cards (the part the new, possibly shorter, play never
+   covers). Reduced motion shows no flight, so it shows no underlay either —
+   the settled swap is the whole story. */
+.gd-well__cards--covered {
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 600ms ease;
+}
+.gd-well__cards--fading {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .gd-well__cards--covered {
+    display: none;
+  }
 }
 .gd-deal__flight {
   position: fixed;
