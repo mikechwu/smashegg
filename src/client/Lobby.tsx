@@ -9,7 +9,7 @@
 // stays: one client may claim several seats, one name typed per claim); a
 // held seat shows a connection dot, the name, a you-badge, and a leave button.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Seat } from '../engine/core/game';
 import type { RoomInfo } from '../shared/protocol';
 import type { RoomSnapshot, RoomStore } from './room/store';
@@ -57,15 +57,151 @@ const POSITION_KEY: Record<number, TranslationKey> = {
  *  seat and let a pre-filled name MIGRATE). Clearing the name on every claim
  *  is what stops it pre-filling or migrating to another seat. Pure over the
  *  store (a recorder in tests) so the seat→claimSeat(_, seat) mapping and the
- *  name-clear are both unit-pinned with no DOM. */
+ *  name-clear are both unit-pinned with no DOM.
+ *
+ *  Silent-no-op round: this is THE one claim path — both orders (name-then-
+ *  sit and sit-then-name) end here, so the seat token is minted exactly as
+ *  before, once, when name+seat are both resolved. The sit-then-name panel
+ *  reorders UI steps only; it never grows a second claim call. */
 export function takeSeat(store: RoomStore, name: string, seat: Seat): string {
   store.claim(name.trim(), seat);
   return '';
 }
 
+/** Pure route for a Sit press (silent-no-op round, item 2): with a ready
+ *  name the press claims directly (the unchanged fast path); without one
+ *  it must OPEN THE ASK PANEL — never nothing. The playtest bug was the
+ *  disabled button's silence, so the decision is pinned as a function. */
+export function sitIntent(nameReady: boolean): 'claim' | 'ask' {
+  return nameReady ? 'claim' : 'ask';
+}
+
+/** The sit-then-name form, rendered ON THE FELT DISC (the table itself asks
+ *  — the disc is on-screen and roughly equidistant from every seat at every
+ *  width, where a per-seat popover would overflow the ~75px flank columns
+ *  at 390px). Exported for DOM-free render pins of its three states:
+ *  asking, needs-a-name, and the race-loser message. */
+export function SitAskPanel({
+  position,
+  name,
+  needName,
+  taken,
+  claiming,
+  connected,
+  onName,
+  onConfirm,
+  onCancel,
+}: {
+  /** Localized position word of the target seat (bottom/right/top/left). */
+  position: string;
+  name: string;
+  /** True after a confirm attempt with a blank name — the inline
+   *  explanation, never a silently disabled button. */
+  needName: boolean;
+  /** True when the seat was claimed by someone else mid-entry (the DO
+   *  serialized the race and this client lost) — an explicit message,
+   *  never a silent no-op. */
+  taken: boolean;
+  /** True while this panel's claim is in flight (panel MED fix): the
+   *  confirm locks and the hint SAYS so — a double-tap must not send a
+   *  duplicate claimSeat, and the wait must never look like silence. */
+  claiming: boolean;
+  /** Mirrors the take buttons' one allowed disable: disconnection (the
+   *  room-level alert carries the explanation). */
+  connected: boolean;
+  onName: (value: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  if (taken) {
+    return (
+      <div className="lobby-sitask" role="alert">
+        <p className="lobby-sitask__taken">{t('lobby.sitAsk.taken')}</p>
+        <button type="button" className="lobby-sitask__cancel" onClick={onCancel}>
+          {t('lobby.sitAsk.takenDismiss')}
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="lobby-sitask">
+      <p className="lobby-sitask__title">{t('lobby.sitAsk.title', { position })}</p>
+      <input
+        className="lobby-sitask__input"
+        type="text"
+        value={name}
+        onChange={(e) => onName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onConfirm();
+        }}
+        placeholder={t('lobby.namePlaceholder')}
+        maxLength={32}
+        autoFocus
+      />
+      <p className="lobby-sitask__hint" role={needName ? 'alert' : undefined}>
+        {needName
+          ? t('lobby.sitAsk.needName')
+          : claiming
+            ? t('lobby.sitAsk.claiming')
+            : t('lobby.sitAsk.prompt')}
+      </p>
+      <span className="lobby-sitask__row">
+        <button
+          type="button"
+          className="lobby-sitask__confirm"
+          disabled={claiming || !connected}
+          onClick={onConfirm}
+        >
+          {t('lobby.sitAsk.confirm')}
+        </button>
+        <button type="button" className="lobby-sitask__cancel" onClick={onCancel}>
+          {t('lobby.sitAsk.cancel')}
+        </button>
+      </span>
+    </div>
+  );
+}
+
+/** Last-used player name (research adoption: elders usually just confirm a
+ *  prefilled name in the sit-then-name prompt). Same localStorage idiom as
+ *  the hand-sort preference — client-only, never room state. */
+const PLAYER_NAME_STORAGE_KEY = 'pref:playerName';
+
+function readLastName(): string {
+  if (typeof localStorage === 'undefined') return '';
+  try {
+    return localStorage.getItem(PLAYER_NAME_STORAGE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function writeLastName(name: string): void {
+  try {
+    localStorage.setItem(PLAYER_NAME_STORAGE_KEY, name);
+  } catch {
+    // localStorage unavailable — the prefill just stays session-local.
+  }
+}
+
 export function Lobby({ snapshot, store }: LobbyProps) {
   const [name, setName] = useState('');
   const [copyState, setCopyState] = useState<CopyState>('idle');
+  // Sit-then-name (silent-no-op round item 2): the seat a nameless Sit
+  // press asked about (null = no ask open), the prompt's own transient
+  // input, and whether an empty confirm was attempted (the inline
+  // explanation state). The ask NEVER claims by itself — its confirm
+  // routes through the same takeSeat as the name-first flow.
+  const [sitAsk, setSitAsk] = useState<Seat | null>(null);
+  const [sitAskName, setSitAskName] = useState('');
+  const [sitAskNeedName, setSitAskNeedName] = useState(false);
+  // In-flight guard (panel MED, Codex + Grok concurring): elders double-tap,
+  // and an unguarded confirm sent DUPLICATE claimSeat messages — the DO
+  // rejects the second without minting (authority safe), but the surfaced
+  // seat.taken rejection after a SUCCESSFUL sit reads as failure. While
+  // claiming, the confirm disables and the hint says so (visible, never a
+  // bare dead button).
+  const [sitAskClaiming, setSitAskClaiming] = useState(false);
   const room = snapshot.room as RoomInfo; // RoomPage only renders Lobby with a room
 
   useEffect(() => {
@@ -73,6 +209,32 @@ export function Lobby({ snapshot, store }: LobbyProps) {
     const timer = setTimeout(() => setCopyState('idle'), 2500);
     return () => clearTimeout(timer);
   }, [copyState]);
+
+  // The ask closes itself the moment ITS seat becomes ours — the claim
+  // round-tripped and succeeded (the DO is the authority; the UI only
+  // reacts). A seat claimed by SOMEONE ELSE flips the panel to the
+  // explicit race-loser message instead (sitAskTaken below) — losing a
+  // race must never be a silent no-op either.
+  useEffect(() => {
+    if (sitAsk !== null && snapshot.seats.has(sitAsk)) {
+      setSitAsk(null);
+      setSitAskName('');
+      setSitAskNeedName(false);
+      setSitAskClaiming(false);
+    }
+  }, [snapshot, sitAsk]);
+
+  // Unwedge: a NEW rejection releases the in-flight guard — a claim that
+  // failed for a reason the roster never reflects (transport hiccup, an
+  // invalid-name server rule) must hand the form back, not wedge the panel
+  // in "sitting down" forever. Growth only: store.claim itself CLEARS old
+  // rejections, and a shrinking count must not release a just-armed lock.
+  const rejectionCount = snapshot.rejections.length;
+  const prevRejectionsRef = useRef(rejectionCount);
+  useEffect(() => {
+    if (rejectionCount > prevRejectionsRef.current) setSitAskClaiming(false);
+    prevRejectionsRef.current = rejectionCount;
+  }, [rejectionCount]);
 
   // Seat status is read against the FIXED 0..3 set, never against whatever
   // subset room.seats happens to carry (owner bug 6c: a short/partial roster
@@ -113,14 +275,22 @@ export function Lobby({ snapshot, store }: LobbyProps) {
     const claimed = seat?.claimed ?? false;
     const isYou = snapshot.seats.has(s);
     const positionLabel = t(POSITION_KEY[s]!);
-    // An empty seat is claimable directly (multi-seat self-play): the button
-    // claims THIS seat with the name panel's current name; disabled while the
-    // name is blank, we're disconnected, or the seat is already taken.
-    const canTake = snapshot.connected && nameReady && !claimed;
+    // Silent-no-op round: the take button is NO LONGER disabled while the
+    // name is blank (NN/g + GOV.UK: a disabled button with no explanation
+    // is the anti-pattern this playtest hit). A nameless press opens the
+    // sit-then-name ask instead — ALWAYS a visible response. Disabled only
+    // while disconnected (a transient transport state, shown elsewhere).
+    const asking = sitAsk === s;
     return (
       <div key={s} className={`lobby-tableseat lobby-tableseat--s${s}`}>
         <div
-          className={claimed ? 'lobby-seat lobby-seat--taken' : 'lobby-seat lobby-seat--empty'}
+          className={[
+            'lobby-seat',
+            claimed ? 'lobby-seat--taken' : 'lobby-seat--empty',
+            asking ? 'lobby-seat--asking' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
         >
           {claimed ? (
             <>
@@ -153,12 +323,21 @@ export function Lobby({ snapshot, store }: LobbyProps) {
             <button
               type="button"
               className="lobby-seat__take"
-              disabled={!canTake}
+              disabled={!snapshot.connected}
               // Aria carries the position word so the four otherwise-identical
               // take-a-seat buttons are distinguishable (§4); the visible label
               // is the same plain "take a seat" for every seat.
               aria-label={t('lobby.takeSeatAt', { position: positionLabel })}
-              onClick={() => setName(takeSeat(store, name, s))}
+              onClick={() => {
+                if (sitIntent(nameReady) === 'claim') {
+                  setName(takeSeat(store, name, s));
+                  writeLastName(name.trim());
+                } else {
+                  setSitAsk(s);
+                  setSitAskName(readLastName());
+                  setSitAskNeedName(false);
+                }
+              }}
             >
               {t('lobby.claimButton')}
             </button>
@@ -198,26 +377,71 @@ export function Lobby({ snapshot, store }: LobbyProps) {
           across. */}
       <div className="lobby-table" role="group" aria-label={t('lobby.heading')}>
         <div className="lobby-table__disc">
-          <span className="lobby-table__codelabel">{t('lobby.roomCode')}</span>
-          <strong className="lobby-table__code">{store.code}</strong>
-          <button
-            type="button"
-            className="lobby-table__copy"
-            onClick={() => {
-              void copyLink();
-            }}
-          >
-            {t('lobby.copyLink')}
-          </button>
-          {/* Persistent live region: the copied-toast swaps into a reserved
-              line, so announcing works and the felt never reflows. */}
-          <p className="lobby-table__status" role="status">
-            {copyState === 'copied'
-              ? t('lobby.copied')
-              : copyState === 'failed'
-                ? t('lobby.copyFailed')
-                : ' '}
-          </p>
+          {sitAsk !== null ? (
+            // Sit-then-name: the TABLE asks (research: a centered dialog,
+            // never a seat-anchored popover — the flank grid columns are
+            // ~75px at 390px and would clip it; the felt is on-screen and
+            // roughly equidistant from every seat at every width). The
+            // chosen chip keeps its highlight ring so the seat identity
+            // never detaches from the prompt.
+            <SitAskPanel
+              position={t(POSITION_KEY[sitAsk]!)}
+              name={sitAskName}
+              needName={sitAskNeedName}
+              taken={claimedOf(sitAsk) && !snapshot.seats.has(sitAsk)}
+              claiming={sitAskClaiming}
+              connected={snapshot.connected}
+              onName={(value) => {
+                setSitAskName(value);
+                setSitAskNeedName(false);
+              }}
+              onConfirm={() => {
+                if (sitAskClaiming) return;
+                if (sitAskName.trim().length === 0) {
+                  setSitAskNeedName(true);
+                  return;
+                }
+                // The SAME single claim path as name-then-sit (takeSeat →
+                // store.claim) — the ask reorders UI steps, never the
+                // authoritative claim. Success closes via the effect
+                // above; a lost race flips `taken` instead; the claiming
+                // lock (panel MED) makes a double-tap send exactly one
+                // claimSeat.
+                setSitAskClaiming(true);
+                takeSeat(store, sitAskName, sitAsk);
+                writeLastName(sitAskName.trim());
+              }}
+              onCancel={() => {
+                setSitAsk(null);
+                setSitAskName('');
+                setSitAskNeedName(false);
+                setSitAskClaiming(false);
+              }}
+            />
+          ) : (
+            <>
+              <span className="lobby-table__codelabel">{t('lobby.roomCode')}</span>
+              <strong className="lobby-table__code">{store.code}</strong>
+              <button
+                type="button"
+                className="lobby-table__copy"
+                onClick={() => {
+                  void copyLink();
+                }}
+              >
+                {t('lobby.copyLink')}
+              </button>
+              {/* Persistent live region: the copied-toast swaps into a reserved
+                  line, so announcing works and the felt never reflows. */}
+              <p className="lobby-table__status" role="status">
+                {copyState === 'copied'
+                  ? t('lobby.copied')
+                  : copyState === 'failed'
+                    ? t('lobby.copyFailed')
+                    : ' '}
+              </p>
+            </>
+          )}
         </div>
         {SEATS.map((s) => seatChip(s))}
       </div>

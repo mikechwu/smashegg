@@ -522,6 +522,75 @@ a {
      narrow flank seats have room for the CTA on one line (see table header). */
   padding: 0.25rem;
 }
+/* Sit-then-name (silent-no-op round): the chip whose Sit press opened the
+   felt's name prompt keeps a cinnabar ring, so the seat identity never
+   detaches from the centered dialog. Steady, never pulsing. */
+.lobby-seat--asking {
+  border: 2px solid var(--cinnabar, #c3392b);
+  border-radius: 10px;
+}
+/* The felt's own name prompt — the table asks. Sized for the ~12rem disc;
+   the inputs stay inside the felt circle. */
+.lobby-sitask {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+  width: 100%;
+}
+.lobby-sitask__title {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.lobby-sitask__input {
+  width: 85%;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 239, 227, 0.5);
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--ivory, #f5efe3);
+  padding: 0.3rem 0.5rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  text-align: center;
+}
+.lobby-sitask__hint {
+  margin: 0;
+  min-height: 1.1em;
+  font-size: 0.6875rem;
+  opacity: 0.9;
+}
+.lobby-sitask__taken {
+  margin: 0;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.lobby-sitask__row {
+  display: flex;
+  gap: 0.5rem;
+}
+.lobby-sitask__confirm {
+  background: var(--cinnabar, #c3392b);
+  border: 0;
+  color: var(--ivory, #f5efe3);
+  border-radius: 999px;
+  padding: 0.25rem 0.9rem;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.lobby-sitask__cancel {
+  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid rgba(245, 239, 227, 0.4);
+  color: var(--ivory, #f5efe3);
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.75rem;
+  cursor: pointer;
+}
 .lobby-seat__row {
   display: flex;
   align-items: center;

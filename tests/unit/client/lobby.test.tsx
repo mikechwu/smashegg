@@ -213,3 +213,124 @@ describe('no lobby rename UI; leave releases the held seat (owner dropped rename
     expect(calls).toEqual([['releaseSeat', 1]]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Silent-no-op round, item 2 — sit-then-name. THE playtest bug: pressing Sit
+// with no name did NOTHING (a disabled button, the NN/g anti-pattern). The
+// ratchet: a nameless Sit must ALWAYS produce a visible response (the ask
+// panel), both orders must converge on the SAME single claim path (the seat
+// token is minted exactly as before), and the race loser gets an explicit
+// message. DOM-free idiom: pure decision + render pins + source pins.
+// ---------------------------------------------------------------------------
+
+import { SitAskPanel, sitIntent } from '../../../src/client/Lobby';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+
+const lobbySrc = readFileSync(join(__dirname, '../../../src/client/Lobby.tsx'), 'utf8').replace(
+  /\/\*[\s\S]*?\*\//g,
+  '',
+).replace(/\/\/[^\n]*/g, '');
+
+describe('sit-then-name (the silent no-op regression)', () => {
+  it('THE regression: a blank name NEVER disables the take-a-seat button', () => {
+    const html = render(snapshot());
+    const takeButtons = html.match(/<button[^>]*lobby-seat__take[^>]*>/g) ?? [];
+    expect(takeButtons).toHaveLength(4);
+    for (const b of takeButtons) expect(b).not.toContain('disabled');
+  });
+
+  it('the Sit press routes by name readiness — claim with a name, ASK without (never nothing)', () => {
+    expect(sitIntent(true)).toBe('claim');
+    expect(sitIntent(false)).toBe('ask');
+    expect(lobbySrc).toMatch(/if \(sitIntent\(nameReady\) === 'claim'\) \{/);
+    expect(lobbySrc).toMatch(/setSitAsk\(s\);/);
+  });
+
+  it('one claim path only: store.claim appears exactly once, inside takeSeat, and the ask confirm routes through takeSeat', () => {
+    expect(lobbySrc.match(/store\.claim\(/g) ?? []).toHaveLength(1);
+    expect(lobbySrc).toMatch(/takeSeat\(store, sitAskName, sitAsk\);/);
+  });
+
+  it('the ask panel asks (title + prompt + confirm), explains an empty confirm, and never silently no-ops', () => {
+    const base = {
+      position: 'bottom',
+      name: '',
+      needName: false,
+      taken: false,
+      claiming: false,
+      connected: true,
+      onName: () => {},
+      onConfirm: () => {},
+      onCancel: () => {},
+    };
+    const asking = renderToStaticMarkup(createElement(SitAskPanel, base));
+    expect(asking).toContain('Take the bottom seat');
+    expect(asking).toContain('Enter a name to finish sitting down');
+    expect(asking).toContain('Sit down');
+    expect(asking).toContain('Cancel');
+    const needName = renderToStaticMarkup(createElement(SitAskPanel, { ...base, needName: true }));
+    expect(needName).toContain('Please enter a name first');
+    expect(needName).toContain('role="alert"');
+  });
+
+  it('the race loser sees an explicit taken message with a dismiss — not a form, not silence', () => {
+    const taken = renderToStaticMarkup(
+      createElement(SitAskPanel, {
+        position: 'top',
+        name: 'x',
+        needName: false,
+        taken: true,
+        claiming: false,
+        connected: true,
+        onName: () => {},
+        onConfirm: () => {},
+        onCancel: () => {},
+      }),
+    );
+    expect(taken).toContain('Someone just took this seat');
+    expect(taken).toContain('Got it');
+    expect(taken).toContain('role="alert"');
+    expect(taken).not.toContain('lobby-sitask__input');
+  });
+
+  it('wiring: the ask closes on OWN success, flips to taken on the lost race, highlights its chip', () => {
+    expect(lobbySrc).toMatch(/if \(sitAsk !== null && snapshot\.seats\.has\(sitAsk\)\) \{/);
+    expect(lobbySrc).toMatch(/taken=\{claimedOf\(sitAsk\) && !snapshot\.seats\.has\(sitAsk\)\}/);
+    expect(lobbySrc).toMatch(/asking \? 'lobby-seat--asking' : ''/);
+  });
+
+  it('name-then-sit still claims directly and clears the shared name (unchanged fast path)', () => {
+    const { store, calls } = recorderStore();
+    const next = takeSeat(store, '  mike  ', 2 as Seat);
+    expect(next).toBe('');
+    expect(calls).toEqual([['claimSeat', 'mike', 2]]);
+  });
+});
+
+describe('the in-flight claim lock (panel MED, Codex + Grok concurring)', () => {
+  it('while claiming the confirm locks and the hint SAYS so — a wait, never silence', () => {
+    const html = renderToStaticMarkup(
+      createElement(SitAskPanel, {
+        position: 'bottom',
+        name: 'mike',
+        needName: false,
+        taken: false,
+        claiming: true,
+        connected: true,
+        onName: () => {},
+        onConfirm: () => {},
+        onCancel: () => {},
+      }),
+    );
+    expect(html).toContain('Sitting down');
+    expect(html).toMatch(/lobby-sitask__confirm[^>]*disabled/);
+  });
+
+  it('wiring: one claim per confirm, growth-only unwedge, disconnect parity with the take buttons', () => {
+    expect(lobbySrc).toMatch(/if \(sitAskClaiming\) return;/);
+    expect(lobbySrc).toMatch(/setSitAskClaiming\(true\);/);
+    expect(lobbySrc).toMatch(/if \(rejectionCount > prevRejectionsRef\.current\) setSitAskClaiming\(false\);/);
+    expect(lobbySrc).toMatch(/disabled=\{claiming \|\| !connected\}/);
+  });
+});
