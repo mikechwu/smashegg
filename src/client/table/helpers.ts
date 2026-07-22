@@ -747,6 +747,112 @@ export function beatState(
 }
 
 // ---------------------------------------------------------------------------
+// The play desk (elder-visibility round, docs/research/
+// state-visibility.md, owner decisions D1–D7). Pure state machine + stage
+// derivation, DOM-free and pinned. Owner guard 5: ZERO new classification
+// logic anywhere in the desk — naming reuses the engine's classifyPlays
+// (the very classifier matchSelection wraps) and the existing comboKey/
+// comboRankLabel/declRunText/beatState helpers; playability comes only
+// from matchSelection's hint-gated matches.
+// ---------------------------------------------------------------------------
+
+/** Which face the desk wears. 'off' = not mounted (its absence from the
+ *  hand zone IS the "not your decision moment" signal); 'quiet' = the D2
+ *  pre-stage while another seat acts (faces + naming, no shell, no clock);
+ *  'play'/'tribute' = the loud your-turn forms — the ONLY states allowed
+ *  the strongest visual treatment (the non-negotiable loudness hierarchy). */
+export type DeskMode = 'off' | 'quiet' | 'play' | 'tribute';
+
+export function deskMode(opts: {
+  phase: string;
+  yourTurn: boolean;
+  tributePhase: 'payTribute' | 'returnTribute' | null;
+  selectionCount: number;
+  /** Any overlay/choreography that owns the table right now: ceremony, the
+   *  deal, the pre-deal hold, the interlude, the cut, anti-tribute reveals,
+   *  the result overlay, the concealed hand-1 leader. */
+  suppressed: boolean;
+}): DeskMode {
+  if (opts.suppressed) return 'off';
+  // tributePhase derives from hints, so it IMPLIES yourTurn today — the
+  // explicit conjunction is defense in depth (panel MED, Grok: a future
+  // caller passing a phase without hints must not hand a non-actor the
+  // loud tribute shell).
+  if (opts.tributePhase !== null) return opts.yourTurn ? 'tribute' : 'off';
+  if (opts.phase !== 'playing') return 'off';
+  if (opts.yourTurn) return 'play';
+  return opts.selectionCount > 0 ? 'quiet' : 'off';
+}
+
+/** D5's discrete calm ramp — never a per-second throb: calm for the first
+ *  two thirds of the budget, amber for the last third, urgent at ≤10s (the
+ *  auto-pass horizon, the one moment that earns bold copy). A room with no
+ *  knowable budget (legacy timing NULL) ambers at ≤20s. Null = no clock. */
+export type DeskUrgency = 'calm' | 'amber' | 'urgent';
+
+export function deskUrgency(
+  dueSeconds: number | null,
+  totalMs: number | null,
+): DeskUrgency | null {
+  if (dueSeconds === null) return null;
+  if (dueSeconds <= 10) return 'urgent';
+  const amber = totalMs !== null && totalMs > 0 ? dueSeconds * 1000 <= totalMs / 3 : dueSeconds <= 20;
+  return amber ? 'amber' : 'calm';
+}
+
+/** Remaining-budget fraction for the desk's support bar. Approximate BY
+ *  DESIGN: the total is the room preset's un-clamped budget (shared
+ *  timeoutMsFor — already on the client, no wire change) while a
+ *  disconnect-grace clamp can shorten the real dueAt — the seconds number
+ *  stays the truth, the bar is support (plan §2b). Null = no bar (untimed
+ *  room, legacy NULL timing, or no running clock). */
+export function deskFraction(dueSeconds: number | null, totalMs: number | null): number | null {
+  if (dueSeconds === null || totalMs === null || totalMs <= 0) return null;
+  return Math.min(1, Math.max(0, (dueSeconds * 1000) / totalMs));
+}
+
+/** The staged set's readings. On your turn (matches given) the decls come
+ *  from matchSelection's hint-gated matches and playableCount counts the
+ *  server-admitted ones; in the quiet pre-stage there are no hints to
+ *  gate against, so naming falls straight through to the engine's
+ *  classifyPlays (same classifier, no playability claim — playableCount
+ *  null keeps the desk honest about what it cannot know). */
+export interface DeskStage {
+  decls: readonly CanonicalForm[];
+  playableCount: number | null;
+}
+
+export function deskStage(
+  cards: readonly Card[],
+  matches: readonly PlayMatch[] | null,
+  level: Rank,
+  variant: RuleVariant,
+): DeskStage {
+  if (cards.length === 0) return { decls: [], playableCount: matches === null ? null : 0 };
+  if (matches !== null) {
+    return {
+      decls: matches.map((m) => m.decl),
+      playableCount: matches.reduce((n, m) => n + (m.playable ? 1 : 0), 0),
+    };
+  }
+  return { decls: classifyPlays([...cards], level, variant), playableCount: null };
+}
+
+/** Guard 4's frequency policy, pinned: the auto-passed timeout notice
+ *  teaches the timeout consequence the first time(s) it happens and then
+ *  stops — a repeated notice reads as blame, and the elder already knows.
+ *  Per seat, per client session (the fold state's lifetime). */
+export const MAX_TIMEOUT_NOTICES = 2;
+
+/** How long the notice stays up (wall-clock gated like every transient). */
+export const TIMEOUT_NOTICE_MS = 4000;
+
+/** The desk's staged-faces strip caps at this many full faces; anything
+ *  beyond collapses into a +N chip so a 27-card mis-tap spree can never
+ *  eat the phone screen (plan §2d). Wider than any legal play's window. */
+export const DESK_STAGE_MAX_FACES = 10;
+
+// ---------------------------------------------------------------------------
 // Seat-zone R3, review-hardened: the per-deal remote landing counters are
 // KEYED BY THE DEAL THEY BELONG TO, so "a new deal starts from zero" is a
 // property of the READ, not of a reset effect. The old shape (a bare

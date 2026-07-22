@@ -141,7 +141,8 @@ export function ActionBar(props: ActionBarProps) {
   if (tributePhase !== null) {
     return (
       <div className="gd-actions">
-        <p className="gd-actions__hint">{t('game.tribute.selectHint')}</p>
+        {/* The selection hint moved onto the PLAY DESK (elder round, D1) —
+            this branch is the confirm button alone now. */}
         <button
           type="button"
           className="gd-actions__primary"
@@ -154,31 +155,22 @@ export function ActionBar(props: ActionBarProps) {
     );
   }
 
-  // Playing phase. Fixed geometry: the reason line's space is always
-  // reserved and BOTH buttons always render in the same slots, so nothing
-  // that happens between render ticks can move Pass under a tap aimed at
-  // Play (or vice versa).
+  // Playing phase. Fixed geometry: BOTH buttons always render in the same
+  // slots, so nothing that happens between render ticks can move Pass under
+  // a tap aimed at Play (or vice versa). The old reason line moved onto the
+  // PLAY DESK (elder round, D1: the desk's status line names the staged
+  // combo and the beat verdict BEFORE commit — a failure-only line here was
+  // half the misread problem); beatState still decides which button carries
+  // the primary treatment.
   // Play enables iff SOME reading is playable; a valid-but-multi-reading
   // selection always opens the chooser (declaration required, spec §4.4.4)
   // — with a non-empty selection the primary action can never silently do
   // nothing, and Pass keeps its own two-tap confirm below.
   const playableCount = matches.reduce((n, m) => n + (m.playable ? 1 : 0), 0);
   const beat = beatState(hints, passAvailable);
-  const canBeat = beat === 'canBeat';
   const cannotBeat = beat === 'cannotBeat';
-  const showNoMatch = selectionCount > 0 && playableCount === 0;
-  const reason = cannotBeat
-    ? t('game.action.cannotBeat')
-    : showNoMatch
-      ? t('game.action.noMatch')
-      : passAvailable && canBeat && selectionCount === 0
-        ? t('game.action.canBeat')
-        : ' ';
   return (
     <div className="gd-actions">
-      <p className="gd-actions__reason" aria-live="polite">
-        {reason ? reason : ' '}
-      </p>
       <div className="gd-actions__slots">
         <button
           type="button"

@@ -879,17 +879,192 @@ button.gd-plate {
 .gd-fan__card:hover {
   transform: translateY(-4px);
 }
+/* Elder round (item 3a): the lift more than doubled (−6px → −14px, the
+   physical "pull it proud of the fan") and the ring gained an IVORY outer
+   halo so it survives pile occlusion on ageing eyes — the 2px cinnabar
+   hairline on an ~18px strip was near the contrast floor. Reduced motion
+   collapses the transform (the ring pair alone carries selection there —
+   see the reduced-motion block). */
 .gd-fan__card--selected {
-  transform: translateY(-6px);
+  transform: translateY(-14px);
 }
 .gd-fan__card--selected:hover {
-  transform: translateY(-6px);
+  transform: translateY(-14px);
 }
 .gd-fan__card--selected .gd-card {
-  box-shadow: 0 0 0 2px var(--cinnabar);
+  box-shadow:
+    0 0 0 2px var(--cinnabar),
+    0 0 0 4px color-mix(in srgb, var(--ivory) 85%, transparent);
 }
 .gd-fan__card--glow .gd-card {
   box-shadow: 0 0 0.5rem 2px color-mix(in srgb, var(--cinnabar) 80%, transparent);
+}
+/* D3: while the viewer stages on their OWN turn, unselected cards recede
+   mildly — figure/ground, not a spotlight. Opacity only (no motion); the
+   reduced-motion block restores full opacity (its appear/disappear reads
+   as flicker there). */
+.gd-fan--dim .gd-fan__card:not(.gd-fan__card--selected) {
+  opacity: 0.72;
+}
+
+/* --- play desk — docs/research/state-visibility.md, D1–D7 ------- */
+/* ONE surface between the fan and the buttons for the four facts elders
+ * lose in distributed micro-chrome: whose turn, the clock, what is staged,
+ * what it forms. The LOUD shell (cinnabar edge, title, 1.5rem clock)
+ * exists only for the viewer's own turn — the loudness hierarchy's spine;
+ * the quiet pre-stage is faces + naming with no shell. One ~200ms
+ * entrance (gd-desk-in, runs ONCE — never a loop), then steady. Urgency
+ * is D5's discrete stage classes: calm ivory → amber goldleaf → urgent
+ * cinnabar+bold, carried by color/weight/copy so reduced motion loses
+ * nothing. The vertical budget is recycled (the old reason band, the
+ * handclock, the acting ring shrink below), not invented (plan §2d). */
+.gd-desk {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  margin: 0.25rem auto 0;
+  width: 100%;
+  max-width: 24rem;
+  box-sizing: border-box;
+}
+.gd-desk--play,
+.gd-desk--tribute {
+  background: color-mix(in srgb, var(--rosewood) 55%, var(--lacquer));
+  border: 1px solid color-mix(in srgb, var(--cinnabar) 55%, transparent);
+  border-left: 4px solid var(--cinnabar);
+  border-radius: 10px;
+  padding: 0.375rem 0.75rem 0.5rem;
+  animation: gd-desk-in 200ms ease-out;
+}
+@keyframes gd-desk-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.gd-desk__titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+}
+.gd-desk__title {
+  margin: 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--ivory);
+}
+.gd-desk__clock {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--ivory);
+  min-width: 1.5em;
+  text-align: right;
+  flex: none;
+}
+.gd-desk--amber .gd-desk__clock {
+  color: var(--goldleaf);
+}
+.gd-desk--urgent .gd-desk__clock {
+  color: var(--cinnabar);
+  font-weight: 700;
+}
+/* Urgent: the title slot carries the hurry copy (never an extra row — the
+   390px fold must keep Play/Pass on screen at the auto-pass horizon). */
+.gd-desk--urgent .gd-desk__title {
+  color: var(--cinnabar);
+}
+/* The planning window's own REGISTER (plan §2b; panel MED, Grok: the
+   copy alone was half the register) — goldleaf edge instead of cinnabar,
+   so a long first think reads as thinking room, not turn pressure. */
+.gd-desk--planning {
+  border-color: color-mix(in srgb, var(--goldleaf) 60%, transparent);
+  border-left-color: var(--goldleaf);
+}
+.gd-desk__bar {
+  width: 100%;
+  height: 4px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ivory) 18%, transparent);
+  overflow: hidden;
+}
+.gd-desk__barFill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--ivory) 55%, transparent);
+}
+.gd-desk--amber .gd-desk__barFill {
+  background: var(--goldleaf);
+}
+.gd-desk--urgent .gd-desk__barFill {
+  background: var(--cinnabar);
+}
+/* The staged strip: full hand-size faces at the trick well's overlap. The
+   card-width var must exist on THIS ancestor for the margin calc (same
+   ancestor-definition rule as the fan's stack — see that comment). */
+.gd-desk__stage {
+  --gd-cardw: clamp(2.75rem, 13vw, 4.25rem);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+}
+.gd-desk__stagedCard {
+  border: 0;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  flex: none;
+}
+.gd-desk__stagedCard:not(:first-child) {
+  margin-left: calc(var(--gd-cardw) * -0.6);
+}
+.gd-desk__more {
+  margin-left: 0.375rem;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ivory);
+  background: var(--lacquer);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.85rem;
+  flex: none;
+}
+.gd-desk__status {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--ivory);
+  text-align: center;
+}
+.gd-desk__statusHint {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.85;
+  color: var(--ivory);
+  text-align: center;
+}
+/* D6's timeout notice — ivory plate, neutral wording, transient (the
+   TIMEOUT_NOTICE_MS wall-clock gate), capped by guard 4's policy. */
+.gd-desk__notice {
+  margin: 0.375rem auto 0;
+  text-align: center;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--ink);
+  background: var(--ivory);
+  border-radius: 8px;
+  padding: 0.375rem 0.75rem;
+  width: fit-content;
 }
 
 /* --- action bar ------------------------------------------------------------------ */
@@ -901,45 +1076,17 @@ button.gd-plate {
   flex-wrap: wrap;
   position: relative;
 }
-/* Fixed playing-phase geometry: reason line space is ALWAYS reserved and
- * the two buttons hold fixed slots with a wide gap, so a mid-tick rerender
- * can never move Pass under a tap aimed at Play.
- * The reason paragraph is taken OUT of flow (position: absolute over a
- * reserved band) rather than sized in-line: .gd-actionsRow's middle grid
- * track is `auto`, sized off .gd-actions's own intrinsic (unwrapped)
- * content width — an in-flow reason line as wide as its longest configured
- * string (game.action.noMatch, the longest of the three) forced that track
- * wider than .gd-actions__slots ever needs, starving the two 1fr flank
- * tracks unevenly (2026-07-16 regression: Play/Pass visibly off-center
- * whenever the reason held real copy). Absolutely positioning the reason
- * line removes it from .gd-actions's intrinsic-size contribution entirely
- * (spec: out-of-flow boxes don't contribute to their containing block's
- * content-based sizing) — so the auto track is sized by .gd-actions__slots
- * ALONE, constant across every reason state, restoring genuine centering. */
-.gd-actions__reason {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  text-align: center;
-  margin: 0;
-  font-size: 0.75rem;
-  color: color-mix(in srgb, var(--ivory) 85%, var(--cinnabar));
-}
+/* Fixed playing-phase geometry: the two buttons hold fixed slots with a
+ * wide gap, so a mid-tick rerender can never move Pass under a tap aimed
+ * at Play. The old out-of-flow reason line (and its reserved 2.25rem band)
+ * is GONE — the elder round moved that copy onto the PLAY DESK's status
+ * line, which recycles the band's height into the desk (plan §2d). */
 .gd-actions__slots {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 2.25rem;
-  /* Reserves the reason line's band above (out of flow, so it doesn't push
-     this row itself — see .gd-actions__reason comment). Sized for TWO lines
-     at the reason line's own font-size/line-height (0.75rem * 1.5 body
-     line-height = 1.125rem per line): the longest configured reason string
-     (game.action.noMatch, en) wraps to exactly 2 lines at the width
-     .gd-actions__slots's own two buttons + gap need — verified live at the
-     390px floor (no overlap, no clipped text; CJK reason strings stay a
-     single line and just leave the band's lower half blank). */
-  margin-top: 2.25rem;
+  margin-top: 0.25rem;
 }
 .gd-actions__slots button {
   min-width: 5.5rem;
@@ -1455,8 +1602,9 @@ button.gd-plate {
    Urgency is reserved for YOUR turn running short (≤10s — the moment you are
    about to be auto-passed): cinnabar fill + the same gd-pulse the jiefeng
    banner uses; meaning never rides on colour alone (the aria states the
-   seconds). On your turn the SAME number also rides above the sort pill
-   (.gd-handclock below), next to where your hands already are. */
+   seconds). Since the elder round the chip is an ECHO on your own turn —
+   the PLAY DESK owns the primary own-turn clock, and D4 hides this line at
+   phone width while the desk is loud (gd-headline__turn--echo). */
 .gd-headline__clock {
   display: inline-flex;
   align-items: center;
@@ -1958,34 +2106,14 @@ button.gd-plate {
 .gd-actionsRow__sort {
   grid-column: 3;
   justify-self: end;
-  /* Flank round, owner item 3: on YOUR turn an additional countdown chip
-     rides ABOVE the sort pill — a column, right-aligned. */
+  /* The flank round's extra countdown chip that rode above this pill
+     (gd-handclock) is GONE — the elder round's PLAY DESK owns the single
+     large own-turn clock (D4/D5); a second unlabeled number was exactly
+     the micro-chrome the playtest diagnosed. */
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 0.25rem;
-}
-/* Your own turn's clock beside your controls — the same number the headline
-   chip carries, same urgency rule; numeric only (the headline holds the
-   planning word). */
-.gd-handclock {
-  display: inline-flex;
-  justify-content: center;
-  background: var(--lacquer);
-  border: 1px solid rgba(245, 239, 227, 0.25);
-  border-radius: 999px;
-  padding: 0.06rem 0.5rem;
-  color: var(--ivory);
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.85rem;
-  min-width: 1.6em;
-  text-align: center;
-}
-.gd-handclock--urgent {
-  background: var(--cinnabar);
-  border-color: var(--cinnabar);
-  animation: gd-pulse 700ms ease-in-out infinite alternate;
 }
 
 /* --- bottom bar: your own seat plate + the (now-thin) log, one line ------ */
@@ -2060,6 +2188,22 @@ button.gd-plate {
   .gd-headline__turn {
     font-size: 0.8rem;
   }
+  /* D4: while the LOUD desk owns the viewer's turn, the headline's own-turn
+     sentence + chip is a desktop-only echo — the phone carries exactly one
+     primary own-turn signal (the desk). Other seats' turns keep the
+     sentence at every width. */
+  .gd-headline__turn--echo {
+    display: none;
+  }
+  /* Guard 2's one reflow: while the desk is LOUD the ring center gives up
+     ~50px of its minimum so the desk's height is recycled, not invented
+     (plan §2d). A single snap at the turn boundary — deliberately NOT
+     transitioned (a layout tween would move every seat continuously, worse
+     for vestibular comfort than one clean reflow). Phone only; the ≥720px
+     table has the air already. Flagged for the real-elder checkpoint. */
+  .gd-table--acting .gd-ring__table {
+    grid-template-rows: auto minmax(3.25rem, 1fr);
+  }
 }
 
 /* --- reduced motion (quality floor) ------------------------------------------------------ */
@@ -2075,6 +2219,19 @@ button.gd-plate {
      Static full opacity, no motion; the render gate's ~3s wall-clock
      unmount (GameTable passedAt) makes it transient all the same. */
   .gd-seatzone__pass {
+    opacity: 1;
+  }
+  /* Elder round: the selected lift collapses (no static jump either) — the
+     doubled ring alone carries selection; the D3 dim is OFF (its appear/
+     disappear reads as flicker, and the desk's staged faces carry the
+     figure instead). The desk itself needs no repair here: its entrance is
+     killed by the blanket rule above and every urgency stage is already
+     color + weight + words, never motion. */
+  .gd-fan__card--selected,
+  .gd-fan__card--selected:hover {
+    transform: none;
+  }
+  .gd-fan--dim .gd-fan__card:not(.gd-fan__card--selected) {
     opacity: 1;
   }
 }

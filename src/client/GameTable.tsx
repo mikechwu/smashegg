@@ -13,7 +13,7 @@
 // jiefeng banner, anti-tribute reveals, the ceremony payload, the feed) is folded
 // here from batches as they arrive.
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { Seat } from '../engine/core/game';
 import { teamOf } from '../engine/guandan/types';
 import type { GuandanAction, GuandanEvent, HandResult } from '../engine/guandan/types';
@@ -28,6 +28,7 @@ import { EventFeed, FEED_LIMIT, type FeedLine } from './table/EventFeed';
 import { PlayOverlay } from './table/PlayOverlay';
 import { HandFan } from './table/HandFan';
 import { InterludeOverlay } from './table/InterludeOverlay';
+import { PlayDesk } from './table/PlayDesk';
 import { TableHeadline } from './table/TableHeadline';
 import { ResultOverlay } from './table/ResultOverlay';
 import { SeatPlate } from './table/SeatPlate';
@@ -39,12 +40,16 @@ import {
   asGuandanEvents,
   asGuandanView,
   asRuleVariant,
+  beatState,
   declJokerRank,
   concealedLeader,
+  deskMode,
+  deskStage,
   holdPreDealFan,
   isCeremonyShowing,
   landRemoteDealt,
   matchSelection,
+  MAX_TIMEOUT_NOTICES,
   multisetKey,
   NO_REMOTE_DEALT,
   placeOf,
@@ -54,6 +59,7 @@ import {
   remoteDealtCounts,
   rankText,
   seatLayout,
+  TIMEOUT_NOTICE_MS,
   tributeEligibleCards,
   tributeKind,
   type Ceremony,
@@ -62,6 +68,7 @@ import {
   type RemoteDealt,
   type SelectionContext,
 } from './table/helpers';
+import { timeoutMsFor } from '../shared/timing';
 import { t } from './i18n';
 import { describeError } from './errors';
 import './table/table.css';
@@ -87,6 +94,28 @@ export interface GameTableProps {
 // and renderToStaticMarkup runs no effects anyway) avoids React's SSR
 // useLayoutEffect warning.
 const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+
+/** The desk-and-buttons visibility GUARANTEE (visual-round find): the full
+ *  column can overflow a phone viewport with a tall fan, and an elder does
+ *  not know to scroll — so a LOUD desk (and each growth of its staged
+ *  strip) snaps the action row into view. Instant, never smooth: no motion
+ *  to sit through, nothing for reduced-motion to lose. A child component
+ *  because GameTable's own hook section ends before its early returns —
+ *  this effect depends on post-return derivations. */
+function ScrollActionsIntoView({
+  loud,
+  stagedCount,
+  targetRef,
+}: {
+  loud: boolean;
+  stagedCount: number;
+  targetRef: RefObject<HTMLDivElement | null>;
+}) {
+  useEffect(() => {
+    if (loud) targetRef.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+  }, [loud, stagedCount, targetRef]);
+  return null;
+}
 
 const HAND_SORT_STORAGE_KEY = 'pref:handSort';
 
@@ -163,6 +192,13 @@ export interface SeatDerived {
   /** A-attempt state as last reported by a handEnded fold — the before-side
    *  for detecting "burned/exhausted THIS hand". */
   aTrack: { attempts: [number, number]; exhausted: [boolean, boolean] } | null;
+  /** D6: the server clock passed THIS seat (a 'passed' fold for the seat's
+   *  own batch that this client never sent — the wire carries no auto
+   *  marker, so "not locally acted" is the honest detection). `nth` counts
+   *  them for guard 4's frequency policy: the notice teaches the first
+   *  MAX_TIMEOUT_NOTICES times and then stays quiet — repetition would
+   *  read as blame. Wall-clock stamped like every transient. */
+  autoPass: { at: number; nth: number } | null;
 }
 
 export const EMPTY_DERIVED: SeatDerived = {
@@ -181,6 +217,7 @@ export const EMPTY_DERIVED: SeatDerived = {
   interlude: null,
   teamLevels: null,
   aTrack: null,
+  autoPass: null,
 };
 
 // Exported (not just used internally) so a unit test can fold real events
@@ -194,6 +231,13 @@ export function foldEvents(
   viewerTeam: 0 | 1,
   nameFor: (seat: Seat) => string,
   nextId: () => number,
+  /** The seat whose batch this is + a CONSUMING check of whether ITS pass
+   *  was sent by this client (D6 auto-pass detection; the consumption —
+   *  one stamp per pass event — is what keeps a later same-window
+   *  auto-pass detectable). Defaults keep old callers/tests folding
+   *  without the notice. */
+  ownSeat?: Seat,
+  consumeLocalPass?: (seat: Seat) => boolean,
 ): SeatDerived {
   let d = { ...prev, feed: [...prev.feed] };
   const push = (key: FeedLine['key'], params?: FeedLine['params']) => {
@@ -277,6 +321,9 @@ export function foldEvents(
       case 'passed':
         if (!d.passed.includes(ev.seat)) d.passed = [...d.passed, ev.seat];
         d.passedAt = { ...d.passedAt, [ev.seat]: Date.now() };
+        if (ev.seat === ownSeat && consumeLocalPass !== undefined && !consumeLocalPass(ev.seat)) {
+          d.autoPass = { at: Date.now(), nth: (d.autoPass?.nth ?? 0) + 1 };
+        }
         push('game.feed.passed', { name: nameFor(ev.seat) });
         break;
       case 'trickWon':
@@ -428,6 +475,9 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   const [dealLeadRevealed, setDealLeadRevealed] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const [handDescending, setHandDescending] = useState(() => readHandSortDescending());
+  // Target of the ScrollActionsIntoView guarantee (declared here — the
+  // hook section ends before the early returns below).
+  const actionsRowRef = useRef<HTMLDivElement | null>(null);
   const toggleHandSort = () => {
     setHandDescending((prev) => {
       const next = !prev;
@@ -439,6 +489,22 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   const room = snapshot.room;
   const nameFor = (seat: Seat): string =>
     room?.seats.find((s) => s.seat === seat)?.name ?? t('room.seatTab', { seat: seat + 1 });
+
+  // D6 auto-pass detection support: act() stamps every locally-sent pass;
+  // a folded 'passed' for a held seat with no fresh local stamp was the
+  // server clock's (the wire carries no auto marker — this is the honest
+  // client-only signal). 10s covers any realistic round trip. The stamp
+  // is CONSUMED by its matching fold (panel MED, Codex: one local act
+  // maps to one pass event — an unconsumed stamp suppressed a REAL
+  // auto-pass on the seat's next turn inside the window, silently eating
+  // the teaching notice).
+  const localPassRef = useRef(new Map<Seat, number>());
+  const consumeLocalPass = (seat: Seat): boolean => {
+    const at = localPassRef.current.get(seat);
+    if (at === undefined) return false;
+    localPassRef.current.delete(seat);
+    return Date.now() - at < 10_000;
+  };
 
   // Fold newly arrived event batches into per-seat presentation state. A
   // LAYOUT effect (see useIsomorphicLayoutEffect): the deal-gate reads
@@ -478,7 +544,10 @@ export function GameTable({ snapshot, store }: GameTableProps) {
 
       if (events.length === 0) continue;
       if (next === null) next = new Map(derivedBySeat);
-      next.set(seat, foldEvents(current, events, teamOf(seat), nameFor, () => feedIdRef.current++));
+      next.set(
+        seat,
+        foldEvents(current, events, teamOf(seat), nameFor, () => feedIdRef.current++, seat, consumeLocalPass),
+      );
     }
     if (next !== null) setDerivedBySeat(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -503,6 +572,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       ...(Object.values(d.passedAt) as number[]).map((at) => at + 3500),
       ...(d.playFx !== null ? [d.playFx.at + 3500] : []),
       ...(d.interlude !== null ? [d.interlude.at + 61_000] : []),
+      ...(d.autoPass !== null ? [d.autoPass.at + TIMEOUT_NOTICE_MS + 500] : []),
     ]),
   );
   useEffect(() => {
@@ -798,6 +868,57 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   const clockConnected =
     clockSeat !== null && (room?.seats.find((s) => s.seat === clockSeat)?.connected ?? false);
 
+  // The play desk (docs/research/state-visibility.md, D1–D7): mode from the
+  // pure state machine — any table-owning choreography suppresses it, the
+  // loud shell exists ONLY for the viewer's own turn (the loudness
+  // hierarchy's spine), and the D2 quiet pre-stage needs staged cards.
+  const passAvailable = hints !== null && hints.some((h) => h.type === 'pass');
+  const desk = deskMode({
+    phase: view.phase,
+    yourTurn,
+    tributePhase,
+    selectionCount: selected.size,
+    suppressed:
+      ceremonyShowing ||
+      dealing ||
+      holdFan ||
+      interludeShowing ||
+      leaderConcealed !== null ||
+      showAnti ||
+      view.phase === 'ceremonyCut' ||
+      view.matchWinner !== null,
+  });
+  const deskLoud = desk === 'play' || desk === 'tribute';
+  const stagedCards = [...selected]
+    .sort((a, b) => a - b)
+    .flatMap((i) => (view.hand[i] !== undefined ? [{ card: view.hand[i]!, index: i }] : []));
+  // The tribute desk never names a combo (panel LOW, Grok) — skip the
+  // classifier entirely there instead of computing readings the desk
+  // ignores.
+  const stage =
+    desk === 'tribute'
+      ? { decls: [], playableCount: null }
+      : deskStage(
+          stagedCards.map((s) => s.card),
+          desk === 'play' ? matches : null,
+          view.currentLevel,
+          variant,
+        );
+  // D5's bar budget from the room preset (shared timeoutMsFor — already on
+  // the client, no wire change); null (untimed/legacy) = seconds only.
+  const deskTotalMs =
+    deskLoud && room?.timing != null && clockDeadline?.timingClass !== undefined
+      ? timeoutMsFor(room.timing, clockDeadline.timingClass)
+      : null;
+  // D6: the timeout notice — transient (wall-clock gated), capped by guard
+  // 4's frequency policy, and never over the interlude's beat.
+  const autoPass = derived.autoPass;
+  const autoPassNotice =
+    autoPass !== null &&
+    now - autoPass.at < TIMEOUT_NOTICE_MS &&
+    autoPass.nth <= MAX_TIMEOUT_NOTICES &&
+    !interludeShowing;
+
   // The play flight (owner: cards fly face-up from the pile to the table,
   // like the deal): rendered while the fold's stamp is fresh — 2000ms covers
   // the widest bomb's staggered flight (~1050ms) PLUS the covered underlay's
@@ -892,6 +1013,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   };
 
   const act = (action: GuandanAction) => {
+    if (action.type === 'pass') localPassRef.current.set(activeSeat, Date.now());
     store.act(activeSeat, action);
     setSelected(new Set());
     setChooserOpen(false);
@@ -913,7 +1035,10 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       : { attempts: view.aAttempts, exhausted: view.aAttemptsExhausted };
 
   return (
-    <section className="gd-table gd-ring">
+    // --acting (guard 2's one reflow): while the desk is LOUD the ring
+    // center is allowed a smaller minimum so the desk's height is recycled,
+    // not invented — flagged for the real-elder checkpoint.
+    <section className={`gd-table gd-ring${deskLoud ? ' gd-table--acting' : ''}`}>
       <TableHeadline
         levels={headlineLevels}
         aAttempts={headlineA.attempts}
@@ -926,6 +1051,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         actorName={leaderConcealed !== null || interludeShowing ? null : actorName}
         dueSeconds={leaderConcealed !== null ? null : dueSeconds}
         planning={clockDeadline?.timingClass === 'planning' && clockConnected}
+        deskOwnsTurn={deskLoud}
       />
 
       {/* The ring: you at the bottom, partner across the top, opponents left
@@ -998,6 +1124,44 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           revealed={dealing ? (dealRevealed ?? 0) : undefined}
           dealOrder={dealing ? derived.dealOrder : undefined}
           hidden={holdFan || interludeShowing}
+          dimUnselected={desk === 'play' && selected.size > 0}
+        />
+
+        {/* The play desk — keyed by mode so the arrival into a LOUD form plays
+            its one-shot entrance exactly at the turn boundary (quiet→play
+            remounts), then holds steady. 'off' unmounts: the desk's absence
+            is the "not your decision moment" signal. */}
+        {desk !== 'off' && (
+          <PlayDesk
+            key={desk}
+            mode={desk}
+            dueSeconds={deskLoud ? dueSeconds : null}
+            totalMs={deskTotalMs}
+            planning={clockDeadline?.timingClass === 'planning' && clockConnected}
+            level={view.currentLevel}
+            staged={stagedCards}
+            stage={stage}
+            beat={desk === 'play' ? beatState(hints ?? [], passAvailable) : null}
+            tributePhase={tributePhase}
+            tributeReady={tributeAction !== null}
+            onUnstage={(i) =>
+              setSelected((prev) => {
+                const next = new Set(prev);
+                next.delete(i);
+                return next;
+              })
+            }
+          />
+        )}
+        {autoPassNotice && (
+          <p className="gd-desk__notice" role="status">
+            {t('game.desk.autoPassed')}
+          </p>
+        )}
+        <ScrollActionsIntoView
+          loud={deskLoud}
+          stagedCount={stagedCards.length}
+          targetRef={actionsRowRef}
         />
 
         {/* 3-column grid, ActionBar centered in the middle cell and the sort
@@ -1006,7 +1170,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
             whether or not the sort pill renders, and the pill sits far
             enough from Pass to avoid a mis-tap (owner rule: secondary
             control at the edge, primary actions centered). */}
-        <div className="gd-actionsRow">
+        <div className="gd-actionsRow" ref={actionsRowRef}>
           <div className="gd-actionsRow__spacer" aria-hidden="true" />
           <div className="gd-actionsRow__bar">
             {view.phase !== 'ceremonyCut' && !interludeShowing && (
@@ -1015,7 +1179,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
                 phase={view.phase}
                 level={view.currentLevel}
                 matches={matches}
-                passAvailable={hints !== null && hints.some((h) => h.type === 'pass')}
+                passAvailable={passAvailable}
                 selectionCount={selected.size}
                 tributeAction={tributeAction}
                 tributePhase={tributePhase}
@@ -1032,19 +1196,10 @@ export function GameTable({ snapshot, store }: GameTableProps) {
             )}
           </div>
           <div className="gd-actionsRow__sort">
-            {/* Your OWN turn's clock, doubled next to your controls (owner
-                item 3: "if it is the player's turn the additional countdown
-                can show above" the sort pill) — the same number the headline
-                chip shows, so your eyes never have to leave your hand. Same
-                urgency rule (≤10s). */}
-            {yourTurn && leaderConcealed === null && dueSeconds !== null && (
-              <span
-                className={`gd-handclock${dueSeconds <= 10 ? ' gd-handclock--urgent' : ''}`}
-                aria-label={t('game.turn.countdown', { seconds: dueSeconds })}
-              >
-                {dueSeconds}
-              </span>
-            )}
+            {/* The old duplicate own-turn clock chip (gd-handclock) is GONE
+                (D4/D5): the desk's single large clock owns your turn — a
+                second unlabeled number was exactly the micro-chrome the
+                elder round diagnosed. */}
             {/* Owner rule: the sort toggle is meaningless until the player has
                 all cards, sorted — hidden through the cut/ceremony/deal (the
                 same pre-deal hold that empties the fan) and while dealing. */}

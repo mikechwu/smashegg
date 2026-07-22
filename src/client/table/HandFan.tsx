@@ -80,6 +80,12 @@ export interface HandFanProps {
    *  byte-for-byte untouched. `dealing` and `hidden` are mutually exclusive by
    *  construction (the gate short-circuits on dealing). */
   hidden?: boolean;
+  /** D3 (elder-visibility round): while the viewer is staging on their OWN
+   *  turn, unselected piles dim mildly (~0.72) so the lifted cards read as
+   *  the figure and the rest as ground. Pure CSS class — reduced motion
+   *  restores full opacity (the dim's appear/disappear reads as flicker
+   *  there, and the desk's staged faces carry the figure instead). */
+  dimUnselected?: boolean;
 }
 
 /** Split an index sequence into at most two balanced rows, same arithmetic as
@@ -157,6 +163,7 @@ export function HandFan({
   revealed,
   dealOrder,
   hidden = false,
+  dimUnselected = false,
 }: HandFanProps) {
   const theme = useDeckTheme();
   const cardRefs = useRef(new Map<number, HTMLElement>());
@@ -224,7 +231,11 @@ export function HandFan({
 
   let displayIndex = -1;
   return (
-    <div className="gd-fan" role="group" aria-label={t('game.hand.label')}>
+    <div
+      className={dimUnselected ? 'gd-fan gd-fan--dim' : 'gd-fan'}
+      role="group"
+      aria-label={t('game.hand.label')}
+    >
       {dealing
         ? rows.map((row, rowIdx) => (
             <div className="gd-fan__row" key={rowIdx}>

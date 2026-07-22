@@ -49,6 +49,13 @@ export interface TableHeadlineProps {
    *  timingClass) — the chip carries the word so a long first think never
    *  reads as a stuck turn. */
   planning: boolean;
+  /** D4 (elder-visibility round): true while the LOUD play desk owns the
+   *  viewer's turn sentence and clock — the headline's own-turn line then
+   *  becomes a desktop-only echo (hidden under 720px by CSS), so the phone
+   *  never carries two competing own-turn signals. A your-turn state with
+   *  NO desk (anti-tribute decision, the ceremony cut) passes false and
+   *  keeps the sentence everywhere. */
+  deskOwnsTurn?: boolean;
 }
 
 function TeamBadge({
@@ -114,6 +121,7 @@ export function TableHeadline(props: TableHeadlineProps) {
     actorName,
     dueSeconds,
     planning,
+    deskOwnsTurn = false,
   } = props;
   const otherTeam = (1 - viewerTeam) as 0 | 1;
 
@@ -147,7 +155,16 @@ export function TableHeadline(props: TableHeadlineProps) {
       </div>
 
       {turnText !== null && (
-        <p className={yourTurn ? 'gd-headline__turn gd-headline__turn--you' : 'gd-headline__turn'} role="status">
+        <p
+          className={[
+            'gd-headline__turn',
+            yourTurn ? 'gd-headline__turn--you' : '',
+            yourTurn && deskOwnsTurn ? 'gd-headline__turn--echo' : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+          role="status"
+        >
           <span className="gd-headline__turnText">{turnText}</span>
           {clock !== null && (
             <span

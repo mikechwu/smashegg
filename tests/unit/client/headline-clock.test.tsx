@@ -209,11 +209,13 @@ describe('headline clock through GameTable (integration)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// The hand clock (flank round item 3): on YOUR turn the same number ALSO
-// shows above the sort pill, next to your controls — same urgency rule.
+// The own-turn clock moved ONTO THE PLAY DESK (elder round, D4/D5 —
+// superseding flank item 3's sort-pill chip): one large labeled clock in
+// the loud desk, discrete urgency (never a pulse), and the old gd-handclock
+// duplicate is gone for good.
 // ---------------------------------------------------------------------------
 
-describe('own-turn hand clock above the sort pill', () => {
+describe('own-turn clock on the play desk', () => {
   function yourTurnSnapshot(secondsFromNow: number): RoomSnapshot {
     const snap = snapshotWithDeadline() as unknown as {
       perSeat: Map<number, { view: GuandanView; hints: unknown; lastEventBatch: null }>;
@@ -228,26 +230,31 @@ describe('own-turn hand clock above the sort pill', () => {
     return snap as unknown as RoomSnapshot;
   }
 
-  it('renders in the sort cell on your turn with the same seconds, quiet above 10s', () => {
+  it('the LOUD desk carries the single own-turn clock; the sort-pill chip is gone', () => {
     const store = new RoomStore('TESTCODE');
     const html = renderToStaticMarkup(
       createElement(GameTable, { snapshot: yourTurnSnapshot(30), store }),
     );
-    const cell = html.match(/gd-actionsRow__sort[\s\S]*?<\/div>/)?.[0] ?? '';
-    expect(cell, 'sort cell not found').not.toBe('');
-    expect(cell).toContain('gd-handclock');
-    expect(cell).not.toContain('gd-handclock--urgent');
-    const num = Number(cell.match(/gd-handclock[^>]*>(\d+)</)?.[1]);
+    expect(html).toContain('gd-desk--play');
+    const num = Number(html.match(/gd-desk__clock[^>]*>(\d+)</)?.[1]);
     expect(num).toBeGreaterThanOrEqual(28);
     expect(num).toBeLessThanOrEqual(30);
+    // Calm above the amber third: no urgency class, no hurry copy.
+    expect(html).not.toContain('gd-desk--urgent');
+    expect(html).not.toContain('gd-desk__hurry');
+    // The old duplicate is gone EVERYWHERE, not merely relocated.
+    expect(html).not.toContain('gd-handclock');
   });
 
-  it('escalates at ≤10s exactly like the headline chip', () => {
+  it('escalates at <=10s: urgent stage class, the title carrying the hurry seconds — no extra row', () => {
     const store = new RoomStore('TESTCODE');
     const html = renderToStaticMarkup(
       createElement(GameTable, { snapshot: yourTurnSnapshot(8), store }),
     );
-    expect(html).toContain('gd-handclock--urgent');
+    expect(html).toContain('gd-desk--urgent');
+    // Locale-agnostic: the hurry copy in the TITLE slot carries the number.
+    expect(html).toMatch(/gd-desk__title[^>]*>[^<]*[78][^<]*</);
+    expect(html).not.toContain('gd-desk__hurry');
   });
 });
 
