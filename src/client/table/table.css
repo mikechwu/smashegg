@@ -1058,6 +1058,26 @@ button.gd-plate {
   font-size: 0.85rem;
   flex: none;
 }
+/* One-tap clear (elder finger precision): rides the STAGE row, so it can
+   only exist with staged cards — a clear control with nothing selected is
+   noise. Quiet styling: it must not compete with Play/Pass. */
+.gd-desk__clear {
+  margin-left: 0.5rem;
+  background: var(--lacquer);
+  border: 1px solid rgba(245, 239, 227, 0.4);
+  color: var(--ivory);
+  border-radius: 999px;
+  padding: 0.3rem 0.9rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  flex: none;
+  /* Elder floor (panel LOW, Codex): a 44px-class target — the whole arc
+     is finger precision; the CLEAR control cannot be the one small pill. */
+  min-height: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+}
 .gd-desk__status {
   margin: 0;
   font-size: 1rem;

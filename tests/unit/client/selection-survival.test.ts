@@ -118,10 +118,13 @@ describe('GameTable wiring pins', () => {
     expect(src).toMatch(/useEffect\(\(\) => \{\s*setChooserOpen\(false\);\s*\}, \[chooserKey\]\)/);
   });
 
-  it('the only blanket selection wipe left is act(); the rest reconciles', () => {
-    // One direct wipe: act() clears the just-sent selection. Every other
-    // transition flows through the survival policy.
-    expect(src.match(/setSelected\(new Set\(\)\)/g) ?? []).toHaveLength(1);
+  it('blanket selection wipes are USER-initiated only: act() and the one-tap clear', () => {
+    // Two direct wipes, both the player's own act: act() clears the
+    // just-sent selection, and the desk's one-tap clear (prefill round
+    // item 2) empties it on request. Every SYSTEM transition still flows
+    // through the survival policy — the turn arriving can never wipe.
+    expect(src.match(/setSelected\(new Set\(\)\)/g) ?? []).toHaveLength(2);
+    expect(src).toMatch(/onClearAll=\{\(\) => \{\s*setSelected\(new Set\(\)\);/);
     expect(src).toMatch(/setSelected\(\(sel\) => reconcileSelection\(sel, prev, ctx\)\)/);
   });
 

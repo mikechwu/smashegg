@@ -184,6 +184,29 @@ function writeLastName(name: string): void {
   }
 }
 
+/** Blank-when-ambiguous prefill (prefill-visibility round, item 1a). The
+ *  remembered name is a SAME-PERSON convenience (rejoining, the next
+ *  room) — it must never hand a DIFFERENT person a stranger's name to
+ *  delete first. Diagnosis note: the browser-profile localStorage scope
+ *  is the DESIGNED behavior (sit-then-name round), not state residue —
+ *  what was too coarse is the ambiguity rule. Two signals kill the
+ *  prefill: this client already holds a seat in THIS room (the next
+ *  claim is for someone else — a shared device or multi-seat
+ *  self-play), or the remembered name is already seated on the roster
+ *  (prefilling would duplicate an identity already at the table). Pure +
+ *  exported for the pins. */
+export function sitAskPrefill(
+  lastName: string,
+  holdsSeatAlready: boolean,
+  seatedNames: readonly string[],
+): string {
+  const trimmed = lastName.trim();
+  if (trimmed.length === 0) return '';
+  if (holdsSeatAlready) return '';
+  if (seatedNames.includes(trimmed)) return '';
+  return trimmed;
+}
+
 export function Lobby({ snapshot, store }: LobbyProps) {
   const [name, setName] = useState('');
   const [copyState, setCopyState] = useState<CopyState>('idle');
@@ -334,7 +357,13 @@ export function Lobby({ snapshot, store }: LobbyProps) {
                   writeLastName(name.trim());
                 } else {
                   setSitAsk(s);
-                  setSitAskName(readLastName());
+                  setSitAskName(
+                    sitAskPrefill(
+                      readLastName(),
+                      snapshot.seats.size > 0,
+                      room.seats.filter((x) => x.claimed).map((x) => x.name ?? ''),
+                    ),
+                  );
                   setSitAskNeedName(false);
                 }
               }}

@@ -188,6 +188,7 @@ describe('PlayDesk render states', () => {
     tributePhase: null,
     tributeReady: false,
     onUnstage: () => {},
+    onClearAll: () => {},
   };
   const renderDesk = (over: Partial<PlayDeskProps>) =>
     renderToStaticMarkup(createElement(PlayDesk, { ...baseProps, ...over }));
@@ -450,5 +451,71 @@ describe('desk CSS pins', () => {
   it('the recycled budget: the reason band and the handclock are gone from the stylesheet', () => {
     expect(css).not.toContain('.gd-actions__reason');
     expect(css).not.toContain('.gd-handclock');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// One-tap clear (prefill-visibility round, item 2): one control empties the
+// WHOLE selection. The cross-system guarantee is BY CONSTRUCTION — there is
+// exactly one selection source (GameTable's `selected` set) and both
+// surfaces derive from it — and the pins hold that construction in place.
+// ---------------------------------------------------------------------------
+
+describe('one-tap clear', () => {
+  const clearProps = {
+    mode: 'quiet' as const,
+    dueSeconds: null,
+    totalMs: null,
+    planning: false,
+    level: '2' as const,
+    staged: [
+      { card: '9S' as never, index: 3 },
+      { card: '9C' as never, index: 4 },
+    ],
+    stage: { decls: [], playableCount: null },
+    beat: null,
+    tributePhase: null,
+    tributeReady: false,
+    onUnstage: () => {},
+    onClearAll: () => {},
+  };
+  let original: ReturnType<typeof getLocale>;
+  beforeEach(() => {
+    original = getLocale();
+    setLocale('en');
+  });
+  afterEach(() => {
+    setLocale(original);
+  });
+
+  it('the clear control exists ONLY with staged cards (a clear with nothing selected is noise)', () => {
+    const withCards = renderToStaticMarkup(createElement(PlayDesk, clearProps));
+    expect(withCards).toContain('gd-desk__clear');
+    expect(withCards).toContain('Re-pick');
+    expect(withCards).toContain('Clear all selected cards');
+    const empty = renderToStaticMarkup(
+      createElement(PlayDesk, { ...clearProps, mode: 'play', staged: [], beat: 'lead' as const }),
+    );
+    expect(empty).not.toContain('gd-desk__clear');
+  });
+
+  it('one clear zeroes BOTH surfaces: single selection source, both derivations pinned', () => {
+    // The clear empties the ONE set (and closes the chooser)...
+    expect(gameTableSrc).toMatch(
+      /onClearAll=\{\(\) => \{\s*setSelected\(new Set\(\)\);\s*setChooserOpen\(false\);\s*\}\}/,
+    );
+    // ...and both surfaces read from that same set: the fan's lifts...
+    expect(gameTableSrc).toMatch(/selected=\{selected\}/);
+    // ...and the desk's staged faces (stagedCards derives from `selected`).
+    expect(gameTableSrc).toMatch(/const stagedCards = \[\.\.\.selected\]/);
+    // No second selection store exists to leave a ghost behind (the other
+    // ReadonlySet states are the interlude's done/late bookkeeping, not
+    // selection).
+    expect(gameTableSrc.match(/const \[selected, setSelected\]/g) ?? []).toHaveLength(1);
+  });
+
+  it('the clear pill meets the elder tap-target floor (panel LOW, Codex)', () => {
+    const rule = stripCss(tableCss).match(/\.gd-desk__clear \{[^}]*\}/)?.[0] ?? '';
+    expect(rule).toContain('min-height: 2.75rem');
   });
 });

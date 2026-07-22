@@ -58,6 +58,11 @@ export interface PlayDeskProps {
    *  button would act) — drives the about-to-pay/return line. */
   tributeReady: boolean;
   onUnstage: (index: number) => void;
+  /** One-tap clear (playtest round: one-by-one deselection is painful at
+   *  elder finger precision). Renders ONLY with a non-empty stage; the
+   *  parent empties the ONE selection set, which zeroes every derived
+   *  surface at once — the fan's lifts AND this desk's faces/combo line. */
+  onClearAll: () => void;
 }
 
 /** One reading's display name — the chooser's own vocabulary (comboKey +
@@ -68,7 +73,7 @@ function comboText(decl: CanonicalForm): string {
 }
 
 export function PlayDesk(props: PlayDeskProps) {
-  const { mode, dueSeconds, totalMs, planning, level, staged, stage, beat, tributePhase, tributeReady, onUnstage } = props;
+  const { mode, dueSeconds, totalMs, planning, level, staged, stage, beat, tributePhase, tributeReady, onUnstage, onClearAll } = props;
   const loud = mode !== 'quiet';
   const urgency = loud ? deskUrgency(dueSeconds, totalMs) : null;
   const fraction = loud ? deskFraction(dueSeconds, totalMs) : null;
@@ -171,6 +176,14 @@ export function PlayDesk(props: PlayDeskProps) {
             </button>
           ))}
           {overflow > 0 && <span className="gd-desk__more">+{overflow}</span>}
+          <button
+            type="button"
+            className="gd-desk__clear"
+            aria-label={t('game.desk.clearAllAria')}
+            onClick={onClearAll}
+          >
+            {t('game.desk.clearAll')}
+          </button>
         </div>
       )}
       {status !== null && <p className="gd-desk__status">{status}</p>}

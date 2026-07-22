@@ -150,6 +150,8 @@
   "game.desk.aboutToPay": "About to pay tribute",
   "game.desk.aboutToReturn": "About to return tribute",
   "game.desk.autoPassed": "Time ran out — passed automatically",
+  "game.desk.clearAll": "Re-pick",
+  "game.desk.clearAllAria": "Clear all selected cards",
   "game.desk.unstage": "Put {card} back",
   "game.card.sj": "Joker",
   "game.card.bj": "Big Joker",

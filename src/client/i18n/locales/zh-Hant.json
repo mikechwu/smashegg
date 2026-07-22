@@ -150,6 +150,8 @@
   "game.desk.aboutToPay": "即將進貢",
   "game.desk.aboutToReturn": "即將還貢",
   "game.desk.autoPassed": "時間到,已自動過牌",
+  "game.desk.clearAll": "重選",
+  "game.desk.clearAllAria": "清除所有已選的牌",
   "game.desk.unstage": "收回 {card}",
   "game.card.sj": "小王",
   "game.card.bj": "大王",

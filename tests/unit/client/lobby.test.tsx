@@ -334,3 +334,37 @@ describe('the in-flight claim lock (panel MED, Codex + Grok concurring)', () => 
     expect(lobbySrc).toMatch(/disabled=\{claiming \|\| !connected\}/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Prefill-visibility round, item 1a — blank-when-ambiguous. Diagnosis
+// (evidence in Lobby.tsx): the browser-profile localStorage scope was the
+// DESIGNED sit-then-name behavior, not state residue; the too-coarse part
+// was prefilling for a DIFFERENT person. The corrected rule is pinned so
+// it cannot drift back either way.
+// ---------------------------------------------------------------------------
+
+import { sitAskPrefill } from '../../../src/client/Lobby';
+
+describe('sitAskPrefill — blank when ambiguous, remembered when clearly the same person', () => {
+  it('prefills the rejoin case: no seat held here, name not already at the table', () => {
+    expect(sitAskPrefill('  mike  ', false, ['ana'])).toBe('mike');
+  });
+
+  it('blank when this client already holds a seat (the next claim is someone else)', () => {
+    expect(sitAskPrefill('mike', true, [])).toBe('');
+  });
+
+  it('blank when the remembered name is already seated on the roster', () => {
+    expect(sitAskPrefill('mike', false, ['mike', 'ana'])).toBe('');
+  });
+
+  it('blank stays blank', () => {
+    expect(sitAskPrefill('   ', false, [])).toBe('');
+  });
+
+  it('wiring: the ask-open reads the prefill THROUGH the predicate with live room signals', () => {
+    expect(lobbySrc).toMatch(
+      /sitAskPrefill\(\s*readLastName\(\),\s*snapshot\.seats\.size > 0,\s*room\.seats\.filter\(\(x\) => x\.claimed\)\.map\(\(x\) => x\.name \?\? ''\),?\s*\)/,
+    );
+  });
+});

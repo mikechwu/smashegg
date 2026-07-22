@@ -1151,6 +1151,10 @@ export function GameTable({ snapshot, store }: GameTableProps) {
                 return next;
               })
             }
+            onClearAll={() => {
+              setSelected(new Set());
+              setChooserOpen(false);
+            }}
           />
         )}
         {autoPassNotice && (
