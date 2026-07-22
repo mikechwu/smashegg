@@ -422,21 +422,21 @@ describe('desk CSS pins', () => {
     expect(deskBlock).not.toContain('gd-pulse');
   });
 
-  it('reduced motion: selected lift collapses to the ring pair; the D3 dim is off', () => {
+  it('reduced motion: the FACE lift collapses to the ring pair; the D3 dim is off', () => {
     const reduced = css.slice(css.indexOf('@media (prefers-reduced-motion: reduce)'));
     expect(reduced).toMatch(
-      /\.gd-fan__card--selected,\s*\.gd-fan__card--selected:hover \{\s*transform: none;/,
+      /\.gd-fan__card--selected \.gd-card,\s*\.gd-fan__card--selected:hover \.gd-card,\s*\.gd-fan__card:hover \.gd-card \{\s*transform: none;/,
     );
     expect(reduced).toMatch(
       /\.gd-fan--dim \.gd-fan__card:not\(\.gd-fan__card--selected\) \{\s*opacity: 1;/,
     );
   });
 
-  it('the selected lift doubled and gained the ivory outer ring (item 3a)', () => {
-    expect(css).toMatch(/\.gd-fan__card--selected \{\s*transform: translateY\(-14px\);/);
-    const ring = css.match(/\.gd-fan__card--selected \.gd-card \{[^}]*\}/)?.[0] ?? '';
-    expect(ring).toContain('var(--cinnabar)');
-    expect(ring).toContain('var(--ivory)');
+  it('the selected FACE keeps the full -14px lift and the ivory outer ring (item 3a + variant D F2)', () => {
+    const rule = css.match(/\.gd-fan__card--selected \.gd-card,\s*\.gd-fan__card--selected:hover \.gd-card \{[^}]*\}/)?.[0] ?? '';
+    expect(rule).toContain('transform: translateY(-14px)');
+    expect(rule).toContain('var(--cinnabar)');
+    expect(rule).toContain('var(--ivory)');
   });
 
   it('D4 phone demotion + guard-2 acting shrink live in the <=719px block; desktop keeps its rows', () => {

@@ -4,8 +4,10 @@
 //  • the cinnabar wild marker (a game-state indicator, never decoration)
 //    — appended as a frame-level overlay AFTER the theme face;
 //  • the ghost faces (the identity a wild plays as) with the same marker.
-// Selection lift / focus ring / tribute glow are framework CSS on the
-// wrapping buttons, likewise outside any theme. Sizes: 'hand' / 'trick' /
+// Selection lift / tribute glow are framework CSS on the FACE inside the
+// wrapping fan button (variant D hit/paint decoupling — the button's hit
+// box never moves; table.css fan block), the focus ring on the button
+// itself; all outside any theme. Sizes: 'hand' / 'trick' /
 // 'mini' — the frame carries the size class, so the marker's --gd-cardw
 // arithmetic works regardless of what the theme renders inside.
 

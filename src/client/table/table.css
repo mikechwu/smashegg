@@ -818,9 +818,30 @@ button.gd-plate {
   padding: 0;
   line-height: 0;
   border-radius: 8px;
-  transition: transform 120ms ease-out;
   flex: 0 1 auto;
   min-width: 0;
+}
+/* Item-1 fix (variant D, docs/research/fan-tap-targets.md): HIT/PAINT
+   DECOUPLING, the production Dou Dizhu pattern. Every lift/nudge
+   transform lives on the card FACE (.gd-card), NEVER on the button — the
+   button's hit box stays at base layout in every selection state, so a
+   lifted card paints over the strip above without stealing its taps
+   (measured: the old button-level lift halved that strip's tappable
+   area, 700 -> 350px²; the decoupled form is zero-victim across the full
+   27x27 sweep). pointer-events:none makes the painted face transparent
+   to taps: a click anywhere resolves to the button that OWNS that point
+   in the base layout. scripts/measure-fan-tap-targets.mjs is the
+   REQUIRED visual-gate check for ANY fan/selection change — the two
+   silent-revert vectors (re-attaching a transform to the button;
+   dropping pointer-events) are also source-pinned.
+   EXPLICIT DEPENDENCY (owner guard 3): a lifted face sits 14px above
+   its own hit box, so a tap at the TOP of a lifted card lands on the
+   neighbour above — the PLAY DESK's tap-to-unstage is the designed
+   unselect surface for that near-miss. If the desk is ever
+   reconsidered, this mitigation goes with it. */
+.gd-fan__card .gd-card {
+  pointer-events: none;
+  transition: transform 120ms ease-out;
 }
 .gd-fan__row > .gd-fan__card + .gd-fan__card {
   margin-left: calc(clamp(2.75rem, 13vw, 4.25rem) * -0.6);
@@ -876,22 +897,20 @@ button.gd-plate {
    reference). The small translateY nudge is the non-colour selection cue
    (nothing encodes meaning in colour alone) — it pokes the strip's top edge
    up without uncovering the pile. */
-.gd-fan__card:hover {
+.gd-fan__card:hover .gd-card {
   transform: translateY(-4px);
 }
 /* Elder round (item 3a): the lift more than doubled (−6px → −14px, the
    physical "pull it proud of the fan") and the ring gained an IVORY outer
    halo so it survives pile occlusion on ageing eyes — the 2px cinnabar
    hairline on an ~18px strip was near the contrast floor. Reduced motion
-   collapses the transform (the ring pair alone carries selection there —
-   see the reduced-motion block). */
-.gd-fan__card--selected {
+   collapses the FACE transform (the ring pair alone carries selection
+   there — see the reduced-motion block). The transforms target the FACE,
+   not the button (variant D above): F2 keeps the full −14px legibility
+   because it no longer costs any neighbour a tap. */
+.gd-fan__card--selected .gd-card,
+.gd-fan__card--selected:hover .gd-card {
   transform: translateY(-14px);
-}
-.gd-fan__card--selected:hover {
-  transform: translateY(-14px);
-}
-.gd-fan__card--selected .gd-card {
   box-shadow:
     0 0 0 2px var(--cinnabar),
     0 0 0 4px color-mix(in srgb, var(--ivory) 85%, transparent);
@@ -2224,11 +2243,15 @@ button.gd-plate {
   /* Elder round: the selected lift collapses (no static jump either) — the
      doubled ring alone carries selection; the D3 dim is OFF (its appear/
      disappear reads as flicker, and the desk's staged faces carry the
-     figure instead). The desk itself needs no repair here: its entrance is
-     killed by the blanket rule above and every urgency stage is already
-     color + weight + words, never motion. */
-  .gd-fan__card--selected,
-  .gd-fan__card--selected:hover {
+     figure instead). The overrides target the FACE (variant D moved every
+     fan transform there); the hit/paint decoupling holds trivially here —
+     unlifted faces sit exactly on their base-layout hit boxes. The desk
+     itself needs no repair: its entrance is killed by the blanket rule
+     above and every urgency stage is color + weight + words, never
+     motion. */
+  .gd-fan__card--selected .gd-card,
+  .gd-fan__card--selected:hover .gd-card,
+  .gd-fan__card:hover .gd-card {
     transform: none;
   }
   .gd-fan--dim .gd-fan__card:not(.gd-fan__card--selected) {
