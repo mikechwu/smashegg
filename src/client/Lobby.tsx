@@ -76,10 +76,11 @@ export function sitIntent(nameReady: boolean): 'claim' | 'ask' {
   return nameReady ? 'claim' : 'ask';
 }
 
-/** The sit-then-name form, rendered ON THE FELT DISC (the table itself asks
- *  — the disc is on-screen and roughly equidistant from every seat at every
- *  width, where a per-seat popover would overflow the ~75px flank columns
- *  at 390px). Exported for DOM-free render pins of its three states:
+/** The sit-then-name form, rendered in the SEAT DRAWER (item 1b — a
+ *  full-width row inserted into the lobby grid adjacent to the pressed
+ *  seat; it replaced the earlier on-disc placement, which the proximity
+ *  research and the owner's playtest both found too disconnected from
+ *  the seat). Exported for DOM-free render pins of its three states:
  *  asking, needs-a-name, and the race-loser message. */
 export function SitAskPanel({
   position,
@@ -225,6 +226,13 @@ export function Lobby({ snapshot, store }: LobbyProps) {
   // claiming, the confirm disables and the hint says so (visible, never a
   // bare dead button).
   const [sitAskClaiming, setSitAskClaiming] = useState(false);
+  // The in-flight window (cumulative panel MED, Codex): right after ANY
+  // claim from this client, writeLastName has already stored the
+  // submitted name while snapshot.seats has not yet echoed — a fast
+  // retarget would prefill the just-claimed identity into the new ask,
+  // sidestepping blank-when-ambiguous. A fresh-claim stamp widens the
+  // holds-a-seat signal across that lag (10s ≫ any echo).
+  const lastClaimAtRef = useRef(0);
   const room = snapshot.room as RoomInfo; // RoomPage only renders Lobby with a room
 
   useEffect(() => {
@@ -305,7 +313,10 @@ export function Lobby({ snapshot, store }: LobbyProps) {
     // while disconnected (a transient transport state, shown elsewhere).
     const asking = sitAsk === s;
     return (
-      <div key={s} className={`lobby-tableseat lobby-tableseat--s${s}`}>
+      <div
+        key={s}
+        className={`lobby-tableseat lobby-tableseat--s${s}${asking ? ' lobby-tableseat--asking' : ''}`}
+      >
         <div
           className={[
             'lobby-seat',
@@ -353,18 +364,31 @@ export function Lobby({ snapshot, store }: LobbyProps) {
               aria-label={t('lobby.takeSeatAt', { position: positionLabel })}
               onClick={() => {
                 if (sitIntent(nameReady) === 'claim') {
+                  lastClaimAtRef.current = Date.now();
                   setName(takeSeat(store, name, s));
                   writeLastName(name.trim());
+                  // A direct claim SUPERSEDES any open ask (cumulative
+                  // panel MED 2: name-then-sit for seat B while seat A's
+                  // drawer was open left an orphan drawer).
+                  setSitAsk(null);
+                  setSitAskName('');
+                  setSitAskNeedName(false);
+                  setSitAskClaiming(false);
                 } else {
                   setSitAsk(s);
                   setSitAskName(
                     sitAskPrefill(
                       readLastName(),
-                      snapshot.seats.size > 0,
+                      snapshot.seats.size > 0 || Date.now() - lastClaimAtRef.current < 10_000,
                       room.seats.filter((x) => x.claimed).map((x) => x.name ?? ''),
                     ),
                   );
                   setSitAskNeedName(false);
+                  // A retarget is a NEW ask session (cumulative panel MED
+                  // 1: an in-flight lock carried onto the new seat wedged
+                  // its drawer in "sitting down" — the old flight belongs
+                  // to the old seat; the DO serializes both regardless).
+                  setSitAskClaiming(false);
                 }
               }}
             >
@@ -404,16 +428,52 @@ export function Lobby({ snapshot, store }: LobbyProps) {
           earns its existence as the thing people gather around. Four seats
           (§3) sit around it in FIXED geographic positions, so partners face
           across. */}
-      <div className="lobby-table" role="group" aria-label={t('lobby.heading')}>
+      {/* The seat DRAWER grid (item 1b, docs/research/seat-entry-placement.md,
+          P1–P3): while an ask is open the table grid gains a full-width
+          drawer row ADJACENT to the pressed seat — below the top seat's
+          row, below the disc row for the flanks, and ABOVE the bottom
+          seat's row (P2: keyboard clearance + on-screen guarantee). The
+          disc ALWAYS keeps the room code — it is never covered or
+          replaced. Belongs-to is triple-signaled (research: adjacency +
+          connector nub + shared accent): the nub is a ::after triangle ON
+          THE PRESSED CHIP itself, so its alignment is correct by
+          construction for every seat position. */}
+      <div
+        className={`lobby-table${
+          sitAsk === null ? '' : sitAsk === 2 ? ' lobby-table--drawer-top' : ' lobby-table--drawer-mid'
+        }`}
+        role="group"
+        aria-label={t('lobby.heading')}
+      >
         <div className="lobby-table__disc">
-          {sitAsk !== null ? (
-            // Sit-then-name: the TABLE asks (research: a centered dialog,
-            // never a seat-anchored popover — the flank grid columns are
-            // ~75px at 390px and would clip it; the felt is on-screen and
-            // roughly equidistant from every seat at every width). The
-            // chosen chip keeps its highlight ring so the seat identity
-            // never detaches from the prompt.
+          <span className="lobby-table__codelabel">{t('lobby.roomCode')}</span>
+          <strong className="lobby-table__code">{store.code}</strong>
+          <button
+            type="button"
+            className="lobby-table__copy"
+            onClick={() => {
+              void copyLink();
+            }}
+          >
+            {t('lobby.copyLink')}
+          </button>
+          {/* Persistent live region: the copied-toast swaps into a reserved
+              line, so announcing works and the felt never reflows. */}
+          <p className="lobby-table__status" role="status">
+            {copyState === 'copied'
+              ? t('lobby.copied')
+              : copyState === 'failed'
+                ? t('lobby.copyFailed')
+                : ' '}
+          </p>
+        </div>
+        {SEATS.map((s) => seatChip(s))}
+        {sitAsk !== null && (
+          <div className="lobby-drawer">
+            {/* Keyed by seat: a RETARGET remounts the panel, so autofocus
+                re-fires on the new ask (cumulative panel LOW). */}
             <SitAskPanel
+              key={sitAsk}
               position={t(POSITION_KEY[sitAsk]!)}
               name={sitAskName}
               needName={sitAskNeedName}
@@ -431,12 +491,13 @@ export function Lobby({ snapshot, store }: LobbyProps) {
                   return;
                 }
                 // The SAME single claim path as name-then-sit (takeSeat →
-                // store.claim) — the ask reorders UI steps, never the
+                // store.claim) — the drawer reorders UI steps, never the
                 // authoritative claim. Success closes via the effect
                 // above; a lost race flips `taken` instead; the claiming
                 // lock (panel MED) makes a double-tap send exactly one
                 // claimSeat.
                 setSitAskClaiming(true);
+                lastClaimAtRef.current = Date.now();
                 takeSeat(store, sitAskName, sitAsk);
                 writeLastName(sitAskName.trim());
               }}
@@ -447,32 +508,8 @@ export function Lobby({ snapshot, store }: LobbyProps) {
                 setSitAskClaiming(false);
               }}
             />
-          ) : (
-            <>
-              <span className="lobby-table__codelabel">{t('lobby.roomCode')}</span>
-              <strong className="lobby-table__code">{store.code}</strong>
-              <button
-                type="button"
-                className="lobby-table__copy"
-                onClick={() => {
-                  void copyLink();
-                }}
-              >
-                {t('lobby.copyLink')}
-              </button>
-              {/* Persistent live region: the copied-toast swaps into a reserved
-                  line, so announcing works and the felt never reflows. */}
-              <p className="lobby-table__status" role="status">
-                {copyState === 'copied'
-                  ? t('lobby.copied')
-                  : copyState === 'failed'
-                    ? t('lobby.copyFailed')
-                    : ' '}
-              </p>
-            </>
-          )}
-        </div>
-        {SEATS.map((s) => seatChip(s))}
+          </div>
+        )}
       </div>
 
       <button

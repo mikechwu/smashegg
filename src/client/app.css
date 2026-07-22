@@ -421,6 +421,63 @@ a {
   gap: 0.6rem 0.5rem;
   margin: 0 0 1.25rem;
 }
+/* The seat DRAWER (item 1b, P1–P3): a full-width entry row inserted into
+   the grid flow adjacent to the pressed seat. Two insertion slots cover
+   the four seats: below the TOP seat's row (seat 2), and between the
+   disc row and the bottom row (flanks open BELOW the disc row; the
+   bottom seat opens ABOVE its own row — P2's keyboard clearance). The
+   disc keeps the room code; rows below shift down (in-flow, so the
+   browser's native scroll-focused-input behavior owns the soft
+   keyboard). iOS-KEYBOARD BOUNDARY (guard 3): the 390px iframe verifies
+   GEOMETRY only — real soft-keyboard occlusion is an M5 device check. */
+.lobby-table--drawer-top {
+  grid-template-areas:
+    '.      top      .'
+    'drawer drawer drawer'
+    'left   disc   right'
+    '.      bottom   .';
+}
+.lobby-table--drawer-mid {
+  grid-template-areas:
+    '.      top      .'
+    'left   disc   right'
+    'drawer drawer drawer'
+    '.      bottom   .';
+}
+.lobby-drawer {
+  grid-area: drawer;
+  width: 100%;
+  box-sizing: border-box;
+  background: color-mix(in srgb, var(--rosewood) 55%, var(--lacquer));
+  border: 1px solid color-mix(in srgb, var(--cinnabar) 55%, transparent);
+  border-left: 4px solid var(--cinnabar);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem;
+  animation: lobby-drawer-in 200ms ease-out;
+}
+@keyframes lobby-drawer-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+/* A pressed FLANK chip slides to the end of the disc row so its nub sits
+   tight against the drawer below (proximity is the strongest belongs-to
+   signal) — only the pressed chip moves within its own cell; every other
+   seat stays put. */
+.lobby-table--drawer-mid .lobby-tableseat--s1.lobby-tableseat--asking,
+.lobby-table--drawer-mid .lobby-tableseat--s3.lobby-tableseat--asking {
+  align-self: end;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lobby-drawer {
+    animation: none;
+  }
+}
 .lobby-table__disc {
   grid-area: disc;
   width: clamp(8.5rem, 40vw, 12rem);
@@ -522,15 +579,35 @@ a {
      narrow flank seats have room for the CTA on one line (see table header). */
   padding: 0.25rem;
 }
-/* Sit-then-name (silent-no-op round): the chip whose Sit press opened the
-   felt's name prompt keeps a cinnabar ring, so the seat identity never
-   detaches from the centered dialog. Steady, never pulsing. */
+/* Sit-then-name: the chip whose Sit press opened the drawer keeps a
+   cinnabar ring (steady, never pulsing) AND carries the connector NUB —
+   a ::after triangle ON the pressed chip pointing into its drawer, so
+   the alignment is correct BY CONSTRUCTION for every seat position
+   (research: the Codrops/Google-Images tapped-item nub). Seats 1/2/3
+   point DOWN (their drawer opens below); seat 0 points UP (P2: its
+   drawer opens above). */
 .lobby-seat--asking {
   border: 2px solid var(--cinnabar, #c3392b);
   border-radius: 10px;
+  position: relative;
 }
-/* The felt's own name prompt — the table asks. Sized for the ~12rem disc;
-   the inputs stay inside the felt circle. */
+.lobby-seat--asking::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 8px solid transparent;
+  border-top-color: var(--cinnabar, #c3392b);
+}
+.lobby-tableseat--s0 .lobby-seat--asking::after {
+  top: auto;
+  bottom: 100%;
+  border-top-color: transparent;
+  border-bottom-color: var(--cinnabar, #c3392b);
+}
+/* The sit-then-name form's internals — since item 1b it renders in the
+   full-width seat DRAWER (lobby-drawer above), not on the disc. */
 .lobby-sitask {
   display: flex;
   flex-direction: column;
@@ -544,14 +621,17 @@ a {
   font-weight: 700;
 }
 .lobby-sitask__input {
-  width: 85%;
+  width: min(85%, 16rem);
   box-sizing: border-box;
   border-radius: 8px;
   border: 1px solid rgba(245, 239, 227, 0.5);
   background: rgba(0, 0, 0, 0.25);
   color: var(--ivory, #f5efe3);
-  padding: 0.3rem 0.5rem;
-  font-size: 0.9rem;
+  padding: 0.35rem 0.5rem;
+  /* 16px MINIMUM (guard 3, pinned): iOS Safari zooms the viewport on
+     focus for any input below 16px — the drawer design depends on the
+     page NOT zooming. The old 0.9rem (14.4px) was a live zoom bug. */
+  font-size: 1rem;
   font-family: inherit;
   text-align: center;
 }

@@ -363,8 +363,107 @@ describe('sitAskPrefill — blank when ambiguous, remembered when clearly the sa
   });
 
   it('wiring: the ask-open reads the prefill THROUGH the predicate with live room signals', () => {
+    // holds-a-seat is widened by the in-flight claim stamp (cumulative
+    // panel MED, Codex — see the dedicated describe below).
     expect(lobbySrc).toMatch(
-      /sitAskPrefill\(\s*readLastName\(\),\s*snapshot\.seats\.size > 0,\s*room\.seats\.filter\(\(x\) => x\.claimed\)\.map\(\(x\) => x\.name \?\? ''\),?\s*\)/,
+      /sitAskPrefill\(\s*readLastName\(\),\s*snapshot\.seats\.size > 0 \|\| Date\.now\(\) - lastClaimAtRef\.current < 10_000,\s*room\.seats\.filter\(\(x\) => x\.claimed\)\.map\(\(x\) => x\.name \?\? ''\),?\s*\)/,
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The seat drawer (item 1b, owner P1–P3; docs/research/seat-entry-
+// placement.md). The relocation moves SitAskPanel wholesale — every
+// sit-then-name pin above must keep passing untouched; these pins cover
+// what moved: the adjacency slots, the on-chip nub, the disc's constancy,
+// the one-shot open, and guard 3's 16px fact.
+// ---------------------------------------------------------------------------
+
+const appCss = readFileSync(join(__dirname, '../../../src/client/app.css'), 'utf8').replace(
+  /\/\*[\s\S]*?\*\//g,
+  '',
+);
+
+describe('the seat drawer (item 1b)', () => {
+  it('inserts adjacent per seat: the top slot for seat 2, the mid slot otherwise (P2: bottom opens ABOVE itself)', () => {
+    expect(lobbySrc).toMatch(
+      /sitAsk === null \? '' : sitAsk === 2 \? ' lobby-table--drawer-top' : ' lobby-table--drawer-mid'/,
+    );
+    const top = appCss.match(/\.lobby-table--drawer-top \{[^}]*\}/)?.[0] ?? '';
+    expect(top).toMatch(/'\. +top +\.'\s*'drawer drawer drawer'\s*'left +disc +right'/);
+    const mid = appCss.match(/\.lobby-table--drawer-mid \{[^}]*\}/)?.[0] ?? '';
+    expect(mid).toMatch(/'left +disc +right'\s*'drawer drawer drawer'\s*'\. +bottom +\.'/);
+  });
+
+  it('the disc keeps the room code UNCONDITIONALLY while the drawer is open', () => {
+    expect(lobbySrc).toMatch(
+      /className="lobby-table__disc">\s*<span className="lobby-table__codelabel"/,
+    );
+    // The drawer is a SIBLING of the disc, never its replacement.
+    expect(lobbySrc).toMatch(/\{sitAsk !== null && \(\s*<div className="lobby-drawer">/);
+  });
+
+  it('the connector nub rides the PRESSED chip (correct by construction); seat 0 points UP', () => {
+    expect(lobbySrc).toMatch(/asking \? ' lobby-tableseat--asking' : ''/);
+    const nub = appCss.match(/\.lobby-seat--asking::after \{[^}]*\}/)?.[0] ?? '';
+    expect(nub).toContain('border-top-color: var(--cinnabar');
+    const nubUp = appCss.match(
+      /\.lobby-tableseat--s0 \.lobby-seat--asking::after \{[^}]*\}/,
+    )?.[0] ?? '';
+    expect(nubUp).toContain('bottom: 100%');
+    expect(nubUp).toContain('border-bottom-color: var(--cinnabar');
+  });
+
+  it('the flank slide moves ONLY the pressed chip toward its drawer', () => {
+    expect(appCss).toMatch(
+      /\.lobby-table--drawer-mid \.lobby-tableseat--s1\.lobby-tableseat--asking,\s*\.lobby-table--drawer-mid \.lobby-tableseat--s3\.lobby-tableseat--asking \{\s*align-self: end;/,
+    );
+  });
+
+  it('P3: a 200ms one-shot open, never a loop, instant under reduced motion', () => {
+    expect(appCss).toMatch(/\.lobby-drawer \{[^}]*animation: lobby-drawer-in 200ms ease-out;/);
+    const drawerBlock = appCss.slice(
+      appCss.indexOf('.lobby-drawer {'),
+      appCss.indexOf('@keyframes lobby-drawer-in'),
+    );
+    expect(drawerBlock).not.toContain('infinite');
+    const reduced = appCss.slice(appCss.indexOf('@media (prefers-reduced-motion: reduce)'));
+    expect(reduced).toMatch(/\.lobby-drawer \{\s*animation: none;/);
+  });
+
+  it('guard 3 pinned: the ask input is 16px (1rem) — below that iOS zooms the page', () => {
+    const input = appCss.match(/\.lobby-sitask__input \{[^}]*\}/)?.[0] ?? '';
+    expect(input).toContain('font-size: 1rem');
+    expect(input).not.toMatch(/font-size: 0\.\d/);
+  });
+});
+
+describe('ask-session lifecycle (cumulative panel MEDs, Grok)', () => {
+  it('a retarget is a NEW session: the open handler resets the claiming lock', () => {
+    const askBranch = lobbySrc.match(/setSitAsk\(s\);[\s\S]*?\}\s*\}\}/)?.[0] ?? '';
+    expect(askBranch).toContain('setSitAskClaiming(false)');
+  });
+
+  it('a direct name-then-sit claim SUPERSEDES any open ask (no orphan drawer)', () => {
+    const claimBranch = lobbySrc.match(/setName\(takeSeat\(store, name, s\)\);[\s\S]*?\} else \{/)?.[0] ?? '';
+    expect(claimBranch).toContain('setSitAsk(null)');
+    expect(claimBranch).toContain('setSitAskClaiming(false)');
+  });
+
+  it('the panel remounts per seat (autofocus re-fires on retarget)', () => {
+    expect(lobbySrc).toMatch(/<SitAskPanel\s+key=\{sitAsk\}/);
+  });
+});
+
+describe('the in-flight prefill window (cumulative panel MED, Codex)', () => {
+  it('a fresh claim stamps the window and the ask-open widens holds-a-seat with it', () => {
+    // Both claim paths stamp...
+    expect(lobbySrc.match(/lastClaimAtRef\.current = Date\.now\(\);/g) ?? []).toHaveLength(2);
+    // ...and the prefill treats a <10s-old claim as holding a seat, so the
+    // just-claimed identity can never prefill the next ask during the
+    // roster echo lag.
+    expect(lobbySrc).toMatch(
+      /snapshot\.seats\.size > 0 \|\| Date\.now\(\) - lastClaimAtRef\.current < 10_000,/,
     );
   });
 });
