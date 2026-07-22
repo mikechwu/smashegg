@@ -4,9 +4,10 @@
 // the DeckTheme contract, following lacquer.tsx's idiom — index structure,
 // joker wordlessness, registration.
 //
-// Unlike lacquer (font-glyph suits + no body art), this theme draws its OWN
-// suit glyphs from SUIT_PATHS (suits must separate by SHAPE, not whatever
-// ♥/♦ a platform's font ships) and paints a full body illustration (court
+// This theme draws suit shapes from the shared registry (suits.tsx —
+// since the suit round the SINGLE source of suit shapes for every theme;
+// suits must separate by SHAPE, not whatever heart/diamond glyph a
+// platform's font ships) and paints a full body illustration (court
 // bust / pip field / joker figure) under the corner index at 'hand'/'trick'
 // sizes — 'mini' stays index-only, matching lacquer's own size discipline
 // (the decl-chooser chips need the compact form). As with
@@ -23,27 +24,31 @@ import {
   SmallJokerEmblem,
   SmallJokerFigure,
   SUIT_FILL,
-  SUIT_GLYPH_VIEWBOX,
-  SUIT_PATHS,
   type CourtChar,
   type SuitChar,
 } from './art';
+import { SUIT_PATHS, SuitMark } from '../../suits';
 import { PIP_LAYOUTS, type PipSpot } from './pips';
 
 function isCourtRank(rank: Rank): rank is CourtChar {
   return rank === 'K' || rank === 'Q' || rank === 'J';
 }
 
-/** One pip: SUIT_PATHS' 24x28 box is centered at (spot.x, spot.y) by
- *  translating to the spot, scaling, THEN translating back by the box's
- *  own center (12,14) — in that order, so the center lands exactly on the
+/** One pip: the registry's 0 0 100 100 box is centered at (spot.x, spot.y)
+ *  by translating to the spot, scaling, THEN translating back by the box's
+ *  own center (50,50) — in that order, so the center lands exactly on the
  *  spot regardless of scale (translate-scale-translate commutes the anchor,
  *  not the geometry). A flip wraps the same group in a further 180° turn
  *  about that same (x,y) — a real double-ended card, not a mirrored path. */
+// The registry family's ink height is ~83 of its 100 box (suits.tsx); the
+// old 24x28 paths carried ~25.5-unit ink at base scale 1.35 (~34.4 units on
+// the 200x290 card). 0.415 = 34.4 / 83 keeps every pip layout's rendered
+// ink size unchanged through the registry migration.
+const PIP_BASE_SCALE = 0.415;
 function Pip({ spot, suit }: { spot: PipSpot; suit: SuitChar }) {
-  const scale = (spot.scale ?? 1) * 1.35;
+  const scale = (spot.scale ?? 1) * PIP_BASE_SCALE;
   const glyph = (
-    <g transform={`translate(${spot.x} ${spot.y}) scale(${scale}) translate(-12 -14)`}>
+    <g transform={`translate(${spot.x} ${spot.y}) scale(${scale}) translate(-50 -50)`}>
       <path d={SUIT_PATHS[suit]} fill={SUIT_FILL[suit]} />
     </g>
   );
@@ -103,14 +108,10 @@ function CinnabarCourtFace({ card, size }: DeckThemeFaceProps) {
       <span className="gd-card__index">
         <span className={rankClasses.join(' ')}>{rankText(rank)}</span>
         <span className="gd-card__suit">
-          <svg
-            className="gd-ccourt__suitGlyph"
-            viewBox={SUIT_GLYPH_VIEWBOX}
-            aria-hidden="true"
-            focusable="false"
-          >
-            <path d={SUIT_PATHS[suit]} fill={SUIT_FILL[suit]} />
-          </svg>
+          {/* Registry paths fill with currentColor; the face's own
+              .gd-card--red/--black class sets `color` to cinnabar/ink —
+              exactly the SUIT_FILL palette the old inline fill carried. */}
+          <SuitMark className="gd-ccourt__suitGlyph" suit={suit} />
         </span>
       </span>
     </span>

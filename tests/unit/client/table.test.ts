@@ -221,10 +221,10 @@ describe('matchSelection (selection → hint matching)', () => {
 });
 
 describe('declRunText (chooser SF run labels)', () => {
-  it('describes the straight-flush window with rank glyphs and suit symbol', () => {
-    expect(declRunText({ type: 'straightFlush', size: 5, keyRank: '9', suit: 'S' })).toBe('5–9♠');
-    expect(declRunText({ type: 'straightFlush', size: 5, keyRank: '5', suit: 'H' })).toBe('A–5♥'); // A-low
-    expect(declRunText({ type: 'straightFlush', size: 5, keyRank: 'A', suit: 'D' })).toBe('10–A♦');
+  it('describes the straight-flush window as the RANK WINDOW ONLY (suit round: the suit renders as the shared SuitMark part / localized word at call sites, never a Unicode suit char)', () => {
+    expect(declRunText({ type: 'straightFlush', size: 5, keyRank: '9', suit: 'S' })).toBe('5–9');
+    expect(declRunText({ type: 'straightFlush', size: 5, keyRank: '5', suit: 'H' })).toBe('A–5'); // A-low
+    expect(declRunText({ type: 'straightFlush', size: 5, keyRank: 'A', suit: 'D' })).toBe('10–A');
   });
 
   it('is null for every non-SF type (combo name + key rank suffices)', () => {

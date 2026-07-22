@@ -15,7 +15,8 @@
 // enough for 100+ concurrent nodes during the deal.
 
 import { isJoker, rankOf, suitOf } from '../../../engine/guandan/cards';
-import { isRedSuit, rankText, suitGlyph } from '../helpers';
+import { isRedSuit, rankText } from '../helpers';
+import { SuitMark } from '../suits';
 import { registerDeckTheme, type DeckTheme, type DeckThemeFaceProps } from '../theme';
 
 /** Big joker: a FILLED five-point star above two short parallel stem
@@ -99,19 +100,21 @@ function LacquerFace({ card, size }: DeckThemeFaceProps) {
     <span className={classes.join(' ')} aria-hidden="true">
       <span className={indexClasses.join(' ')}>
         <span className={rankClasses.join(' ')}>{rankText(rank)}</span>
-        <span className="gd-card__suit">{suitGlyph(suit)}</span>
+        <span className="gd-card__suit">
+          <SuitMark suit={suit} />
+        </span>
       </span>
       {/* Owner reference (mainstream Guandan look): ONE large body suit pip,
-       *  the same font glyph as the corner index — never at 'mini' (a
-       *  dormant size; the game UI ships hand faces everywhere, and mini's
-       *  metrics stay untouched for the theme contract),
+       *  the same shared SuitMark part as the corner index — never at 'mini'
+       *  (a dormant size; the game UI ships hand faces everywhere, and
+       *  mini's metrics stay untouched for the theme contract),
        *  so the growing hand card reads as a real face, not just
        *  a bigger index. table.css sizes it entirely off --gd-cardw and
        *  offsets it (NOT centered — see .gd-card__pip's own comment) into
        *  the card's right portion, clear of both the corner index and the
        *  framework's bottom-left wild seal (verified with real
        *  getBoundingClientRect measurements, not just arithmetic). */}
-      {size !== 'mini' && <span className="gd-card__pip">{suitGlyph(suit)}</span>}
+      {size !== 'mini' && <SuitMark className="gd-card__pip" suit={suit} />}
     </span>
   );
 }

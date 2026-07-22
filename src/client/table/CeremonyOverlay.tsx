@@ -10,7 +10,8 @@
 // uncountable flips fade with a re-cut label) and the face-up marker card —
 // legibly enough to derive the
 // drawer and the leader themselves. The marker is a specific card INSTANCE
-// (deck position; two decks mean twins), so copy names SEATS, never "the 8♥".
+// (deck position; two decks mean twins), so copy names SEATS, never "the
+// heart 8".
 // ~4–6s total, skippable by tap; prefers-reduced-motion renders a one-line
 // summary instead.
 

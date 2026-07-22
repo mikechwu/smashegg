@@ -500,7 +500,9 @@ describe('optionAria (accessibility text backbone)', () => {
       const decl = declOf(cards, '2', { type: 'straightFlush', keyRank: '9', suit: 'S' });
       const aria = optionAria({ cards, decl, playable: true }, '2');
       expect(aria).toContain('Straight flush 9');
-      expect(aria).toContain('(5–9♠)');
+      // Suit round: aria spells the suit as the localized WORD (a screen
+      // reader can't see the SuitMark; a Unicode suit char is banned).
+      expect(aria).toContain('(5–9 Spades)');
       expect(aria).toContain('wild plays as 8 of Spades');
       expect(aria).toContain('wild plays as 9 of Spades');
       expect(aria).toContain('played as');

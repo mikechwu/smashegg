@@ -34,7 +34,7 @@ import {
   type PlayMatch,
   type ResolvedFace,
 } from './helpers';
-import { CardFace, GhostFace, cardLabel, comboRankLabel } from './CardFace';
+import { CardFace, GhostFace, cardLabel, comboDeclNode, comboRankLabel } from './CardFace';
 import { t } from '../i18n';
 
 /** Accessible name of one resolved face: the identity that hits the table
@@ -56,9 +56,17 @@ function faceLabel(face: ResolvedFace, level: Rank): string {
  *  card faces themselves are aria-hidden. */
 export function optionAria(match: PlayMatch, level: Rank): string {
   const parts: string[] = [];
+  // Text-only parallel of comboDeclNode: the run's suit reads as the
+  // localized suit WORD here (a screen reader can't see the SuitMark).
   const run = declRunText(match.decl);
+  const runWithSuit =
+    run === null
+      ? null
+      : match.decl.suit !== undefined
+        ? `${run} ${t(`game.suit.${match.decl.suit}` as const)}`
+        : run;
   parts.push(
-    `${t(comboKey(match.decl))} ${comboRankLabel(match.decl)}${run !== null ? ` (${run})` : ''}`,
+    `${t(comboKey(match.decl))} ${comboRankLabel(match.decl)}${runWithSuit !== null ? ` (${runWithSuit})` : ''}`,
   );
   for (const chip of substitutionChips(wildSubstitutions(match.cards, match.decl, level))) {
     const card =
@@ -215,7 +223,6 @@ export function ActionBar(props: ActionBarProps) {
               // substitution chips + the type label (secondary cue; also
               // the zero-chip fallback for wild-free ambiguity); below it
               // the combo as it will hit the table.
-              const run = declRunText(match.decl);
               const chips = substitutionChips(wildSubstitutions(match.cards, match.decl, level));
               const faces = resolveComboFaces(match.cards, match.decl, level);
               return (
@@ -238,8 +245,7 @@ export function ActionBar(props: ActionBarProps) {
                       </span>
                     ))}
                     <span className="gd-chooser__label">
-                      {t(comboKey(match.decl))} {comboRankLabel(match.decl)}
-                      {run !== null && ` (${run})`}
+                      {comboDeclNode(match.decl)}
                       {!match.playable && (
                         <span className="gd-chooser__note"> · {t('game.chooser.cannotBeat')}</span>
                       )}

@@ -1,5 +1,5 @@
 // TableHeadline — the ring's always-on topbar, COMPACTED (owner directive:
-// the big level numeral and the ♥-wild chip are gone — the two team badges
+// the big level numeral and the heart-wild chip are gone — the two team badges
 // ARE the level story now, reading "Us level 2 - Them level 2"
 // (zh: with the guandan "da X" wording). What remains is what a decision needs:
 //  • both teams' levels as two anchored badges (never one banner), each

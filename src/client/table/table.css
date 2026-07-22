@@ -527,6 +527,20 @@ button.gd-plate {
 .gd-card--black {
   color: var(--ink);
 }
+/* The shared suit part (suits.tsx, SuitMark — the ONLY way a suit is ever
+ * drawn; no rendered surface may use a Unicode suit character, which some
+ * Chinese-brand Android builds promote to a color emoji). Base size rides
+ * the surrounding font: the registry family's ink is ~0.83 of its viewBox,
+ * so a 0.84em box renders ~0.7em of ink — the same optical size the old
+ * font glyph drew at 1em font-size. Card-metric sites (.gd-card__pip,
+ * .gd-ccourt__suitGlyph below) override with --gd-cardw math; they must
+ * stay AFTER this rule (equal specificity — file order is the override). */
+.gd-suit {
+  display: inline-block;
+  width: 0.84em;
+  height: 0.84em;
+  pointer-events: none;
+}
 .gd-card__index {
   font-family: var(--font-card);
   line-height: 1;
@@ -580,37 +594,28 @@ button.gd-plate {
   font-size: calc(var(--gd-cardw) * 0.28);
 }
 /* Lacquer's body pip (owner reference, mainstream Guandan look): one large
- * suit glyph, sized/positioned ENTIRELY off --gd-cardw (no fixed rem/px, the
+ * suit mark — the shared SuitMark part (suit round; the old font glyph is
+ * gone), sized/positioned ENTIRELY off --gd-cardw (no fixed rem/px, the
  * same discipline as the joker/wild boxes above) so the ratio holds as
- * --gd-cardw shrinks. font-family MUST be pinned to --font-card here: this
- * span sits outside .gd-card__index (whose own font-family: var(--font-card)
- * does not inherit to a sibling), so without this line the pip fell back to
- * the page's --font-ui sans-serif — a WIDER glyph box than the same suit
- * glyph draws in --font-card. Biased toward the card's BOTTOM-RIGHT (owner
+ * --gd-cardw shrinks. Biased toward the card's BOTTOM-RIGHT (owner
  * reference) rather than centered: left: 64% / top: 66% clears both boxes
- * that could otherwise collide with it — (a) the horizontal index row now
+ * that could otherwise collide with it — (a) the horizontal index row
  * sitting top-left (.gd-card__index--row above) and (b) the framework's
- * bottom-left wild seal (.gd-card__wild below) — verified with real
- * getBoundingClientRect measurements of the actual glyph boxes (not the
- * nominal font-size square) at hand min (44px), 390 (50.7px), hand max
- * (68px) and trick (36px), both suit colours: the closest margin found was
- * ~4.2px (trick size, pip-to-wild-seal horizontal clearance), so 0.55w reads
- * at full "large body pip" size with room to spare rather than needing the
- * smaller 0.48w this rule previously carried. Coloured by the SAME
- * .gd-card--red / .gd-card--black class the index already uses (currentColor
- * via `color` on the parent .gd-card--red/black rule): no new palette
- * entry. */
+ * bottom-left wild seal (.gd-card__wild below) — clearances re-measured
+ * with real getBoundingClientRect ink boxes after the SuitMark migration
+ * (the box size below reproduces the old font glyph's ~0.50w ink: the
+ * registry family's ink is ~0.83 of the box, and the old 0.715w font-size
+ * drew ~0.7x that in ink — re-measure before nudging any number here).
+ * Coloured by the SAME .gd-card--red / .gd-card--black class the index
+ * already uses (currentColor via `color` on the parent rule): no new
+ * palette entry. */
 .gd-card__pip {
   position: absolute;
   left: 64%;
   top: 66%;
   transform: translate(-50%, -50%);
-  font-family: var(--font-card);
-  /* 0.715 = the round's 0.55 grown 1.3x (owner follow-up). The bottom-right
-     bias plus this size is measured against the seal/index/edge boxes in
-     the harness — re-measure before nudging any of the three numbers. */
-  font-size: calc(var(--gd-cardw) * 0.715);
-  line-height: 1;
+  width: calc(var(--gd-cardw) * 0.6);
+  height: calc(var(--gd-cardw) * 0.6);
   pointer-events: none;
 }
 /* The joker's emblem lives in the LEFT/index column (like the corner
@@ -667,16 +672,18 @@ button.gd-plate {
   border-radius: 5px;
 }
 
-/* The cinnabar-court theme (themes/cinnabar-court/index.tsx): its own suit
- * glyph is a DRAWN shape (SUIT_PATHS, art.tsx), not a font character — suits
- * must separate by silhouette, which a platform's ♥/♦ glyph doesn't
- * guarantee — so it is sized by WIDTH off --gd-cardw (font-size has no
- * effect on an <svg>); height is left to the svg's own 24x28 viewBox
- * aspect via `height: auto`. */
+/* The cinnabar-court theme (themes/cinnabar-court/index.tsx): its corner
+ * suit is the shared SuitMark part (suits.tsx registry — since the suit
+ * round the shapes' single source; suits must separate by silhouette,
+ * which a platform's font suit glyph doesn't guarantee), sized off
+ * --gd-cardw. This override replaces .gd-suit's em-based default (which
+ * DOES track font-size — that's its point in text surfaces) with card
+ * metrics. 0.38 square renders ~0.315w of ink — the same ink height the
+ * old 24x28-box glyph drew at its 0.3w width. */
 .gd-ccourt__suitGlyph {
   display: block;
-  width: calc(var(--gd-cardw) * 0.3);
-  height: auto;
+  width: calc(var(--gd-cardw) * 0.38);
+  height: calc(var(--gd-cardw) * 0.38);
 }
 /* rankText('T') is '10' — two glyphs where every other rank is one. At the
  * shared .gd-card__rank size (0.42w) the extra glyph crowds the suit glyph

@@ -11,10 +11,12 @@
 // 'mini' — the frame carries the size class, so the marker's --gd-cardw
 // arithmetic works regardless of what the theme renders inside.
 
+import type { ReactElement } from 'react';
 import { isJoker, isWild, rankOf, suitOf, type Card, type Rank, type Suit } from '../../engine/guandan/cards';
 import type { JokerRank } from '../../engine/guandan/combos';
 import type { CanonicalForm } from '../../engine/guandan/types';
-import { declJokerRank, isRedSuit, rankText, suitGlyph } from './helpers';
+import { comboKey, declJokerRank, declRunText, isRedSuit, rankText } from './helpers';
+import { SuitMark } from './suits';
 import type { CardFaceSize } from './theme';
 import { useDeckTheme } from './useDeckTheme';
 import './themes/lacquer'; // registers the default theme (owner decision)
@@ -64,6 +66,32 @@ export function cardLabel(card: Card, level: Rank): string {
 export function comboRankLabel(decl: CanonicalForm): string {
   const jokerRank = declJokerRank(decl);
   return jokerRank !== undefined ? jokerLabel(jokerRank) : rankText(decl.keyRank);
+}
+
+/** A decl's full display label as a NODE: combo name + rank segment + the
+ *  straight-flush run window with its suit drawn as the shared SuitMark
+ *  part (suits.tsx — never a Unicode suit character; the mark carries the
+ *  localized suit name for screen readers). The desk status and the
+ *  chooser's option label both render THIS, so the two never diverge; the
+ *  chooser's aria string (optionAria) is the text-only parallel using the
+ *  localized suit word. */
+export function comboDeclNode(decl: CanonicalForm): ReactElement {
+  const run = declRunText(decl);
+  return (
+    <>
+      {t(comboKey(decl))} {comboRankLabel(decl)}
+      {run !== null && (
+        <>
+          {' ('}
+          {run}
+          {decl.suit !== undefined && (
+            <SuitMark suit={decl.suit} label={t(`game.suit.${decl.suit}` as const)} />
+          )}
+          {')'}
+        </>
+      )}
+    </>
+  );
 }
 
 /** Language-neutral wild seal (item 1): a cinnabar circle stamp with an
@@ -128,7 +156,11 @@ export function GhostFace({ rank, suit, size }: GhostFaceProps) {
     <span className={classes.join(' ')} aria-hidden="true">
       <span className="gd-card__index">
         <span className="gd-card__rank">{rankText(rank)}</span>
-        {suit !== null && <span className="gd-card__suit">{suitGlyph(suit)}</span>}
+        {suit !== null && (
+          <span className="gd-card__suit">
+            <SuitMark suit={suit} />
+          </span>
+        )}
       </span>
       <WildSeal />
     </span>

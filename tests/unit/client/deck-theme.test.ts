@@ -19,7 +19,10 @@ import {
 } from '../../../src/client/table/theme';
 import { buildDeck, isWild, SUITS, type Card } from '../../../src/engine/guandan/cards';
 import { CINNABAR_COURT_THEME } from '../../../src/client/table/themes/cinnabar-court';
-import { SUIT_PATHS } from '../../../src/client/table/themes/cinnabar-court/art';
+// Suit round: SUIT_PATHS moved to the shared registry (the single source of
+// suit shapes); cinnabar-court consumes it, so the occurrence-count pin
+// below keeps working unchanged against the registry's path strings.
+import { SUIT_PATHS } from '../../../src/client/table/suits';
 import { PIP_LAYOUTS } from '../../../src/client/table/themes/cinnabar-court/pips';
 import { LACQUER_THEME } from '../../../src/client/table/themes/lacquer';
 

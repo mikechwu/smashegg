@@ -10,6 +10,7 @@
 // identity column. Everything paints with the table palette tokens only.
 
 import type { ReactElement } from 'react';
+import { SUIT_PATHS } from '../../suits';
 
 export type SuitChar = 'S' | 'H' | 'D' | 'C';
 export type CourtChar = 'K' | 'Q' | 'J';
@@ -19,16 +20,17 @@ const CINNABAR = 'var(--cinnabar)';
 const INK = 'var(--ink)';
 const GOLD = 'var(--goldleaf)';
 
-// Suit glyphs are theme-drawn paths, not font glyphs: suits must separate by
-// SHAPE at sliver size (diamond cut sharper/narrower than the heart's round
-// shoulders), which font ♥/♦ rendering does not guarantee across platforms.
-export const SUIT_GLYPH_VIEWBOX = '0 0 24 28';
-export const SUIT_PATHS: Record<SuitChar, string> = {
-  S: 'M12 1 C8.5 8 3 12 3 16.5 C3 20.5 7 22.5 10.2 20.4 C10.2 22.8 9.2 24.6 7.5 26.5 L16.5 26.5 C14.8 24.6 13.8 22.8 13.8 20.4 C17 22.5 21 20.5 21 16.5 C21 12 15.5 8 12 1 Z',
-  H: 'M12 26 C6 19.5 2 15.5 2 10 C2 6 5 3.5 8.3 3.5 C10 3.5 11.4 4.6 12 5.6 C12.6 4.6 14 3.5 15.7 3.5 C19 3.5 22 6 22 10 C22 15.5 18 19.5 12 26 Z',
-  D: 'M12 1.5 L19.5 14 L12 26.5 L4.5 14 Z',
-  C: 'M12 2.5 C14.9 2.5 17.2 4.8 17.2 7.7 C17.2 9 16.7 10.2 15.9 11.1 C16.6 10.7 17.5 10.5 18.4 10.5 C21.3 10.5 23.6 12.8 23.6 15.7 C23.6 18.6 21.3 20.9 18.4 20.9 C16.6 20.9 15 20 14.1 18.6 C14.3 21.3 15.2 24.4 16.5 26.5 L7.5 26.5 C8.8 24.4 9.7 21.3 9.9 18.6 C9 20 7.4 20.9 5.6 20.9 C2.7 20.9 0.4 18.6 0.4 15.7 C0.4 12.8 2.7 10.5 5.6 10.5 C6.5 10.5 7.4 10.7 8.1 11.1 C7.3 10.2 6.8 9 6.8 7.7 C6.8 4.8 9.1 2.5 12 2.5 Z',
-};
+// Suit shapes come from the shared registry (suits.tsx, the single source
+// of truth — suit round): this module previously carried its own 24x28
+// paths; only the shape SOURCE changed, the court/joker geometry below is
+// still the frozen master record. Suits must separate by SHAPE at sliver
+// size (diamond cut sharper/narrower than the heart's round shoulders),
+// which font suit rendering does not guarantee across platforms — the
+// registry's whole premise. Fill colors stay THIS theme's palette.
+// SUIT_FILL must stay token-aligned with table.css's .gd-card--red/--black
+// pair: the corner SuitMark inherits THOSE via currentColor while the pip
+// field and court cartouche fill with THESE — editing one wire without the
+// other splits the corner from the body art (panel note, suit round).
 export const SUIT_FILL: Record<SuitChar, string> = { S: INK, H: CINNABAR, D: CINNABAR, C: INK };
 const isRed = (s: SuitChar) => s === 'H' || s === 'D';
 
@@ -174,7 +176,10 @@ export function CourtFigure({ figure, suit }: { figure: CourtChar; suit: SuitCha
       <rect x="82" y="136" width="108" height="18" fill={GOLD} stroke={INK} strokeWidth="2" />
       <line x1="86" y1="145" x2="186" y2="145" stroke={INK} strokeWidth="5" strokeDasharray="7 6" />
       <path d="M136 122 L154 145 L136 168 L118 145 Z" fill={IVORY} stroke={GOLD} strokeWidth="3" />
-      <g transform="translate(124,131)">
+      {/* Registry paths live in a 0 0 100 100 box, family ink height ~83
+          units — scale 0.31 reproduces the old cartouche pip's ~26-unit
+          ink inside the ivory lozenge, centered on the card center. */}
+      <g transform="translate(136 145) scale(0.31) translate(-50 -50)">
         <path d={SUIT_PATHS[suit]} fill={SUIT_FILL[suit]} />
       </g>
     </svg>

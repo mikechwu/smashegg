@@ -18,24 +18,18 @@
 //
 // Guard 5: no classification logic lives here. Naming = deskStage's
 // decls (matchSelection's matches on your turn, the engine's
-// classifyPlays in the quiet form) rendered through the same comboKey/
-// comboRankLabel/declRunText helpers the chooser and feed already use;
-// the beat verdict is beatState over the server's own hints. Untimed
-// rooms: dueSeconds stays null, the clock column simply never renders —
-// no empty chrome, no fake numbers.
+// classifyPlays in the quiet form) rendered through the same
+// comboDeclNode label (comboKey + comboRankLabel + declRunText + the
+// shared SuitMark part) the chooser uses; the beat verdict is beatState
+// over the server's own hints. Untimed rooms: dueSeconds stays null, the
+// clock column simply never renders — no empty chrome, no fake numbers.
 
+import type { ReactNode } from 'react';
 import type { Card, Rank } from '../../engine/guandan/cards';
-import type { CanonicalForm } from '../../engine/guandan/types';
-import { CardFace, cardLabel, comboRankLabel } from './CardFace';
-import {
-  comboKey,
-  declRunText,
-  deskFraction,
-  deskUrgency,
-  DESK_STAGE_MAX_FACES,
-  type DeskStage,
-} from './helpers';
+import { CardFace, cardLabel, comboDeclNode } from './CardFace';
+import { deskFraction, deskUrgency, DESK_STAGE_MAX_FACES, type DeskStage } from './helpers';
 import { t } from '../i18n';
+import { tNode } from '../i18n/react';
 
 export interface PlayDeskProps {
   mode: 'quiet' | 'play' | 'tribute';
@@ -65,13 +59,6 @@ export interface PlayDeskProps {
   onClearAll: () => void;
 }
 
-/** One reading's display name — the chooser's own vocabulary (comboKey +
- *  comboRankLabel + run text), never a parallel naming path. */
-function comboText(decl: CanonicalForm): string {
-  const run = declRunText(decl);
-  return `${t(comboKey(decl))} ${comboRankLabel(decl)}${run !== null ? ` (${run})` : ''}`;
-}
-
 export function PlayDesk(props: PlayDeskProps) {
   const { mode, dueSeconds, totalMs, planning, level, staged, stage, beat, tributePhase, tributeReady, onUnstage, onClearAll } = props;
   const loud = mode !== 'quiet';
@@ -96,7 +83,10 @@ export function PlayDesk(props: PlayDeskProps) {
 
   // The status line: what the staged set IS (or what to do when nothing is
   // staged). The quiet form only ever names — playability needs hints.
-  let status: string | null = null;
+  // A node, not a string: the single-reading line embeds comboDeclNode
+  // (the chooser's own vocabulary — never a parallel naming path), whose
+  // straight-flush run draws its suit as the shared SuitMark part.
+  let status: ReactNode = null;
   let statusHint: string | null = null;
   if (staged.length === 0) {
     if (mode === 'tribute') {
@@ -119,15 +109,23 @@ export function PlayDesk(props: PlayDeskProps) {
   } else if (stage.decls.length === 0) {
     status = t('game.desk.noForm');
   } else if (stage.decls.length === 1) {
-    status = t('game.desk.aboutToPlay', { combo: comboText(stage.decls[0]!) });
     // The beat verdict rides the staged line BOTH ways (panel MED, Grok:
     // the plan's copy carries the positive verdict too, not cannot-only):
     // a playable FOLLOWING reading says it beats the table; an unplayable
     // one says it does not. A lead has nothing to beat — no suffix; the
     // quiet form cannot know playability (playableCount null) — no suffix.
-    if (stage.playableCount === 0) status = `${status} · ${t('game.desk.cannotBeatTop')}`;
-    else if (mode === 'play' && beat === 'canBeat' && (stage.playableCount ?? 0) > 0)
-      status = `${status} · ${t('game.desk.beatsTop')}`;
+    const verdict =
+      stage.playableCount === 0
+        ? t('game.desk.cannotBeatTop')
+        : mode === 'play' && beat === 'canBeat' && (stage.playableCount ?? 0) > 0
+          ? t('game.desk.beatsTop')
+          : null;
+    status = (
+      <>
+        {tNode('game.desk.aboutToPlay', { combo: comboDeclNode(stage.decls[0]!) })}
+        {verdict !== null && ` · ${verdict}`}
+      </>
+    );
   } else {
     status = t('game.desk.multiReading');
     if (mode === 'play') statusHint = t('game.desk.multiReadingHint');

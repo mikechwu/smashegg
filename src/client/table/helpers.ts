@@ -174,8 +174,8 @@ export function asRuleVariant(config: unknown): RuleVariant {
  * Hints carry ONE wild-frugal concrete realization per canonical form
  * (generate.ts), so exact-cards comparison is not enough: any selection
  * that VALIDATES as a hinted form is that form (PLAN §3 obligation 4) —
- * 4♦ is the hinted single of 4s realized as 4♠, 9♥9♦ is the hinted pair
- * of 9s realized as 9♠9♥, and natural+wild realizes the pair the hint
+ * D4 is the hinted single of 4s realized as S4, H9+D9 is the hinted pair
+ * of 9s realized as S9+H9, and natural+wild realizes the pair the hint
  * spelled with two naturals. Implementation: classify the selection with
  * the ENGINE's own classifyPlays (which runs validatePlay, so matching can
  * never disagree with server validation — the v1.4 one-suit-naturals
@@ -657,12 +657,6 @@ export function rankText(rank: Rank): string {
   return rank === 'T' ? '10' : rank;
 }
 
-const SUIT_GLYPHS: Record<Suit, string> = { S: '♠', H: '♥', C: '♣', D: '♦' };
-
-export function suitGlyph(suit: Suit): string {
-  return SUIT_GLYPHS[suit];
-}
-
 export function isRedSuit(suit: Suit): boolean {
   return suit === 'H' || suit === 'D';
 }
@@ -705,17 +699,18 @@ export function declJokerRank(decl: CanonicalForm): JokerRank | undefined {
   return (decl as CanonicalForm & { jokerRank?: JokerRank }).jokerRank;
 }
 
-/** Run description for a straight-flush decl ("A–5♠", "5–9♥"): the chooser
+/** Run description for a straight-flush decl ("A–5", "5–9"): the chooser
  *  labels SF readings with their full window so the end-position pair
- *  (larger-on-top) is unmistakable. Locale-free — rank glyphs and suit
- *  symbols only. Null for every other type (they read fine as combo name +
- *  key rank). */
+ *  (larger-on-top) is unmistakable. RANK WINDOW ONLY, locale-free — the
+ *  decl's suit is rendered by the caller (visually as the shared SuitMark
+ *  part beside this text, accessibly as the localized suit name), never as
+ *  a Unicode suit character (suits.tsx: the no-suit-codepoint rule). Null
+ *  for every other type (they read fine as combo name + key rank). */
 export function declRunText(decl: CanonicalForm): string | null {
   if (decl.type !== 'straightFlush') return null;
   const window = sequenceWindow(decl.keyRank, decl.size);
   if (window === null) return null;
-  const run = `${rankText(window[0]!)}–${rankText(window[window.length - 1]!)}`;
-  return decl.suit === undefined ? run : `${run}${suitGlyph(decl.suit)}`;
+  return `${rankText(window[0]!)}–${rankText(window[window.length - 1]!)}`;
 }
 
 const PLACE_KEYS: Record<number, TranslationKey> = {

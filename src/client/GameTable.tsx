@@ -769,7 +769,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // marker lands at its true beat; hands 2+ keep the default south-first
   // order. The marker card AND its deal beat come straight from the public
   // ceremony payload (marker / markerDealIndex — a specific card INSTANCE at
-  // a deck position, never "the 8♥": two decks mean twins). The old
+  // a deck position, never "the heart 8": two decks mean twins). The old
   // flips-derived beat was the 2026-07-15 defect.
   const dealCeremony = dealing && derived.ceremony !== null && view.handNo === 1 ? derived.ceremony : null;
   const dealDir = dealCeremony
