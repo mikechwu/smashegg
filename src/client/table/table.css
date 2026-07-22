@@ -425,6 +425,7 @@ button.gd-plate {
   align-items: center;
   gap: 0.375rem;
   margin-top: 0.375rem;
+  flex-wrap: wrap;
 }
 .gd-tribute__committed {
   opacity: 0.75;
@@ -506,9 +507,10 @@ button.gd-plate {
 .gd-card--trick {
   --gd-cardw: 2.25rem;
 }
-/* Mini: DORMANT since the chooser moved to hand-size faces (the game UI
- * ships no mini cards anywhere now). The token stays because the theme
- * contract's CardFaceSize union still names the size — narrowing a type
+/* Trick and mini: DORMANT since the chooser and then the tribute panel moved
+ * to hand-size faces (the game UI ships a single card size everywhere now;
+ * tribute-faces.test.ts pins the sweep). The tokens stay because the theme
+ * contract's CardFaceSize union still names the sizes — narrowing a type
  * the frozen cinnabar-court art references is out of scope. */
 .gd-card--mini {
   --gd-cardw: 2rem;

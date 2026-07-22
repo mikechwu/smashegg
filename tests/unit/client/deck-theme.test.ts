@@ -368,7 +368,7 @@ describe('lacquer horizontal index row (owner reference, theme-scoped)', () => {
     expect(html).not.toContain('gd-card__rank--row10');
   });
 
-  it('never carries the row modifier at "mini" either (ActionBar renders the decl chooser\'s real card faces at size="mini"; its 390px arithmetic depends on mini\'s plain .gd-card__index column staying untouched)', () => {
+  it('never carries the row modifier at "mini" either (a dormant size the theme contract still names; its plain .gd-card__index column stays untouched)', () => {
     for (const card of ['7S', 'TH'] as const) {
       const html = renderToStaticMarkup(createElement(LACQUER_THEME.Face, { card, level: '2', size: 'mini' }));
       expect(html, `${card} @ mini: must not carry the row modifier`).not.toContain('gd-card__index--row');

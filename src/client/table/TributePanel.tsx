@@ -38,7 +38,7 @@ function Pairings({
       {pairings.map((p, i) => (
         <li key={i} className="gd-tribute__pairing">
           <span>{t(lineKey, { from: nameFor(p.from), to: nameFor(p.to) })}</span>
-          <CardFace card={p.card} level={level} size="trick" />
+          <CardFace card={p.card} level={level} size="hand" />
         </li>
       ))}
     </ul>
@@ -56,7 +56,7 @@ export function TributePanel({ view, nameFor, antiReveals }: TributePanelProps) 
           {antiReveals.map((r, i) => (
             <li key={i} className="gd-tribute__pairing">
               <span>{t('game.tribute.antiHolder', { name: nameFor(r.seat) })}</span>
-              <CardFace card={r.card} level={view.currentLevel} size="trick" />
+              <CardFace card={r.card} level={view.currentLevel} size="hand" />
             </li>
           ))}
         </ul>
@@ -112,7 +112,7 @@ export function TributePanel({ view, nameFor, antiReveals }: TributePanelProps) 
       {tribute.ownStaged !== null && (
         <div className="gd-tribute__own">
           <span>{t('game.tribute.ownStaged')}</span>
-          <CardFace card={tribute.ownStaged} level={view.currentLevel} size="trick" />
+          <CardFace card={tribute.ownStaged} level={view.currentLevel} size="hand" />
         </div>
       )}
       {tribute.paid !== null && (

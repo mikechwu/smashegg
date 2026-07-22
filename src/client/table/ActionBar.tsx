@@ -6,7 +6,7 @@
 // FACES (docs/research/wild-chooser-ux.md §2.1): substitution chips (the
 // physical wild → the face it plays as; identical pairs collapsed ×2), the
 // combo name + key rank + SF run demoted to a secondary cue, then the
-// post-substitution combo as mini faces. Options whose wilds all play as
+// post-substitution combo as hand faces. Options whose wilds all play as
 // themselves (or with no wilds) render no chips. Unplayable readings stay
 // listed (marked) — picking one submits and the server rejects it as
 // usual, so the UI never hides a reading a raw client could attempt.

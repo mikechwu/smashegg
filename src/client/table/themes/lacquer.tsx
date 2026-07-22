@@ -102,9 +102,10 @@ function LacquerFace({ card, size }: DeckThemeFaceProps) {
         <span className="gd-card__suit">{suitGlyph(suit)}</span>
       </span>
       {/* Owner reference (mainstream Guandan look): ONE large body suit pip,
-       *  the same font glyph as the corner index — never at 'mini' (the decl
-       *  chooser's 390px arithmetic depends on mini's current metrics being
-       *  untouched), so the growing hand card reads as a real face, not just
+       *  the same font glyph as the corner index — never at 'mini' (a
+       *  dormant size; the game UI ships hand faces everywhere, and mini's
+       *  metrics stay untouched for the theme contract),
+       *  so the growing hand card reads as a real face, not just
        *  a bigger index. table.css sizes it entirely off --gd-cardw and
        *  offsets it (NOT centered — see .gd-card__pip's own comment) into
        *  the card's right portion, clear of both the corner index and the
