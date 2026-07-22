@@ -1,5 +1,16 @@
 # STATUS
 
+## Deploy record (2026-07-22) — 42cd5d2 verified live (health build == pushed HEAD)
+
+Owner word: "ready to deploy". Pushed 39258e3 + 1e1cec5 + c1b11c8 + 42cd5d2
+(tribute hand-size faces, the end-of-hand interlude, selection survival,
+the play desk); outgoing-content sweep clean (no sibling names; demo
+videos stay gitignored in docs/local/). `npm run deploy` → version
+43e3294a-257a-4570-838f-7fec650e98be;
+/api/health build == 42cd5d28… == pushed HEAD; site 200 serving the new
+bundle. No prod smoke rooms created (the DO stays clean). Open with real
+players: the guard-2 reflow read and the guard-3 dual-render elder check.
+
 ## Play desk BUILT (2026-07-22) — elder-visibility items 1/3/4 as signed off — local, unpushed
 
 Owner locked D1–D7 + five guards; docs/research/state-visibility.md is now
