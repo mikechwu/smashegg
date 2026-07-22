@@ -1,5 +1,13 @@
 # STATUS
 
+## Deploy record (2026-07-22) — c8c4bf3 verified live (health build == pushed HEAD)
+
+Round close per the owner's build order: pushed fc3f5c0 (sit-then-name)
++ c8c4bf3 (fan variant D); outgoing sweep clean. `npm run deploy` →
+version 82fb4f1a-f2c4-4470-8175-864091cabb41; /api/health build ==
+c8c4bf39… == pushed HEAD; site 200. No prod smoke rooms. The batched
+elder session (below) is the open validation.
+
 ## Fan variant D BUILT (2026-07-22) — item 1 closed per F1–F3 — deployed with the round
 
 Owner locked F1=variant D, F2=keep −14px, F3=harness as the recorded
