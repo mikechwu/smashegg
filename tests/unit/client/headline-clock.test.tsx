@@ -119,7 +119,7 @@ describe('headline clock: one table-wide countdown on the turn line', () => {
     // ceremony or the deal — a clock before the player HAS a sorted hand is
     // meaningless.
     expect(table).toMatch(
-      /ceremonyShowing \|\| dealing \|\| clockDeadline === undefined\s*\?\s*null\s*:\s*remainingSeconds\(clockDeadline\.dueAt, now\)/,
+      /ceremonyShowing \|\| dealing \|\| interludeShowing \|\| clockDeadline === undefined\s*\?\s*null\s*:\s*remainingSeconds\(clockDeadline\.dueAt, now\)/,
     );
     // The concealed-leader override rides the SAME prop the turn line uses.
     expect(table).toMatch(/dueSeconds=\{leaderConcealed !== null \? null : dueSeconds\}/);
@@ -463,8 +463,11 @@ describe('the in-play tag follows the LIVE level, not the declarer (suspension r
 
   it('GameTable derives the tag through the helper, never raw declarerTeam (source pin)', () => {
     const table = stripTsComments(gameTableSrc);
+    // Interlude round: the tag is suppressed while the end-of-hand beat runs
+    // (the view is already the NEXT hand; a live tag under frozen old levels
+    // would mislabel) — the non-interlude side still derives via the helper.
     expect(table).toMatch(
-      /playingTeam=\{playingLevelTeam\(view\.declarerTeam, view\.levels, view\.currentLevel\)\}/,
+      /playingTeam=\{\s*interludeShowing \? null : playingLevelTeam\(view\.declarerTeam, view\.levels, view\.currentLevel\)\s*\}/,
     );
     expect(table).not.toMatch(/playingTeam=\{view\.declarerTeam\}/);
   });

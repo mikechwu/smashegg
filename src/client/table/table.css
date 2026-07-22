@@ -2078,3 +2078,162 @@ button.gd-plate {
     opacity: 1;
   }
 }
+
+/* --- end-of-hand interlude (docs/research/hand-interlude.md) --------------- */
+/* The beat's overlay: a VIGNETTE, not a wash — transparent over the trick
+ * well (the winning final play stays the hero of the table it just won) and
+ * darkening toward the edges; the plate anchors in the LOWER third at phone
+ * widths so it never covers the well (panel-adopted layout). One tap
+ * anywhere skips the whole beat (the wrapper's click). z: above the play
+ * flight (11) — the final play's own flight may still be landing under the
+ * hold stage — and below nothing else on the table. */
+.gd-interlude {
+  /* FIXED, not absolute-in-table (visual round): the pre-deal hold empties
+   * the fan and collapses the table section, so an in-section overlay ended
+   * up sitting ON the ring — covering the held winning play it exists to
+   * showcase. Viewport anchoring (the .gd-playfx precedent) keeps the plate
+   * in the true lower third with the table — well included — above it. */
+  position: fixed;
+  inset: 0;
+  z-index: 12;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 0 1rem 3.5rem;
+  cursor: pointer;
+  background: radial-gradient(
+    ellipse at 50% 22%,
+    rgba(26, 13, 9, 0) 30%,
+    rgba(26, 13, 9, 0.62) 100%
+  );
+}
+.gd-interlude__plate {
+  background: var(--rosewood);
+  border-radius: 10px;
+  padding: 0.75rem 1rem 0.625rem;
+  width: 100%;
+  max-width: 22rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+.gd-interlude__title {
+  font-family: var(--font-card);
+  font-size: 1rem;
+  margin: 0;
+}
+.gd-interlude__line {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+.gd-interlude__final {
+  opacity: 0.85;
+}
+.gd-interlude__order {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.125rem 0.75rem;
+}
+.gd-interlude__orderLine {
+  font-size: 0.8125rem;
+  display: flex;
+  gap: 0.375rem;
+  min-width: 0;
+}
+.gd-interlude__place {
+  color: var(--goldleaf);
+  flex: none;
+}
+.gd-interlude__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gd-interlude__verdict {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+.gd-interlude__verdict--won {
+  color: var(--goldleaf);
+}
+.gd-interlude__levels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+.gd-interlude__aline {
+  margin: 0;
+  font-size: 0.8125rem;
+}
+.gd-interlude__aline--suspended {
+  color: var(--cinnabar);
+  font-weight: 600;
+}
+.gd-interlude__curtain {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-family: var(--font-card);
+}
+.gd-interlude__curtainNote {
+  display: block;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 400;
+  opacity: 0.85;
+}
+.gd-interlude__match {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  font-family: var(--font-card);
+  color: var(--goldleaf);
+}
+.gd-interlude__skip {
+  margin: 0.125rem 0 0;
+  font-size: 0.6875rem;
+  opacity: 0.6;
+}
+.gd-interlude__dismiss {
+  align-self: flex-start;
+}
+/* Each stage's content settles in with one quiet entrance — sequential
+ * reveal IS the pedagogy (research digest), so the motion is the arrival,
+ * not a spectacle. The badge-rank remount (TableHeadline keys the rank span)
+ * rides the same animation: the rail visibly ticks old → new. */
+.gd-interlude__order,
+.gd-interlude__verdict,
+.gd-interlude__levels,
+.gd-interlude__curtain,
+.gd-interlude__match {
+  animation: gd-interlude-in 320ms ease-out both;
+}
+.gd-team__rank {
+  animation: gd-interlude-in 320ms ease-out both;
+}
+@keyframes gd-interlude-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .gd-interlude__order,
+  .gd-interlude__verdict,
+  .gd-interlude__levels,
+  .gd-interlude__curtain,
+  .gd-interlude__match,
+  .gd-team__rank {
+    animation: none;
+  }
+}

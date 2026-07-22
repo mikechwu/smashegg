@@ -233,5 +233,18 @@
   "game.deal.label": "發牌中",
   "game.seat.switchTo": "切換到 {name}",
   "game.rail.teamLevel": "打",
-  "game.rail.playingNow": "本局"
+  "game.rail.playingNow": "本局",
+  "game.interlude.title": "本局結束",
+  "game.interlude.finalBy": "最後一手:{name}",
+  "game.interlude.winUs": "我隊勝 · 升 {n} 級",
+  "game.interlude.winThem": "對方勝 · 升 {n} 級",
+  "game.interlude.levelUp": "{team} 打{old} → 打{new}",
+  "game.interlude.levelSame": "{team} 打{rank}",
+  "game.interlude.aBurned": "{team}攻A未成 · 還剩 {left} 次機會",
+  "game.interlude.aSuspended": "攻A次數用盡 · {team}暫停攻A · 改打對方級數",
+  "game.interlude.nextHand": "第 {n} 局 · 本局打 {rank}",
+  "game.interlude.suspendedNote": "{team}攻A暫停 · 本局打對方級數",
+  "game.interlude.matchWinUs": "我隊勝出比賽",
+  "game.interlude.matchWinThem": "對方勝出比賽",
+  "game.interlude.skip": "點一下跳過"
 }

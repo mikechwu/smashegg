@@ -39,10 +39,15 @@ export interface TrickWellProps {
   /** The flight's fold id — keys the underlay so consecutive covering plays
    *  get a FRESH element (never an inherited fade class). */
   coveredKey?: number;
+  /** End-of-hand beat (docs/research/hand-interlude.md): the winning final
+   *  play, held in place while the interlude runs — the live trick (already
+   *  the NEXT hand's) is ignored so the table keeps telling the ended hand's
+   *  truth until the beat releases. */
+  heldTop?: readonly Card[] | null;
 }
 
-export function TrickWell({ trick, level, sweepKey, covered, coveredKey }: TrickWellProps) {
-  const top = trick?.top ?? null;
+export function TrickWell({ trick, level, sweepKey, covered, coveredKey, heldTop }: TrickWellProps) {
+  const top = heldTop != null && heldTop.length > 0 ? { cards: heldTop } : (trick?.top ?? null);
   return (
     <div className="gd-well" key={sweepKey}>
       {covered != null && covered.length > 0 && top !== null && (

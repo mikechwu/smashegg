@@ -16,7 +16,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { Seat } from '../engine/core/game';
 import { teamOf } from '../engine/guandan/types';
-import type { GuandanAction, GuandanEvent } from '../engine/guandan/types';
+import type { GuandanAction, GuandanEvent, HandResult } from '../engine/guandan/types';
 import type { Card, Rank } from '../engine/guandan/cards';
 import type { RoomSnapshot, RoomStore } from './room/store';
 import { ActionBar } from './table/ActionBar';
@@ -27,6 +27,7 @@ import { HAND_SIZE, dealDirOrder, markerDealBeat } from './table/deal';
 import { EventFeed, FEED_LIMIT, type FeedLine } from './table/EventFeed';
 import { PlayOverlay } from './table/PlayOverlay';
 import { HandFan } from './table/HandFan';
+import { InterludeOverlay } from './table/InterludeOverlay';
 import { TableHeadline } from './table/TableHeadline';
 import { ResultOverlay } from './table/ResultOverlay';
 import { SeatPlate } from './table/SeatPlate';
@@ -55,6 +56,7 @@ import {
   tributeEligibleCards,
   tributeKind,
   type Ceremony,
+  type InterludeFx,
   type PlayMatch,
   type RemoteDealt,
 } from './table/helpers';
@@ -148,6 +150,17 @@ export interface SeatDerived {
    *  server already sent. The deal animates arrival in THIS order and sorts in
    *  one beat at the end (never "arrives sorted"). Null until the first deal. */
   dealOrder: readonly Card[] | null;
+  /** The end-of-hand beat (see InterludeFx). Replaced by each handEnded
+   *  fold; GameTable unmounts it on completion/skip and gates the next
+   *  deal's choreography behind it. */
+  interlude: InterludeFx | null;
+  /** Both teams' levels as last reported (hand 1 seeds ['2','2'] — the
+   *  engine's fixed starting level; each handEnded overwrites). The
+   *  interlude's "before" side. Null until either seeding event folds. */
+  teamLevels: [Rank, Rank] | null;
+  /** A-attempt state as last reported by a handEnded fold — the before-side
+   *  for detecting "burned/exhausted THIS hand". */
+  aTrack: { attempts: [number, number]; exhausted: [boolean, boolean] } | null;
 }
 
 export const EMPTY_DERIVED: SeatDerived = {
@@ -163,6 +176,9 @@ export const EMPTY_DERIVED: SeatDerived = {
   sweep: 0,
   dealNo: 0,
   dealOrder: null,
+  interlude: null,
+  teamLevels: null,
+  aTrack: null,
 };
 
 // Exported (not just used internally) so a unit test can fold real events
@@ -210,6 +226,18 @@ export function foldEvents(
           dealOrder: ownDealOrder,
         };
         if (ev.ceremony !== undefined) d.ceremony = ev.ceremony;
+        // Hand 1 always opens at the engine's fixed starting state — seed
+        // both trackers so the FIRST interlude has a true before-side (a
+        // mid-match join never folds handNo 1 and stays null → degrade).
+        if (ev.handNo === 1) {
+          d.teamLevels = ['2', '2'];
+          d.aTrack = { attempts: [0, 0], exhausted: [false, false] };
+        }
+        // The same batch's handEnded (see below) created this interlude;
+        // this handStarted names the hand the beat's curtain announces.
+        if (d.interlude !== null && d.interlude.next === null && d.interlude.matchWinner === null) {
+          d.interlude = { ...d.interlude, next: { handNo: ev.handNo, level: ev.currentLevel } };
+        }
         push('game.feed.handStarted', { hand: ev.handNo, rank: rankText(ev.currentLevel) });
         break;
       }
@@ -303,14 +331,48 @@ export function foldEvents(
         d.anti = ev.reveals;
         push('game.feed.antiTribute');
         break;
-      case 'handEnded':
+      case 'handEnded': {
+        // The beat's snapshot, captured BEFORE this batch's handStarted wipes
+        // playFx/topCards (docs/research/hand-interlude.md): the final play,
+        // the ended hand's level, and the before/after of levels + A-state.
+        const before = d.aTrack;
+        const burned = ([0, 1] as const).find(
+          (team) =>
+            before !== null &&
+            ev.aAttempts[team] > before.attempts[team] &&
+            !ev.aAttemptsExhausted[team],
+        );
+        const suspended = ([0, 1] as const).find(
+          (team) => before !== null && ev.aAttemptsExhausted[team] && !before.exhausted[team],
+        );
+        d.interlude = {
+          at: Date.now(),
+          id: nextId(),
+          finalPlay: d.topCards !== null ? { seat: d.playFx?.seat ?? null, cards: d.topCards } : null,
+          level: d.level,
+          result: ev.result,
+          oldLevels: d.teamLevels,
+          newLevels: ev.newLevels,
+          aAttempts: ev.aAttempts,
+          aAttemptsExhausted: ev.aAttemptsExhausted,
+          aBefore: before,
+          aBurnedTeam: burned ?? null,
+          aSuspendedTeam: suspended ?? null,
+          next: null,
+          matchWinner: null,
+        };
+        d.teamLevels = ev.newLevels;
+        d.aTrack = { attempts: ev.aAttempts, exhausted: ev.aAttemptsExhausted };
         d.passed = [];
+        d.passedAt = {};
         push('game.feed.handEnded', {
           us: rankText(ev.newLevels[viewerTeam]),
           them: rankText(ev.newLevels[(1 - viewerTeam) as 0 | 1]),
         });
         break;
+      }
       case 'matchEnded':
+        if (d.interlude !== null) d.interlude = { ...d.interlude, matchWinner: ev.winnerTeam };
         push('game.feed.matchEnded');
         break;
       default:
@@ -349,6 +411,16 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // effect then measured its flight rects against), and a mid-deal seat-tab
   // switch to a lagging seat cannot zero a running deal's counters.
   const [dealtRemote, setDealtRemote] = useState<RemoteDealt>(NO_REMOTE_DEALT);
+  // The end-of-hand beat: ids whose beat finished (auto or one-tap skip —
+  // the whole beat, never a step), and ids whose level-transition stage has
+  // been reached (the headline badges swap old → new levels there). SETS,
+  // not scalars (Grok audit HIGH): per-seat folds mint DISTINCT ids for the
+  // same hand end, so in multi-seat self-play a scalar would un-mark seat
+  // A's finished beat the moment seat B's completes, resurrecting it on the
+  // next pill switch. Growth is a few ids per hand — unbounded in theory,
+  // trivial in a match's lifetime.
+  const [interludeDone, setInterludeDone] = useState<ReadonlySet<number>>(new Set());
+  const [interludeLate, setInterludeLate] = useState<ReadonlySet<number>>(new Set());
   // Suspense reveal (owner rule): true once the face-up marker has LANDED
   // this deal — before that, the leader's seat ring stays unlit.
   const [dealLeadRevealed, setDealLeadRevealed] = useState(false);
@@ -374,15 +446,37 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     let next: Map<Seat, SeatDerived> | null = null;
     for (const [seat, perSeat] of snapshot.perSeat) {
       const batch = perSeat.lastEventBatch;
-      if (batch === null || processedRef.current.get(seat) === batch) continue;
-      processedRef.current.set(seat, batch);
-      const events = asGuandanEvents(batch);
+      const unprocessed = batch !== null && processedRef.current.get(seat) !== batch;
+      if (batch !== null) processedRef.current.set(seat, batch);
+      const events = unprocessed ? asGuandanEvents(batch) : [];
+
+      // Lazy interlude-tracker seed (mid-match adoption): a snapshot resync
+      // folds no events, so a rejoining client's before-side trackers stay
+      // null and its first interlude would degrade to new-levels-only. The
+      // FIRST OBSERVED VIEW is the real before-side truth — seed from it,
+      // UNLESS this very tick's batch already ends the hand (the view then
+      // carries the POST-scoring levels and seeding would fake a no-op
+      // transition; that rare race keeps the honest degradation).
+      let current = (next ?? derivedBySeat).get(seat) ?? EMPTY_DERIVED;
+      if (current.teamLevels === null && !events.some((e) => e.type === 'handEnded')) {
+        const seatView = asGuandanView(perSeat.view);
+        if (seatView !== null) {
+          current = {
+            ...current,
+            teamLevels: [seatView.levels[0]!, seatView.levels[1]!],
+            aTrack: {
+              attempts: [seatView.aAttempts[0]!, seatView.aAttempts[1]!],
+              exhausted: [seatView.aAttemptsExhausted[0]!, seatView.aAttemptsExhausted[1]!],
+            },
+          };
+          if (next === null) next = new Map(derivedBySeat);
+          next.set(seat, current);
+        }
+      }
+
       if (events.length === 0) continue;
       if (next === null) next = new Map(derivedBySeat);
-      next.set(
-        seat,
-        foldEvents(next.get(seat) ?? EMPTY_DERIVED, events, teamOf(seat), nameFor, () => feedIdRef.current++),
-      );
+      next.set(seat, foldEvents(current, events, teamOf(seat), nameFor, () => feedIdRef.current++));
     }
     if (next !== null) setDerivedBySeat(next);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -396,22 +490,27 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // self-expires: once every stamp has aged past the widest render gate
   // (+ slack), the interval's own tick clears it.
   const deadlines = snapshot.deadlines;
-  const latestFxAt = Math.max(
+  // Per-stamp freshness horizons: pass/flight windows are ~3s; the interlude
+  // stamp keeps the clock alive through the parent's 60s stale guard (Codex
+  // audit MED: an untimed room folds a hand end with no deadline armed, so
+  // without this leg `now` freezes and the guard behind a frozen overlay
+  // timer chain could never trip).
+  const fxFreshUntil = Math.max(
     0,
     ...[...derivedBySeat.values()].flatMap((d) => [
-      ...(Object.values(d.passedAt) as number[]),
-      ...(d.playFx !== null ? [d.playFx.at] : []),
+      ...(Object.values(d.passedAt) as number[]).map((at) => at + 3500),
+      ...(d.playFx !== null ? [d.playFx.at + 3500] : []),
+      ...(d.interlude !== null ? [d.interlude.at + 61_000] : []),
     ]),
   );
   useEffect(() => {
-    const fxFreshUntil = latestFxAt + 3500;
     if (deadlines.length === 0 && Date.now() >= fxFreshUntil) return;
     const timer = setInterval(() => {
       setNow(Date.now());
       if (deadlines.length === 0 && Date.now() >= fxFreshUntil) clearInterval(timer);
     }, 500);
     return () => clearInterval(timer);
-  }, [deadlines.length, latestFxAt]);
+  }, [deadlines.length, fxFreshUntil]);
 
   // The selected tab must always be a seat we still hold (a takeover by
   // another tab can shrink the held set); fall back to the lowest seat.
@@ -534,13 +633,28 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     matchWinner: view.matchWinner,
   });
 
+  // The end-of-hand beat (docs/research/hand-interlude.md): pure client-side
+  // framing over the already-committed batch — the overlay self-drives its
+  // stages (the ceremony's timer idiom) and reports completion; the parent
+  // holds the next deal, the tribute center, the action bar and the clocks
+  // behind it. The 60s wall-clock guard means a restored background tab can
+  // never resurrect a long-finished beat (the overlay itself finishes in
+  // ≤6.5s; the guard is the belt for a frozen rAF/timer world).
+  const interlude = derived.interlude;
+  const interludeShowing =
+    interlude !== null && !interludeDone.has(interlude.id) && now - interlude.at < 60000;
+
   // Item 4: play the physical deal once per fold-observed deal — after the
   // hand-1 ceremony overlay (flips/count) finishes, immediately on later
   // hands. Purely presentational: the clock is already running (the 90s
   // per-seat planning window absorbs the choreography — ≤5s typical, ≤5.5s
   // at the deepest cut where the 900ms marker lands last; deal.ts pins).
   const dealing =
-    derived.dealNo > dealShown && !ceremonyShowing && view.phase !== 'ceremonyCut' && view.hand.length > 0;
+    derived.dealNo > dealShown &&
+    !ceremonyShowing &&
+    !interludeShowing &&
+    view.phase !== 'ceremonyCut' &&
+    view.hand.length > 0;
   // Owner bug: the hand must show NOTHING from the moment a fresh deal exists
   // until the deal choreography starts revealing it (the cut/ceremony window).
   // The dealing beat itself is not held — the fan then renders arrival slots.
@@ -620,7 +734,11 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         isViewer={seat === activeSeat}
         partner={teamOf(seat) === viewerTeam && seat !== activeSeat}
         place={placeOf(view.finishOrder, seat)}
-        active={(ringSeats.has(seat) || (seat === activeSeat && yourTurn)) && seat !== leaderConcealed}
+        active={
+          (ringSeats.has(seat) || (seat === activeSeat && yourTurn)) &&
+          seat !== leaderConcealed &&
+          !interludeShowing
+        }
         committed={inTributeCenter && committedSet.has(seat)}
         onSelect={selectable ? () => setSelectedSeat(seat) : undefined}
       />
@@ -646,7 +764,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       ? undefined
       : deadlineBySeat.get(clockSeat);
   const dueSeconds =
-    ceremonyShowing || dealing || clockDeadline === undefined
+    ceremonyShowing || dealing || interludeShowing || clockDeadline === undefined
       ? null
       : remainingSeconds(clockDeadline.dueAt, now);
   const clockConnected =
@@ -751,16 +869,33 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     setChooserOpen(false);
   };
 
+  // During the beat's early stages the headline stays FROZEN at the ended
+  // hand's state — the level-transition stage is what animates it forward
+  // (the beat teaches the always-present rail; plan §C). Degrades to the
+  // live view when the before-side is unknown (mid-match join).
+  const headlineEarly =
+    interludeShowing &&
+    interlude !== null &&
+    !interludeLate.has(interlude.id) &&
+    interlude.oldLevels !== null;
+  const headlineLevels = headlineEarly ? interlude!.oldLevels! : view.levels;
+  const headlineA =
+    headlineEarly && interlude!.aBefore !== null
+      ? interlude!.aBefore
+      : { attempts: view.aAttempts, exhausted: view.aAttemptsExhausted };
+
   return (
     <section className="gd-table gd-ring">
       <TableHeadline
-        levels={view.levels}
-        aAttempts={view.aAttempts}
-        aAttemptsExhausted={view.aAttemptsExhausted}
+        levels={headlineLevels}
+        aAttempts={headlineA.attempts}
+        aAttemptsExhausted={headlineA.exhausted}
         viewerTeam={viewerTeam}
-        playingTeam={playingLevelTeam(view.declarerTeam, view.levels, view.currentLevel)}
-        yourTurn={leaderConcealed !== null ? false : yourTurn}
-        actorName={leaderConcealed !== null ? null : actorName}
+        playingTeam={
+          interludeShowing ? null : playingLevelTeam(view.declarerTeam, view.levels, view.currentLevel)
+        }
+        yourTurn={leaderConcealed !== null || interludeShowing ? false : yourTurn}
+        actorName={leaderConcealed !== null || interludeShowing ? null : actorName}
         dueSeconds={leaderConcealed !== null ? null : dueSeconds}
         planning={clockDeadline?.timingClass === 'planning' && clockConnected}
       />
@@ -772,7 +907,19 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         <div className="gd-ring__seat gd-ring__seat--north">{seatZone('north')}</div>
         <div className="gd-ring__seat gd-ring__seat--west">{seatZone('west')}</div>
         <div className="gd-ring__center">
-          {view.phase === 'ceremonyCut' && view.ceremonyCutter !== null ? (
+          {interludeShowing && interlude !== null ? (
+            // The beat: the winning final play stays ON the table, in place,
+            // marked by the ENDED hand's level (its wild must keep reading) —
+            // the next hand's tribute panel/trick well take the center only
+            // after the beat releases. A reconnect that dropped the trick
+            // history holds a bare well instead (finalPlay null).
+            <TrickWell
+              trick={null}
+              heldTop={interlude.finalPlay?.cards ?? null}
+              level={interlude.level}
+              sweepKey={derived.sweep}
+            />
+          ) : view.phase === 'ceremonyCut' && view.ceremonyCutter !== null ? (
             // Item 3: the REAL cut — one actor, three spectators, all named.
             <CutPanel
               cutter={view.ceremonyCutter}
@@ -822,7 +969,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           descending={handDescending}
           revealed={dealing ? (dealRevealed ?? 0) : undefined}
           dealOrder={dealing ? derived.dealOrder : undefined}
-          hidden={holdFan}
+          hidden={holdFan || interludeShowing}
         />
 
         {/* 3-column grid, ActionBar centered in the middle cell and the sort
@@ -834,7 +981,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         <div className="gd-actionsRow">
           <div className="gd-actionsRow__spacer" aria-hidden="true" />
           <div className="gd-actionsRow__bar">
-            {view.phase !== 'ceremonyCut' && (
+            {view.phase !== 'ceremonyCut' && !interludeShowing && (
               <ActionBar
                 hints={hints}
                 phase={view.phase}
@@ -942,7 +1089,22 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         />
       )}
 
-      {view.matchWinner !== null && (
+      {interludeShowing && interlude !== null && (
+        <InterludeOverlay
+          key={interlude.id}
+          interlude={interlude}
+          viewerTeam={viewerTeam}
+          nameFor={nameFor}
+          aMaxAttempts={variant.aMaxAttempts}
+          onLevelsReached={() => setInterludeLate((prev) => new Set(prev).add(interlude.id))}
+          onDone={() => setInterludeDone((prev) => new Set(prev).add(interlude.id))}
+        />
+      )}
+
+      {/* The match ceremony mounts only after the (shortened) beat dissolves
+          — two full endings back to back was the failure mode the design
+          panel flagged (docs/research/hand-interlude.md). */}
+      {view.matchWinner !== null && !interludeShowing && (
         <ResultOverlay
           winnerTeam={view.matchWinner}
           viewerTeam={viewerTeam}

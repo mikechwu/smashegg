@@ -463,7 +463,7 @@ describe('pass: a transient fade over the cards, not a pill chip (T13)', () => {
     // pass to the table until the sweep): the tick effect runs while any
     // transient-fx stamp (pass fade OR play flight) is fresh and
     // self-expires after.
-    expect(table).toMatch(/const latestFxAt = Math\.max\(/);
+    expect(table).toMatch(/const fxFreshUntil = Math\.max\(/);
     expect(table).toMatch(/deadlines\.length === 0 && Date\.now\(\) >= fxFreshUntil/);
     // The pill renders NO pass state at all — SeatPlate has no passed prop.
     const plate = stripTsComments(
@@ -1256,8 +1256,10 @@ describe('play flight: from behind the pile to the table (T14)', () => {
     );
     expect(table).toMatch(/key=\{playFlight\.id\}/);
     expect(table).toMatch(/dir=\{dirFor\(playFlight\.seat\)\}/);
-    // The tick's fx leg covers the flight's window too (untimed rooms).
-    expect(table).toMatch(/d\.playFx !== null \? \[d\.playFx\.at\] : \[\]/);
+    // The tick's fx leg covers the flight's window too (untimed rooms) —
+    // per-stamp horizons since the interlude round (+3500 = the flight
+    // window; the interlude stamp carries its own 61s horizon).
+    expect(table).toMatch(/d\.playFx !== null \? \[d\.playFx\.at \+ 3500\] : \[\]/);
   });
 
   it('PlayOverlay source discipline: reduced-motion bail, mismatch bail, restore-on-cleanup, display-not-remove', () => {

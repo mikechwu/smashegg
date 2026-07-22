@@ -88,7 +88,10 @@ function TeamBadge({
     <span className={classes.join(' ')} aria-label={aria}>
       <span className="gd-team__label">{label}</span>
       <span className="gd-team__lvword">{t('game.rail.teamLevel')}</span>
-      <span className="gd-team__rank">{rankText(level)}</span>
+      {/* Keyed by rank: the interlude's level-transition stage swaps the
+          badge old → new, and the remount plays the .gd-team__rank change
+          animation — the beat animates the durable rail itself. */}
+      <span key={level} className="gd-team__rank">{rankText(level)}</span>
       {playing && <span className="gd-team__now">{t('game.rail.playingNow')}</span>}
       {level === 'A' && attempts > 0 && (
         <span className="gd-team__dots" role="img" aria-label={t('game.rail.aAttempts', { count: attempts })}>

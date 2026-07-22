@@ -233,5 +233,18 @@
   "game.deal.label": "Dealing",
   "game.seat.switchTo": "Switch to {name}",
   "game.rail.teamLevel": "level",
-  "game.rail.playingNow": "in play"
+  "game.rail.playingNow": "in play",
+  "game.interlude.title": "Hand over",
+  "game.interlude.finalBy": "Last play: {name}",
+  "game.interlude.winUs": "Us wins the hand — up {n}",
+  "game.interlude.winThem": "Them wins the hand — up {n}",
+  "game.interlude.levelUp": "{team}: level {old} → {new}",
+  "game.interlude.levelSame": "{team}: level {rank}",
+  "game.interlude.aBurned": "{team} missed the Ace attempt — {left} left",
+  "game.interlude.aSuspended": "Ace attempts exhausted — {team} is suspended and plays at the opponents' level",
+  "game.interlude.nextHand": "Hand {n} — playing level {rank}",
+  "game.interlude.suspendedNote": "{team} suspended — this hand plays at the opponents' level",
+  "game.interlude.matchWinUs": "Us wins the match",
+  "game.interlude.matchWinThem": "Them wins the match",
+  "game.interlude.skip": "Tap to skip"
 }

@@ -25,6 +25,7 @@ import type {
   GuandanAction,
   GuandanEvent,
   GuandanView,
+  HandResult,
 } from '../../engine/guandan/types';
 import type { TranslationKey } from '../i18n';
 
@@ -836,3 +837,108 @@ export function asGuandanEvents(batch: readonly unknown[] | null): GuandanEvent[
 }
 
 export type Ceremony = NonNullable<Extract<GuandanEvent, { type: 'handStarted' }>['ceremony']>;
+
+// ---------------------------------------------------------------------------
+// The end-of-hand interlude (docs/research/hand-interlude.md): the beat's
+// step machine, pure so the DOM-free suite can pin ordering, durations, the
+// hard cap, and the match-end shortening (the isCeremonyShowing precedent).
+// ---------------------------------------------------------------------------
+
+export type InterludeStepKind = 'hold' | 'standings' | 'levels' | 'curtain' | 'matchline';
+
+export interface InterludeStep {
+  kind: InterludeStepKind;
+  ms: number;
+}
+
+/** Per-step durations (the plan's rough timings, made exact here). The
+ *  A-story insert extends the LEVELS dwell rather than adding a step — the
+ *  suspension block renders inside the level-transition stage, where the
+ *  before → after it explains is on screen. */
+export const INTERLUDE_STEP_MS: Record<InterludeStepKind, number> = {
+  hold: 800,
+  standings: 1600,
+  levels: 1400,
+  curtain: 900,
+  matchline: 800,
+};
+export const INTERLUDE_INSERT_MS = 900;
+/** Hard cap (plan): no auto-run past this, whatever the branch. */
+export const INTERLUDE_CAP_MS = 6500;
+
+/** The beat's step list for a given hand outcome. Match end SHORTENS the
+ *  beat (hold → standings → one match line) and hands off to ResultOverlay
+ *  — never two full endings back to back. */
+export function interludeSteps(opts: { insert: boolean; match: boolean }): InterludeStep[] {
+  if (opts.match) {
+    return [
+      { kind: 'hold', ms: INTERLUDE_STEP_MS.hold },
+      { kind: 'standings', ms: INTERLUDE_STEP_MS.standings },
+      { kind: 'matchline', ms: INTERLUDE_STEP_MS.matchline },
+    ];
+  }
+  return [
+    { kind: 'hold', ms: INTERLUDE_STEP_MS.hold },
+    { kind: 'standings', ms: INTERLUDE_STEP_MS.standings },
+    { kind: 'levels', ms: INTERLUDE_STEP_MS.levels + (opts.insert ? INTERLUDE_INSERT_MS : 0) },
+    { kind: 'curtain', ms: INTERLUDE_STEP_MS.curtain },
+  ];
+}
+
+/** Remount catch-up: the step index the overlay should START at when it
+ *  mounts `elapsedMs` after the fold stamped the beat (a seat switch mid-
+ *  beat must not replay from the top — the wall-clock discipline every
+ *  transient fx here follows). Returns steps.length when the beat is
+ *  already over. */
+export function interludeStepAt(elapsedMs: number, steps: readonly InterludeStep[]): number {
+  let acc = 0;
+  for (let i = 0; i < steps.length; i++) {
+    acc += steps[i]!.ms;
+    if (elapsedMs < acc) return i;
+  }
+  return steps.length;
+}
+
+/** The end-of-hand beat's fold-time snapshot (docs/research/hand-interlude.md):
+ *  everything the interlude shows, captured at the 'handEnded' fold BEFORE the
+ *  same batch's 'handStarted' wipes the table state. Wall-clock stamped like
+ *  playFx/passedAt — a remount computes elapsed from `at` and never replays a
+ *  finished beat. A snapshot reconnect folds no events, so no interlude is
+ *  ever synthesized from state (the plan's honesty rule). */
+export interface InterludeFx {
+  at: number;
+  id: number;
+  /** The winning final play, held in the trick well through the beat. Cards
+   *  from the fold's topCards, seat from the flight stamp; null after a
+   *  reconnect dropped the trick history (the beat then skips the hold's
+   *  name line and the well stays bare). */
+  finalPlay: { seat: Seat | null; cards: Card[] } | null;
+  /** The ENDED hand's level — the well's wild marking must keep reading by
+   *  the hand that was just played, not the next one's. */
+  level: Rank;
+  result: HandResult;
+  /** Both teams' levels BEFORE this hand's scoring: tracked across folds
+   *  (seeded ['2','2'] at hand 1, then each handEnded's newLevels). Null
+   *  when this client joined mid-match and no prior handEnded folded — the
+   *  transition then degrades to showing only the new state. */
+  oldLevels: [Rank, Rank] | null;
+  newLevels: [Rank, Rank];
+  aAttempts: [number, number];
+  aAttemptsExhausted: [boolean, boolean];
+  /** A-state BEFORE this hand (the aTrack at fold time) — what the headline
+   *  badges show during the beat's early stages, so the suspension tag and
+   *  attempt dots land WITH the level transition, not before it. */
+  aBefore: { attempts: [number, number]; exhausted: [boolean, boolean] } | null;
+  /** Team that burned an A-attempt THIS hand without exhausting (the one-line
+   *  insert), or exhausted THIS hand (the dedicated suspension block). Null
+   *  when the before-state is unknown (degrade: no insert, the curtain
+   *  subtitle still reads for a suspended next hand). */
+  aBurnedTeam: 0 | 1 | null;
+  aSuspendedTeam: 0 | 1 | null;
+  /** The next hand, filled by the SAME batch's handStarted fold; stays null
+   *  when the match ended instead. */
+  next: { handNo: number; level: Rank } | null;
+  /** Filled by the same batch's matchEnded fold — selects the shortened
+   *  beat that dissolves into ResultOverlay. */
+  matchWinner: 0 | 1 | null;
+}
