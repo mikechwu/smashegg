@@ -49,6 +49,7 @@ import {
   NO_REMOTE_DEALT,
   placeOf,
   playingLevelTeam,
+  reconcileSelection,
   remainingSeconds,
   remoteDealtCounts,
   rankText,
@@ -59,6 +60,7 @@ import {
   type InterludeFx,
   type PlayMatch,
   type RemoteDealt,
+  type SelectionContext,
 } from './table/helpers';
 import { t } from './i18n';
 import { describeError } from './errors';
@@ -537,24 +539,50 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     if (alt !== undefined) setSelectedSeat(alt);
   });
 
-  // Selection resets whenever the active seat or the hand contents change
-  // (a play/tribute/deal replaced the cards under the indices), whenever
-  // this seat's expected-actor status ends (hints → null: the turn was
-  // resolved — possibly by the server clock), and whenever the trick
-  // context changes (a new top play, a new leader, or a trick sweep): a
-  // lifted card must never survive the situation it was lifted for.
+  // The CHOOSER is transient within one decision moment: it closes whenever
+  // the active seat, the hand, this seat's expected-actor status or the
+  // trick context changes (its matches recompute under it). The SELECTION
+  // does NOT ride this key any more — the old blanket reset here is the
+  // playtest item-2 bug: hints flipping idle→actor changed the key, so a
+  // pre-selection made while others played was wiped the moment the turn
+  // arrived. Selection now survives via the reconciliation effect below.
   const trickKey =
     view === null || view.trick === null
       ? 'noTrick'
       : `${view.trick.leader}|${view.trick.top === null ? 'lead' : multisetKey(view.trick.top.cards)}`;
-  const handKey =
+  const chooserKey =
     view === null
       ? ''
       : `${activeSeat}|${multisetKey(view.hand)}|${hints === null ? 'idle' : 'actor'}|${trickKey}`;
   useEffect(() => {
-    setSelected(new Set());
     setChooserOpen(false);
-  }, [handKey]);
+  }, [chooserKey]);
+
+  // Selection survives view updates (reconcileSelection, helpers): a seat
+  // switch or a fresh deal (handNo/dealNo) resets outright, a changed hand
+  // remaps still-held cards by identity (a server auto-play or a tribute
+  // drops exactly the departed cards and keeps the rest lifted), and
+  // everything else — the turn arriving, a new trick top, an auto-pass —
+  // leaves the lift alone. A LAYOUT effect for the same reason as the
+  // fold above: the remap must land in the same paint as the new hand, so
+  // a stale index can never light the wrong card for a frame.
+  const selectionCtxRef = useRef<SelectionContext | null>(null);
+  useIsomorphicLayoutEffect(() => {
+    // A viewless tick KEEPS the last context: switching to a lagging seat
+    // and back must not blank the memory (the seat comparison — not a
+    // null reset — is what catches a real seat change, so a selection can
+    // never leak across seats through a viewless gap).
+    if (view === null || activeSeat === undefined) return;
+    const ctx: SelectionContext = {
+      seat: activeSeat,
+      handNo: view.handNo,
+      dealNo: derivedBySeat.get(activeSeat)?.dealNo ?? 0,
+      hand: view.hand,
+    };
+    const prev = selectionCtxRef.current;
+    selectionCtxRef.current = ctx;
+    setSelected((sel) => reconcileSelection(sel, prev, ctx));
+  });
 
   // R3: no reset effect for the remote counters — they are keyed by dealNo
   // (see the dealtRemote declaration above), so a NEW deal reads zeros in its

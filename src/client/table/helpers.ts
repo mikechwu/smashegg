@@ -42,6 +42,71 @@ export function sameMultiset(a: readonly Card[], b: readonly Card[]): boolean {
   return a.length === b.length && multisetKey(a) === multisetKey(b);
 }
 
+// ---------------------------------------------------------------------------
+// Selection survival across view updates (elder playtest, item 2).
+//
+// Hand selection is positional (indices into view.hand) and CLIENT-ONLY —
+// the server never sees it; ActionBar's matchSelection gate and the
+// server's own validation keep any surviving selection honest. The old
+// blanket reset keyed on hints/trick state wiped a pre-selection the
+// moment the turn arrived — the playtest bug. The policy now: selection
+// persists across view updates; a changed hand remaps it by card
+// identity; only a seat switch or a fresh deal is a new selection
+// context that resets it outright (a card kept from the ENDED hand must
+// not arrive pre-lifted just because the next deal contains its twin).
+// ---------------------------------------------------------------------------
+
+/** The identity of one selection context: whose hand, which deal of which
+ *  hand number, and the hand's exact card order (indices key into it). */
+export interface SelectionContext {
+  seat: Seat;
+  handNo: number;
+  dealNo: number;
+  hand: readonly Card[];
+}
+
+/** Remap a positional selection onto a changed hand by card identity: each
+ *  selected card (ascending index order) claims the first unclaimed
+ *  identical card in the new hand, so duplicates claim one slot each and
+ *  cards no longer held drop out. */
+export function remapSelectionByIdentity(
+  selected: ReadonlySet<number>,
+  prevHand: readonly Card[],
+  hand: readonly Card[],
+): ReadonlySet<number> {
+  const next = new Set<number>();
+  for (const index of [...selected].sort((a, b) => a - b)) {
+    const card = prevHand[index];
+    if (card === undefined) continue;
+    for (let j = 0; j < hand.length; j += 1) {
+      if (hand[j] === card && !next.has(j)) {
+        next.add(j);
+        break;
+      }
+    }
+  }
+  return next;
+}
+
+/** The survival policy. Deliberately BLIND to hints and trick state — a
+ *  pre-selection made while another seat plays must still be selected
+ *  when the turn arrives (the regression this round pins). Returns the
+ *  SAME set instance when nothing changed so setState bails out. */
+export function reconcileSelection(
+  selected: ReadonlySet<number>,
+  prev: SelectionContext | null,
+  next: SelectionContext,
+): ReadonlySet<number> {
+  if (prev === null || selected.size === 0) return selected;
+  if (prev.seat !== next.seat || prev.handNo !== next.handNo || prev.dealNo !== next.dealNo) {
+    return new Set<number>();
+  }
+  const sameOrder =
+    prev.hand.length === next.hand.length && prev.hand.every((card, i) => card === next.hand[i]);
+  if (sameOrder) return selected;
+  return remapSelectionByIdentity(selected, prev.hand, next.hand);
+}
+
 /** Suit-blind projection: jokers and wilds keep their identity (a wild can
  *  never be swapped for a natural of the same rank — it fills a different
  *  slot), naturals collapse to their rank. Two card sets with equal rank
