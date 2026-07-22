@@ -1,5 +1,15 @@
 # STATUS
 
+## Deploy record (2026-07-22) — 923bdec verified live (health build == pushed HEAD)
+
+Round close: pushed cda882d (prefill blank-when-ambiguous + one-tap
+clear) + 923bdec (the seat drawer + the guard-4 composite fixes);
+outgoing sweep clean. `npm run deploy` → version
+79c7f26d-a9b8-4817-a715-cf50a09c4267; /api/health build == 923bdec0… ==
+pushed HEAD; site 200. No prod smoke rooms. Open validation: the
+batched M5 elder-on-iPhone session (five checks listed in the drawer
+entry below).
+
 ## Seat drawer BUILT (2026-07-22) — item 1b per P1–P3 + the guard-4 composite closed — deployed with the round
 
 The sit-then-name ask relocated from the felt disc into a full-width
