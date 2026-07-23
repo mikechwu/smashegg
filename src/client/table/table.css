@@ -11,6 +11,10 @@
   --cinnabar: #c3392b;
   --ink: #1f2430;
   --goldleaf: #c9a227;
+  /* The card-face base (owner swatch): a warm cream, distinct from --ivory
+     (which stays the UI ink/badge/seal colour). Only the card FRONT uses it —
+     the backs paint their own background over it. */
+  --card-face: #faf2e1;
 
   --font-ui: -apple-system, 'PingFang TC', 'Hiragino Sans TC', 'Noto Sans TC',
     'Microsoft JhengHei', sans-serif;
@@ -487,7 +491,7 @@ button.gd-plate {
   flex-direction: column;
   width: var(--gd-cardw);
   height: calc(var(--gd-cardw) * 1.45);
-  background: var(--ivory);
+  background: var(--card-face, #faf2e1);
   border: 2px solid var(--rosewood);
   border-radius: 8px;
   position: relative;
