@@ -1,9 +1,12 @@
 // CardFace — the card-rendering FRAMEWORK (item 5). Face/back CONTENT comes
 // from the active DeckTheme; everything that encodes GAME STATE is drawn
 // HERE, over the theme, so no theme has a code path to remove it:
-//  • the cinnabar wild marker (a game-state indicator, never decoration)
-//    — appended as a frame-level overlay AFTER the theme face;
-//  • the ghost faces (the identity a wild plays as) with the same marker.
+//  • the WILD marker (a game-state indicator, never decoration) — the ACTIVE
+//    wild-mark from the pool (art-pool/wild-marks): the framework applies its
+//    frame class and/or overlay when the card is wild. The active mark is the
+//    gold heart (the wild card's heart pips turn goldleaf), which survives the
+//    fan overlap the old bottom-corner seal did not;
+//  • the ghost faces (the identity a wild plays as) with the same mark.
 // Selection lift / tribute glow are framework CSS on the FACE inside the
 // wrapping fan button (variant D hit/paint decoupling — the button's hit
 // box never moves; table.css fan block), the focus ring on the button
@@ -17,6 +20,7 @@ import type { JokerRank } from '../../engine/guandan/combos';
 import type { CanonicalForm } from '../../engine/guandan/types';
 import { comboKey, declJokerRank, declRunText, isRedSuit, rankText } from './helpers';
 import { SuitMark } from './suits';
+import { ACTIVE_WILD_MARK } from './art-pool/wild-marks';
 import type { CardFaceSize } from './theme';
 import { useDeckTheme } from './useDeckTheme';
 import './themes/lacquer'; // registers the default theme (owner decision)
@@ -94,35 +98,31 @@ export function comboDeclNode(decl: CanonicalForm): ReactElement {
   );
 }
 
-/** Language-neutral wild seal (item 1): a cinnabar circle stamp with an
- *  ivory four-petal cutout and center dot — reads as a seal at any card
- *  size without translation, replacing the old localized glyph (the
- *  now-removed 'game.card.wildBadge' key). Purely decorative: the
- *  accessible wild fact is carried by cardLabel's " (Wild)" suffix (below),
- *  so the mark itself is aria-hidden. */
-function WildSeal() {
-  return (
-    <svg className="gd-card__wild" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <circle cx="12" cy="12" r="12" fill="var(--cinnabar)" />
-      <g fill="var(--ivory)">
-        <ellipse cx="12" cy="6" rx="3" ry="5" />
-        <ellipse cx="18" cy="12" rx="5" ry="3" />
-        <ellipse cx="12" cy="18" rx="3" ry="5" />
-        <ellipse cx="6" cy="12" rx="5" ry="3" />
-        <circle cx="12" cy="12" r="2" />
-      </g>
-    </svg>
-  );
+/** The active wild-mark's frame class, for a wild card — else ''. A wild card
+ *  carries the pool's ACTIVE mark: its frame class recolours the face (the gold
+ *  heart) and/or its overlay stamps it. The accessible wild fact rides
+ *  cardLabel's " (Wild)" suffix, so the visual mark is aria-hidden. */
+function wildFrameClass(wild: boolean): string {
+  return wild && ACTIVE_WILD_MARK.frameClass ? ` ${ACTIVE_WILD_MARK.frameClass}` : '';
+}
+
+/** The active wild-mark's overlay for a wild card, if it has one — else null. */
+function WildOverlay({ wild }: { wild: boolean }): ReactElement | null {
+  const Overlay = ACTIVE_WILD_MARK.Overlay;
+  return wild && Overlay ? <Overlay /> : null;
 }
 
 export function CardFace({ card, level, size }: CardFaceProps) {
   const theme = useDeckTheme();
+  const wild = isWild(card, level);
   return (
-    <span className={`gd-cardframe gd-card--${size}`} aria-hidden="true">
+    <span className={`gd-cardframe gd-card--${size}${wildFrameClass(wild)}`} aria-hidden="true">
       <theme.Face card={card} level={level} size={size} />
-      {/* The wild marker is FRAMEWORK-drawn over the theme (contract): a
-          theme has no code path to remove or obscure it. */}
-      {isWild(card, level) && <WildSeal />}
+      {/* The wild mark is FRAMEWORK-applied over the theme (contract): a theme
+          has no code path to remove or obscure it. The active mark (the pool)
+          is the gold heart — a frame class the theme cannot strip; the seal
+          option instead stamps this overlay. */}
+      <WildOverlay wild={wild} />
     </span>
   );
 }
@@ -146,12 +146,15 @@ export interface GhostFaceProps {
   size: CardFaceSize;
 }
 
-/** The identity a wild plays as (the chooser's substituted faces). Always
- *  carries the same cinnabar wild corner marker the wild's own face uses —
- *  one convention, one meaning: the wild is at work on this card (§2.3). */
+/** The identity a wild plays as (the chooser's substituted faces). A ghost is
+ *  ALWAYS wild, so it always carries the active wild-mark — one convention, one
+ *  meaning: the wild is at work on this card (§2.3). The mark's frame class goes
+ *  on the ghost root (its suit pip turns gold under the gold-heart mark) and any
+ *  overlay stamps it. */
 export function GhostFace({ rank, suit, size }: GhostFaceProps) {
   const classes = ['gd-card', `gd-card--${size}`, 'gd-card--ghost'];
   if (suit !== null) classes.push(isRedSuit(suit) ? 'gd-card--red' : 'gd-card--black');
+  if (ACTIVE_WILD_MARK.frameClass) classes.push(ACTIVE_WILD_MARK.frameClass);
   return (
     <span className={classes.join(' ')} aria-hidden="true">
       <span className="gd-card__index">
@@ -162,7 +165,7 @@ export function GhostFace({ rank, suit, size }: GhostFaceProps) {
           </span>
         )}
       </span>
-      <WildSeal />
+      <WildOverlay wild={true} />
     </span>
   );
 }

@@ -24,6 +24,7 @@ import { CINNABAR_COURT_THEME } from '../../../src/client/table/themes/cinnabar-
 // below keeps working unchanged against the registry's path strings.
 import { SUIT_PATHS } from '../../../src/client/table/suits';
 import { JOKER_CORNER_MAX_X } from '../../../src/client/table/jokers';
+import { ACTIVE_WILD_MARK, WILD_MARKS } from '../../../src/client/table/art-pool/wild-marks';
 import { PIP_LAYOUTS } from '../../../src/client/table/themes/cinnabar-court/pips';
 import { LACQUER_THEME } from '../../../src/client/table/themes/lacquer';
 
@@ -110,23 +111,46 @@ for (const theme of deckThemes()) {
 }
 
 describe('the framework overlays (structural: no theme can remove them)', () => {
-  it('the composed CardFace carries the wild marker for the wild, and only the wild', () => {
+  // The wild MARK is a pool entry now (art-pool/wild-marks); the ACTIVE one is
+  // the gold heart (a frame class), the seal (an overlay) is a kept option.
+  // The mark's signature: its frameClass if it has one, else its overlay class.
+  const hasActiveWildMark = (html: string): boolean =>
+    (ACTIVE_WILD_MARK.frameClass !== undefined && html.includes(ACTIVE_WILD_MARK.frameClass)) ||
+    (ACTIVE_WILD_MARK.Overlay !== undefined && html.includes('gd-card__wild'));
+
+  it('the wild-mark pool: the gold heart is ACTIVE, the seal stays available', () => {
+    expect(ACTIVE_WILD_MARK.name).toBe('gold-heart');
+    expect(ACTIVE_WILD_MARK.frameClass).toBe('gd-wild--gold');
+    expect(Object.keys(WILD_MARKS).sort()).toEqual(['gold-heart', 'seal']);
+    expect(WILD_MARKS.seal!.Overlay).toBeDefined(); // the stamp is one line from returning
+  });
+
+  it('the gold-heart recolour covers the shared corner AND cinnabar-court number body pips', () => {
+    const css = readFileSync(join(__dirname, '../../../src/client/table/table.css'), 'utf8');
+    // the shared corner index heart (both themes) + lacquer body pip
+    expect(css).toMatch(/\.gd-wild--gold \.gd-suit \{[^}]*color:\s*var\(--goldleaf\)/);
+    // cinnabar-court's number body pips are direct SUIT_FILL paths, recoloured
+    // by a companion rule (panel-audit MED, Codex)
+    expect(css).toMatch(/\.gd-wild--gold \.gd-ccourt__pips path \{[^}]*fill:\s*var\(--goldleaf\)/);
+  });
+
+  it('the composed CardFace carries the ACTIVE wild mark for the wild, and only the wild', () => {
     for (const size of SIZES) {
       const wildHtml = renderToStaticMarkup(createElement(CardFace, { card: '2H', level: '2', size }));
-      expect(wildHtml).toContain('gd-card__wild');
+      expect(hasActiveWildMark(wildHtml)).toBe(true);
       const plainHtml = renderToStaticMarkup(createElement(CardFace, { card: '2S', level: '2', size }));
-      expect(plainHtml).not.toContain('gd-card__wild');
+      expect(hasActiveWildMark(plainHtml)).toBe(false);
       // Level moves the wild with it: at level '7', 7H is wild and 2H is not.
       const movedHtml = renderToStaticMarkup(createElement(CardFace, { card: '7H', level: '7', size }));
-      expect(movedHtml).toContain('gd-card__wild');
+      expect(hasActiveWildMark(movedHtml)).toBe(true);
       const demotedHtml = renderToStaticMarkup(createElement(CardFace, { card: '2H', level: '7', size }));
-      expect(demotedHtml).not.toContain('gd-card__wild');
+      expect(hasActiveWildMark(demotedHtml)).toBe(false);
     }
   });
 
-  it('GhostFace always carries the marker (the wild is at work on this card)', () => {
+  it('GhostFace always carries the ACTIVE wild mark (the wild is at work on this card)', () => {
     const html = renderToStaticMarkup(createElement(GhostFace, { rank: '9', suit: 'S', size: 'mini' }));
-    expect(html).toContain('gd-card__wild');
+    expect(hasActiveWildMark(html)).toBe(true);
   });
 
   it('CardBack routes through the active theme', () => {

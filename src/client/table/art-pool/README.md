@@ -1,8 +1,11 @@
 # Card-art pool
 
-A pool of swappable card pictures. Each card's illustration is a **pool entry**;
-which entry is active is one line in a registry, so a picture can be changed
+A pool of swappable card presentations. Each entry is one **pool entry**; which
+entry is active is one line in a registry, so a presentation can be changed
 without touching the composition, and old art stays **archived and reusable**.
+
+Two pools so far: `joker-figures/` (the joker body illustration) and
+`wild-marks/` (how a wild card is marked).
 
 ## joker-figures/
 
@@ -37,3 +40,26 @@ already-coloured figure in that space — tinted figures read the palette,
 self-coloured ones ignore it), then register it in `index.ts`. No id/defs/text
 nodes (deck contract); place nothing in card-space numbers — `fitTransform`
 handles placement.
+
+## wild-marks/
+
+A wild card (the level rank of hearts) is marked by the **active** wild-mark,
+applied by the framework (`CardFace` / `GhostFace`) over every wild surface —
+no theme can remove it.
+
+- `types.ts` — the `WildMark` contract: a `frameClass` (a class the framework
+  adds when wild, so CSS recolours/edges the face) and/or an `Overlay` (an
+  element stamped over the face).
+- `gold-heart.ts` — **active**: turns the wild card's heart pips goldleaf
+  (`frameClass: gd-wild--gold`; `table.css` recolours `.gd-suit` under it). The
+  gold heart sits in the corner index — the fan's always-visible sliver.
+- `seal.tsx` — **archived**: the cinnabar seal stamp. It sat in the lower-left
+  corner and was easily hidden under the next card in the fan — the reason the
+  owner moved to the gold heart. Kept as a reusable option.
+- `index.ts` — the registry. `ACTIVE_WILD_MARK` names the one in use.
+
+### Swap the wild presentation
+
+Re-point `ACTIVE_WILD_MARK` in `wild-marks/index.ts` (e.g. `WILD_MARKS.seal`
+restores the stamp). Nothing else changes — `CardFace` and `GhostFace` consume
+the active mark.

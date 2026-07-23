@@ -531,6 +531,27 @@ button.gd-plate {
 .gd-card--black {
   color: var(--ink);
 }
+/* The GOLD-HEART wild mark (art-pool/wild-marks — the ACTIVE presentation). The
+ * framework adds .gd-wild--gold to the frame / ghost root of a WILD card; every
+ * .gd-suit under it turns goldleaf. SuitMark always carries .gd-suit, so the
+ * CORNER index heart (both themes) and lacquer's body pip recolour — the corner
+ * is the marker that matters: it sits in the fan's always-visible sliver, where
+ * the seal (.gd-card__wild) was hidden under the next card. Targeting the pip
+ * directly beats the inherited .gd-card--red/--black colour, so the wild heart
+ * reads gold while its rank keeps its colour. A theme cannot strip the
+ * framework-applied class, so the mark can't be removed (the seal round's
+ * contract, kept). */
+.gd-wild--gold .gd-suit {
+  color: var(--goldleaf);
+}
+/* Cinnabar-court draws its NUMBER-card body pips as direct SUIT_FILL paths (not
+ * SuitMark/.gd-suit), so recolour them here too, keeping a lifted wild consistent
+ * with its gold corner (panel-audit MED, Codex). The court-rank cartouche emblem
+ * lives in the frozen art module and keeps its suit fill — a lifted-only, niche
+ * spot; the gold CORNER heart still marks it. */
+.gd-wild--gold .gd-ccourt__pips path {
+  fill: var(--goldleaf);
+}
 /* The shared suit part (suits.tsx, SuitMark — the ONLY way a suit is ever
  * drawn; no rendered surface may use a Unicode suit character, which some
  * Chinese-brand Android builds promote to a color emoji). Base size rides
