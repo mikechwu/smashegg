@@ -1,6 +1,26 @@
 # Seat-anchored name entry — placement research (prefill round, item 1b)
 
-**Status:** PROPOSAL — awaiting the owner's placement-mechanic sign-off.
+> **SUPERSEDED 2026-07-22 by the seat-bubble overlay round** (METHODOLOGY §9:
+> dated + marked, NOT rewritten). The **seat drawer** proposed and adopted
+> below (shipped 923bdec) was replaced, on the owner's direction after
+> real-player feedback, by a **floating speech-bubble overlay** with a tail
+> pointing at the pressed seat. The drawer's one weakness in practice was the
+> very thing this doc treated as acceptable — it was inserted into the grid
+> flow, so opening it REFLOWED the lobby; the overlay floats above and never
+> reflows. Everything below stays VALID as the record of why we got here: the
+> hard constraints it establishes are unchanged and the overlay honors them —
+> 16px input (no iOS zoom), the ONE claim path untouched, all four positions
+> on-screen — and it re-inherits the drawer's two structural wins (the tail is
+> the connector-nub idea, now on the bubble; keeping the ask in the scrollable
+> document, not `position:fixed`, preserves iOS's scroll-input-into-view for
+> the soft keyboard). The one fact this doc got exactly right and the overlay
+> leans on: **bottom-anchored `position:fixed` sheets slide under the iOS
+> keyboard** — which is why the overlay is `absolute` (in-document), not fixed,
+> and opens every seat toward the upper-central band. See
+> docs/audits/seat-bubble-overlay.md and STATUS.md for the overlay round.
+
+**Status:** ADOPTED (seat drawer, shipped 923bdec) → SUPERSEDED (seat-bubble
+overlay, 2026-07-22 — see the banner above).
 **Date:** 2026-07-22
 **Constraint honored:** the felt disc keeps the room code, unchanged and
 uncovered; the flank seat cells are ~75px at 390px (the fact that produced

@@ -420,63 +420,12 @@ a {
   justify-items: center;
   gap: 0.6rem 0.5rem;
   margin: 0 0 1.25rem;
-}
-/* The seat DRAWER (item 1b, P1–P3): a full-width entry row inserted into
-   the grid flow adjacent to the pressed seat. Two insertion slots cover
-   the four seats: below the TOP seat's row (seat 2), and between the
-   disc row and the bottom row (flanks open BELOW the disc row; the
-   bottom seat opens ABOVE its own row — P2's keyboard clearance). The
-   disc keeps the room code; rows below shift down (in-flow, so the
-   browser's native scroll-focused-input behavior owns the soft
-   keyboard). iOS-KEYBOARD BOUNDARY (guard 3): the 390px iframe verifies
-   GEOMETRY only — real soft-keyboard occlusion is an M5 device check. */
-.lobby-table--drawer-top {
-  grid-template-areas:
-    '.      top      .'
-    'drawer drawer drawer'
-    'left   disc   right'
-    '.      bottom   .';
-}
-.lobby-table--drawer-mid {
-  grid-template-areas:
-    '.      top      .'
-    'left   disc   right'
-    'drawer drawer drawer'
-    '.      bottom   .';
-}
-.lobby-drawer {
-  grid-area: drawer;
-  width: 100%;
-  box-sizing: border-box;
-  background: color-mix(in srgb, var(--rosewood) 55%, var(--lacquer));
-  border: 1px solid color-mix(in srgb, var(--cinnabar) 55%, transparent);
-  border-left: 4px solid var(--cinnabar);
-  border-radius: 10px;
-  padding: 0.6rem 0.75rem;
-  animation: lobby-drawer-in 200ms ease-out;
-}
-@keyframes lobby-drawer-in {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-/* A pressed FLANK chip slides to the end of the disc row so its nub sits
-   tight against the drawer below (proximity is the strongest belongs-to
-   signal) — only the pressed chip moves within its own cell; every other
-   seat stays put. */
-.lobby-table--drawer-mid .lobby-tableseat--s1.lobby-tableseat--asking,
-.lobby-table--drawer-mid .lobby-tableseat--s3.lobby-tableseat--asking {
-  align-self: end;
-}
-@media (prefers-reduced-motion: reduce) {
-  .lobby-drawer {
-    animation: none;
-  }
+  /* Containing block for the seat bubbles (owner overlay round): the ask
+     floats ABOVE the table as an absolute overlay, so opening it NEVER
+     reshapes this grid — the table area is constant and the lobby cannot
+     reflow. (Superseded the inline seat drawer; the reflow it caused was
+     the owner's complaint.) */
+  position: relative;
 }
 .lobby-table__disc {
   grid-area: disc;
@@ -537,12 +486,21 @@ a {
   opacity: 0.85;
 }
 
-/* Seat wrappers: FIXED geographic areas by seat index (never re-anchored). */
+/* Seat wrappers: FIXED geographic areas by seat index (never re-anchored).
+   position:relative makes each wrapper the containing block for ITS OWN seat
+   bubble, so the bubble's tail aims at the seat by construction. */
 .lobby-tableseat {
   display: flex;
   justify-content: center;
   width: 100%;
   min-width: 0;
+  position: relative;
+}
+/* The targeted seat lifts above its neighbours and the disc so its bubble
+   floats over them (the disc's room code is briefly covered — expected for a
+   focus overlay; it returns when the bubble closes). */
+.lobby-tableseat--asking {
+  z-index: 20;
 }
 .lobby-tableseat--s0 {
   grid-area: bottom;
@@ -570,6 +528,10 @@ a {
   align-items: center;
   gap: 0.4rem;
   min-width: 0;
+  /* Containing block for the seat bubble: the CHIP, not the wider wrapper —
+     on a wide layout the flank column exceeds the chip's max-width, so
+     anchoring to the chip keeps the flank tail on the seat (panel-audit MED). */
+  position: relative;
 }
 .lobby-seat--empty {
   background: transparent;
@@ -579,57 +541,164 @@ a {
      narrow flank seats have room for the CTA on one line (see table header). */
   padding: 0.25rem;
 }
-/* Sit-then-name: the chip whose Sit press opened the drawer keeps a
-   cinnabar ring (steady, never pulsing) AND carries the connector NUB —
-   a ::after triangle ON the pressed chip pointing into its drawer, so
-   the alignment is correct BY CONSTRUCTION for every seat position
-   (research: the Codrops/Google-Images tapped-item nub). Seats 1/2/3
-   point DOWN (their drawer opens below); seat 0 points UP (P2: its
-   drawer opens above). */
+/* The targeted seat keeps a steady cinnabar ring (never pulsing) to
+   reinforce which seat the bubble belongs to — the tail is the primary
+   belongs-to signal; the ring is the on-chip echo. */
 .lobby-seat--asking {
   border: 2px solid var(--cinnabar, #c3392b);
   border-radius: 10px;
-  position: relative;
 }
-.lobby-seat--asking::after {
+
+/* --- The seat BUBBLE (owner overlay round): a small speech-bubble overlay
+   that floats above the pressed seat with a TAIL pointing at it. Anchored
+   absolutely INSIDE the pressed seat's wrapper, so the tail aims at the seat
+   BY CONSTRUCTION — top/bottom seats center the bubble on the seat's x-axis,
+   the flanks on its y-axis, both robust to the other seats' chip heights (no
+   measurement, no reflow). Each seat opens its bubble toward the table CENTER,
+   keeping all four fully on-screen at 390px and in the upper-central band
+   (away from the soft keyboard). iOS-KEYBOARD BOUNDARY: the bubble stays in the
+   scrollable document (absolute, NOT fixed), so the browser's native
+   scroll-focused-input-into-view still fires — but the 390px iframe has no soft
+   keyboard, so real occlusion is an M5 device check, not proven here. --- */
+.lobby-bubble {
+  position: absolute;
+  width: 12rem;
+  box-sizing: border-box;
+  /* Bubble surface, shared by the body fill AND the tail so they seam. */
+  --bubble-surface: color-mix(in srgb, var(--rosewood) 72%, var(--lacquer));
+  /* drop-shadow (not box-shadow) so the shadow wraps the tail too. */
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.55));
+  animation: lobby-bubble-in 150ms ease-out;
+}
+/* Per-seat placement + tail. The tail (::after) is a border triangle in the
+   surface colour, centered on the bubble's seat-facing edge → on the seat's
+   center axis by construction. gap == tail height (8px) so the apex meets the
+   seat's ring. */
+.lobby-tableseat--s2 .lobby-bubble {
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+.lobby-tableseat--s2 .lobby-bubble::after {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid var(--bubble-surface);
+}
+.lobby-tableseat--s0 .lobby-bubble {
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+.lobby-tableseat--s0 .lobby-bubble::after {
   content: '';
   position: absolute;
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  border: 8px solid transparent;
-  border-top-color: var(--cinnabar, #c3392b);
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-top: 8px solid var(--bubble-surface);
 }
-.lobby-tableseat--s0 .lobby-seat--asking::after {
-  top: auto;
-  bottom: 100%;
-  border-top-color: transparent;
-  border-bottom-color: var(--cinnabar, #c3392b);
+.lobby-tableseat--s1 .lobby-bubble {
+  right: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
 }
-/* The sit-then-name form's internals — since item 1b it renders in the
-   full-width seat DRAWER (lobby-drawer above), not on the disc. */
+.lobby-tableseat--s1 .lobby-bubble::after {
+  content: '';
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-left: 8px solid var(--bubble-surface);
+}
+.lobby-tableseat--s3 .lobby-bubble {
+  left: calc(100% + 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.lobby-tableseat--s3 .lobby-bubble::after {
+  content: '';
+  position: absolute;
+  right: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  border-top: 8px solid transparent;
+  border-bottom: 8px solid transparent;
+  border-right: 8px solid var(--bubble-surface);
+}
+@keyframes lobby-bubble-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes lobby-bubble-pop {
+  from {
+    transform: scale(0.95);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lobby-bubble,
+  .lobby-sitask {
+    animation: none;
+  }
+}
+
+/* The sit-then-name form's internals — the bubble body. Spare by design
+   (owner): input + confirm, a corner × to cancel, a reserved hint line. */
 .lobby-sitask {
+  position: relative; /* containing block for the corner × */
+  background: var(--bubble-surface);
+  border-radius: 12px;
+  box-sizing: border-box;
+  padding: 0.85rem 0.7rem 0.5rem; /* top pad clears the corner × */
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.3rem;
+  align-items: stretch;
+  gap: 0.4rem;
   width: 100%;
+  text-align: center;
+  animation: lobby-bubble-pop 150ms ease-out;
 }
-.lobby-sitask__title {
-  margin: 0;
-  font-size: 0.8rem;
-  font-weight: 700;
+.lobby-sitask__close {
+  position: absolute;
+  top: 0.1rem;
+  right: 0.2rem;
+  background: none;
+  border: 0;
+  color: var(--ivory, #f5efe3);
+  opacity: 0.65;
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 0.15rem 0.35rem;
+  cursor: pointer;
+}
+.lobby-sitask__close:hover {
+  opacity: 1;
 }
 .lobby-sitask__input {
-  width: min(85%, 16rem);
+  width: 100%;
   box-sizing: border-box;
   border-radius: 8px;
   border: 1px solid rgba(245, 239, 227, 0.5);
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(0, 0, 0, 0.28);
   color: var(--ivory, #f5efe3);
-  padding: 0.35rem 0.5rem;
+  padding: 0.4rem 0.5rem;
   /* 16px MINIMUM (guard 3, pinned): iOS Safari zooms the viewport on
-     focus for any input below 16px — the drawer design depends on the
+     focus for any input below 16px — the overlay design depends on the
      page NOT zooming. The old 0.9rem (14.4px) was a live zoom bug. */
   font-size: 1rem;
   font-family: inherit;
@@ -637,7 +706,7 @@ a {
 }
 .lobby-sitask__hint {
   margin: 0;
-  min-height: 1.1em;
+  min-height: 1.05em;
   font-size: 0.6875rem;
   opacity: 0.9;
 }
@@ -646,20 +715,20 @@ a {
   font-size: 0.8rem;
   font-weight: 700;
 }
-.lobby-sitask__row {
-  display: flex;
-  gap: 0.5rem;
-}
 .lobby-sitask__confirm {
   background: var(--cinnabar, #c3392b);
   border: 0;
   color: var(--ivory, #f5efe3);
   border-radius: 999px;
-  padding: 0.25rem 0.9rem;
+  padding: 0.35rem 0.9rem;
   font-family: inherit;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
+}
+.lobby-sitask__confirm:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 .lobby-sitask__cancel {
   background: rgba(0, 0, 0, 0.25);

@@ -76,12 +76,18 @@ export function sitIntent(nameReady: boolean): 'claim' | 'ask' {
   return nameReady ? 'claim' : 'ask';
 }
 
-/** The sit-then-name form, rendered in the SEAT DRAWER (item 1b — a
- *  full-width row inserted into the lobby grid adjacent to the pressed
- *  seat; it replaced the earlier on-disc placement, which the proximity
- *  research and the owner's playtest both found too disconnected from
- *  the seat). Exported for DOM-free render pins of its three states:
- *  asking, needs-a-name, and the race-loser message. */
+/** The sit-then-name form, rendered inside the SEAT BUBBLE — a small
+ *  speech-bubble overlay floating above the pressed seat, with a TAIL
+ *  pointing at it (owner round: the overlay supersedes the inline seat
+ *  drawer, which the owner's real-player feedback found unsatisfying; the
+ *  supersession is recorded, not rewritten, in seat-entry-placement.md).
+ *  The pointer carries belongs-to, so there is NO visible seat label; the
+ *  seat identity still reaches assistive tech through the input's
+ *  aria-label (a tail is invisible to a screen reader). This is UI
+ *  relocation only — the form is the SAME one the drawer held (the ONE
+ *  claim path, the prefill, the claiming lock, the race-taken message all
+ *  carry over untouched). Exported for DOM-free render pins of its three
+ *  states: asking, needs-a-name, and the race-loser message. */
 export function SitAskPanel({
   position,
   name,
@@ -93,7 +99,9 @@ export function SitAskPanel({
   onConfirm,
   onCancel,
 }: {
-  /** Localized position word of the target seat (bottom/right/top/left). */
+  /** Localized position word of the target seat (bottom/right/top/left),
+   *  used for the input's accessible name only — never shown (the tail is
+   *  the visible belongs-to signal). */
   position: string;
   name: string;
   /** True after a confirm attempt with a blank name — the inline
@@ -126,7 +134,17 @@ export function SitAskPanel({
   }
   return (
     <div className="lobby-sitask">
-      <p className="lobby-sitask__title">{t('lobby.sitAsk.title', { position })}</p>
+      {/* Spare by design (owner: just the input and the confirm): the seat
+          label is gone (the tail replaces it), the steady prompt line is
+          gone. Cancel is a corner ×, so the body is input + confirm. */}
+      <button
+        type="button"
+        className="lobby-sitask__close"
+        aria-label={t('lobby.sitAsk.cancel')}
+        onClick={onCancel}
+      >
+        ×
+      </button>
       <input
         className="lobby-sitask__input"
         type="text"
@@ -136,29 +154,29 @@ export function SitAskPanel({
           if (e.key === 'Enter') onConfirm();
         }}
         placeholder={t('lobby.namePlaceholder')}
+        aria-label={t('lobby.sitAsk.nameFor', { position })}
         maxLength={32}
         autoFocus
       />
-      <p className="lobby-sitask__hint" role={needName ? 'alert' : undefined}>
-        {needName
-          ? t('lobby.sitAsk.needName')
-          : claiming
-            ? t('lobby.sitAsk.claiming')
-            : t('lobby.sitAsk.prompt')}
+      <button
+        type="button"
+        className="lobby-sitask__confirm"
+        disabled={claiming || !connected}
+        onClick={onConfirm}
+      >
+        {t('lobby.sitAsk.confirm')}
+      </button>
+      {/* Reserved line (min-height, no reflow): the empty-confirm alert and
+          the in-flight status; blank in the steady state. The claiming state
+          is a live region too (role=status) so the wait never "looks like
+          silence" to assistive tech either — the panel's own contract
+          (panel-audit INFO, workflow sweep). */}
+      <p
+        className="lobby-sitask__hint"
+        role={needName ? 'alert' : claiming ? 'status' : undefined}
+      >
+        {needName ? t('lobby.sitAsk.needName') : claiming ? t('lobby.sitAsk.claiming') : ''}
       </p>
-      <span className="lobby-sitask__row">
-        <button
-          type="button"
-          className="lobby-sitask__confirm"
-          disabled={claiming || !connected}
-          onClick={onConfirm}
-        >
-          {t('lobby.sitAsk.confirm')}
-        </button>
-        <button type="button" className="lobby-sitask__cancel" onClick={onCancel}>
-          {t('lobby.sitAsk.cancel')}
-        </button>
-      </span>
     </div>
   );
 }
@@ -375,18 +393,38 @@ export function Lobby({ snapshot, store }: LobbyProps) {
                   setSitAskNeedName(false);
                   setSitAskClaiming(false);
                 } else {
+                  // Last-pressed-seat-wins (owner overlay round): pressing a
+                  // DIFFERENT seat while the bubble is open RETARGETS it — the
+                  // tail moves to the latest seat and the pending confirm will
+                  // claim THAT seat. Nothing is claimed here; the only claim
+                  // stays the confirm (and the name-ready fast path above), so
+                  // a retarget can neither double-claim nor half-claim a seat.
+                  const retarget = sitAsk !== null;
+                  // A confirm already fired in this bubble session (its claim is
+                  // in flight). Treat the retarget as a FRESH open, NOT a
+                  // preserve — a just-committed identity must re-face the
+                  // blank-when-ambiguous rule (shared device: the next seat is
+                  // likely a DIFFERENT person). Panel-audit LOW (Codex).
+                  const claimInFlight = sitAskClaiming;
                   setSitAsk(s);
-                  setSitAskName(
-                    sitAskPrefill(
-                      readLastName(),
-                      snapshot.seats.size > 0 || Date.now() - lastClaimAtRef.current < 10_000,
-                      room.seats.filter((x) => x.claimed).map((x) => x.name ?? ''),
-                    ),
-                  );
+                  // A FRESH open (or a retarget after a confirm) runs the
+                  // blank-when-ambiguous prefill; an UNCOMMITTED retarget
+                  // PRESERVES the typed name — the seat changed, not the person,
+                  // so re-running prefill (or blanking) would drop what they
+                  // just typed.
+                  if (!retarget || claimInFlight) {
+                    setSitAskName(
+                      sitAskPrefill(
+                        readLastName(),
+                        snapshot.seats.size > 0 || Date.now() - lastClaimAtRef.current < 10_000,
+                        room.seats.filter((x) => x.claimed).map((x) => x.name ?? ''),
+                      ),
+                    );
+                  }
                   setSitAskNeedName(false);
                   // A retarget is a NEW ask session (cumulative panel MED
                   // 1: an in-flight lock carried onto the new seat wedged
-                  // its drawer in "sitting down" — the old flight belongs
+                  // its bubble in "sitting down" — the old flight belongs
                   // to the old seat; the DO serializes both regardless).
                   setSitAskClaiming(false);
                 }
@@ -394,6 +432,61 @@ export function Lobby({ snapshot, store }: LobbyProps) {
             >
               {t('lobby.claimButton')}
             </button>
+          )}
+          {/* The seat BUBBLE (owner overlay round): an absolute overlay anchored
+              INSIDE this seat's CHIP (.lobby-seat), so its tail aims at the seat
+              BY CONSTRUCTION — top/bottom center the bubble on the chip's x,
+              flanks on its y. Anchored to the CHIP, not the wider wrapper, so the
+              flank tail stays on the seat on WIDE layouts too, where the flank
+              column exceeds the chip's max-width (panel-audit MED, Codex).
+              Absolute ⇒ out of flow ⇒ the lobby never reflows; it stays in the
+              scrollable document (not fixed), so iOS's native
+              scroll-focused-input-into-view still fires for the soft keyboard.
+              Rendered only for the targeted seat; a retarget unmounts the old
+              seat's bubble and mounts this one, so autofocus re-fires. */}
+          {asking && (
+            <div className="lobby-bubble">
+              <SitAskPanel
+                position={positionLabel}
+                name={sitAskName}
+                needName={sitAskNeedName}
+                taken={claimedOf(s) && !snapshot.seats.has(s)}
+                claiming={sitAskClaiming}
+                connected={snapshot.connected}
+                onName={(value) => {
+                  setSitAskName(value);
+                  setSitAskNeedName(false);
+                }}
+                onConfirm={() => {
+                  // Disconnect parity (panel-audit LOW, workflow sweep): the
+                  // confirm BUTTON is disabled while disconnected, but Enter in
+                  // the input calls onConfirm directly — so the guard lives HERE
+                  // too, or a claim could fire over a dead socket and wedge the
+                  // panel on "sitting down" (no rejection arrives to unwedge it).
+                  if (!snapshot.connected) return;
+                  if (sitAskClaiming) return;
+                  if (sitAskName.trim().length === 0) {
+                    setSitAskNeedName(true);
+                    return;
+                  }
+                  // The SAME single claim path as name-then-sit (takeSeat →
+                  // store.claim) — the bubble reorders UI steps, never the
+                  // authoritative claim. Success closes via the effect above; a
+                  // lost race flips `taken` instead; the claiming lock (panel
+                  // MED) makes a double-tap send exactly one claimSeat.
+                  setSitAskClaiming(true);
+                  lastClaimAtRef.current = Date.now();
+                  takeSeat(store, sitAskName, s);
+                  writeLastName(sitAskName.trim());
+                }}
+                onCancel={() => {
+                  setSitAsk(null);
+                  setSitAskName('');
+                  setSitAskNeedName(false);
+                  setSitAskClaiming(false);
+                }}
+              />
+            </div>
           )}
         </div>
       </div>
@@ -428,23 +521,15 @@ export function Lobby({ snapshot, store }: LobbyProps) {
           earns its existence as the thing people gather around. Four seats
           (§3) sit around it in FIXED geographic positions, so partners face
           across. */}
-      {/* The seat DRAWER grid (item 1b, docs/research/seat-entry-placement.md,
-          P1–P3): while an ask is open the table grid gains a full-width
-          drawer row ADJACENT to the pressed seat — below the top seat's
-          row, below the disc row for the flanks, and ABOVE the bottom
-          seat's row (P2: keyboard clearance + on-screen guarantee). The
-          disc ALWAYS keeps the room code — it is never covered or
-          replaced. Belongs-to is triple-signaled (research: adjacency +
-          connector nub + shared accent): the nub is a ::after triangle ON
-          THE PRESSED CHIP itself, so its alignment is correct by
-          construction for every seat position. */}
-      <div
-        className={`lobby-table${
-          sitAsk === null ? '' : sitAsk === 2 ? ' lobby-table--drawer-top' : ' lobby-table--drawer-mid'
-        }`}
-        role="group"
-        aria-label={t('lobby.heading')}
-      >
+      {/* The seat BUBBLE overlay (owner overlay round, supersedes the inline
+          seat drawer — docs/research/seat-entry-placement.md, marked
+          superseded there per METHODOLOGY §9): the ask now floats ABOVE the
+          table (position:absolute, rendered inside the pressed seat's wrapper
+          in seatChip) with a tail pointing at the seat. The table className is
+          therefore CONSTANT — opening the ask no longer switches grid areas,
+          so the lobby never reflows. The disc keeps the room code; the bubble
+          simply floats over the felt while open. */}
+      <div className="lobby-table" role="group" aria-label={t('lobby.heading')}>
         <div className="lobby-table__disc">
           <span className="lobby-table__codelabel">{t('lobby.roomCode')}</span>
           <strong className="lobby-table__code">{store.code}</strong>
@@ -467,49 +552,9 @@ export function Lobby({ snapshot, store }: LobbyProps) {
                 : ' '}
           </p>
         </div>
+        {/* Each seat renders its OWN bubble when it is the target (seatChip),
+            so the tail is anchored to the seat by construction. */}
         {SEATS.map((s) => seatChip(s))}
-        {sitAsk !== null && (
-          <div className="lobby-drawer">
-            {/* Keyed by seat: a RETARGET remounts the panel, so autofocus
-                re-fires on the new ask (cumulative panel LOW). */}
-            <SitAskPanel
-              key={sitAsk}
-              position={t(POSITION_KEY[sitAsk]!)}
-              name={sitAskName}
-              needName={sitAskNeedName}
-              taken={claimedOf(sitAsk) && !snapshot.seats.has(sitAsk)}
-              claiming={sitAskClaiming}
-              connected={snapshot.connected}
-              onName={(value) => {
-                setSitAskName(value);
-                setSitAskNeedName(false);
-              }}
-              onConfirm={() => {
-                if (sitAskClaiming) return;
-                if (sitAskName.trim().length === 0) {
-                  setSitAskNeedName(true);
-                  return;
-                }
-                // The SAME single claim path as name-then-sit (takeSeat →
-                // store.claim) — the drawer reorders UI steps, never the
-                // authoritative claim. Success closes via the effect
-                // above; a lost race flips `taken` instead; the claiming
-                // lock (panel MED) makes a double-tap send exactly one
-                // claimSeat.
-                setSitAskClaiming(true);
-                lastClaimAtRef.current = Date.now();
-                takeSeat(store, sitAskName, sitAsk);
-                writeLastName(sitAskName.trim());
-              }}
-              onCancel={() => {
-                setSitAsk(null);
-                setSitAskName('');
-                setSitAskNeedName(false);
-                setSitAskClaiming(false);
-              }}
-            />
-          </div>
-        )}
       </div>
 
       <button
