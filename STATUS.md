@@ -21,6 +21,15 @@ seats' chip heights, no measurement. Each seat opens its bubble toward the
 table CENTER, keeping all four in the upper-central band. Spare by design: just
 the input, the 坐下 confirm, and a corner × — the steady prompt line is gone.
 
+COLOUR (owner feedback: the first dark-on-dark tail was hard to link to a
+seat). Redesigned as a LIGHT ivory callout with a CINNABAR edge and a bigger
+bordered ARROW (a cinnabar rim continuing the body border over an ivory fill) —
+a high-contrast figure on the dark lacquer table, and the shared cinnabar
+color-codes the bubble to its seat, whose highlight is now a cinnabar ring +
+glow (Gestalt similarity: red arrow → red seat). Dark ink on ivory (AAA); the
+confirm stays cinnabar. Re-verified live at 390px zh-Hant across all four seats
+— the arrow reads clearly and points at the ringed seat each time.
+
 LAST-PRESSED-SEAT-WINS (new): pressing a DIFFERENT seat while the bubble is open
 RETARGETS it — the single sitAsk target moves, so the old seat's bubble unmounts
 and the new one mounts (the tail follows; autofocus re-fires with no key). A

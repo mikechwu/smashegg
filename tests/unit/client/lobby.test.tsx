@@ -447,40 +447,48 @@ describe('the seat bubble overlay (owner round)', () => {
     );
   });
 
-  it('the tail points at the targeted seat by construction — one direction per seat, centered on the seat axis', () => {
-    // top (s2): bubble hangs below, tail on its BOTTOM-facing edge points UP;
-    // bottom (s0): above, tail points DOWN; right (s1): left of the seat, tail
-    // RIGHT; left (s3): right of the seat, tail LEFT. Each tail is centered on
-    // the bubble's seat-facing edge, and the bubble is centered on the seat's
-    // own axis (translateX/Y(-50%)), so the tail sits on the seat's centre by
-    // construction — robust to the other seats' chip heights.
-    const s2 = appCss.match(/\.lobby-tableseat--s2 \.lobby-bubble \{[^}]*\}/)?.[0] ?? '';
-    expect(s2).toContain('top: calc(100% + 8px)');
-    expect(s2).toContain('translateX(-50%)');
-    const s2tail = appCss.match(/\.lobby-tableseat--s2 \.lobby-bubble::after \{[^}]*\}/)?.[0] ?? '';
-    expect(s2tail).toContain('bottom: 100%');
-    expect(s2tail).toContain('border-bottom: 8px solid var(--bubble-surface)');
+  it('a DISTINCT overlay colour: an ivory bubble with a cinnabar edge + tail (not dark-on-dark)', () => {
+    // Owner: the dark-on-dark tail was hard to link to a seat. The bubble is now
+    // a LIGHT ivory figure with a CINNABAR edge and arrow — high contrast on the
+    // dark table, and the shared cinnabar color-codes the bubble to its seat.
+    const bubble = appCss.match(/\.lobby-bubble \{[^}]*\}/)?.[0] ?? '';
+    expect(bubble).toMatch(/--bubble-surface:\s*var\(--ivory/);
+    expect(bubble).toMatch(/--bubble-edge:\s*var\(--cinnabar/);
+    // The MAIN body rule (anchored on position:relative — not the
+    // reduced-motion .lobby-sitask { animation:none } that appears earlier).
+    const body = appCss.match(/\.lobby-sitask \{\s*position: relative;[^}]*\}/)?.[0] ?? '';
+    expect(body).toContain('background: var(--bubble-surface)');
+    expect(body).toContain('border: 2px solid var(--bubble-edge)');
+    // The seat highlight shares the cinnabar accent (the associative link).
+    const asking = appCss.match(/\.lobby-seat--asking \{[^}]*\}/)?.[0] ?? '';
+    expect(asking).toContain('var(--cinnabar');
+  });
 
-    const s0 = appCss.match(/\.lobby-tableseat--s0 \.lobby-bubble \{[^}]*\}/)?.[0] ?? '';
-    expect(s0).toContain('bottom: calc(100% + 8px)');
-    expect(s0).toContain('translateX(-50%)');
-    const s0tail = appCss.match(/\.lobby-tableseat--s0 \.lobby-bubble::after \{[^}]*\}/)?.[0] ?? '';
-    expect(s0tail).toContain('top: 100%');
-    expect(s0tail).toContain('border-top: 8px solid var(--bubble-surface)');
+  it('the tail points at the targeted seat by construction — one direction per seat, a bordered arrow centered on the seat axis', () => {
+    // top (s2): bubble hangs below, arrow points UP; bottom (s0): above, points
+    // DOWN; right (s1): left of the seat, points RIGHT; left (s3): right of the
+    // seat, points LEFT. The visible arrow is the ::before RIM (cinnabar,
+    // --bubble-edge); it is centered on the bubble's seat-facing edge, and the
+    // bubble is centered on the seat's own axis (translateX/Y(-50%)), so the
+    // arrow sits on the seat's centre by construction (robust to chip heights).
+    const seatFacing = (n: number) => appCss.match(new RegExp(`\\.lobby-tableseat--s${n} \\.lobby-bubble \\{[^}]*\\}`))?.[0] ?? '';
+    const rim = (n: number) => appCss.match(new RegExp(`\\.lobby-tableseat--s${n} \\.lobby-bubble::before \\{[^}]*\\}`))?.[0] ?? '';
 
-    const s1 = appCss.match(/\.lobby-tableseat--s1 \.lobby-bubble \{[^}]*\}/)?.[0] ?? '';
-    expect(s1).toContain('right: calc(100% + 8px)');
-    expect(s1).toContain('translateY(-50%)');
-    const s1tail = appCss.match(/\.lobby-tableseat--s1 \.lobby-bubble::after \{[^}]*\}/)?.[0] ?? '';
-    expect(s1tail).toContain('left: 100%');
-    expect(s1tail).toContain('border-left: 8px solid var(--bubble-surface)');
+    expect(seatFacing(2)).toContain('top: calc(100% + 13px)');
+    expect(seatFacing(2)).toContain('translateX(-50%)');
+    expect(rim(2)).toContain('border-bottom: 13px solid var(--bubble-edge)');
 
-    const s3 = appCss.match(/\.lobby-tableseat--s3 \.lobby-bubble \{[^}]*\}/)?.[0] ?? '';
-    expect(s3).toContain('left: calc(100% + 8px)');
-    expect(s3).toContain('translateY(-50%)');
-    const s3tail = appCss.match(/\.lobby-tableseat--s3 \.lobby-bubble::after \{[^}]*\}/)?.[0] ?? '';
-    expect(s3tail).toContain('right: 100%');
-    expect(s3tail).toContain('border-right: 8px solid var(--bubble-surface)');
+    expect(seatFacing(0)).toContain('bottom: calc(100% + 13px)');
+    expect(seatFacing(0)).toContain('translateX(-50%)');
+    expect(rim(0)).toContain('border-top: 13px solid var(--bubble-edge)');
+
+    expect(seatFacing(1)).toContain('right: calc(100% + 13px)');
+    expect(seatFacing(1)).toContain('translateY(-50%)');
+    expect(rim(1)).toContain('border-left: 13px solid var(--bubble-edge)');
+
+    expect(seatFacing(3)).toContain('left: calc(100% + 13px)');
+    expect(seatFacing(3)).toContain('translateY(-50%)');
+    expect(rim(3)).toContain('border-right: 13px solid var(--bubble-edge)');
   });
 
   it('the targeted wrapper lifts above its neighbours + the disc so the bubble is never occluded', () => {

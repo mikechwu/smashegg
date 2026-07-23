@@ -541,12 +541,14 @@ a {
      narrow flank seats have room for the CTA on one line (see table header). */
   padding: 0.25rem;
 }
-/* The targeted seat keeps a steady cinnabar ring (never pulsing) to
-   reinforce which seat the bubble belongs to — the tail is the primary
-   belongs-to signal; the ring is the on-chip echo. */
+/* The targeted seat carries a steady cinnabar ring AND a soft cinnabar glow
+   (never pulsing) — the SAME accent as the bubble's edge and tail, so the eye
+   color-links the callout to its seat (the tail is the directional signal; the
+   shared cinnabar is the associative one). */
 .lobby-seat--asking {
   border: 2px solid var(--cinnabar, #c3392b);
   border-radius: 10px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--cinnabar) 28%, transparent);
 }
 
 /* --- The seat BUBBLE (owner overlay round): a small speech-bubble overlay
@@ -564,75 +566,112 @@ a {
   position: absolute;
   width: 12rem;
   box-sizing: border-box;
-  /* Bubble surface, shared by the body fill AND the tail so they seam. */
-  --bubble-surface: color-mix(in srgb, var(--rosewood) 72%, var(--lacquer));
-  /* drop-shadow (not box-shadow) so the shadow wraps the tail too. */
-  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.55));
+  /* A LIGHT ivory callout with a CINNABAR edge — a strong figure against the
+     dark lacquer table, so the tail reads clearly, and cinnabar color-codes
+     the bubble to its cinnabar-highlighted seat (owner: the dark-on-dark tail
+     was hard to link to a seat). --bubble-surface fills the body AND the tail's
+     inner triangle; --bubble-edge draws the body border AND the tail's rim. */
+  --bubble-surface: var(--ivory, #f5efe3);
+  --bubble-edge: var(--cinnabar, #c3392b);
+  /* drop-shadow (not box-shadow) so the shadow wraps the whole arrow. */
+  filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
   animation: lobby-bubble-in 150ms ease-out;
 }
-/* Per-seat placement + tail. The tail (::after) is a border triangle in the
-   surface colour, centered on the bubble's seat-facing edge → on the seat's
-   center axis by construction. gap == tail height (8px) so the apex meets the
-   seat's ring. */
+/* Per-seat placement + a BORDERED arrow. Two stacked triangles centered on the
+   bubble's seat-facing edge → on the seat's center axis by construction:
+   ::before is the larger CINNABAR triangle (the rim), ::after the smaller IVORY
+   fill on top, so the arrow keeps a ~2px cinnabar outline continuing the body
+   border. gap == the rim height (13px) so the apex meets the seat. */
+.lobby-bubble::before,
+.lobby-bubble::after {
+  content: '';
+  position: absolute;
+  width: 0;
+  height: 0;
+}
 .lobby-tableseat--s2 .lobby-bubble {
-  top: calc(100% + 8px);
+  top: calc(100% + 13px);
   left: 50%;
   transform: translateX(-50%);
 }
+.lobby-tableseat--s2 .lobby-bubble::before,
 .lobby-tableseat--s2 .lobby-bubble::after {
-  content: '';
-  position: absolute;
   bottom: 100%;
   left: 50%;
   transform: translateX(-50%);
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-bottom: 8px solid var(--bubble-surface);
+}
+.lobby-tableseat--s2 .lobby-bubble::before {
+  border-left: 13px solid transparent;
+  border-right: 13px solid transparent;
+  border-bottom: 13px solid var(--bubble-edge);
+}
+.lobby-tableseat--s2 .lobby-bubble::after {
+  border-left: 11px solid transparent;
+  border-right: 11px solid transparent;
+  border-bottom: 11px solid var(--bubble-surface);
 }
 .lobby-tableseat--s0 .lobby-bubble {
-  bottom: calc(100% + 8px);
+  bottom: calc(100% + 13px);
   left: 50%;
   transform: translateX(-50%);
 }
+.lobby-tableseat--s0 .lobby-bubble::before,
 .lobby-tableseat--s0 .lobby-bubble::after {
-  content: '';
-  position: absolute;
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  border-left: 8px solid transparent;
-  border-right: 8px solid transparent;
-  border-top: 8px solid var(--bubble-surface);
+}
+.lobby-tableseat--s0 .lobby-bubble::before {
+  border-left: 13px solid transparent;
+  border-right: 13px solid transparent;
+  border-top: 13px solid var(--bubble-edge);
+}
+.lobby-tableseat--s0 .lobby-bubble::after {
+  border-left: 11px solid transparent;
+  border-right: 11px solid transparent;
+  border-top: 11px solid var(--bubble-surface);
 }
 .lobby-tableseat--s1 .lobby-bubble {
-  right: calc(100% + 8px);
+  right: calc(100% + 13px);
   top: 50%;
   transform: translateY(-50%);
 }
+.lobby-tableseat--s1 .lobby-bubble::before,
 .lobby-tableseat--s1 .lobby-bubble::after {
-  content: '';
-  position: absolute;
   left: 100%;
   top: 50%;
   transform: translateY(-50%);
-  border-top: 8px solid transparent;
-  border-bottom: 8px solid transparent;
-  border-left: 8px solid var(--bubble-surface);
+}
+.lobby-tableseat--s1 .lobby-bubble::before {
+  border-top: 13px solid transparent;
+  border-bottom: 13px solid transparent;
+  border-left: 13px solid var(--bubble-edge);
+}
+.lobby-tableseat--s1 .lobby-bubble::after {
+  border-top: 11px solid transparent;
+  border-bottom: 11px solid transparent;
+  border-left: 11px solid var(--bubble-surface);
 }
 .lobby-tableseat--s3 .lobby-bubble {
-  left: calc(100% + 8px);
+  left: calc(100% + 13px);
   top: 50%;
   transform: translateY(-50%);
 }
+.lobby-tableseat--s3 .lobby-bubble::before,
 .lobby-tableseat--s3 .lobby-bubble::after {
-  content: '';
-  position: absolute;
   right: 100%;
   top: 50%;
   transform: translateY(-50%);
-  border-top: 8px solid transparent;
-  border-bottom: 8px solid transparent;
-  border-right: 8px solid var(--bubble-surface);
+}
+.lobby-tableseat--s3 .lobby-bubble::before {
+  border-top: 13px solid transparent;
+  border-bottom: 13px solid transparent;
+  border-right: 13px solid var(--bubble-edge);
+}
+.lobby-tableseat--s3 .lobby-bubble::after {
+  border-top: 11px solid transparent;
+  border-bottom: 11px solid transparent;
+  border-right: 11px solid var(--bubble-surface);
 }
 @keyframes lobby-bubble-in {
   from {
@@ -662,6 +701,8 @@ a {
 .lobby-sitask {
   position: relative; /* containing block for the corner × */
   background: var(--bubble-surface);
+  color: var(--lacquer, #2b1a18); /* dark ink on the ivory surface (AAA) */
+  border: 2px solid var(--bubble-edge);
   border-radius: 12px;
   box-sizing: border-box;
   padding: 0.85rem 0.7rem 0.5rem; /* top pad clears the corner × */
@@ -675,12 +716,12 @@ a {
 }
 .lobby-sitask__close {
   position: absolute;
-  top: 0.1rem;
+  top: 0.05rem;
   right: 0.2rem;
   background: none;
   border: 0;
-  color: var(--ivory, #f5efe3);
-  opacity: 0.65;
+  color: var(--lacquer, #2b1a18);
+  opacity: 0.5;
   font-size: 1.15rem;
   line-height: 1;
   padding: 0.15rem 0.35rem;
@@ -693,9 +734,9 @@ a {
   width: 100%;
   box-sizing: border-box;
   border-radius: 8px;
-  border: 1px solid rgba(245, 239, 227, 0.5);
-  background: rgba(0, 0, 0, 0.28);
-  color: var(--ivory, #f5efe3);
+  border: 1px solid color-mix(in srgb, var(--lacquer) 30%, transparent);
+  background: #fffdf8; /* a bright field on the ivory card */
+  color: var(--ink, #1f2430);
   padding: 0.4rem 0.5rem;
   /* 16px MINIMUM (guard 3, pinned): iOS Safari zooms the viewport on
      focus for any input below 16px — the overlay design depends on the
@@ -704,16 +745,22 @@ a {
   font-family: inherit;
   text-align: center;
 }
+.lobby-sitask__input:focus {
+  outline: none;
+  border-color: var(--cinnabar, #c3392b);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--cinnabar) 25%, transparent);
+}
 .lobby-sitask__hint {
   margin: 0;
   min-height: 1.05em;
   font-size: 0.6875rem;
-  opacity: 0.9;
+  color: color-mix(in srgb, var(--lacquer) 72%, transparent);
 }
 .lobby-sitask__taken {
   margin: 0;
   font-size: 0.8rem;
   font-weight: 700;
+  color: var(--cinnabar, #c3392b); /* the race-loss headline, in the accent */
 }
 .lobby-sitask__confirm {
   background: var(--cinnabar, #c3392b);
@@ -727,13 +774,13 @@ a {
   cursor: pointer;
 }
 .lobby-sitask__confirm:disabled {
-  opacity: 0.6;
+  opacity: 0.55;
   cursor: default;
 }
 .lobby-sitask__cancel {
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(245, 239, 227, 0.4);
-  color: var(--ivory, #f5efe3);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--lacquer) 35%, transparent);
+  color: var(--lacquer, #2b1a18);
   border-radius: 999px;
   padding: 0.25rem 0.7rem;
   font-family: inherit;
