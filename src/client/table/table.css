@@ -618,27 +618,20 @@ button.gd-plate {
   height: calc(var(--gd-cardw) * 0.6);
   pointer-events: none;
 }
-/* The joker's emblem lives in the LEFT/index column (like the corner
- * index): the fan overlaps each card's right ~60%, so content painted past
- * 0.40 * cardw is occluded by the neighbour — wordless SVG emblems replace
- * the old vertical CJK strip (a writing-mode: vertical-rl + text-orientation:
- * upright letter-stack, which mis-rendered English 'Joker'/'Big Joker' into
- * overflowing single-glyph columns). Distinct by SILHOUETTE — filled star
- * vs. hollow stroke lozenge — never by colour alone; colour reinforces it
- * (the SVG paints itself cinnabar/ink directly — see themes/lacquer.tsx —
- * matching the palette the joker's .gd-card--red / .gd-card--black class
- * would otherwise set). Positioned like the wild seal below: absolute and
- * scaled ENTIRELY off --gd-cardw (no fixed-px margin, which would drift the
- * box past the 0.40w sliver as cardw shrinks at hand size) — left(0.06w) +
- * width(0.30w) = 0.36w stays inside 0.40w with margin to spare, so the whole
- * box (not just wherever the SVG's own preserveAspectRatio happens to place
- * the ink within it) is guaranteed clear of the neighbour's occlusion. */
-.gd-card__jokerMark {
+/* The joker face (jokers.tsx, JokerFace — the owner's composed parts,
+ * joker round; replaced both themes' earlier marks/emblems, and before
+ * them the vertical CJK letter-stack defect). One svg fills the card box
+ * (its 200x290 viewBox IS the 1.45 card aspect, so no letterboxing). The
+ * fan-sliver identity holds by COMPOSITION, not by a CSS box: the corner
+ * logo + the big joker's star sit in the composition's left column
+ * (x <= 34/200 = 0.17w), well inside the 0.40w fan-visible sliver; the
+ * wordmark's leading letters carry the rest. No text nodes (deck
+ * contract) — the wordmark is the owner's paths. */
+.gd-joker {
   position: absolute;
-  left: calc(var(--gd-cardw) * 0.06);
-  top: calc(var(--gd-cardw) * 0.08);
-  width: calc(var(--gd-cardw) * 0.3);
-  height: calc(var(--gd-cardw) * 0.3);
+  inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
 }
 /* Wild seal (the wild rule): a language-neutral cinnabar circle stamp,
@@ -691,7 +684,7 @@ button.gd-plate {
 .gd-ccourt__rank--ten {
   font-size: calc(var(--gd-cardw) * 0.34);
 }
-/* Body art (CourtFigure / PipField / Big|SmallJokerFigure — all viewBox
+/* Body art (CourtFigure / PipField — all viewBox
  * "0 0 200 290", the SAME 1:1.45 ratio as the card box itself, so the svg
  * fills edge-to-edge with no letterboxing): absolutely fills the card,
  * BEHIND the corner index (.gd-card__index's `position: relative` is what
@@ -708,31 +701,6 @@ button.gd-plate {
   width: 100%;
   height: 100%;
 }
-/* Joker corner emblem (BigJokerEmblem/SmallJokerEmblem, art.tsx, viewBox
- * 44x64) — this theme's OWN box, wider than lacquer's .gd-card__jokerMark
- * (0.34w vs 0.30w): left(0.04w) + width(0.34w) = 0.38w, still inside the
- * 0.40w fan-visible sliver. Height is DERIVED from the box's own width via
- * the emblem's 44:64 viewBox ratio (never a second independent multiplier),
- * so the box's aspect always matches the viewBox's — an aspect-matched box
- * never letterboxes under the svg's default xMidYMid meet, whatever
- * preserveAspectRatio it ends up with. Entirely calc(var(--gd-cardw) * k):
- * no fixed rem/px, which would drift the 0.38w ratio as --gd-cardw shrinks
- * at hand size (the exact defect already fixed once on the jokerMark box
- * above). */
-.gd-ccourt__jokerEmblem {
-  position: absolute;
-  left: calc(var(--gd-cardw) * 0.04);
-  top: calc(var(--gd-cardw) * 0.06);
-  width: calc(var(--gd-cardw) * 0.34);
-  height: calc(var(--gd-cardw) * 0.34 * 64 / 44);
-  pointer-events: none;
-}
-.gd-ccourt__jokerEmblem > svg {
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
 /* Cinnabar Court's back: a flat DEEP-cinnabar field (cinnabar mixed toward
  * the table's lacquer dark) with the SAME cheap recipe as lacquer's back
  * (one flat fill + a hairline inset pseudo-element, no gradient stacks —

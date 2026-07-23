@@ -17,16 +17,8 @@
 import { isJoker, rankOf, suitOf, type Rank } from '../../../../engine/guandan/cards';
 import { isRedSuit, rankText } from '../../helpers';
 import { registerDeckTheme, type DeckTheme, type DeckThemeFaceProps } from '../../theme';
-import {
-  BigJokerEmblem,
-  BigJokerFigure,
-  CourtFigure,
-  SmallJokerEmblem,
-  SmallJokerFigure,
-  SUIT_FILL,
-  type CourtChar,
-  type SuitChar,
-} from './art';
+import { CourtFigure, SUIT_FILL, type CourtChar, type SuitChar } from './art';
+import { JokerFace } from '../../jokers';
 import { SUIT_PATHS, SuitMark } from '../../suits';
 import { PIP_LAYOUTS, type PipSpot } from './pips';
 
@@ -73,17 +65,12 @@ function CinnabarCourtFace({ card, size }: DeckThemeFaceProps) {
   if (isJoker(card)) {
     const big = card === 'BJ';
     const classes = ['gd-card', `gd-card--${size}`, 'gd-ccourt', 'gd-card--joker', big ? 'gd-card--red' : 'gd-card--black'];
+    // Joker round: the owner's composed parts (jokers.tsx) replaced this
+    // theme's own jester figures + emblems — jokers are registry parts
+    // consumed by every theme, the same seam as the suits.
     return (
       <span className={classes.join(' ')} aria-hidden="true">
-        {/* DOM order matters, not just z-index: .gd-ccourt__body and
-            .gd-ccourt__jokerEmblem are both position: absolute with no
-            explicit z-index, so within their shared stacking bucket the
-            LATER one paints on top — body first keeps the emblem legible
-            over the full figure. */}
-        {size !== 'mini' && (
-          <span className="gd-ccourt__body">{big ? <BigJokerFigure /> : <SmallJokerFigure />}</span>
-        )}
-        <span className="gd-ccourt__jokerEmblem">{big ? <BigJokerEmblem /> : <SmallJokerEmblem />}</span>
+        <JokerFace big={big} />
       </span>
     );
   }

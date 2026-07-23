@@ -34,13 +34,13 @@ import {
   type PlayMatch,
   type ResolvedFace,
 } from './helpers';
-import { CardFace, GhostFace, cardLabel, comboDeclNode, comboRankLabel } from './CardFace';
+import { CardFace, GhostFace, cardLabel, comboDeclNode, comboRankLabel, jokerLabel } from './CardFace';
 import { t } from '../i18n';
 
 /** Accessible name of one resolved face: the identity that hits the table
  *  (naturals via cardLabel; suit-blind ghosts as the bare rank). */
 function faceLabel(face: ResolvedFace, level: Rank): string {
-  if (face.displayRank === null) return face.card === 'BJ' ? t('game.card.bj') : t('game.card.sj');
+  if (face.displayRank === null) return jokerLabel(face.card === 'BJ' ? 'BJ' : 'SJ');
   if (face.displaySuit === null) return rankText(face.displayRank);
   if (face.displayRank === rankOf(face.card) && face.displaySuit === suitOf(face.card)) {
     return cardLabel(face.card, level);

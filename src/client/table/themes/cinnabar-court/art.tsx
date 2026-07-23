@@ -1,5 +1,6 @@
-// Cinnabar Court — the five hand-drawn pieces (3 court figures x 4 suits by
-// emblem + palette, 2 jokers), drawn in the app's Eastern-minimalist idiom.
+// Cinnabar Court — the hand-drawn court pieces (3 court figures x 4 suits
+// by emblem + palette), drawn in the app's Eastern-minimalist idiom. The
+// theme's jokers moved to the shared registry (jokers.tsx, joker round).
 // Geometry is the master record: it passed the craft gate at ship sizes
 // (docs/design/deck-themes/cinnabar-court/DESIGN.md §5) — edits here must
 // re-clear that gate, not just look right at inspection size.
@@ -22,7 +23,7 @@ const GOLD = 'var(--goldleaf)';
 
 // Suit shapes come from the shared registry (suits.tsx, the single source
 // of truth — suit round): this module previously carried its own 24x28
-// paths; only the shape SOURCE changed, the court/joker geometry below is
+// paths; only the shape SOURCE changed, the court geometry below is
 // still the frozen master record. Suits must separate by SHAPE at sliver
 // size (diamond cut sharper/narrower than the heart's round shoulders),
 // which font suit rendering does not guarantee across platforms — the
@@ -182,108 +183,6 @@ export function CourtFigure({ figure, suit }: { figure: CourtChar; suit: SuitCha
       <g transform="translate(136 145) scale(0.31) translate(-50 -50)">
         <path d={SUIT_PATHS[suit]} fill={SUIT_FILL[suit]} />
       </g>
-    </svg>
-  );
-}
-
-/** Big joker: full-palette jester — opera-mask face, lobed cap with gold
- *  bells, cinnabar center robe, gold cloud ring. Single-ended. */
-export function BigJokerFigure(): ReactElement {
-  return (
-    <svg viewBox="0 0 200 290" aria-hidden="true" focusable="false">
-      <circle cx="100" cy="158" r="72" fill="none" stroke={GOLD} strokeWidth="3" />
-      <path d="M34 132 C24 124 22 112 30 104 C34 112 38 120 46 124 Z" fill={GOLD} />
-      <path d="M166 132 C176 124 178 112 170 104 C166 112 162 120 154 124 Z" fill={GOLD} />
-      <path d="M100 62 C88 60 76 52 68 40 C82 38 94 42 100 50 Z" fill={INK} />
-      <path d="M100 62 C112 60 124 52 132 40 C118 38 106 42 100 50 Z" fill={INK} />
-      <path d="M92 56 C92 42 96 30 100 24 C104 30 108 42 108 56 Z" fill={CINNABAR} />
-      <circle cx="100" cy="22" r="5" fill={GOLD} />
-      <circle cx="66" cy="40" r="5" fill={GOLD} />
-      <circle cx="134" cy="40" r="5" fill={GOLD} />
-      <path d="M84 72 C84 60 91 54 100 54 C109 54 116 60 116 72 C116 84 109 92 100 92 C91 92 84 84 84 72 Z" fill={IVORY} stroke={INK} strokeWidth="2.5" />
-      <path d="M90 70 C92 66 96 66 98 70 M102 70 C104 66 108 66 110 70" stroke={INK} strokeWidth="2" fill="none" />
-      <path d="M93 80 C97 85 103 85 107 80" stroke={CINNABAR} strokeWidth="2.5" fill="none" />
-      <path d="M100 60 L103 64 L100 68 L97 64 Z" fill={CINNABAR} />
-      <g>
-        <path d="M76 96 L92 104 L78 114 Z" fill={INK} />
-        <path d="M124 96 L108 104 L122 114 Z" fill={INK} />
-        <path d="M100 92 L112 100 L100 114 L88 100 Z" fill={CINNABAR} stroke={INK} strokeWidth="1.5" />
-      </g>
-      <path d="M74 112 C62 150 58 196 66 238 L86 246 C78 200 80 152 88 114 Z" fill={INK} />
-      <path d="M126 112 C138 150 142 196 134 238 L114 246 C122 200 120 152 112 114 Z" fill={INK} />
-      <path d="M88 112 L112 112 C120 158 122 208 114 250 L86 250 C78 208 80 158 88 112 Z" fill={CINNABAR} stroke={INK} strokeWidth="2" />
-      <path d="M100 112 L100 250" stroke={GOLD} strokeWidth="3" />
-      <circle cx="100" cy="136" r="5" fill={GOLD} />
-      <circle cx="100" cy="164" r="5" fill={GOLD} />
-      <circle cx="100" cy="192" r="5" fill={GOLD} />
-      <path d="M74 114 C60 122 50 134 44 150 L56 156 C62 142 72 130 84 124 Z" fill={INK} />
-      <path d="M126 114 C140 122 150 134 156 150 L144 156 C138 142 128 130 116 124 Z" fill={INK} />
-      <path d="M44 150 L56 156 L50 166 L40 158 Z" fill={CINNABAR} />
-      <path d="M156 150 L144 156 L150 166 L160 158 Z" fill={CINNABAR} />
-    </svg>
-  );
-}
-
-/** Small joker: pure-ink silhouette jester — spiked cap, winged shoulders,
- *  mask face, ivory robe slits. Distinct from big by silhouette AND colour
- *  amount, never colour alone. Single-ended. */
-export function SmallJokerFigure(): ReactElement {
-  return (
-    <svg viewBox="0 0 200 290" aria-hidden="true" focusable="false">
-      <path d="M100 54 L92 20 L100 30 L108 20 Z" fill={INK} />
-      <path d="M96 50 L74 30 L88 52 Z" fill={INK} />
-      <path d="M104 50 L126 30 L112 52 Z" fill={INK} />
-      <circle cx="74" cy="29" r="3.5" fill={INK} />
-      <circle cx="126" cy="29" r="3.5" fill={INK} />
-      <circle cx="100" cy="19" r="3.5" fill={INK} />
-      <path d="M84 66 C84 52 91 46 100 46 C109 46 116 52 116 66 C116 78 109 88 100 88 C91 88 84 78 84 66 Z" fill={INK} />
-      <path d="M88 68 C88 56 93 51 100 51 C107 51 112 56 112 68 C112 78 107 84 100 84 C93 84 88 78 88 68 Z" fill={IVORY} />
-      <path d="M91 66 C93 63 96 63 98 66 L98 68 C96 66 93 66 91 68 Z" fill={INK} />
-      <path d="M102 66 C104 63 107 63 109 66 L109 68 C107 66 104 66 102 68 Z" fill={INK} />
-      <path d="M97 77 C99 79 101 79 103 77 L103 79 C101 80 99 80 97 79 Z" fill={INK} />
-      <path d="M100 88 C88 92 76 92 64 100 C50 108 42 120 40 132 L52 128 C58 116 70 106 84 102 L100 96 L116 102 C130 106 142 116 148 128 L160 132 C158 120 150 108 136 100 C124 92 112 92 100 88 Z" fill={INK} />
-      <path d="M40 132 C30 138 24 146 22 156 L34 152 C38 144 44 138 52 134 Z" fill={INK} />
-      <path d="M160 132 C170 138 176 146 178 156 L166 152 C162 144 156 138 148 134 Z" fill={INK} />
-      <path d="M78 104 C64 150 60 200 72 248 L98 262 L100 262 L100 100 Z" fill={INK} />
-      <path d="M122 104 C136 150 140 200 128 248 L102 262 L100 262 L100 100 Z" fill={INK} />
-      <path d="M86 130 C80 172 80 214 90 244 L97 240 C89 210 89 172 94 134 Z" fill={IVORY} />
-      <path d="M114 130 C120 172 120 214 110 244 L103 240 C111 210 111 172 106 134 Z" fill={IVORY} />
-      <path d="M100 138 L106 152 L100 166 L94 152 Z" fill={IVORY} />
-      <path d="M100 262 L100 274 M72 250 L70 262 M128 250 L130 262" stroke={INK} strokeWidth="3" />
-      <circle cx="100" cy="277" r="3" fill={INK} />
-      <circle cx="69" cy="265" r="3" fill={INK} />
-      <circle cx="131" cy="265" r="3" fill={INK} />
-    </svg>
-  );
-}
-
-// Joker corner emblems: wordless identity-column glyphs (the sliver identity).
-// Big = filled cinnabar curled-lobe cap + diamond; small = ink sharp-spike
-// cap + hollow mask. Distinct silhouettes first, colour amount second.
-export const JOKER_EMBLEM_VIEWBOX = '0 0 44 64';
-
-export function BigJokerEmblem(): ReactElement {
-  return (
-    <svg viewBox={JOKER_EMBLEM_VIEWBOX} aria-hidden="true" focusable="false">
-      <path d="M22 34 C17 27 10 25 3 28 C5 17 12 10 20 11 C20 6 21 3 22 1 C23 3 24 6 24 11 C32 10 39 17 41 28 C34 25 27 27 22 34 Z" fill={CINNABAR} />
-      <circle cx="4" cy="24" r="3.8" fill={CINNABAR} />
-      <circle cx="40" cy="24" r="3.8" fill={CINNABAR} />
-      <path d="M22 40 L30 51 L22 62 L14 51 Z" fill={CINNABAR} />
-    </svg>
-  );
-}
-
-export function SmallJokerEmblem(): ReactElement {
-  return (
-    <svg viewBox={JOKER_EMBLEM_VIEWBOX} aria-hidden="true" focusable="false">
-      <path d="M22 30 L14 8 L22 16 L30 8 Z" fill={INK} />
-      <path d="M18 29 L4 18 L15 31 Z" fill={INK} />
-      <path d="M26 29 L40 18 L29 31 Z" fill={INK} />
-      <circle cx="4" cy="15" r="3" fill={INK} />
-      <circle cx="40" cy="15" r="3" fill={INK} />
-      <circle cx="22" cy="7" r="3" fill={INK} />
-      <path d="M11 40 C11 31 16 27 22 27 C28 27 33 31 33 40 C33 48 28 53 22 53 C16 53 11 48 11 40 Z" fill="none" stroke={INK} strokeWidth="3.4" />
-      <path d="M16 39 L20 39 M24 39 L28 39" stroke={INK} strokeWidth="2.8" />
     </svg>
   );
 }

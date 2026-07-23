@@ -23,6 +23,7 @@ import { CINNABAR_COURT_THEME } from '../../../src/client/table/themes/cinnabar-
 // suit shapes); cinnabar-court consumes it, so the occurrence-count pin
 // below keeps working unchanged against the registry's path strings.
 import { SUIT_PATHS } from '../../../src/client/table/suits';
+import { JOKER_CORNER_MAX_X } from '../../../src/client/table/jokers';
 import { PIP_LAYOUTS } from '../../../src/client/table/themes/cinnabar-court/pips';
 import { LACQUER_THEME } from '../../../src/client/table/themes/lacquer';
 
@@ -91,8 +92,9 @@ for (const theme of deckThemes()) {
     // Item 5a / regression for item 4's fix: a joker face used to be a
     // vertical CJK letter-stack of the localized name — a text node that
     // letter-stacked English into overflowing columns. Jokers are wordless
-    // now (silhouette-only emblems), so NO text node may survive tag
-    // stripping, at any size, in any theme.
+    // now (the owner's composed PARTS — the JOKER wordmark is paths, not
+    // lettering), so NO text node may survive tag stripping, at any size,
+    // in any theme.
     it('joker faces carry no text nodes at any size', () => {
       for (const joker of JOKERS) {
         for (const size of SIZES) {
@@ -239,65 +241,25 @@ describe('wild seal geometry (CSS-token pin)', () => {
   });
 });
 
-// Item 4 regression: the joker emblem box reproduced the exact defect its
-// own rewrite was meant to fix — a right edge past the 0.40w fan-visible
-// sliver (fixed-px margin on a scaling box drifts the ratio as cardw
-// shrinks at hand size). Pinned the same way as the wild seal above so a
-// future edit that re-introduces a fixed-px offset or grows the box fails
-// here with the real numbers, not just at the wild seal's check.
-describe('joker emblem geometry (CSS-token pin)', () => {
-  it('sits IN-COLUMN: left + width stays inside the 0.40w fan-visible sliver, clear of the card edge', () => {
-    const jokerRule = tableCss.match(/^\.gd-card__jokerMark\s*\{[^}]*\}/m)?.[0] ?? '';
-    const left = Number(jokerRule.match(/left:\s*calc\(var\(--gd-cardw\)\s*\*\s*([\d.]+)\)/)?.[1]);
-    const width = Number(jokerRule.match(/width:\s*calc\(var\(--gd-cardw\)\s*\*\s*([\d.]+)\)/)?.[1]);
-    expect(left, 'left multiplier not found in .gd-card__jokerMark').not.toBeNaN();
-    expect(width, 'width multiplier not found in .gd-card__jokerMark').not.toBeNaN();
-    expect(left + width).toBeLessThanOrEqual(0.4);
+// Joker round: both themes' own emblem boxes were replaced by the ONE
+// composed JokerFace (jokers.tsx), whose svg fills the card box — the
+// fan-sliver identity guarantee moved from CSS box arithmetic into the
+// COMPOSITION itself. The pin moves with it: the corner identity column
+// (logo + the big joker's star) must end inside the 0.40w fan-visible
+// sliver of the 200-unit card space, and the .gd-joker svg must fill the
+// card with no fixed-px offsets that could shift the composition.
+describe('joker corner identity geometry (composition pin)', () => {
+  it('the corner identity column stays inside the 0.40w fan-visible sliver', () => {
+    expect(JOKER_CORNER_MAX_X).toBeLessThanOrEqual(200 * 0.4);
   });
 
-  it('regression: no fixed-px margin/offset that would drift the ratio as --gd-cardw shrinks', () => {
-    const jokerRule = tableCss.match(/^\.gd-card__jokerMark\s*\{[^}]*\}/m)?.[0] ?? '';
-    expect(jokerRule.length).toBeGreaterThan(0);
-    expect(jokerRule).not.toContain('margin');
-    expect(jokerRule).toContain('position: absolute');
+  it('.gd-joker fills the card box exactly (no offsets to drift the sliver math)', () => {
+    const rule = tableCss.match(/^\.gd-joker\s*\{[^}]*\}/m)?.[0] ?? '';
+    expect(rule.length, 'rule not found: .gd-joker').toBeGreaterThan(0);
+    expect(rule).toContain('position: absolute');
+    expect(rule).toContain('inset: 0');
+    expect(rule).not.toMatch(/\d(?:px|rem)\b/);
   });
-});
-
-// Generalizes the pin above to EVERY theme's joker-identity emblem/index
-// class, not just lacquer's — a future theme reproducing the exact fixed-px
-// defect on ITS OWN box must fail here too. Selector regexes are anchored to
-// the LINE START (the wild-seal pin's own comment explains why: a bare
-// substring match can hit an unrelated combinator rule that happens to
-// contain the class name, e.g. `.foo > svg { ... }` under a `.foo { ... }`
-// rule).
-describe('joker-identity emblem geometry across every theme (CSS-token pin)', () => {
-  const JOKER_IDENTITY_CLASSES = [
-    { theme: 'lacquer', selector: '.gd-card__jokerMark' },
-    { theme: 'cinnabar-court', selector: '.gd-ccourt__jokerEmblem' },
-  ];
-
-  for (const { theme, selector } of JOKER_IDENTITY_CLASSES) {
-    it(`${theme}'s ${selector} sits IN-COLUMN with no fixed-px/rem horizontal offset`, () => {
-      const escaped = selector.replace(/\./g, '\\.');
-      const rule = tableCss.match(new RegExp(`^${escaped}\\s*\\{[^}]*\\}`, 'm'))?.[0] ?? '';
-      expect(rule.length, `rule not found: ${selector}`).toBeGreaterThan(0);
-
-      const left = Number(rule.match(/left:\s*calc\(var\(--gd-cardw\)\s*\*\s*([\d.]+)\)/)?.[1]);
-      const width = Number(rule.match(/width:\s*calc\(var\(--gd-cardw\)\s*\*\s*([\d.]+)/)?.[1]);
-      expect(left, `${selector}: left multiplier not found`).not.toBeNaN();
-      expect(width, `${selector}: width multiplier not found`).not.toBeNaN();
-      expect(left + width, `${selector}: right edge past the 0.40w sliver`).toBeLessThanOrEqual(0.4);
-
-      // Horizontal properties only (left/right/width) — a fixed-px/rem
-      // TOP or HEIGHT can't drift the fan-visible ratio, only a horizontal
-      // one can.
-      const horizontalDecls = rule.match(/(?:^|[\s{])(?:left|right|width)\s*:[^;]*;/gm) ?? [];
-      expect(horizontalDecls.length, `${selector}: no left/right/width declarations found`).toBeGreaterThan(0);
-      for (const decl of horizontalDecls) {
-        expect(decl, `${selector}: fixed-px/rem horizontal offset in "${decl.trim()}"`).not.toMatch(/\d(?:px|rem)\b/);
-      }
-    });
-  }
 });
 
 // Owner-directed hand-layout round (item 3): lacquer's body pip is the
@@ -389,9 +351,13 @@ describe('lacquer horizontal index row (owner reference, theme-scoped)', () => {
 // restated constant, so a Face that drops the body at hand/trick (or grows
 // it back in at mini) fails here with the real HTML.
 describe("cinnabar-court body-art ladder ('mini' = index only)", () => {
-  it('courts and jokers carry a body svg at hand/trick but not at mini', () => {
-    const cards: Card[] = ['KS', 'QH', 'JD', 'BJ', 'SJ'];
-    for (const card of cards) {
+  // Joker round: jokers LEFT this theme's mini ladder — their identity IS
+  // the composed JokerFace (wordmark + corner logo column), which renders
+  // at every size; there is no separate corner index to fall back to. The
+  // ladder pin stays for courts, whose corner index carries mini alone.
+  it('courts carry a body svg at hand/trick but not at mini; jokers are the composed part at every size', () => {
+    const courts: Card[] = ['KS', 'QH', 'JD'];
+    for (const card of courts) {
       for (const size of ['hand', 'trick'] as const) {
         const html = renderToStaticMarkup(
           createElement(CINNABAR_COURT_THEME.Face, { card, level: '2', size }),
@@ -402,6 +368,15 @@ describe("cinnabar-court body-art ladder ('mini' = index only)", () => {
         createElement(CINNABAR_COURT_THEME.Face, { card, level: '2', size: 'mini' }),
       );
       expect(miniHtml, `${card} @ mini: body art should not render`).not.toContain('gd-ccourt__body');
+    }
+    for (const joker of ['BJ', 'SJ'] as const) {
+      for (const size of SIZES) {
+        const html = renderToStaticMarkup(
+          createElement(CINNABAR_COURT_THEME.Face, { card: joker, level: '2', size }),
+        );
+        expect(html, `${joker} @ ${size}: composed joker part missing`).toContain('gd-joker');
+        expect(html, `${joker} @ ${size}: old body wrapper survives`).not.toContain('gd-ccourt__body');
+      }
     }
   });
 });
