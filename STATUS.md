@@ -1,5 +1,17 @@
 # STATUS
 
+## Deploy record (2026-07-22) — 3fafde3 verified live (health build == pushed HEAD)
+
+Round close on the owner's word: pushed 43b45e5 (the suit registry —
+SVG suit parts replace every Unicode glyph) + 3fafde3 (the joker faces
+— the owner's three parts compose both variants); outgoing sweep clean
+(zero sibling-name hits, zero secret patterns, no docs/local). `npm run
+deploy` → version bc558011-47c7-45c6-8a26-83088f6078a3; /api/health
+build == 3fafde30… == pushed HEAD; site 200. No prod smoke rooms. Open
+validation: the batched M5 real-device session — the elder checks plus
+the suit round's Chinese-brand Android emoji-gone confirmation (the one
+thing desktop verification structurally cannot prove).
+
 ## Joker faces BUILT local (2026-07-22) — the owner's three parts compose both variants; awaiting the owner's deploy word
 
 The owner's three SVGs (figure illustration / JOKER wordmark / dollar-J
