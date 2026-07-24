@@ -79,6 +79,20 @@ confined to the client render layer, DO alarm the sole enforcer, gate re-run
 120/120, no raw-color/off-scale-size reintroduced, no dangling refs / missing
 i18n keys. Outgoing sweep clean. Shipping on the owner's word.
 
+## Deploy record (2026-07-23) — 88ff6dc verified live (health build == pushed HEAD)
+
+Round close on the owner's word: pushed 88ff6dc (the presentation-only UX
+timing/placement round — Item 1 the anti-tribute/deal-gate so nothing about the
+cards is revealed before the deal settles, Item 2 the on-table two-stage
+end-of-hand outcome → level-up). Presentation-only confirmed twice: Codex on the
+code + Grok on the UX in-round, then a fresh four-lens adversarial pre-deploy
+audit (SHIP, 0 blockers — client-only blast radius, DO alarm the sole enforcer,
+gate re-run 120/120, no raw-color/off-scale reintroduced, no dangling refs).
+Gate 1091/1091 + typecheck + lint:hooks + build green. `npm run deploy` →
+Version 74c747dd; `/api/health` polled to full edge convergence (12/12 requests
+== 88ff6dc). Demo videos (en + zh-Hant) recorded for the round, kept in
+gitignored docs/local/videos (never pushed).
+
 ## Deploy record (2026-07-23) — 8c188e7 verified live (health build == pushed HEAD)
 
 Round close on the owner's word: pushed 8c188e7 (the visual-refinement scale-token
