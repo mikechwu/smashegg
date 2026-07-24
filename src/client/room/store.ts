@@ -65,7 +65,9 @@ export interface RoomSender {
   setConfig(config: unknown): void;
   setTiming(timing: RoomTiming): void;
   start(): void;
-  act(seat: Seat, action: unknown): void;
+  /** Returns the generated actionId (RoomConnection mints a UUID) so a caller
+   *  can correlate a later 'rejected' — e.g. the auto-pass dead-press swallow. */
+  act(seat: Seat, action: unknown): string;
 }
 
 /** The localStorage subset we use — injectable so node-environment unit
@@ -211,9 +213,9 @@ export class RoomStore {
     this.sender?.start();
   }
 
-  act(seat: Seat, action: unknown): void {
+  act(seat: Seat, action: unknown): string | undefined {
     this.clearRejections();
-    this.sender?.act(seat, action);
+    return this.sender?.act(seat, action);
   }
 
   // --- reducer -------------------------------------------------------------

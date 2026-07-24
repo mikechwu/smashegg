@@ -367,6 +367,24 @@ export function legalActionsFor(
   return actions;
 }
 
+/** Pass is the seat's ONLY legal action (the auto-pass judgement). True iff
+ *  the seat is FOLLOWING (pass is illegal while leading, §5.2) and NOTHING in
+ *  hand can beat the current play — exactly when legalActionsFor would return
+ *  `[{type:'pass'}]`. A leader always holds ≥1 legal single (every card is a
+ *  legal lead), so this is structurally a follower-only condition. The single
+ *  source of truth for "no legal play": timingClass and any view projection
+ *  read it here; the product never re-derives it. Pure over the same inputs as
+ *  legalActionsFor. */
+export function isForcedPass(
+  hand: Card[],
+  toBeat: CanonicalForm | null,
+  mustLead: boolean,
+  level: Rank,
+  config: RuleVariant,
+): boolean {
+  return !mustLead && legalPlays(hand, toBeat, level, config).length === 0;
+}
+
 /** Timeout/disconnect fallback (game.ts defaultAction contract): pass when
  *  allowed; when leading (pass illegal, spec §5.2) play the LOWEST legal
  *  single by levelValue — guaranteed to exist because any held card is a

@@ -1184,6 +1184,49 @@ button.gd-plate {
   font-size: var(--fs-xs);
   opacity: 0.75;
 }
+/* Auto-pass round: the pass button's FILL sweep. A one-directional GROW (scaleX
+   0→1 from the left) reads as "the system is finishing this for you" — never a
+   drain (bomb-timer, opposite emotion). The fill is a TONAL darken of the
+   button's OWN colour (lacquer over the cinnabar primary this state always
+   wears), translucent so the pass glyph stays legible; NEVER a stoplight hue,
+   NEVER a loop. pointer-events:none keeps the button tappable right to the auto-
+   pass. Duration + the seek (negative delay, so a mid-window mount/reconnect
+   resumes at the right point) come from the inline style. */
+.gd-actions__passSlot--auto {
+  overflow: hidden;
+  border-radius: var(--radius-md);
+}
+.gd-actions__sweep {
+  position: absolute;
+  inset: 0;
+  transform-origin: left center;
+  transform: scaleX(0);
+  background: color-mix(in srgb, var(--lacquer) 32%, transparent);
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 3;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .gd-actions__sweep {
+    animation-name: gd-autopass-sweep;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+}
+@keyframes gd-autopass-sweep {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+/* Reduced motion: the fill's width is set inline (scaleX(fill)) and only moves on
+   the ~500ms clock tick — a stepped indicator, never continuous motion. The
+   what/why lives in the desk's reason title regardless. */
+.gd-actions__sweep--step {
+  animation: none;
+}
 /* Card-face decl chooser (wild-chooser-ux.md §2, faces superseded to HAND
    size — owner: chooser cards consistent with hand cards): the outer width
    cap, the hand clamp and the well-lockstep overlap are the inputs of the

@@ -6,13 +6,15 @@ import { describe, expect, it } from 'vitest';
 import type { Seat } from '../../../src/engine/core/game';
 import type { AnyGameDefinition } from '../../../src/shared/games';
 import { ROOM_CODE_RE } from '../../../src/shared/protocol';
-import { TIMING_PRESETS } from '../../../src/shared/timing';
+import { AUTO_PASS_MS, TIMING_PRESETS, type RoomTiming } from '../../../src/shared/timing';
 import {
   ACTION_TIMEOUT_MAX_MS,
   ACTION_TIMEOUT_MIN_MS,
   DISCONNECT_GRACE_MS,
   bytesToHex,
+  clampBudgetMs,
   deltaCoversGap,
+  effectiveTimingClass,
   nextDeadlines,
   redactEventsFor,
   resolveSeatTiming,
@@ -106,7 +108,7 @@ describe('nextDeadlines (room-timing.md §2 decision table)', () => {
     (timeoutMs: number | null, timingClass: DeadlineEntry['timingClass'] & string = 'turn') =>
     () => ({ timeoutMs, timingClass });
 
-  type LegacyTiming = { timeoutMs?: number | null; timingClass?: 'turn' | 'planning' };
+  type LegacyTiming = { timeoutMs?: number | null; timingClass?: 'turn' | 'planning' | 'forcedPass' };
 
   function decision(
     input: Partial<NextDeadlinesInput> & LegacyTiming & Pick<NextDeadlinesInput, 'expectedActors'>,
@@ -233,6 +235,43 @@ describe('nextDeadlines (room-timing.md §2 decision table)', () => {
 
   it('decision with no expected actors (terminal) → empty', () => {
     expect(decision({ prev: [row(0, NOW, NOW)], expectedActors: [] })).toEqual([]);
+  });
+
+  it("auto-pass round: a 'forcedPass' budget is EXEMPT from the 5s MIN floor (the ~4s grace survives; 'turn' at the same value still floors to 5s)", () => {
+    // The pin that AUTO_PASS_MS (4s) is really honoured: the forced-pass class
+    // bypasses the [5s,120s] decision clamp (it is a fixed non-decision grace,
+    // not untrusted config), while every other class stays fenced. The
+    // deadline-liveness property MODEL imports the same clampBudgetMs, so DL1's
+    // bound agrees by construction.
+    expect(
+      decision({ expectedActors: [1], connectedSeats: connected(1), timeoutMs: 4_000, timingClass: 'forcedPass' }),
+    ).toEqual([row(1, NOW + 4_000, NOW + 4_000, 'forcedPass')]);
+    // Same 4s under 'turn' floors up to the 5s minimum.
+    expect(
+      decision({ expectedActors: [1], connectedSeats: connected(1), timeoutMs: 4_000, timingClass: 'turn' }),
+    ).toEqual([row(1, NOW + ACTION_TIMEOUT_MIN_MS, NOW + ACTION_TIMEOUT_MIN_MS, 'turn')]);
+    // Still bounded ABOVE by the 120s max even for forcedPass (safety).
+    expect(
+      decision({ expectedActors: [1], connectedSeats: connected(1), timeoutMs: 600_000, timingClass: 'forcedPass' }),
+    ).toEqual([row(1, NOW + ACTION_TIMEOUT_MAX_MS, NOW + ACTION_TIMEOUT_MAX_MS, 'forcedPass')]);
+  });
+
+  it('EXACTLY-ONCE PIN (auto-pass): an applied action DROPS the acted seat once it is no longer an expected actor — the deadline row does NOT survive', () => {
+    // Load-bearing for the auto-pass exactly-once guarantee (owner strengthen #1,
+    // fact ii): after a pass advances the state the passer is no longer an
+    // expected actor, so recompute (reason='decision') must emit NO row for it —
+    // the alarm then finds nothing due and cannot double-apply. If a future
+    // change made nextDeadlines preserve a non-actor's row, exactly-once would
+    // break with no other test failing; this asserts the drop directly.
+    const passerRow = row(1, NOW + 45_000, NOW + 45_000, 'turn');
+    const after = decision({
+      prev: [passerRow],
+      expectedActors: [2], // the NEXT actor after the pass — seat 1 is gone
+      connectedSeats: connected(1, 2),
+      actedSeat: 1,
+    });
+    expect(after.some((r) => r.seat === 1)).toBe(false);
+    expect(after).toEqual([row(2, NOW + 45_000, NOW + 45_000, 'turn')]);
   });
 
   // --- reason = 'presence' -------------------------------------------------
@@ -403,7 +442,10 @@ describe('nextDeadlines (room-timing.md §2 decision table)', () => {
 // ---------------------------------------------------------------------------
 
 describe('resolveTimeoutMs / resolveTimingClass', () => {
-  const gameWith = (timeoutMs: number | null, cls?: 'turn' | 'planning'): AnyGameDefinition =>
+  const gameWith = (
+    timeoutMs: number | null,
+    cls?: 'turn' | 'planning' | 'forcedPass',
+  ): AnyGameDefinition =>
     ({
       actionTimeoutMs: () => timeoutMs,
       ...(cls !== undefined ? { timingClass: () => cls } : {}),
@@ -453,6 +495,48 @@ describe('resolveTimeoutMs / resolveTimingClass', () => {
     const resolve = resolveSeatTiming(perSeatGame, {}, TIMING_PRESETS.untimed);
     expect(resolve(0).timeoutMs).toBeNull();
     expect(resolve(1).timeoutMs).toBeNull();
+  });
+
+  // --- auto-pass round: the ROOM's forced-pass policy (effective class) --------
+
+  const on = (t: RoomTiming): RoomTiming => ({ ...t, autoPassNoPlay: true });
+  const off = (t: RoomTiming): RoomTiming => ({ ...t, autoPassNoPlay: false });
+  const forced = gameWith(45_000, 'forcedPass');
+
+  it("effectiveTimingClass: ON keeps 'forcedPass'; OFF downgrades it to 'turn' (OFF ≡ today); a legacy null-timing room also reads it as 'turn'", () => {
+    expect(effectiveTimingClass(forced, {}, on(TIMING_PRESETS.standard), 0)).toBe('forcedPass');
+    expect(effectiveTimingClass(forced, {}, off(TIMING_PRESETS.standard), 0)).toBe('turn');
+    expect(effectiveTimingClass(forced, {}, null, 0)).toBe('turn');
+    // A non-forced class is never rewritten by the policy.
+    expect(effectiveTimingClass(gameWith(45_000, 'planning'), {}, off(TIMING_PRESETS.standard), 0)).toBe('planning');
+  });
+
+  it('resolveSeatTiming for a forced-pass seat: ON → the ~4s grace + forcedPass label; OFF → the per-turn budget + turn label (end-to-end OFF ≡ today)', () => {
+    const onResolve = resolveSeatTiming(forced, {}, on(TIMING_PRESETS.standard));
+    expect(onResolve(0)).toEqual({ timeoutMs: AUTO_PASS_MS, timingClass: 'forcedPass' });
+    const offResolve = resolveSeatTiming(forced, {}, off(TIMING_PRESETS.standard));
+    expect(offResolve(0)).toEqual({ timeoutMs: 45_000, timingClass: 'turn' });
+    // Untimed + ON still shortens a no-play seat; untimed + OFF leaves it untimed.
+    expect(resolveSeatTiming(forced, {}, on(TIMING_PRESETS.untimed))(0)).toEqual({
+      timeoutMs: AUTO_PASS_MS,
+      timingClass: 'forcedPass',
+    });
+    expect(resolveSeatTiming(forced, {}, off(TIMING_PRESETS.untimed))(0)).toEqual({
+      timeoutMs: null,
+      timingClass: 'turn',
+    });
+  });
+});
+
+describe('clampBudgetMs (auto-pass round: forcedPass is exempt from the 5s floor)', () => {
+  it('fences turn/planning to [5s,120s] but leaves forcedPass at its fixed grace', () => {
+    expect(clampBudgetMs(4_000, 'turn')).toBe(ACTION_TIMEOUT_MIN_MS);
+    expect(clampBudgetMs(4_000, 'planning')).toBe(ACTION_TIMEOUT_MIN_MS);
+    expect(clampBudgetMs(4_000, 'forcedPass')).toBe(4_000);
+    expect(clampBudgetMs(AUTO_PASS_MS, 'forcedPass')).toBe(AUTO_PASS_MS);
+    // Still bounded ABOVE for every class.
+    expect(clampBudgetMs(600_000, 'turn')).toBe(ACTION_TIMEOUT_MAX_MS);
+    expect(clampBudgetMs(600_000, 'forcedPass')).toBe(ACTION_TIMEOUT_MAX_MS);
   });
 });
 
@@ -515,19 +599,21 @@ describe('toWireDeadlines (PLAN §5 broadcast deadlines field)', () => {
     expect(toWireDeadlines([{ seat: 1, due_at: 1_000 }])).toEqual([{ seat: 1, dueAt: 1_000 }]);
   });
 
-  it('carries a valid timing_class through and omits NULL/unknown ones (pre-M4 rows)', () => {
+  it('carries a valid timing_class through (incl. auto-pass forcedPass) and omits NULL/unknown ones (pre-M4 rows)', () => {
     expect(
       toWireDeadlines([
         { seat: 0, due_at: 1_000, timing_class: 'planning' },
         { seat: 1, due_at: 2_000, timing_class: 'turn' },
         { seat: 2, due_at: 3_000, timing_class: null },
         { seat: 3, due_at: 4_000, timing_class: 'bogus' },
+        { seat: 4, due_at: 5_000, timing_class: 'forcedPass' },
       ]),
     ).toEqual([
       { seat: 0, dueAt: 1_000, timingClass: 'planning' },
       { seat: 1, dueAt: 2_000, timingClass: 'turn' },
       { seat: 2, dueAt: 3_000 },
       { seat: 3, dueAt: 4_000 },
+      { seat: 4, dueAt: 5_000, timingClass: 'forcedPass' },
     ]);
   });
 

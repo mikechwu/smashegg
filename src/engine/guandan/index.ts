@@ -10,7 +10,7 @@ import { nextInt, seedPrng, shuffle, type PrngState } from '../core/prng';
 import { buildDeck, isWild, naturalValue, rankOf, RANKS, sortCards, type Card, type Rank } from './cards';
 import { JIANGSU_OFFICIAL_ONLINE, validateRuleVariant, type RuleVariant } from './config';
 import { beats, inferDecl, validatePlay } from './combos';
-import { defaultPlayAction, legalActionsFor } from './generate';
+import { defaultPlayAction, isForcedPass, legalActionsFor } from './generate';
 import {
   applyAntiTributeDecision,
   applyPayTribute,
@@ -815,6 +815,30 @@ export const GuandanGame: GameDefinition<GuandanState, GuandanAction, GuandanEve
     // it classes 'turn'; and it never consumes anyone's planning window
     // (the acted flags reset AT the deal, which follows the cut).
     if (state.phase === 'ceremonyCut') return 'turn';
+    // Auto-pass round: 'forcedPass' ⇔ this seat's ONLY legal action is pass (a
+    // follower who cannot beat the current play). Checked FIRST, so it OVERRIDES
+    // 'planning' — a forced pass is not a decision and has nothing to plan, so a
+    // first-of-hand forced follow must not draw the long planning window. Emitted
+    // UNCONDITIONALLY (a truthful state label); the ROOM's autoPassNoPlay option
+    // decides whether it maps to the short ~4s grace or the normal turn budget.
+    // Scoped to the ACTING follower (trick.toAct) via isForcedPass (mustLead ⇒
+    // false); a non-actor has no pending decision, and tribute / return /
+    // anti-tribute single-forced-action phases are deliberately out of scope and
+    // keep their planning/turn classing + existing defaultAction paths.
+    if (state.phase === 'playing' && state.trick!.toAct === seat) {
+      const trick = state.trick!;
+      if (
+        isForcedPass(
+          state.hands[seat]!,
+          trick.top?.decl ?? null,
+          trick.top === null,
+          state.currentLevel,
+          state.config,
+        )
+      ) {
+        return 'forcedPass';
+      }
+    }
     // Item 2: 'planning' ⇔ this SEAT has not yet acted in the current hand.
     // Its first decision — play, pass, tribute, return, anti-tribute alike
     // (owner decision: tribute IS the hand-reading moment) — gets the

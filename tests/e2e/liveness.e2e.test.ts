@@ -25,7 +25,7 @@ const TINY_STALE_MS = 1_500;
 const TINY_WINDOW_MS = 1_500;
 /** Short (≥ the 5s clamp floor) so "the reap paused the room BEFORE its turn
  *  deadline could auto-play an absent human" is observable in seconds. */
-const SHORT_TURN: RoomTiming = { perTurnMs: 5_000, planningMs: 5_000 };
+const SHORT_TURN: RoomTiming = { perTurnMs: 5_000, planningMs: 5_000, autoPassNoPlay: true };
 const GN_CONFIG = { rangeMax: 100, suddenDeath: false };
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));

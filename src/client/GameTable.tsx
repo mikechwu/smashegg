@@ -41,6 +41,7 @@ import {
   asGuandanEvents,
   asGuandanView,
   asRuleVariant,
+  autoPassFill,
   beatState,
   declJokerRank,
   concealedLeader,
@@ -50,6 +51,7 @@ import {
   holdPreDealFan,
   interludeStage,
   isCeremonyShowing,
+  isRedundantPassRejection,
   landRemoteDealt,
   matchSelection,
   MAX_TIMEOUT_NOTICES,
@@ -559,6 +561,15 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     return Date.now() - at < 10_000;
   };
 
+  // Auto-pass dead-press swallow (owner strengthen #2): the actionIds of PASSES
+  // this client submitted, so a race-lost pass (the DO's default pass committed
+  // the identical pass first) can be recognised by actionId and its out-of-turn
+  // rejection converted to success instead of a confusing toast. ONLY pass ids
+  // enter here, so a rejected PLAY can never be swallowed; UUIDs are unique, so
+  // a lingering id can never match a later unrelated rejection (the bound is
+  // memory hygiene only).
+  const pendingPassIds = useRef(new Set<string>());
+
   // Fold newly arrived event batches into per-seat presentation state. A
   // LAYOUT effect (see useIsomorphicLayoutEffect): the deal-gate reads
   // derived.dealNo, which must land in the same paint as the snapshot's new
@@ -737,6 +748,29 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // REAL theme CardBacks in SeatStack, which reads the active theme itself,
   // so GameTable no longer consumes the theme here at all.
 
+  // Auto-pass dead-press swallow (owner strengthen #2), computed here — ABOVE the
+  // spectator early-return — so the clearing effect obeys the rules of hooks. A
+  // rejection is swallowed ONLY when it is a PASS this client submitted (its
+  // actionId is in the pass-only pending set) AND its code is one of the two
+  // "turn already advanced past my decision point" codes — i.e. the DO's
+  // auto-pass committed the identical pass first, so the player's intent already
+  // happened. Any other rejection (a rejected PLAY, or a pass rejected for a
+  // genuine reason) is NOT swallowed and still toasts.
+  const lastRejection = snapshot.rejections[snapshot.rejections.length - 1];
+  const passRejectionSwallowed =
+    lastRejection !== undefined &&
+    lastRejection.actionId !== undefined &&
+    pendingPassIds.current.has(lastRejection.actionId) &&
+    isRedundantPassRejection(lastRejection.error.code);
+  // Clear a swallowed rejection so it neither lingers nor blocks a later real
+  // toast (the player already saw the pass land — desk teardown + fold fade).
+  useEffect(() => {
+    if (passRejectionSwallowed) {
+      if (lastRejection?.actionId !== undefined) pendingPassIds.current.delete(lastRejection.actionId);
+      store.clearRejections();
+    }
+  }, [passRejectionSwallowed, lastRejection, store]);
+
   if (activeSeat === undefined) {
     // Connected without any seat token (e.g. joined a game already going):
     // nothing to render — per-seat views only flow to token holders (PLAN §4).
@@ -904,8 +938,10 @@ export function GameTable({ snapshot, store }: GameTableProps) {
 
   // A rejection clears on the next action (store.act/claim/…) or a start, so
   // whatever's still here is the latest un-acted failure — show it, dismissible.
-  const lastRejection = snapshot.rejections[snapshot.rejections.length - 1];
-  const showToast = lastRejection !== undefined;
+  // showToast / lastRejection / passRejectionSwallowed are computed above the
+  // spectator early-return (rules of hooks: the clearing effect must run every
+  // render). The toast is hidden for a swallowed race-lost pass.
+  const showToast = lastRejection !== undefined && !passRejectionSwallowed;
 
   const committedSet = new Set<Seat>(view.tribute?.committed ?? []);
 
@@ -1005,6 +1041,27 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     deskLoud && room?.timing != null && clockDeadline?.timingClass !== undefined
       ? timeoutMsFor(room.timing, clockDeadline.timingClass)
       : null;
+  // Auto-pass round: a forced-pass window is YOUR turn with the server-labelled
+  // 'forcedPass' deadline (a follower who cannot beat the play — the room's
+  // auto-pass option is ON; OFF is reported as an ordinary 'turn' by the server,
+  // so this branch never fires and today's clock behaviour holds). deskTotalMs
+  // already resolves the forced-pass budget (timeoutMsFor(..., 'forcedPass') =
+  // AUTO_PASS_MS). We FREEZE the ambient clock here — the desk number, its drain
+  // bar, the urgency ramp, and the headline countdown all go quiet — so the ONE
+  // moving thing is the fill-sweep on the pass button (the research's single-timer
+  // calm lever, and what keeps an untimed room from ever reading as "hurry up").
+  const forcedPassWindow =
+    yourTurn && settled && !interludeShowing && clockDeadline?.timingClass === 'forcedPass';
+  const autoPassSweep =
+    forcedPassWindow && clockDeadline !== undefined && deskTotalMs !== null
+      ? {
+          totalMs: deskTotalMs,
+          dueAt: clockDeadline.dueAt,
+          fill: autoPassFill(Math.max(0, clockDeadline.dueAt - now), deskTotalMs) ?? 0,
+          reduced: reducedMotion,
+        }
+      : null;
+  const clockDueSeconds = forcedPassWindow ? null : dueSeconds;
   // D6: the timeout notice — transient (wall-clock gated), capped by guard
   // 4's frequency policy, and never over the interlude's beat.
   const autoPass = derived.autoPass;
@@ -1109,7 +1166,11 @@ export function GameTable({ snapshot, store }: GameTableProps) {
 
   const act = (action: GuandanAction) => {
     if (action.type === 'pass') localPassRef.current.set(activeSeat, Date.now());
-    store.act(activeSeat, action);
+    const actionId = store.act(activeSeat, action);
+    if (action.type === 'pass' && actionId !== undefined) {
+      if (pendingPassIds.current.size > 16) pendingPassIds.current.clear();
+      pendingPassIds.current.add(actionId);
+    }
     setSelected(new Set());
     setChooserOpen(false);
   };
@@ -1144,7 +1205,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         }
         yourTurn={leaderConcealed !== null || interludeShowing || !settled ? false : yourTurn}
         actorName={leaderConcealed !== null || interludeShowing || !settled ? null : actorName}
-        dueSeconds={leaderConcealed !== null ? null : dueSeconds}
+        dueSeconds={leaderConcealed !== null ? null : clockDueSeconds}
         planning={clockDeadline?.timingClass === 'planning' && clockConnected}
         deskOwnsTurn={deskLoud}
       />
@@ -1243,9 +1304,10 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           <PlayDesk
             key={desk}
             mode={desk}
-            dueSeconds={deskLoud ? dueSeconds : null}
-            totalMs={deskTotalMs}
+            dueSeconds={deskLoud ? clockDueSeconds : null}
+            totalMs={forcedPassWindow ? null : deskTotalMs}
             planning={clockDeadline?.timingClass === 'planning' && clockConnected}
+            forcedPass={forcedPassWindow}
             level={view.currentLevel}
             staged={stagedCards}
             stage={stage}
@@ -1296,6 +1358,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
                 tributeAction={tributeAction}
                 tributePhase={tributePhase}
                 chooserOpen={chooserOpen}
+                autoPass={autoPassSweep}
                 onPlay={(match) => act({ type: 'play', cards: match.cards, decl: match.decl })}
                 onOpenChooser={() => setChooserOpen(true)}
                 onCloseChooser={() => setChooserOpen(false)}

@@ -28,7 +28,7 @@ import {
 const TINY_WINDOW_MS = 1_500;
 /** Both classes short (still ≥ the 5s clamp floor) so "no auto-play while paused"
  *  is observable in seconds — without Q3 the actor's deadline auto-plays at ~5s. */
-const SHORT_TURN: RoomTiming = { perTurnMs: 5_000, planningMs: 5_000 };
+const SHORT_TURN: RoomTiming = { perTurnMs: 5_000, planningMs: 5_000, autoPassNoPlay: true };
 const GN_CONFIG = { rangeMax: 100, suddenDeath: false };
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));

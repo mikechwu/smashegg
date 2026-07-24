@@ -98,6 +98,39 @@ export function resolveTimingClass(
   return game.timingClass?.(state, seat) ?? 'turn';
 }
 
+/** The class the ROOM actually applies, after its forced-pass policy (auto-pass
+ *  round). The engine emits 'forcedPass' TRUTHFULLY whenever a follower has no
+ *  legal play; the room grants the short grace ONLY when its timing config has
+ *  auto-pass ON. With auto-pass OFF — or a legacy null-timing room, which has no
+ *  such option — a 'forcedPass' state is reported and budgeted as an ordinary
+ *  'turn', so OFF is today's behaviour end to end: the client receives class
+ *  'turn' (no sweep) and the seat waits its normal clock while the existing
+ *  default-on-expiry pass still fires. This is the SINGLE place the on/off policy
+ *  maps onto the class, so the wire label and the mapped budget can never
+ *  disagree (both go through here). */
+export function effectiveTimingClass(
+  game: AnyGameDefinition,
+  state: unknown,
+  timing: RoomTiming | null,
+  seat: Seat,
+): TimingClass {
+  const cls = resolveTimingClass(game, state, seat);
+  if (cls === 'forcedPass' && !(timing?.autoPassNoPlay ?? false)) return 'turn';
+  return cls;
+}
+
+/** The armed-budget clamp. Decision budgets (turn/planning) are bounded to
+ *  [MIN,MAX] to fence UNTRUSTED RoomTiming values. 'forcedPass' is EXEMPT from
+ *  the MIN floor: it is a fixed-constant non-decision grace (AUTO_PASS_MS = 4s),
+ *  not an untrusted config value, so flooring it to 5s would silently defeat the
+ *  owner's chosen duration. Still bounded above by MAX for safety. The
+ *  deadline-liveness property model imports THIS function, so DL1's bound and the
+ *  product's arming agree by construction — the pin that 4s is really honoured. */
+export function clampBudgetMs(timeoutMs: number, cls: TimingClass): number {
+  const floored = cls === 'forcedPass' ? timeoutMs : Math.max(ACTION_TIMEOUT_MIN_MS, timeoutMs);
+  return Math.min(ACTION_TIMEOUT_MAX_MS, floored);
+}
+
 /** Effective timeout for a SEAT (room-timing.md §1 resolution order, now
  *  per-seat): a legacy room (timing NULL) takes the engine suggestion
  *  verbatim; an engine-declared untimed state (actionTimeoutMs null)
@@ -113,7 +146,7 @@ export function resolveTimeoutMs(
   const suggested = game.actionTimeoutMs(state);
   if (timing === null) return suggested;
   if (suggested === null) return null;
-  return timeoutMsFor(timing, resolveTimingClass(game, state, seat));
+  return timeoutMsFor(timing, effectiveTimingClass(game, state, timing, seat));
 }
 
 /** A seat's resolved budget + class bundle — what nextDeadlines consumes. */
@@ -131,7 +164,7 @@ export function resolveSeatTiming(
 ): (seat: Seat) => SeatTiming {
   return (seat) => ({
     timeoutMs: resolveTimeoutMs(game, state, timing, seat),
-    timingClass: resolveTimingClass(game, state, seat),
+    timingClass: effectiveTimingClass(game, state, timing, seat),
   });
 }
 
@@ -189,8 +222,9 @@ export function nextDeadlines(input: NextDeadlinesInput): DeadlineEntry[] {
         out.push(row ? { ...row } : { seat, baseDueAt: null, dueAt: grace, timingClass });
         continue;
       }
-      const budget =
-        now + Math.min(ACTION_TIMEOUT_MAX_MS, Math.max(ACTION_TIMEOUT_MIN_MS, timeoutMs));
+      // Class-aware clamp: 'forcedPass' is exempt from the 5s MIN floor (a fixed
+      // ~4s non-decision grace), every other class is fenced to [5s,120s].
+      const budget = now + clampBudgetMs(timeoutMs, timingClass);
       if (seat === input.actedSeat) {
         // Re-cut round 2026-07-15: the seat that just ACTED and is STILL an
         // expected actor sits at a NEW decision point (an uncountable
@@ -297,7 +331,13 @@ export function toWireDeadlines(
   return rows
     .map((r) => {
       const wire: WireDeadline = { seat: r.seat, dueAt: r.due_at };
-      if (r.timing_class === 'turn' || r.timing_class === 'planning') {
+      // Union-widening site (auto-pass round): whitelist every valid TimingClass;
+      // rows armed before the column existed read back as something else → omit.
+      if (
+        r.timing_class === 'turn' ||
+        r.timing_class === 'planning' ||
+        r.timing_class === 'forcedPass'
+      ) {
         wire.timingClass = r.timing_class;
       }
       return wire;

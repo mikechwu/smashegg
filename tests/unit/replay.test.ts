@@ -7,6 +7,8 @@ import { JIANGSU_OFFICIAL_ONLINE } from '../../src/engine/guandan/config';
 import type { RuleVariant } from '../../src/engine/guandan/config';
 import type { GuandanAction } from '../../src/engine/guandan/types';
 import { GuessNumberGame, type GNConfig } from '../../src/engine/guess-number';
+import { GuandanGame } from '../../src/engine/guandan';
+import type { GuandanState } from '../../src/engine/guandan/types';
 import type { Seat } from '../../src/engine/core/game';
 import { recordPlayout, replayMatch, type ReplayInput } from '../../scripts/replay';
 
@@ -37,6 +39,36 @@ describe('replay harness (scripts/replay.ts)', () => {
     expect(result.states).toEqual(rec.states);
     expect(result.events).toEqual(rec.events);
     expect(result.finalState).toEqual(finalState);
+  });
+
+  it('auto-pass round: a recorded playout contains ≥1 FORCED pass (legalActions == [{pass}]) and replays bit-for-bit', () => {
+    // An auto-pass is written to the action log byte-identically to a manual pass
+    // ({type:'pass'}) — both flow through the DO's one applyGameAction path — so a
+    // golden playout that reaches pass-only states IS a valid auto-pass replay.
+    // recordPlayout's default policy passes exactly when pass is the only legal
+    // action, so a few hands reliably contain forced passes.
+    const rec = recordPlayout('replay-forced-pass', JIANGSU_OFFICIAL_ONLINE, undefined, {
+      maxActions: 20_000,
+      stopAfterHands: 3,
+    });
+    // Count forced passes: a recorded {type:'pass'} whose state-before offered
+    // ONLY pass — reconstructed from the recorded snapshots (model = product).
+    let forced = 0;
+    for (let i = 0; i < rec.artifact.actions.length; i++) {
+      const entry = rec.artifact.actions[i]!;
+      if (entry.action.type !== 'pass') continue;
+      const before = rec.states[i] as GuandanState;
+      const legal = GuandanGame.legalActions(before, entry.seat);
+      if (legal.length === 1 && legal[0]!.type === 'pass') forced++;
+    }
+    expect(forced, 'the golden playout must contain at least one forced (auto-)pass').toBeGreaterThan(0);
+
+    // ...and it replays bit-for-bit — the forced passes reproduce identically.
+    const result = replayMatch(rec.artifact, { snapshots: snapshotsFrom(rec.states) });
+    expect(result.ok).toBe(true);
+    expect(result.divergence).toBeUndefined();
+    expect(result.states).toEqual(rec.states);
+    expect(result.events).toEqual(rec.events);
   });
 
   it('reconstructs a scripted match bit-for-bit under a variant config (aFailConsequence=demote)', () => {

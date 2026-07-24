@@ -181,6 +181,7 @@ describe('PlayDesk render states', () => {
     dueSeconds: null,
     totalMs: null,
     planning: false,
+    forcedPass: false,
     level: '2',
     staged: [],
     stage: { decls: [], playableCount: 0 },
@@ -199,6 +200,20 @@ describe('PlayDesk render states', () => {
     expect(html).toContain('Your turn — play');
     expect(html).toContain('Your lead — play first');
     expect(html).toContain('Tap cards to stage them here');
+    expect(html).not.toContain('gd-desk__clock');
+    expect(html).not.toContain('gd-desk__bar');
+  });
+
+  it('auto-pass round: forcedPass makes the title the unmistakable reason and drops the redundant cannotBeat status; the clock stays frozen (parent nulls dueSeconds/totalMs)', () => {
+    const html = renderDesk({ forcedPass: true, beat: 'cannotBeat', dueSeconds: null, totalMs: null });
+    // The title carries the WHAT (card-state, never "hurry up" — the untimed key).
+    // renderToStaticMarkup escapes the apostrophe (Can&#x27;t) — pin around it.
+    expect(html).toContain('t beat this — passing for you');
+    // The default "Your turn" title is replaced, and the cannotBeat status line
+    // (which would be redundant with the title) is dropped.
+    expect(html).not.toContain('Your turn');
+    expect(html).not.toContain('beat it — pass');
+    // Clock frozen: no ticking number, no drain bar, no urgency escalation.
     expect(html).not.toContain('gd-desk__clock');
     expect(html).not.toContain('gd-desk__bar');
   });
@@ -325,8 +340,13 @@ describe('GameTable wiring pins', () => {
     expect(gameTableSrc).toMatch(/const deskLoud = desk === 'play' \|\| desk === 'tribute';/);
   });
 
-  it('quiet mode gets NO clock: dueSeconds flows only when loud', () => {
-    expect(gameTableSrc).toMatch(/dueSeconds=\{deskLoud \? dueSeconds : null\}/);
+  it('quiet mode gets NO clock: dueSeconds flows only when loud (and is frozen in a forced-pass window)', () => {
+    // Auto-pass round: clockDueSeconds is null during forcedPass, so the desk
+    // clock/drain-bar/urgency all go quiet and the pass-button sweep is the only
+    // moving thing; totalMs is nulled too so no drain bar renders.
+    expect(gameTableSrc).toMatch(/dueSeconds=\{deskLoud \? clockDueSeconds : null\}/);
+    expect(gameTableSrc).toMatch(/totalMs=\{forcedPassWindow \? null : deskTotalMs\}/);
+    expect(gameTableSrc).toMatch(/forcedPass=\{forcedPassWindow\}/);
   });
 
   it('every table-owning choreography suppresses the desk', () => {
@@ -483,6 +503,7 @@ describe('one-tap clear', () => {
     dueSeconds: null,
     totalMs: null,
     planning: false,
+    forcedPass: false,
     level: '2' as const,
     staged: [
       { card: '9S' as never, index: 3 },

@@ -1648,6 +1648,21 @@ export class GameRoom extends DurableObject<Env> {
     // reflects the new state by the time currentWireDeadlines() reads it
     // immediately below, BEFORE fanning out the 'event' broadcast (PLAN §5
     // deadlines field: populated from the table after recomputation).
+    //
+    // EXACTLY-ONCE LOAD-BEARING (auto-pass round): this recompute runs AFTER the
+    // state advanced above, so nextDeadlines emits rows only for the NEW expected
+    // actors and applyNextDeadlines REPLACES the table wholesale — the acted
+    // seat's deadline row is thereby DROPPED. That drop is one of the three
+    // structural facts the auto-pass exactly-once guarantee rests on (the others:
+    // the DO is single-threaded, and a late duplicate action is re-validated and
+    // rejected out-of-turn). A race between a manual pass and the alarm's default
+    // pass cannot double-apply: whichever writer advances the state first drops
+    // the other's due row here, so the alarm finds nothing due (manual-first) or
+    // the manual pass is rejected out-of-turn (alarm-first). DO NOT move this
+    // recompute before the state write, and do NOT make nextDeadlines preserve a
+    // non-actor's row — either change breaks exactly-once with no other guard.
+    // Pinned: nextDeadlines drops the acted seat (room-helpers.test) + the
+    // near-boundary e2e (tests/e2e) asserts a single passed event at that seat.
     void this.recomputeDeadlines('decision', seat);
     this.fanOutEvents(game, config, newSeq, applied.events, applied.state, this.currentWireDeadlines());
 
@@ -1782,8 +1797,16 @@ export class GameRoom extends DurableObject<Env> {
       seat: r.seat,
       baseDueAt: r.base_due_at,
       dueAt: r.due_at,
+      // Union-widening site (auto-pass round): whitelist every valid TimingClass
+      // so a persisted 'forcedPass' row survives a rebuild; an unknown/legacy
+      // pre-column value reads back null (a plain turn budget). Must move in
+      // lockstep with the TimingClass union + toWireDeadlines' twin whitelist.
       timingClass:
-        r.timing_class === 'turn' || r.timing_class === 'planning' ? r.timing_class : null,
+        r.timing_class === 'turn' ||
+        r.timing_class === 'planning' ||
+        r.timing_class === 'forcedPass'
+          ? r.timing_class
+          : null,
     }));
     const rows = nextDeadlines({
       prev,

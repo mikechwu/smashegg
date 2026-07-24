@@ -180,7 +180,7 @@ describe('Room timing e2e (M4)', () => {
 
         // Custom (non-preset) values are valid — validateRoomTiming checks
         // range, not preset membership.
-        const timing = { perTurnMs: 5_000, planningMs: 5_000 };
+        const timing = { perTurnMs: 5_000, planningMs: 5_000, autoPassNoPlay: true };
         const changed = await setTimingAndAwaitBroadcast(client, timing);
         expect(changed.room.timing).toEqual(timing);
 

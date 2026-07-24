@@ -13,7 +13,7 @@ import type { RuleVariant } from '../../../src/engine/guandan/config';
 import type { CanonicalForm, ComboType } from '../../../src/engine/guandan/types';
 import { beats, classifyPlays, validatePlay } from '../../../src/engine/guandan/combos';
 import type { ComboForm } from '../../../src/engine/guandan/combos';
-import { defaultPlayAction, legalActionsFor, legalPlays } from '../../../src/engine/guandan/generate';
+import { defaultPlayAction, isForcedPass, legalActionsFor, legalPlays } from '../../../src/engine/guandan/generate';
 import { nextInt, seedPrng, shuffle } from '../../../src/engine/core/prng';
 import type { PrngState } from '../../../src/engine/core/prng';
 
@@ -319,6 +319,24 @@ describe('legalActionsFor / defaultPlayAction (§5.2/§5.3, game.ts defaultActio
     const canBeat = legalActionsFor(['AS', 'AD'], single('K'), false, '2', cfg);
     expect(canBeat.filter((a) => a.type === 'pass')).toHaveLength(1);
     expect(canBeat.filter((a) => a.type === 'play').length).toBeGreaterThan(0);
+  });
+
+  it('auto-pass round: isForcedPass ⇔ pass is the only legal action (following + no beating play)', () => {
+    // The pure "no legal play" judgement — the single source of truth the DO's
+    // timingClass and the client view both read; never re-derived client-side.
+    expect(isForcedPass(['3S', '4D'], single('A'), false, '2', cfg)).toBe(true); // following, can't beat
+    expect(isForcedPass(['AS', 'AD'], single('K'), false, '2', cfg)).toBe(false); // following, CAN beat
+    expect(isForcedPass(['3S', '4D'], null, true, '2', cfg)).toBe(false); // leading — pass is illegal, never forced
+    // The predicate agrees with legalActionsFor being exactly [{pass}].
+    for (const [hand, top, mustLead] of [
+      [['3S', '4D'], single('A'), false],
+      [['AS', 'AD'], single('K'), false],
+      [['3S', '4D'], null, true],
+    ] as const) {
+      const legal = legalActionsFor([...hand], top, mustLead, '2', cfg);
+      const passOnly = legal.length === 1 && legal[0]!.type === 'pass';
+      expect(isForcedPass([...hand], top, mustLead, '2', cfg)).toBe(passOnly);
+    }
   });
 
   it('defaultPlayAction: pass when allowed; lowest legal single by levelValue when leading', () => {

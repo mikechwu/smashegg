@@ -758,6 +758,39 @@ export function beatState(
   return hints.some((h) => h.type === 'play') ? 'canBeat' : 'cannotBeat';
 }
 
+/** The dead-press swallow allowlist (auto-pass round, owner strengthen #2).
+ *  A race-losing manual pass — the player pressed inside the auto-pass window but
+ *  the DO's default pass committed the IDENTICAL pass at the same seq first —
+ *  arrives out-of-turn and the server rejects it. The player's intent (pass)
+ *  DID happen (they see the fold + desk teardown), so the rejection toast is
+ *  pure confusion. These are the two — and only two — rejection codes that mean
+ *  "the turn already advanced past my decision point": the state moved on
+ *  (another follower now acts) or the phase changed (the trick/hand resolved).
+ *  The CALLER must additionally gate on an actionId it tracked as a local PASS
+ *  submission, so a rejected PLAY, or a pass rejected for ANY other reason
+ *  (malformed / seat.notHeld / applyThrew / room.notPlaying), still surfaces its
+ *  toast. Narrow BY CONSTRUCTION (pass-only pending set × this two-code
+ *  allowlist); pinned by a structural test that no other code/action is
+ *  swallowed. Pure + exported so that test is DOM-free. */
+export const REDUNDANT_PASS_REJECTION_CODES = ['action.notYourTurn', 'action.wrongPhase'] as const;
+
+export function isRedundantPassRejection(code: string): boolean {
+  return (REDUNDANT_PASS_REJECTION_CODES as readonly string[]).includes(code);
+}
+
+/** Left→right FILL fraction (0→1) of the auto-pass sweep on the pass button:
+ *  ELAPSED / total, so it GROWS toward the commit — "the system is finishing
+ *  this for you", never a draining bomb-timer (owner UI direction). Distinct
+ *  from deskFraction, which is REMAINING (a shrinking support bar). Null when
+ *  there is no live forced-pass window to render. Approximate by the same design
+ *  as deskFraction: the total is the room's forced-pass budget (AUTO_PASS_MS via
+ *  timeoutMsFor); a disconnect-grace clamp can only shorten the real dueAt, and
+ *  the sweep is support, not the authority. */
+export function autoPassFill(remainingMs: number | null, totalMs: number | null): number | null {
+  if (remainingMs === null || totalMs === null || totalMs <= 0) return null;
+  return Math.min(1, Math.max(0, 1 - remainingMs / totalMs));
+}
+
 // ---------------------------------------------------------------------------
 // The play desk (elder-visibility round, docs/research/
 // state-visibility.md, owner decisions D1–D7). Pure state machine + stage

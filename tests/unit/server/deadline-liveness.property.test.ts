@@ -51,11 +51,11 @@ import { GuessNumberGame } from '../../../src/engine/guess-number';
 import type { AnyGameDefinition } from '../../../src/shared/games';
 import { TIMING_PRESETS, type RoomTiming } from '../../../src/shared/timing';
 import {
-  ACTION_TIMEOUT_MAX_MS,
-  ACTION_TIMEOUT_MIN_MS,
   DISCONNECT_GRACE_MS,
   STALE_SOCKET_MS,
   alarmCandidates,
+  clampBudgetMs,
+  effectiveTimingClass,
   isPausedRoom,
   mayAutoPlay,
   nextDeadlines,
@@ -75,9 +75,11 @@ const MAX_ALARM_APPLIES = 32; // mirrors game-room.ts
 // are the deterministic guarantee; this proves the RANDOM contexts hit them too.
 const q3Coverage = { pauses: 0, resumes: 0 };
 
-function clamp(ms: number): number {
-  return Math.min(ACTION_TIMEOUT_MAX_MS, Math.max(ACTION_TIMEOUT_MIN_MS, ms));
-}
+// DL1's per-seat budget bound uses the PRODUCT's class-aware clampBudgetMs
+// (imported, not re-derived) — auto-pass round: a 'forcedPass' budget is exempt
+// from the 5s floor, so importing the real clamp keeps DL1 and the DO's arming in
+// lockstep and the ~4s grace can never silently drift from what the property
+// proves.
 
 /** A virtual room: the exact state the DO keeps, minus the transport. All
  *  deadline math flows through the same pure helpers the DO calls. */
@@ -298,7 +300,13 @@ function assertInvariants(room: VirtualRoom): void {
     }
     const armed = room.armedAt.get(actor);
     expect(armed, `arm anchor tracked for seat ${actor}`).toBeDefined();
-    const budgetBound = timeoutMs === null ? DISCONNECT_GRACE_MS : Math.max(clamp(timeoutMs), DISCONNECT_GRACE_MS);
+    // Per-seat, class-aware bound (auto-pass round): a forced-pass seat's ~4s
+    // grace is exempt from the 5s floor, so the bound uses the effective class.
+    const cls = room.game.isTerminal(room.state)
+      ? 'turn'
+      : effectiveTimingClass(room.game, room.state, room.timing, actor);
+    const budgetBound =
+      timeoutMs === null ? DISCONNECT_GRACE_MS : Math.max(clampBudgetMs(timeoutMs, cls), DISCONNECT_GRACE_MS);
     expect(row.dueAt, `DL1: seat ${actor} due within max(clamp(T), grace) of arming`).toBeLessThanOrEqual(
       armed! + budgetBound,
     );

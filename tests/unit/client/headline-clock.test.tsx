@@ -121,8 +121,12 @@ describe('headline clock: one table-wide countdown on the turn line', () => {
     expect(table).toMatch(
       /!settled \|\| interludeShowing \|\| clockDeadline === undefined\s*\?\s*null\s*:\s*remainingSeconds\(clockDeadline\.dueAt, now\)/,
     );
-    // The concealed-leader override rides the SAME prop the turn line uses.
-    expect(table).toMatch(/dueSeconds=\{leaderConcealed !== null \? null : dueSeconds\}/);
+    // The concealed-leader override rides the SAME prop the turn line uses;
+    // auto-pass round: the prop is clockDueSeconds, which is null during a
+    // forced-pass window (the ambient clock is frozen so the pass-button sweep is
+    // the only moving thing).
+    expect(table).toMatch(/dueSeconds=\{leaderConcealed !== null \? null : clockDueSeconds\}/);
+    expect(table).toMatch(/const clockDueSeconds = forcedPassWindow \? null : dueSeconds;/);
     // The planning word only for a CONNECTED actor (the old pill's
     // `planning && connected` gate, relocated — Grok LOW).
     expect(table).toMatch(/planning=\{clockDeadline\?\.timingClass === 'planning' && clockConnected\}/);

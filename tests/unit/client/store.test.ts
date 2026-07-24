@@ -128,7 +128,7 @@ describe('RoomStore reducer', () => {
     const store = new RoomStore(CODE, fakeStorage());
     store.dispatch(welcome([], roomInfo()));
     expect(store.getSnapshot().room?.timing).toBeNull();
-    const timing = { perTurnMs: 20_000, planningMs: 45_000 };
+    const timing = { perTurnMs: 20_000, planningMs: 45_000, autoPassNoPlay: true };
     store.dispatch({ v: 1, type: 'roomChanged', seq: 2, room: roomInfo({ timing, seq: 2 }) });
     expect(store.getSnapshot().room?.timing).toEqual(timing);
     expect(store.getSnapshot().seq).toBe(2);
@@ -264,7 +264,7 @@ describe('RoomStore reducer', () => {
       setConfig: () => {},
       setTiming: () => {},
       start: () => {},
-      act: () => {},
+      act: () => 'act-id',
     };
     const store = new RoomStore(CODE, fakeStorage());
     store.bindSender(noop);
@@ -412,7 +412,10 @@ describe('RoomStore actions delegate to the bound sender', () => {
       setConfig: (...a) => calls.push(['setConfig', ...a]),
       setTiming: (...a) => calls.push(['setTiming', ...a]),
       start: () => calls.push(['start']),
-      act: (...a) => calls.push(['act', ...a]),
+      act: (...a) => {
+        calls.push(['act', ...a]);
+        return 'act-id';
+      },
     };
     const store = new RoomStore(CODE, fakeStorage());
     store.bindSender(sender);
@@ -421,7 +424,7 @@ describe('RoomStore actions delegate to the bound sender', () => {
     store.release(2);
     store.rename(2, 'ana');
     store.setConfig({ x: 1 });
-    store.setTiming({ perTurnMs: 20_000, planningMs: 45_000 });
+    store.setTiming({ perTurnMs: 20_000, planningMs: 45_000, autoPassNoPlay: true });
     store.start();
     store.act(2, { type: 'pass' });
     expect(calls).toEqual([
@@ -430,7 +433,7 @@ describe('RoomStore actions delegate to the bound sender', () => {
       ['releaseSeat', 2],
       ['renameSeat', 2, 'ana'],
       ['setConfig', { x: 1 }],
-      ['setTiming', { perTurnMs: 20_000, planningMs: 45_000 }],
+      ['setTiming', { perTurnMs: 20_000, planningMs: 45_000, autoPassNoPlay: true }],
       ['start'],
       ['act', 2, { type: 'pass' }],
     ]);

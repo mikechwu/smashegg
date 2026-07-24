@@ -86,6 +86,15 @@ export function TimingPicker({ timing, disabled, onChange }: TimingPickerProps) 
     onChange(option.timing);
   };
 
+  // Auto-pass on/off is a room-timing option (default ON), ORTHOGONAL to the four
+  // presets — it flips autoPassNoPlay on the CURRENT timing and rides the same
+  // setTiming transport. Hidden for a legacy null-timing room (no RoomTiming to
+  // carry the flag; that tier keeps the engine defaults and never auto-passes).
+  const setAutoPass = (on: boolean): void => {
+    if (disabled || timing === null || timing.autoPassNoPlay === on) return;
+    onChange({ ...timing, autoPassNoPlay: on });
+  };
+
   return (
     <div className="timing-picker">
       <style>{TIMING_PICKER_CSS}</style>
@@ -109,6 +118,38 @@ export function TimingPicker({ timing, disabled, onChange }: TimingPickerProps) 
         <p className="timing-picker__hint timing-picker__hint--option">
           {active !== undefined ? t(active.hint) : t('lobby.timing.legacyHint')}
         </p>
+        {timing !== null && (
+          <div className="timing-picker__autopass">
+            <p className="timing-picker__sublabel">{t('lobby.timing.autoPass.label')}</p>
+            <div
+              className="timing-picker__segmented"
+              role="group"
+              aria-label={t('lobby.timing.autoPass.label')}
+            >
+              <button
+                type="button"
+                className="timing-picker__option"
+                aria-pressed={timing.autoPassNoPlay}
+                disabled={disabled}
+                onClick={() => setAutoPass(true)}
+              >
+                {t('lobby.timing.autoPass.on')}
+              </button>
+              <button
+                type="button"
+                className="timing-picker__option"
+                aria-pressed={!timing.autoPassNoPlay}
+                disabled={disabled}
+                onClick={() => setAutoPass(false)}
+              >
+                {t('lobby.timing.autoPass.off')}
+              </button>
+            </div>
+            <p className="timing-picker__hint timing-picker__hint--option">
+              {t('lobby.timing.autoPass.hint')}
+            </p>
+          </div>
+        )}
       </fieldset>
     </div>
   );
@@ -147,6 +188,17 @@ const TIMING_PICKER_CSS = `
 }
 .timing-picker__hint--option {
   margin: var(--space-xs) 0 0;
+}
+.timing-picker__autopass {
+  margin-top: var(--space-lg);
+  border-top: 1px solid rgba(245, 239, 227, 0.14);
+  padding-top: var(--space-md);
+}
+.timing-picker__sublabel {
+  margin: 0 0 var(--space-sm);
+  font-weight: var(--weight-medium);
+  font-size: var(--fs-md);
+  color: var(--ivory);
 }
 .timing-picker__segmented {
   display: flex;

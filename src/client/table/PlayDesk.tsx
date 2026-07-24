@@ -41,6 +41,12 @@ export interface PlayDeskProps {
   totalMs: number | null;
   /** True when the running clock is the post-deal planning window. */
   planning: boolean;
+  /** Auto-pass round: this is a forced-pass window (your only legal action is
+   *  pass). The desk clock is FROZEN (the parent passes dueSeconds/totalMs null),
+   *  the title becomes the unmistakable reason (card-state, never "hurry up" —
+   *  the key for untimed rooms), and the redundant cannotBeat status is dropped;
+   *  the pass button carries the fill-sweep for the "when". */
+  forcedPass: boolean;
   level: Rank;
   /** Staged cards with their ORIGINAL hand indices (tap = unstage). */
   staged: readonly { card: Card; index: number }[];
@@ -60,7 +66,7 @@ export interface PlayDeskProps {
 }
 
 export function PlayDesk(props: PlayDeskProps) {
-  const { mode, dueSeconds, totalMs, planning, level, staged, stage, beat, tributePhase, tributeReady, onUnstage, onClearAll } = props;
+  const { mode, dueSeconds, totalMs, planning, forcedPass, level, staged, stage, beat, tributePhase, tributeReady, onUnstage, onClearAll } = props;
   const loud = mode !== 'quiet';
   const urgency = loud ? deskUrgency(dueSeconds, totalMs) : null;
   const fraction = loud ? deskFraction(dueSeconds, totalMs) : null;
@@ -75,11 +81,13 @@ export function PlayDesk(props: PlayDeskProps) {
       ? tributePhase === 'returnTribute'
         ? t('game.desk.tributeReturn')
         : t('game.desk.tributePay')
-      : urgency === 'urgent' && dueSeconds !== null
-        ? t('game.desk.hurry', { seconds: dueSeconds })
-        : planning
-          ? t('game.desk.yourTurnPlanning')
-          : t('game.desk.yourTurn');
+      : forcedPass
+        ? t('game.desk.autoPass')
+        : urgency === 'urgent' && dueSeconds !== null
+          ? t('game.desk.hurry', { seconds: dueSeconds })
+          : planning
+            ? t('game.desk.yourTurnPlanning')
+            : t('game.desk.yourTurn');
 
   // The status line: what the staged set IS (or what to do when nothing is
   // staged). The quiet form only ever names — playability needs hints.
@@ -91,7 +99,9 @@ export function PlayDesk(props: PlayDeskProps) {
   if (staged.length === 0) {
     if (mode === 'tribute') {
       status = t('game.desk.tributeEmpty');
-    } else if (mode === 'play') {
+    } else if (mode === 'play' && !forcedPass) {
+      // forcedPass carries the reason in the title (t('game.desk.autoPass')), so
+      // the cannotBeat status here would be redundant.
       status =
         beat === 'lead'
           ? t('game.desk.lead')

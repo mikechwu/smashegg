@@ -20,7 +20,7 @@
 // eligible card. Rejections surface as a dismissible toast, localized by
 // error code.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import type { GuandanAction } from '../../engine/guandan/types';
 import { rankOf, suitOf, type Rank } from '../../engine/guandan/cards';
 import {
@@ -103,6 +103,13 @@ export interface ActionBarProps {
   tributeAction: Extract<GuandanAction, { type: 'payTribute' | 'returnTribute' }> | null;
   tributePhase: 'payTribute' | 'returnTribute' | null;
   chooserOpen: boolean;
+  /** Auto-pass round: non-null in a forced-pass window (the only legal action is
+   *  pass). The pass button carries a left→right FILL sweep that GROWS toward the
+   *  moment the game passes for you — "the system is finishing this for you",
+   *  never a draining bomb-timer. `dueAt`/`totalMs` drive a self-running CSS
+   *  animation (no per-tick React restart); `fill` (elapsed fraction) drives the
+   *  reduced-motion stepped fallback, which never animates continuously. */
+  autoPass: { totalMs: number; dueAt: number; fill: number; reduced: boolean } | null;
   onPlay: (match: PlayMatch) => void;
   onOpenChooser: () => void;
   onCloseChooser: () => void;
@@ -122,6 +129,7 @@ export function ActionBar(props: ActionBarProps) {
     tributeAction,
     tributePhase,
     chooserOpen,
+    autoPass,
   } = props;
 
   // Two-tap pass confirm: armed by the first Pass tap while cards are
@@ -130,6 +138,18 @@ export function ActionBar(props: ActionBarProps) {
   useEffect(() => {
     setPassArmed(false);
   }, [selectionCount, hints]);
+
+  // The forced-pass sweep animation, seeked to the already-elapsed portion via a
+  // negative delay CAPTURED ONCE per window (deps = dueAt,totalMs) — so the 500ms
+  // clock re-renders never change the inline style and never restart the CSS
+  // animation. null under reduced motion (a stepped, non-animated fill is used).
+  const sweepDueAt = autoPass && !autoPass.reduced ? autoPass.dueAt : null;
+  const sweepTotalMs = autoPass && !autoPass.reduced ? autoPass.totalMs : null;
+  const sweepStyle = useMemo<CSSProperties | undefined>(() => {
+    if (sweepDueAt === null || sweepTotalMs === null) return undefined;
+    const elapsed = Math.max(0, sweepTotalMs - Math.max(0, sweepDueAt - Date.now()));
+    return { animationDuration: `${sweepTotalMs}ms`, animationDelay: `-${elapsed}ms` };
+  }, [sweepDueAt, sweepTotalMs]);
 
   if (hints === null) return null;
 
@@ -191,7 +211,20 @@ export function ActionBar(props: ActionBarProps) {
         >
           {t('game.action.play')}
         </button>
-        <span className="gd-actions__passSlot">
+        <span className={'gd-actions__passSlot' + (autoPass !== null ? ' gd-actions__passSlot--auto' : '')}>
+          {autoPass !== null &&
+            (autoPass.reduced ? (
+              // Reduced motion: a stepped fill (updated on the ~500ms clock tick,
+              // never a continuous animation) — the meaning still lives in the
+              // desk's reason title + this button, per the research.
+              <span
+                className="gd-actions__sweep gd-actions__sweep--step"
+                aria-hidden="true"
+                style={{ transform: `scaleX(${autoPass.fill})` }}
+              />
+            ) : (
+              <span className="gd-actions__sweep" aria-hidden="true" style={sweepStyle} />
+            ))}
           {passArmed && <span className="gd-actions__confirm">{t('game.action.passConfirm')}</span>}
           <button
             type="button"

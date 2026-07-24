@@ -7,14 +7,24 @@ export type Seat = number;                 // 0-based seat index
 
 /** Platform timing-class vocabulary. The room layer — never the engine —
  *  maps a class to a wall-clock budget (RoomTiming in shared/timing.ts).
- *  'turn'     — an ordinary decision point (the default).
- *  'planning' — the FIRST decision point over newly revealed information
- *               (e.g. the opening lead of a freshly dealt hand); the room
- *               may grant a longer, room-configured window.
+ *  'turn'       — an ordinary decision point (the default).
+ *  'planning'   — the FIRST decision point over newly revealed information
+ *                 (e.g. the opening lead of a freshly dealt hand); the room
+ *                 may grant a longer, room-configured window.
+ *  'forcedPass' — a NON-decision: the seat's only legal action is pass (a
+ *                 follower who cannot beat the current play). A truthful
+ *                 per-seat state label the engine emits UNCONDITIONALLY; the
+ *                 room decides whether to grant the short auto-pass grace
+ *                 (its `autoPassNoPlay` option) or fall through to the turn
+ *                 budget. Overrides 'planning' — a forced pass has nothing
+ *                 to plan.
  *  Closed union on purpose: classes are PLATFORM vocabulary (each needs a
  *  picker label, i18n strings, and a RoomTiming field), so adding one is a
- *  deliberate cross-layer act, not something a game invents ad hoc. */
-export type TimingClass = 'turn' | 'planning';
+ *  deliberate cross-layer act, not something a game invents ad hoc. Every
+ *  site that closes over this union (timeoutMsFor, validateRoomTiming, the
+ *  DO's timing_class whitelists in game-room + toWireDeadlines, the
+ *  closed-union property assertion) must move together. */
+export type TimingClass = 'turn' | 'planning' | 'forcedPass';
 
 /** Semantic error — a key + params. UI localizes; engine never emits prose. */
 export interface RuleError { code: string; params?: Record<string, unknown> }

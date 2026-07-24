@@ -51,7 +51,10 @@ function recorderStore(): { store: RoomStore; calls: unknown[][] } {
     setConfig: (...a) => calls.push(['setConfig', ...a]),
     setTiming: (...a) => calls.push(['setTiming', ...a]),
     start: () => calls.push(['start']),
-    act: (...a) => calls.push(['act', ...a]),
+    act: (...a) => {
+      calls.push(['act', ...a]);
+      return 'act-id';
+    },
   };
   const store = new RoomStore(CODE, fakeStorage());
   store.bindSender(sender);

@@ -42,7 +42,7 @@
 // the string literals below (engine PRNG via init(seed); bot policy via its
 // own seedPrng). Runs are bit-for-bit reproducible.
 
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { nextInt, seedPrng, type PrngState } from '../../../src/engine/core/prng';
 import { GuandanGame } from '../../../src/engine/guandan';
 import { JIANGSU_OFFICIAL_ONLINE, type RuleVariant } from '../../../src/engine/guandan/config';
@@ -114,18 +114,62 @@ function applyNoThrow(state: GuandanState, seat: Seat, action: GuandanAction, la
 function checkTimingClass(state: GuandanState, actedIndependent: ReadonlySet<Seat>): void {
   for (const seat of [0, 1, 2, 3] as Seat[]) {
     const cls = GuandanGame.timingClass!(state, seat);
-    expect(['turn', 'planning'], 'timingClass stays inside the closed union').toContain(cls);
+    expect(['turn', 'planning', 'forcedPass'], 'timingClass stays inside the closed union').toContain(cls);
     expect(GuandanGame.timingClass!(state, seat), 'timingClass determinism').toBe(cls);
+    // Auto-pass round: pass-only OVERRIDES the planning/turn distinction — a
+    // forced pass carries no decision, so a first-of-hand forced follow must not
+    // draw the long planning window. Derived from legalActions (model = product):
+    // pass-only ⇔ the seat's only legal action is pass.
+    const legal = GuandanGame.legalActions(state, seat);
+    const passOnly = legal.length === 1 && legal[0]!.type === 'pass';
     // Item 3 carve-out: the cut precedes the deal — no hand to read, so the
     // ceremonyCut phase classes 'turn' by design and consumes no window
     // (the acted flags reset AT the deal that follows).
     const expected =
-      state.phase === 'ceremonyCut' ? 'turn' : actedIndependent.has(seat) ? 'turn' : 'planning';
-    expect(cls, `timingClass ⇔ first-action-pending (phase ${state.phase}, seat ${seat})`).toBe(
+      state.phase === 'ceremonyCut'
+        ? 'turn'
+        : passOnly
+          ? 'forcedPass'
+          : actedIndependent.has(seat)
+            ? 'turn'
+            : 'planning';
+    expect(cls, `timingClass ⇔ pass-only>planning>turn (phase ${state.phase}, seat ${seat})`).toBe(
       expected,
     );
   }
 }
+
+/** Auto-pass round pin, for EVERY seat at one state: the engine's 'forcedPass'
+ *  label matches the legalActions pass-only judgement EXACTLY (biconditional),
+ *  and a forced-pass seat's defaultAction is pass — so the DO's existing
+ *  default-on-expiry path auto-passes with NO new action. Derives everything from
+ *  legalActions (never an internal flag). Returns whether a pass-only state was
+ *  seen, feeding the suite coverage floor. */
+function checkForcedPass(state: GuandanState): boolean {
+  let sawPassOnly = false;
+  for (const seat of [0, 1, 2, 3] as Seat[]) {
+    const legal = GuandanGame.legalActions(state, seat);
+    const passOnly = legal.length === 1 && legal[0]!.type === 'pass';
+    expect(
+      GuandanGame.timingClass!(state, seat) === 'forcedPass',
+      `forcedPass ⇔ pass-only (phase ${state.phase}, seat ${seat})`,
+    ).toBe(passOnly);
+    if (passOnly) {
+      sawPassOnly = true;
+      expect(
+        GuandanGame.defaultAction(state, seat),
+        `forced-pass default is pass (seat ${seat}) — no new action`,
+      ).toEqual({ type: 'pass' });
+    }
+  }
+  return sawPassOnly;
+}
+
+// Suite coverage floor: pass-only states are rarer than planning ones (a follower
+// must be unable to beat the current play), so a single playout may miss them —
+// track across the whole suite and assert > 0 at the end (honest-reporting
+// standard), so the forcedPass pin can never silently go vacuous.
+const forcedPassCoverage = { seen: 0 };
 
 /** The independent acted-set tracker: the ACTING seat marks on apply; a
  *  handStarted event (a fresh deal — including one dealt atomically by a
@@ -505,6 +549,7 @@ function playoutBody(
   const acted = trackActed(new Set<Seat>(), null, first.events);
   let planningStatesSeen = 0;
   checkTimingClass(state, acted);
+  if (checkForcedPass(state)) forcedPassCoverage.seen++;
   if ([0, 1, 2, 3].some((s) => GuandanGame.timingClass!(state, s as Seat) === 'planning')) {
     planningStatesSeen++;
   }
@@ -566,6 +611,7 @@ function playoutBody(
     state = res.state;
     trackActed(acted, seat, res.events);
     checkTimingClass(state, acted);
+    if (!GuandanGame.isTerminal(state) && checkForcedPass(state)) forcedPassCoverage.seen++;
     if (
       !GuandanGame.isTerminal(state) &&
       [0, 1, 2, 3].some((s) => GuandanGame.timingClass!(state, s as Seat) === 'planning')
@@ -860,4 +906,14 @@ describe('antiTributeDecision phase obligations (constructed state, optional mod
     expect(GuandanGame.expectedActors(declined.state).sort()).toEqual([1, 3]);
     sampleState(declined.state, OPTIONAL_ANTI_CONFIG);
   });
+});
+
+// Auto-pass round: the forcedPass ⇔ pass-only pin (checkForcedPass) must run
+// against real sampled states, not vacuously — assert the seeded playouts above
+// reached at least one pass-only state across the whole suite.
+afterAll(() => {
+  expect(
+    forcedPassCoverage.seen,
+    'coverage floor: the property playouts must reach ≥1 pass-only (forcedPass) state',
+  ).toBeGreaterThan(0);
 });
