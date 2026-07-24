@@ -602,6 +602,23 @@ export function concealedLeader(args: {
   return args.ceremonyShowing || args.dealing ? args.markerSeat : null;
 }
 
+/** The deal-complete gate (owner: reveal information at the PLAYER's pace, not
+ *  the system's). True once the deal has settled and the player can see their
+ *  own sorted hand — i.e. NOT in the pre-deal hold and NOT mid-deal. Every
+ *  hand-related panel, prompt or "act now" signal (the tribute panel, the
+ *  anti-tribute REVEAL — both big jokers, the reported bug — the action bar,
+ *  the whose-turn line, the active-seat ring) must gate on this so nothing
+ *  about the cards is disclosed before the deal completes (the same rule the
+ *  draw-cut ceremony established for the leader). Robust by construction:
+ *  `dealing` resolves to false on animation end, one-tap skip, reduced-motion
+ *  (instant deal) and a mid-deal reconnect (no re-fold → settled view shows at
+ *  once), and `holdFan` covers the window before the choreography starts — so
+ *  this never strands a player who skipped or rejoined. Extracted pure so its
+ *  truth table is unit-pinned (the isCeremonyShowing precedent). */
+export function dealSettled(args: { holdFan: boolean; dealing: boolean }): boolean {
+  return !args.holdFan && !args.dealing;
+}
+
 /** Seats currently expected to act, derived from the view (the cinnabar
  *  active-turn ring). antiTributeDecision exposes no pending set in the
  *  view — callers union in the deadline seats for that phase. */
@@ -1005,64 +1022,47 @@ export function asGuandanEvents(batch: readonly unknown[] | null): GuandanEvent[
 export type Ceremony = NonNullable<Extract<GuandanEvent, { type: 'handStarted' }>['ceremony']>;
 
 // ---------------------------------------------------------------------------
-// The end-of-hand interlude (docs/research/hand-interlude.md): the beat's
-// step machine, pure so the DOM-free suite can pin ordering, durations, the
-// hard cap, and the match-end shortening (the isCeremonyShowing precedent).
+// The end-of-hand interlude (docs/research/hand-interlude.md), restructured
+// into TWO on-table stages (owner UX round): the OUTCOME shows who won + the
+// finishing order ON the table, by the winning play, so the eye is already
+// there; THEN a larger LEVEL-UP payoff (level 5 → 7) may cover the table. Pure so
+// the DOM-free suite pins the ordering, durations, tap-advance, and the
+// match-end shortening (the isCeremonyShowing / former interludeStepAt idiom).
 // ---------------------------------------------------------------------------
 
-export type InterludeStepKind = 'hold' | 'standings' | 'levels' | 'curtain' | 'matchline';
+export type InterludeStage = 'outcome' | 'levelup' | 'done';
 
-export interface InterludeStep {
-  kind: InterludeStepKind;
-  ms: number;
-}
+/** Stage durations. OUTCOME holds the who-won + finishing order on the table by
+ *  the winning play (~4s, owner: so it registers before the story advances);
+ *  LEVELUP is the covering promotion payoff. The A-story (burn / suspension)
+ *  extends the LEVELUP dwell — it belongs WITH the level transition it explains,
+ *  never its own stage. Total (≈6.5s, +0.9s with the A-insert) matches the old
+ *  beat's cap; GameTable's 60s wall-clock guard is the belt for a frozen tab. */
+export const INTERLUDE_OUTCOME_MS = 4000;
+export const INTERLUDE_LEVELUP_MS = 2500;
+export const INTERLUDE_LEVELUP_INSERT_MS = 900;
 
-/** Per-step durations (the plan's rough timings, made exact here). The
- *  A-story insert extends the LEVELS dwell rather than adding a step — the
- *  suspension block renders inside the level-transition stage, where the
- *  before → after it explains is on screen. */
-export const INTERLUDE_STEP_MS: Record<InterludeStepKind, number> = {
-  hold: 800,
-  standings: 1600,
-  levels: 1400,
-  curtain: 900,
-  matchline: 800,
-};
-export const INTERLUDE_INSERT_MS = 900;
-/** Hard cap (plan): no auto-run past this, whatever the branch. */
-export const INTERLUDE_CAP_MS = 6500;
-
-/** The beat's step list for a given hand outcome. Match end SHORTENS the
- *  beat (hold → standings → one match line) and hands off to ResultOverlay
- *  — never two full endings back to back. */
-export function interludeSteps(opts: { insert: boolean; match: boolean }): InterludeStep[] {
-  if (opts.match) {
-    return [
-      { kind: 'hold', ms: INTERLUDE_STEP_MS.hold },
-      { kind: 'standings', ms: INTERLUDE_STEP_MS.standings },
-      { kind: 'matchline', ms: INTERLUDE_STEP_MS.matchline },
-    ];
-  }
-  return [
-    { kind: 'hold', ms: INTERLUDE_STEP_MS.hold },
-    { kind: 'standings', ms: INTERLUDE_STEP_MS.standings },
-    { kind: 'levels', ms: INTERLUDE_STEP_MS.levels + (opts.insert ? INTERLUDE_INSERT_MS : 0) },
-    { kind: 'curtain', ms: INTERLUDE_STEP_MS.curtain },
-  ];
-}
-
-/** Remount catch-up: the step index the overlay should START at when it
- *  mounts `elapsedMs` after the fold stamped the beat (a seat switch mid-
- *  beat must not replay from the top — the wall-clock discipline every
- *  transient fx here follows). Returns steps.length when the beat is
- *  already over. */
-export function interludeStepAt(elapsedMs: number, steps: readonly InterludeStep[]): number {
-  let acc = 0;
-  for (let i = 0; i < steps.length; i++) {
-    acc += steps[i]!.ms;
-    if (elapsedMs < acc) return i;
-  }
-  return steps.length;
+/** The stage the beat is in `elapsedMs` after its fold stamp, given the
+ *  tap-to-advance index (`advance`: a tap jumps to the next stage — whichever of
+ *  tap or timer comes first wins) and whether this is a match end (which has NO
+ *  levelup stage — ResultOverlay is its covering payoff — so its second index is
+ *  already 'done'). Elapsed-based, so a mid-beat remount/seat-switch resumes at
+ *  the right stage instead of replaying, and a finished beat reads 'done'. */
+export function interludeStage(args: {
+  elapsedMs: number;
+  advance: number;
+  matchEnd: boolean;
+  insert: boolean;
+}): InterludeStage {
+  const levelupMs = INTERLUDE_LEVELUP_MS + (args.insert ? INTERLUDE_LEVELUP_INSERT_MS : 0);
+  const order: InterludeStage[] = args.matchEnd ? ['outcome'] : ['outcome', 'levelup'];
+  const byTimer =
+    args.elapsedMs < INTERLUDE_OUTCOME_MS
+      ? 0
+      : args.elapsedMs < INTERLUDE_OUTCOME_MS + levelupMs
+        ? 1
+        : 2;
+  return order[Math.max(byTimer, args.advance)] ?? 'done';
 }
 
 /** The end-of-hand beat's fold-time snapshot (docs/research/hand-interlude.md):

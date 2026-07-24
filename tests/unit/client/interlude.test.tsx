@@ -1,14 +1,13 @@
-// The end-of-hand interlude (docs/research/hand-interlude.md) — DOM-free
-// pins for the beat's three layers:
-//   1. the pure step machine (ordering, durations, the A-insert extension,
-//      the 6.5s hard cap, the match-end shortening, remount catch-up);
-//   2. the foldEvents capture (the snapshot lands at handEnded BEFORE the
-//      same batch's handStarted wipes the table, the levels/A trackers, the
-//      burned/suspended detection, the mid-match-join degradation, the
-//      matchEnded marking);
-//   3. the overlay's stage-conditional render + the GameTable/CSS wiring
-//      pins (deal gate, ResultOverlay gate, action-bar gate, z-order,
-//      vignette, reduced motion).
+// The end-of-hand beat (docs/research/hand-interlude.md), restructured into TWO
+// on-table stages (owner UX round) — DOM-free pins for:
+//   1. the pure STAGE machine (outcome -> level-up -> done; the match-end
+//      shortening; the A-story extending the level-up dwell; tap-to-advance);
+//   2. the foldEvents capture (unchanged: the snapshot lands at handEnded BEFORE
+//      the same batch's handStarted wipes the table);
+//   3. Stage A (InterludeOutcome, on the table by the winning play) + Stage B
+//      (InterludeOverlay, the covering level-up) render, the NO-REPETITION
+//      contract, and the GameTable/CSS wiring (stage-conditional placement, the
+//      deal gate, ResultOverlay gate, reduced-motion, z-order).
 // Render is owned by the visual round; these make the design's load-bearing
 // choices regressions.
 
@@ -25,12 +24,12 @@ import type { Seat } from '../../../src/engine/core/game';
 import type { GuandanEvent } from '../../../src/engine/guandan/types';
 import { EMPTY_DERIVED, foldEvents } from '../../../src/client/GameTable';
 import { InterludeOverlay } from '../../../src/client/table/InterludeOverlay';
+import { InterludeOutcome } from '../../../src/client/table/InterludeOutcome';
 import {
-  INTERLUDE_CAP_MS,
-  INTERLUDE_INSERT_MS,
-  INTERLUDE_STEP_MS,
-  interludeStepAt,
-  interludeSteps,
+  INTERLUDE_LEVELUP_INSERT_MS,
+  INTERLUDE_LEVELUP_MS,
+  INTERLUDE_OUTCOME_MS,
+  interludeStage,
   type InterludeFx,
 } from '../../../src/client/table/helpers';
 import { getLocale, setLocale } from '../../../src/client/i18n';
@@ -42,53 +41,54 @@ const names = ['Actor One', 'Actor Two', 'Actor Three', 'Actor Four'];
 const nameFor = (seat: Seat) => names[seat]!;
 
 // ---------------------------------------------------------------------------
-// 1. The step machine.
+// 1. The stage machine.
 // ---------------------------------------------------------------------------
 
-describe('interludeSteps — the beat structure', () => {
-  it('normal hand: hold → standings → levels → curtain, at the plan durations', () => {
-    const steps = interludeSteps({ insert: false, match: false });
-    expect(steps.map((s) => s.kind)).toEqual(['hold', 'standings', 'levels', 'curtain']);
-    expect(steps.map((s) => s.ms)).toEqual([
-      INTERLUDE_STEP_MS.hold,
-      INTERLUDE_STEP_MS.standings,
-      INTERLUDE_STEP_MS.levels,
-      INTERLUDE_STEP_MS.curtain,
-    ]);
+describe('interludeStage — the two on-table stages', () => {
+  it('a normal hand: OUTCOME on the table (~4s), then the LEVEL-UP payoff, then done', () => {
+    const a = { advance: 0, matchEnd: false, insert: false };
+    expect(interludeStage({ ...a, elapsedMs: 0 })).toBe('outcome');
+    expect(interludeStage({ ...a, elapsedMs: INTERLUDE_OUTCOME_MS - 1 })).toBe('outcome');
+    expect(interludeStage({ ...a, elapsedMs: INTERLUDE_OUTCOME_MS })).toBe('levelup');
+    expect(interludeStage({ ...a, elapsedMs: INTERLUDE_OUTCOME_MS + INTERLUDE_LEVELUP_MS - 1 })).toBe('levelup');
+    expect(interludeStage({ ...a, elapsedMs: INTERLUDE_OUTCOME_MS + INTERLUDE_LEVELUP_MS })).toBe('done');
   });
 
-  it('the A-story insert EXTENDS the levels dwell — no extra step, order unchanged', () => {
-    const steps = interludeSteps({ insert: true, match: false });
-    expect(steps.map((s) => s.kind)).toEqual(['hold', 'standings', 'levels', 'curtain']);
-    expect(steps[2]!.ms).toBe(INTERLUDE_STEP_MS.levels + INTERLUDE_INSERT_MS);
+  it('the outcome holds ~4s so it registers before the story advances (owner)', () => {
+    expect(INTERLUDE_OUTCOME_MS).toBe(4000);
   });
 
-  it('match end SHORTENS the beat: hold → standings → one match line (ResultOverlay owns the ceremony)', () => {
-    const steps = interludeSteps({ insert: false, match: true });
-    expect(steps.map((s) => s.kind)).toEqual(['hold', 'standings', 'matchline']);
+  it('match end has NO level-up stage — outcome then done (ResultOverlay is the covering payoff)', () => {
+    const m = { advance: 0, matchEnd: true, insert: false };
+    expect(interludeStage({ ...m, elapsedMs: 0 })).toBe('outcome');
+    expect(interludeStage({ ...m, elapsedMs: INTERLUDE_OUTCOME_MS })).toBe('done');
   });
 
-  it('every branch auto-runs under the hard cap', () => {
-    for (const insert of [false, true]) {
-      for (const match of [false, true]) {
-        const total = interludeSteps({ insert, match }).reduce((acc, s) => acc + s.ms, 0);
-        expect(total, `insert=${insert} match=${match}`).toBeLessThanOrEqual(INTERLUDE_CAP_MS);
-      }
-    }
+  it('the A-story EXTENDS the LEVEL-UP dwell (insert), never the outcome', () => {
+    const w = { advance: 0, matchEnd: false, insert: true };
+    // still on level-up at the moment a no-insert beat would already be done
+    expect(interludeStage({ ...w, elapsedMs: INTERLUDE_OUTCOME_MS + INTERLUDE_LEVELUP_MS })).toBe('levelup');
+    expect(
+      interludeStage({ ...w, elapsedMs: INTERLUDE_OUTCOME_MS + INTERLUDE_LEVELUP_MS + INTERLUDE_LEVELUP_INSERT_MS }),
+    ).toBe('done');
   });
 
-  it('interludeStepAt catches a remount up to the wall-clock stage — and past-total means done', () => {
-    const steps = interludeSteps({ insert: false, match: false });
-    expect(interludeStepAt(0, steps)).toBe(0);
-    expect(interludeStepAt(INTERLUDE_STEP_MS.hold - 1, steps)).toBe(0);
-    expect(interludeStepAt(INTERLUDE_STEP_MS.hold, steps)).toBe(1);
-    expect(interludeStepAt(INTERLUDE_STEP_MS.hold + INTERLUDE_STEP_MS.standings, steps)).toBe(2);
-    expect(interludeStepAt(999_999, steps)).toBe(steps.length);
+  it('tap-to-advance jumps to the next stage even before the timer (whichever first)', () => {
+    const early = { elapsedMs: 0, matchEnd: false, insert: false };
+    expect(interludeStage({ ...early, advance: 1 })).toBe('levelup');
+    expect(interludeStage({ ...early, advance: 2 })).toBe('done');
+    // one tap ends a match-end beat (it has no level-up stage to advance into)
+    expect(interludeStage({ elapsedMs: 0, matchEnd: true, insert: false, advance: 1 })).toBe('done');
+  });
+
+  it('the total auto-run stays at the old ~6.5s cap (+0.9s with the A-insert)', () => {
+    expect(INTERLUDE_OUTCOME_MS + INTERLUDE_LEVELUP_MS).toBe(6500);
+    expect(INTERLUDE_OUTCOME_MS + INTERLUDE_LEVELUP_MS + INTERLUDE_LEVELUP_INSERT_MS).toBeLessThanOrEqual(7500);
   });
 });
 
 // ---------------------------------------------------------------------------
-// 2. The fold capture.
+// 2. The fold capture (unchanged: foldEvents still snapshots the beat).
 // ---------------------------------------------------------------------------
 
 const nextIdFactory = () => {
@@ -142,19 +142,14 @@ describe('foldEvents — the interlude snapshot', () => {
     );
     const fx = d.interlude!;
     expect(fx).not.toBeNull();
-    // The final play survives INSIDE the snapshot even though handStarted
-    // cleared playFx/topCards for the new hand.
     expect(fx.finalPlay).toEqual({ seat: 2, cards: ['9S'] });
     expect(d.playFx).toBeNull();
     expect(d.topCards).toBeNull();
-    // The ended hand's level marks the held well; the transition has both sides.
     expect(fx.level).toBe('2');
     expect(fx.oldLevels).toEqual(['2', '2']);
     expect(fx.newLevels).toEqual(['4', '2']);
-    // The same batch's handStarted names the curtain's hand.
     expect(fx.next).toEqual({ handNo: 2, level: '4' });
     expect(fx.matchWinner).toBeNull();
-    // The trackers moved forward for the NEXT beat's before-side.
     expect(d.teamLevels).toEqual(['4', '2']);
   });
 
@@ -173,7 +168,7 @@ describe('foldEvents — the interlude snapshot', () => {
       nextId,
     );
     expect(d.interlude!.aSuspendedTeam).toBe(0);
-    expect(d.interlude!.aBurnedTeam).toBeNull(); // exhausted, not merely burned
+    expect(d.interlude!.aBurnedTeam).toBeNull();
   });
 
   it('a mid-match join (no prior folds) degrades honestly: no before-side, no insert', () => {
@@ -187,7 +182,7 @@ describe('foldEvents — the interlude snapshot', () => {
     expect(d.interlude!.oldLevels).toBeNull();
     expect(d.interlude!.aBefore).toBeNull();
     expect(d.interlude!.aBurnedTeam).toBeNull();
-    expect(d.interlude!.finalPlay).toBeNull(); // no tracked trick either
+    expect(d.interlude!.finalPlay).toBeNull();
   });
 
   it('matchEnded in the batch marks the shortened beat and no next hand', () => {
@@ -195,10 +190,7 @@ describe('foldEvents — the interlude snapshot', () => {
     let d = foldEvents(EMPTY_DERIVED, [handStarted(1, '2')], 0, nameFor, nextId);
     d = foldEvents(
       d,
-      [
-        handEnded({ newLevels: ['A', '2'] }),
-        { type: 'matchEnded', winnerTeam: 0 } as GuandanEvent,
-      ],
+      [handEnded({ newLevels: ['A', '2'] }), { type: 'matchEnded', winnerTeam: 0 } as GuandanEvent],
       0,
       nameFor,
       nextId,
@@ -209,7 +201,7 @@ describe('foldEvents — the interlude snapshot', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 3. The overlay's stage-conditional render + wiring pins.
+// 3. Stage A / Stage B render + the no-repetition contract + wiring pins.
 // ---------------------------------------------------------------------------
 
 const baseFx = (over: Partial<InterludeFx>): InterludeFx => ({
@@ -230,68 +222,74 @@ const baseFx = (over: Partial<InterludeFx>): InterludeFx => ({
   ...over,
 });
 
-const render = (fx: InterludeFx) =>
+const renderOutcome = (fx: InterludeFx) =>
+  renderToStaticMarkup(
+    createElement(InterludeOutcome, { interlude: fx, viewerTeam: 0, nameFor, onAdvance: () => {} }),
+  );
+
+const renderLevelUp = (fx: InterludeFx, reduced = false) =>
   renderToStaticMarkup(
     createElement(InterludeOverlay, {
       interlude: fx,
       viewerTeam: 0,
       nameFor,
       aMaxAttempts: 3,
-      onLevelsReached: () => {},
-      onDone: () => {},
+      reduced,
+      onAdvance: () => {},
     }),
   );
 
-describe('InterludeOverlay — stage-conditional content (en)', () => {
-  const withEn = (body: () => void) => {
-    const original = getLocale();
-    try {
-      setLocale('en');
-      body();
-    } finally {
-      setLocale(original);
-    }
-  };
+const withEn = (body: () => void) => {
+  const original = getLocale();
+  try {
+    setLocale('en');
+    body();
+  } finally {
+    setLocale(original);
+  }
+};
 
-  it('hold stage: title + final-play attribution + skip caption, standings NOT yet shown', () =>
+describe('Stage A — the outcome, ON the table (who won + finishing order, never the level meaning)', () => {
+  it('shows the winner verdict and the full finishing order with place words', () =>
     withEn(() => {
-      const html = render(baseFx({ at: Date.now() }));
-      expect(html).toContain('Hand over');
-      expect(html).toContain('Last play: Actor Three');
-      expect(html).toContain('Tap to skip');
+      const html = renderOutcome(baseFx({}));
+      expect(html).toContain('gd-outcome'); // rendered in the ring centre, not a bottom strip
+      expect(html).toContain('Us wins the hand — up 2');
+      expect(html).toContain('gd-outcome__verdict--won');
+      expect(html).toContain('1st out');
+      expect(html).toContain('Actor One');
+      expect(html).toContain('Actor Four');
+    }));
+
+  it('does NOT show the level meaning — that is Stage B (no repetition)', () =>
+    withEn(() => {
+      const html = renderOutcome(baseFx({}));
+      expect(html).not.toContain('level 2 → 4');
+      expect(html).not.toContain('Hand 2');
+    }));
+});
+
+describe('Stage B — the level-up payoff (the meaning), NEVER restating the order', () => {
+  it('shows the level transition both ways and the next-hand curtain', () =>
+    withEn(() => {
+      const html = renderLevelUp(baseFx({}));
+      expect(html).toContain('gd-levelup');
+      expect(html).toContain('Us: level 2 → 4');
+      expect(html).toContain('Them: level 2');
+      expect(html).toContain('Hand 2 — playing level 4');
+    }));
+
+  it('does NOT restate the finishing order (Stage A already showed it — no repetition)', () =>
+    withEn(() => {
+      const html = renderLevelUp(baseFx({}));
+      expect(html).not.toContain('gd-levelup__order'); // the order list appears only under reduced motion
       expect(html).not.toContain('1st out');
     }));
 
-  it('standings stage: finishing order with place words + the verdict with the delta', () =>
+  it('a fresh suspension renders the dedicated block WITH the level transition', () =>
     withEn(() => {
-      const html = render(baseFx({ at: Date.now() - (INTERLUDE_STEP_MS.hold + 100) }));
-      expect(html).toContain('1st out');
-      expect(html).toContain('Actor One');
-      expect(html).toContain('Us wins the hand — up 2');
-      expect(html).toContain('gd-interlude__verdict--won');
-      expect(html).not.toContain('level 2 → 4'); // levels stage not reached
-    }));
-
-  it('levels stage: the transition both ways round + the curtain after it', () =>
-    withEn(() => {
-      const atLevels = Date.now() - (INTERLUDE_STEP_MS.hold + INTERLUDE_STEP_MS.standings + 100);
-      const html = render(baseFx({ at: atLevels }));
-      expect(html).toContain('Us: level 2 → 4');
-      expect(html).toContain('Them: level 2');
-      const atCurtain =
-        Date.now() -
-        (INTERLUDE_STEP_MS.hold + INTERLUDE_STEP_MS.standings + INTERLUDE_STEP_MS.levels + 100);
-      const curtain = render(baseFx({ at: atCurtain }));
-      expect(curtain).toContain('Hand 2 — playing level 4');
-    }));
-
-  it('a fresh suspension renders the dedicated block at the levels stage', () =>
-    withEn(() => {
-      const at =
-        Date.now() - (INTERLUDE_STEP_MS.hold + INTERLUDE_STEP_MS.standings + 100);
-      const html = render(
+      const html = renderLevelUp(
         baseFx({
-          at,
           aSuspendedTeam: 1,
           aAttempts: [0, 3],
           aAttemptsExhausted: [false, true],
@@ -300,41 +298,58 @@ describe('InterludeOverlay — stage-conditional content (en)', () => {
         }),
       );
       expect(html).toContain('Ace attempts exhausted');
-      expect(html).toContain('gd-interlude__aline--suspended');
+      expect(html).toContain('gd-levelup__aline--suspended');
     }));
 
-  it('match end: the shortened beat reaches the match line, never a curtain', () =>
+  it('reduced motion folds the outcome recap into the single static plate + a dismiss', () =>
     withEn(() => {
-      const at = Date.now() - (INTERLUDE_STEP_MS.hold + INTERLUDE_STEP_MS.standings + 100);
-      const html = render(baseFx({ at, matchWinner: 0, next: null }));
-      expect(html).toContain('Us wins the match');
-      expect(html).not.toContain('playing level');
+      const html = renderLevelUp(baseFx({}), true);
+      expect(html).toContain('Us wins the hand — up 2'); // the outcome recap
+      expect(html).toContain('gd-levelup__order'); // and the order, here only
+      expect(html).toContain('Us: level 2 → 4'); // AND the level-up
+      expect(html).toContain('Dismiss');
     }));
 
-  it('a finished beat renders NOTHING (the wall-clock discipline: remounts never replay)', () => {
-    const html = render(baseFx({ at: Date.now() - 20_000 }));
-    expect(html).toBe('');
-  });
+  it('at match end the level-up stage carries no level/curtain (ResultOverlay is the payoff)', () =>
+    withEn(() => {
+      const html = renderLevelUp(baseFx({ matchWinner: 0, next: null }), true);
+      expect(html).not.toContain('playing level'); // no next-hand curtain
+      expect(html).not.toContain('level 2 → 4'); // no transition — the match is decided
+    }));
 });
 
 describe('interlude wiring pins (GameTable source + stylesheet)', () => {
-  it('the deal, the clocks, the action bar, the in-play tag and ResultOverlay all wait for the beat', () => {
-    expect(gameTableSrc).toMatch(/!interludeShowing &&\s*view\.phase !== 'ceremonyCut'/);
-    expect(gameTableSrc).toContain("view.phase !== 'ceremonyCut' && !interludeShowing && (");
+  it('STAGE A renders in the ring centre by the winning play; STAGE B covers', () => {
+    // Stage A (outcome) is rendered in the centre next to the held final play,
+    // gated on the OUTCOME stage; Stage B (level-up) covers on the level stage.
+    expect(gameTableSrc).toMatch(/interludeStageNow === 'outcome' && \(\s*<InterludeOutcome/);
+    expect(gameTableSrc).toMatch(/\(reducedMotion \|\| interludeStageNow === 'levelup'\) && \(\s*<InterludeOverlay/);
+    expect(gameTableSrc).toMatch(/reduced=\{reducedMotion\}/);
+    // The winning final play still stays held in the well through the beat.
+    expect(gameTableSrc).toMatch(/heldTop=\{interlude\.finalPlay\?\.cards \?\? null\}/);
+    expect(gameTableSrc).toMatch(/level=\{interlude\.level\}/);
+  });
+
+  it('tap-to-advance jumps from the CURRENT stage (never a no-op after the timer moved on)', () => {
+    expect(gameTableSrc).toMatch(/const advanceInterlude = \(\) =>/);
+    expect(gameTableSrc).toMatch(/onAdvance=\{reducedMotion \? dismissInterlude : advanceInterlude\}/);
+    expect(gameTableSrc).toMatch(/interludeStage\(\{/); // the pure stage machine drives it
+    // Advance from the current effective stage index (+1), NOT a stored tap
+    // count — a Stage-B tap after the timer already reached level-up must go to
+    // 'done', not no-op (Codex).
+    expect(gameTableSrc).toMatch(/idx: interludeStageIdx \+ 1/);
+  });
+
+  it('the deal, clocks, action bar and ResultOverlay all wait for the beat AND the deal (Item 1)', () => {
+    expect(gameTableSrc).toContain("view.phase !== 'ceremonyCut' && !interludeShowing && settled && (");
     expect(gameTableSrc).toContain('view.matchWinner !== null && !interludeShowing && (');
-    expect(gameTableSrc).toMatch(/ceremonyShowing \|\| dealing \|\| interludeShowing \|\| clockDeadline/);
+    expect(gameTableSrc).toMatch(/!settled \|\| interludeShowing \|\| clockDeadline/);
     expect(gameTableSrc).toMatch(/interludeShowing \? null : playingLevelTeam/);
-    // The NEXT hand's turn sentence and actor rings stay quiet under the
-    // beat (visual round: both leaked through the dim).
-    expect(gameTableSrc).toMatch(/leaderConcealed !== null \|\| interludeShowing \? false : yourTurn/);
-    expect(gameTableSrc).toMatch(/leaderConcealed !== null \|\| interludeShowing \? null : actorName/);
+    expect(gameTableSrc).toMatch(/leaderConcealed !== null \|\| interludeShowing \|\| !settled \? false : yourTurn/);
     expect(gameTableSrc).toMatch(/seat !== leaderConcealed &&\s*!interludeShowing/);
   });
 
   it('multi-seat self-play: done/late are SETS of ids, never scalars (Grok HIGH)', () => {
-    // Per-seat folds mint distinct ids for the same hand end; a scalar
-    // un-marked seat A's finished beat when seat B's completed, resurrecting
-    // it on the next pill switch within the 60s window.
     expect(gameTableSrc).toMatch(/useState<ReadonlySet<number>>\(new Set\(\)\)/);
     expect(gameTableSrc).toMatch(/!interludeDone\.has\(interlude\.id\)/);
     expect(gameTableSrc).toMatch(/!interludeLate\.has\(interlude\.id\)/);
@@ -346,50 +361,35 @@ describe('interlude wiring pins (GameTable source + stylesheet)', () => {
   });
 
   it('the clock tick tracks the interlude stamp past the 60s stale guard (Codex MED)', () => {
-    // An untimed room arms no deadline at hand end; without this leg `now`
-    // freezes and the parent guard behind a frozen overlay timer chain could
-    // never trip.
     expect(gameTableSrc).toMatch(/d\.interlude !== null \? \[d\.interlude\.at \+ 61_000\]/);
   });
 
-  it('the A-insert dwell fires only when its line renders (Codex LOW: no dead air under unlimited attempts)', () => {
-    const overlaySrc = readFileSync(
-      new URL('../../../src/client/table/InterludeOverlay.tsx', import.meta.url),
-      'utf8',
-    );
-    expect(overlaySrc).toMatch(
-      /interlude\.aSuspendedTeam !== null \|\|\s*\(interlude\.aBurnedTeam !== null && aMaxAttempts !== null\)/,
-    );
-  });
-
-  it('a mid-match adoption seeds the before-side from the first view, never across a hand end', () => {
-    // The seed makes a rejoiner's next interlude show the real old → new
-    // transition; the guard keeps the same-tick hand-end race on the honest
-    // degradation path (seeding post-scoring levels would fake a no-op).
-    expect(gameTableSrc).toMatch(
-      /current\.teamLevels === null && !events\.some\(\(e\) => e\.type === 'handEnded'\)/,
-    );
+  it('reduced motion gets a safety auto-release so an away player is never left curtained', () => {
+    expect(gameTableSrc).toMatch(/setTimeout\(\(\) => onDoneRef\.current\(\), 30_000\)/);
   });
 
   it('the held well reads by the ENDED hand level and the final play', () => {
     expect(gameTableSrc).toMatch(/heldTop=\{interlude\.finalPlay\?\.cards \?\? null\}/);
-    expect(gameTableSrc).toMatch(/level=\{interlude\.level\}/);
   });
 
-  it('overlay CSS: above the play flight, vignette not wash, plate bounded, reduced motion stilled', () => {
-    const block = tableCss.match(/\.gd-interlude\s*\{([^}]*)\}/)?.[1];
-    expect(block, '.gd-interlude block').toBeDefined();
-    expect(block).toContain('z-index: 12'); // .gd-playfx is 11
-    // Viewport-fixed (visual round): the pre-deal hold collapses the table
-    // section, so an in-section overlay would cover the held winning play.
-    expect(block).toContain('position: fixed');
-    expect(block).toContain('radial-gradient');
-    const plate = tableCss.match(/\.gd-interlude__plate\s*\{([^}]*)\}/)?.[1];
-    expect(plate).toContain('max-width: 22rem');
-    // The reduced-motion block stills every interlude entrance (and the
-    // badge-rank tick that rides the same keyframes).
+  it('CSS: Stage A over the ring centre (light scrim); Stage B a covering vignette; reduced stilled', () => {
+    // Stage A — absolute, over the ring centre (the ring table is its
+    // positioning context), a LIGHT scrim so the winning cards stay readable.
+    const outcome = tableCss.match(/\.gd-outcome\s*\{([^}]*)\}/)?.[1];
+    expect(outcome, '.gd-outcome block').toBeDefined();
+    expect(outcome).toContain('position: absolute');
+    expect(outcome).toMatch(/color-mix\(in srgb, var\(--lacquer\)/); // the scrim, not a solid wash
+    expect(tableCss).toMatch(/\.gd-ring__table\s*\{[^}]*position: relative/);
+    // Stage B — fixed, covering, above the play flight (11), plate bounded.
+    const levelup = tableCss.match(/\.gd-levelup\s*\{([^}]*)\}/)?.[1];
+    expect(levelup, '.gd-levelup block').toBeDefined();
+    expect(levelup).toContain('position: fixed');
+    expect(levelup).toContain('z-index: 12');
+    expect(levelup).toContain('radial-gradient');
+    expect(tableCss.match(/\.gd-levelup__plate\s*\{([^}]*)\}/)?.[1]).toContain('max-width: 22rem');
+    // Reduced motion stills every beat entrance (and the badge-rank tick).
     expect(tableCss).toMatch(
-      /@media \(prefers-reduced-motion: reduce\) \{[^@]*\.gd-interlude__order,[^@]*animation: none;/,
+      /@media \(prefers-reduced-motion: reduce\) \{[^@]*\.gd-outcome,[^@]*animation: none;/,
     );
   });
 });

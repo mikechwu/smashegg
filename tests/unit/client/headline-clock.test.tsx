@@ -115,11 +115,11 @@ describe('headline clock: one table-wide countdown on the turn line', () => {
     // The concealed hand-1 leader never gets a clock (the landing IS the
     // reveal)…
     expect(table).toMatch(/clockSeat === null \|\| clockSeat === leaderConcealed\s*\?\s*undefined/);
-    // …and the owner rule is relocated intact: no countdown during the
-    // ceremony or the deal — a clock before the player HAS a sorted hand is
-    // meaningless.
+    // …and the owner rule is relocated intact and TIGHTENED (Item 1): no
+    // countdown before the player HAS a sorted hand — the whole pre-deal +
+    // deal window, via the single dealSettled gate (!settled).
     expect(table).toMatch(
-      /ceremonyShowing \|\| dealing \|\| interludeShowing \|\| clockDeadline === undefined\s*\?\s*null\s*:\s*remainingSeconds\(clockDeadline\.dueAt, now\)/,
+      /!settled \|\| interludeShowing \|\| clockDeadline === undefined\s*\?\s*null\s*:\s*remainingSeconds\(clockDeadline\.dueAt, now\)/,
     );
     // The concealed-leader override rides the SAME prop the turn line uses.
     expect(table).toMatch(/dueSeconds=\{leaderConcealed !== null \? null : dueSeconds\}/);

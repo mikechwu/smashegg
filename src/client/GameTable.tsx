@@ -28,6 +28,7 @@ import { EventFeed, FEED_LIMIT, type FeedLine } from './table/EventFeed';
 import { PlayOverlay } from './table/PlayOverlay';
 import { HandFan } from './table/HandFan';
 import { InterludeOverlay } from './table/InterludeOverlay';
+import { InterludeOutcome } from './table/InterludeOutcome';
 import { PlayDesk } from './table/PlayDesk';
 import { TableHeadline } from './table/TableHeadline';
 import { ResultOverlay } from './table/ResultOverlay';
@@ -43,9 +44,11 @@ import {
   beatState,
   declJokerRank,
   concealedLeader,
+  dealSettled,
   deskMode,
   deskStage,
   holdPreDealFan,
+  interludeStage,
   isCeremonyShowing,
   landRemoteDealt,
   matchSelection,
@@ -64,6 +67,7 @@ import {
   tributeKind,
   type Ceremony,
   type InterludeFx,
+  type InterludeStage,
   type PlayMatch,
   type RemoteDealt,
   type SelectionContext,
@@ -114,6 +118,49 @@ function ScrollActionsIntoView({
   useEffect(() => {
     if (loud) targetRef.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
   }, [loud, stagedCount, targetRef]);
+  return null;
+}
+
+function prefersReducedMotion(): boolean {
+  return typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+/** Drives the end-of-hand beat's stage effects from the pure `stage` GameTable
+ *  computes (a child because these depend on post-early-return derivations —
+ *  the ScrollActionsIntoView pattern). Non-reduced: the headline un-freezes once
+ *  the beat is past the on-table OUTCOME stage (onLevels), and the beat
+ *  completes at 'done'. Reduced motion shows one static plate and gets a 30s
+ *  safety auto-release so an away player's table is never left curtained. Refs
+ *  keep the callbacks off the effect deps (GameTable re-renders on its 500ms
+ *  tick; fresh closures as deps would re-arm the release timer every tick). */
+function InterludeStageDriver({
+  interludeId,
+  stage,
+  reduced,
+  onLevels,
+  onDone,
+}: {
+  interludeId: number;
+  stage: InterludeStage;
+  reduced: boolean;
+  onLevels: () => void;
+  onDone: () => void;
+}) {
+  const onLevelsRef = useRef(onLevels);
+  onLevelsRef.current = onLevels;
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+  useEffect(() => {
+    if (reduced || stage !== 'outcome') onLevelsRef.current();
+  }, [reduced, stage]);
+  useEffect(() => {
+    if (!reduced && stage === 'done') onDoneRef.current();
+  }, [reduced, stage]);
+  useEffect(() => {
+    if (!reduced) return;
+    const timer = setTimeout(() => onDoneRef.current(), 30_000);
+    return () => clearTimeout(timer);
+  }, [reduced, interludeId]);
   return null;
 }
 
@@ -470,6 +517,12 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // trivial in a match's lifetime.
   const [interludeDone, setInterludeDone] = useState<ReadonlySet<number>>(new Set());
   const [interludeLate, setInterludeLate] = useState<ReadonlySet<number>>(new Set());
+  // Item 2: the on-table two-stage beat. `interludeAdvance` is the tap-to-advance
+  // index keyed to the beat's id (a tap jumps to the next stage; the timer does
+  // it otherwise). reducedMotion is read once — it selects the single static
+  // plate over the staged flow.
+  const [interludeAdvance, setInterludeAdvance] = useState<{ id: number; idx: number }>({ id: -1, idx: 0 });
+  const reducedMotion = useMemo(prefersReducedMotion, []);
   // Suspense reveal (owner rule): true once the face-up marker has LANDED
   // this deal — before that, the leader's seat ring stays unlit.
   const [dealLeadRevealed, setDealLeadRevealed] = useState(false);
@@ -741,6 +794,38 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   const interlude = derived.interlude;
   const interludeShowing =
     interlude !== null && !interludeDone.has(interlude.id) && now - interlude.at < 60000;
+  // Item 2 — the two on-table stages of the beat. The OUTCOME (who won + the
+  // finishing order) shows ON the table by the winning play; then the LEVEL-UP
+  // payoff (level 5 → 7) covers. Match end has NO level-up stage — ResultOverlay is
+  // its covering payoff. The A-story extends the level-up dwell (`insert`).
+  const interludeMatchEnd = interlude?.matchWinner != null;
+  const interludeInsert =
+    interlude !== null &&
+    (interlude.aSuspendedTeam !== null ||
+      (interlude.aBurnedTeam !== null && variant.aMaxAttempts !== null));
+  const interludeAdv =
+    interlude !== null && interludeAdvance.id === interlude.id ? interludeAdvance.idx : 0;
+  const interludeStageNow: InterludeStage =
+    interlude === null || !interludeShowing
+      ? 'done'
+      : interludeStage({
+          elapsedMs: now - interlude.at,
+          advance: interludeAdv,
+          matchEnd: interludeMatchEnd,
+          insert: interludeInsert,
+        });
+  // A tap advances the beat to the next stage; under reduced motion the single
+  // static plate dismisses outright. Advance from the CURRENT stage (whether the
+  // timer OR a prior tap reached it), never from the stored tap index — else a
+  // tap after the timer already moved to level-up would be a no-op (Codex).
+  const interludeStageIdx =
+    interludeStageNow === 'outcome' ? 0 : interludeStageNow === 'levelup' ? 1 : 2;
+  const advanceInterlude = () => {
+    if (interlude !== null) setInterludeAdvance({ id: interlude.id, idx: interludeStageIdx + 1 });
+  };
+  const dismissInterlude = () => {
+    if (interlude !== null) setInterludeDone((prev) => new Set(prev).add(interlude.id));
+  };
 
   // Item 4: play the physical deal once per fold-observed deal — after the
   // hand-1 ceremony overlay (flips/count) finishes, immediately on later
@@ -763,6 +848,10 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     ceremonyShowing,
     dealing,
   });
+  // The deal-complete gate (owner: reveal at the player's pace). Nothing about
+  // the cards — no tribute/anti panel, no action bar, no whose-turn line, no
+  // active ring — is disclosed until the player can see their sorted hand.
+  const settled = dealSettled({ holdFan, dealing });
   const dirFor = (seat: Seat): 'south' | 'east' | 'north' | 'west' =>
     seat === layout.south ? 'south' : seat === layout.east ? 'east' : seat === layout.north ? 'north' : 'west';
   // Hand 1 deals FROM the first drawer (public, from the ceremony) so the
@@ -806,7 +895,12 @@ export function GameTable({ snapshot, store }: GameTableProps) {
 
   const inTributeCenter =
     view.phase === 'tribute' || view.phase === 'returnTribute' || view.phase === 'antiTributeDecision';
-  const showAnti = derived.anti !== null;
+  // The tribute / anti-tribute CENTER waits for the deal to settle: during the
+  // deal the center yields to the (empty) trick well, so the anti-tribute
+  // "both big jokers!" reveal — and the tribute prompt — never land mid-deal
+  // (Item 1: reveal at the player's pace, not the system's).
+  const showAnti = derived.anti !== null && settled;
+  const tributeCenterShowing = settled && (inTributeCenter || derived.anti !== null);
 
   // A rejection clears on the next action (store.act/claim/…) or a start, so
   // whatever's still here is the latest un-acted failure — show it, dismissible.
@@ -833,11 +927,12 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         partner={teamOf(seat) === viewerTeam && seat !== activeSeat}
         place={placeOf(view.finishOrder, seat)}
         active={
+          settled &&
           (ringSeats.has(seat) || (seat === activeSeat && yourTurn)) &&
           seat !== leaderConcealed &&
           !interludeShowing
         }
-        committed={inTributeCenter && committedSet.has(seat)}
+        committed={settled && inTributeCenter && committedSet.has(seat)}
         onSelect={selectable ? () => setSelectedSeat(seat) : undefined}
       />
     );
@@ -862,7 +957,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       ? undefined
       : deadlineBySeat.get(clockSeat);
   const dueSeconds =
-    ceremonyShowing || dealing || interludeShowing || clockDeadline === undefined
+    !settled || interludeShowing || clockDeadline === undefined
       ? null
       : remainingSeconds(clockDeadline.dueAt, now);
   const clockConnected =
@@ -1047,8 +1142,8 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         playingTeam={
           interludeShowing ? null : playingLevelTeam(view.declarerTeam, view.levels, view.currentLevel)
         }
-        yourTurn={leaderConcealed !== null || interludeShowing ? false : yourTurn}
-        actorName={leaderConcealed !== null || interludeShowing ? null : actorName}
+        yourTurn={leaderConcealed !== null || interludeShowing || !settled ? false : yourTurn}
+        actorName={leaderConcealed !== null || interludeShowing || !settled ? null : actorName}
         dueSeconds={leaderConcealed !== null ? null : dueSeconds}
         planning={clockDeadline?.timingClass === 'planning' && clockConnected}
         deskOwnsTurn={deskLoud}
@@ -1066,13 +1161,26 @@ export function GameTable({ snapshot, store }: GameTableProps) {
             // marked by the ENDED hand's level (its wild must keep reading) —
             // the next hand's tribute panel/trick well take the center only
             // after the beat releases. A reconnect that dropped the trick
-            // history holds a bare well instead (finalPlay null).
-            <TrickWell
-              trick={null}
-              heldTop={interlude.finalPlay?.cards ?? null}
-              level={interlude.level}
-              sweepKey={derived.sweep}
-            />
+            // history holds a bare well instead (finalPlay null). Item 2 STAGE A:
+            // the outcome (who won + order) renders ON the table right here, by
+            // the winning play, so the eye is already there — never a bottom
+            // strip. Reduced motion shows the combined static plate instead.
+            <>
+              <TrickWell
+                trick={null}
+                heldTop={interlude.finalPlay?.cards ?? null}
+                level={interlude.level}
+                sweepKey={derived.sweep}
+              />
+              {!reducedMotion && interludeStageNow === 'outcome' && (
+                <InterludeOutcome
+                  interlude={interlude}
+                  viewerTeam={viewerTeam}
+                  nameFor={nameFor}
+                  onAdvance={advanceInterlude}
+                />
+              )}
+            </>
           ) : view.phase === 'ceremonyCut' && view.ceremonyCutter !== null ? (
             // Item 3: the REAL cut — one actor, three spectators, all named.
             <CutPanel
@@ -1083,7 +1191,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
               nameFor={nameFor}
               onCut={(position) => act({ type: 'cutDeck', position })}
             />
-          ) : inTributeCenter || showAnti ? (
+          ) : tributeCenterShowing ? (
             <TributePanel view={view} nameFor={nameFor} antiReveals={derived.anti} />
           ) : (
             <TrickWell
@@ -1177,7 +1285,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         <div className="gd-actionsRow" ref={actionsRowRef}>
           <div className="gd-actionsRow__spacer" aria-hidden="true" />
           <div className="gd-actionsRow__bar">
-            {view.phase !== 'ceremonyCut' && !interludeShowing && (
+            {view.phase !== 'ceremonyCut' && !interludeShowing && settled && (
               <ActionBar
                 hints={hints}
                 phase={view.phase}
@@ -1227,7 +1335,11 @@ export function GameTable({ snapshot, store }: GameTableProps) {
             ring by a full grid row. */}
         <div className="gd-bottombar">
           {plate(layout.south)}
-          <EventFeed lines={derived.feed} />
+          {/* The log waits for the deal too (Item 1 sweep): a fresh hand's
+              batch folds its handStarted / anti-tribute lines the moment it
+              arrives, but the player should read them AFTER the deal, at their
+              pace — so the feed shows nothing until settled. */}
+          <EventFeed lines={settled ? derived.feed : []} />
         </div>
       </div>
 
@@ -1277,15 +1389,29 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       )}
 
       {interludeShowing && interlude !== null && (
-        <InterludeOverlay
-          key={interlude.id}
-          interlude={interlude}
-          viewerTeam={viewerTeam}
-          nameFor={nameFor}
-          aMaxAttempts={variant.aMaxAttempts}
-          onLevelsReached={() => setInterludeLate((prev) => new Set(prev).add(interlude.id))}
-          onDone={() => setInterludeDone((prev) => new Set(prev).add(interlude.id))}
-        />
+        <>
+          {/* STAGE B — the level-up payoff covers the table. Non-reduced: only
+              once the beat is past the on-table OUTCOME (Stage A, rendered in
+              the ring centre above); match end never reaches it (ResultOverlay
+              is its covering payoff). Reduced motion: the single static plate. */}
+          {(reducedMotion || interludeStageNow === 'levelup') && (
+            <InterludeOverlay
+              interlude={interlude}
+              viewerTeam={viewerTeam}
+              nameFor={nameFor}
+              aMaxAttempts={variant.aMaxAttempts}
+              reduced={reducedMotion}
+              onAdvance={reducedMotion ? dismissInterlude : advanceInterlude}
+            />
+          )}
+          <InterludeStageDriver
+            interludeId={interlude.id}
+            stage={interludeStageNow}
+            reduced={reducedMotion}
+            onLevels={() => setInterludeLate((prev) => new Set(prev).add(interlude.id))}
+            onDone={() => setInterludeDone((prev) => new Set(prev).add(interlude.id))}
+          />
+        </>
       )}
 
       {/* The match ceremony mounts only after the (shortened) beat dissolves

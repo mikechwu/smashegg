@@ -1778,6 +1778,9 @@ button.gd-plate {
     'west center east';
   gap: var(--space-xs);
   align-items: center;
+  /* Containing block for the end-of-hand OUTCOME (Stage A, .gd-outcome): it
+     anchors over the ring's centre — by the winning play — not a bottom strip. */
+  position: relative;
 }
 .gd-ring__seat--north {
   grid-area: north;
@@ -2302,36 +2305,101 @@ button.gd-plate {
   }
 }
 
-/* --- end-of-hand interlude (docs/research/hand-interlude.md) --------------- */
-/* The beat's overlay: a VIGNETTE, not a wash — transparent over the trick
- * well (the winning final play stays the hero of the table it just won) and
- * darkening toward the edges; the plate anchors in the LOWER third at phone
- * widths so it never covers the well (panel-adopted layout). One tap
- * anywhere skips the whole beat (the wrapper's click). z: above the play
- * flight (11) — the final play's own flight may still be landing under the
- * hold stage — and below nothing else on the table. */
-.gd-interlude {
-  /* FIXED, not absolute-in-table (visual round): the pre-deal hold empties
-   * the fan and collapses the table section, so an in-section overlay ended
-   * up sitting ON the ring — covering the held winning play it exists to
-   * showcase. Viewport anchoring (the .gd-playfx precedent) keeps the plate
-   * in the true lower third with the table — well included — above it. */
+/* --- end-of-hand beat: STAGE A (outcome, on the table) + STAGE B (level-up) - */
+/* Owner UX round: the outcome shows ON the table by the winning play (Stage A,
+ * .gd-outcome, rendered in the ring centre so the eye is already there), THEN a
+ * larger covering level-up payoff (Stage B, .gd-levelup). The old single
+ * lower-third plate (players missed it at the bottom) is gone. */
+
+/* STAGE A — the outcome, over the held winning play. A LIGHT scrim so the cards
+   it just won with stay readable ("these cards -> so this happened"); anchored
+   over the ring's centre, never a bottom strip. Tap advances to the payoff. */
+.gd-outcome {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(20rem, 94%);
+  box-sizing: border-box;
+  z-index: 11; /* above the well (10) so the outcome text is never covered by the winning cards; below the level-up overlay (12) */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2xs);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-lg);
+  /* A LIGHT scrim: the winning play stays a legible HERO beneath (owner: it
+     stays visible — the spatial "these cards -> so this happened"), only gently
+     dimmed. The outcome text sits above it (z-index) with a text-shadow so it
+     reads over the cards without a heavy wash. */
+  background: color-mix(in srgb, var(--lacquer) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--goldleaf) 30%, transparent);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.95), 0 0 2px rgba(0, 0, 0, 0.9);
+  text-align: center;
+  cursor: pointer;
+  animation: gd-fade-in 260ms ease-out;
+}
+.gd-outcome__verdict {
+  margin: 0;
+  font-family: var(--font-card);
+  font-size: var(--fs-2xl);
+  font-weight: 700;
+  animation: gd-beat-in 300ms ease-out both;
+}
+.gd-outcome__hint {
+  margin: 0;
+  font-size: var(--fs-2xs);
+  opacity: 0.75;
+}
+.gd-outcome__verdict--won {
+  color: var(--goldleaf); /* victory — the reserved goldleaf moment */
+}
+.gd-outcome__order {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3xs) var(--space-md);
+}
+.gd-outcome__place {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-3xs);
+  font-size: var(--fs-sm);
+  min-width: 0;
+}
+.gd-outcome__rank {
+  color: var(--goldleaf);
+  font-weight: 600;
+  flex: none;
+}
+.gd-outcome__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 6rem;
+}
+
+/* STAGE B — the level-up payoff. A covering vignette (stronger than Stage A's
+   scrim) with a centred plate; it may sit over the table and the hand. It
+   advances the story — what the result MEANS (level 5 -> 7) + the A-story + the
+   next hand — and never restates the finishing order. */
+.gd-levelup {
   position: fixed;
   inset: 0;
   z-index: 12;
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
   align-items: center;
-  padding: 0 var(--space-xl) 3.5rem;
+  justify-content: center;
+  padding: var(--space-xl);
   cursor: pointer;
-  background: radial-gradient(
-    ellipse at 50% 22%,
-    rgba(26, 13, 9, 0) 30%,
-    rgba(26, 13, 9, 0.62) 100%
-  );
+  background: radial-gradient(ellipse at 50% 45%, rgba(26, 13, 9, 0.5) 24%, rgba(26, 13, 9, 0.84) 100%);
+  animation: gd-beat-in 280ms ease-out;
 }
-.gd-interlude__plate {
+.gd-levelup__plate {
   background: var(--rosewood);
   border-radius: var(--radius-lg);
   padding: var(--space-lg) var(--space-xl) var(--space-md);
@@ -2340,107 +2408,91 @@ button.gd-plate {
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
+  gap: var(--space-sm);
+  text-align: center;
 }
-.gd-interlude__title {
+/* reduced-motion outcome recap — folded into the single static plate */
+.gd-levelup__verdict {
+  margin: 0;
   font-family: var(--font-card);
   font-size: var(--fs-xl);
-  margin: 0;
+  font-weight: 700;
 }
-.gd-interlude__line {
-  margin: 0;
-  font-size: var(--fs-sm);
+.gd-levelup__verdict--won {
+  color: var(--goldleaf);
 }
-.gd-interlude__final {
-  opacity: 0.85;
-}
-.gd-interlude__order {
+.gd-levelup__order {
   list-style: none;
-  margin: 0;
+  margin: 0 0 var(--space-2xs);
   padding: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3xs) var(--space-lg);
-}
-.gd-interlude__orderLine {
-  font-size: var(--fs-sm);
   display: flex;
-  gap: var(--space-xs);
-  min-width: 0;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-3xs) var(--space-md);
+  font-size: var(--fs-sm);
 }
-.gd-interlude__place {
+.gd-levelup__orderLine {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-3xs);
+}
+.gd-levelup__place {
   color: var(--goldleaf);
   flex: none;
 }
-.gd-interlude__name {
+.gd-levelup__name {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  max-width: 6rem;
 }
-.gd-interlude__verdict {
-  margin: 0;
-  font-size: var(--fs-lg);
-  font-weight: 600;
-}
-.gd-interlude__verdict--won {
-  color: var(--goldleaf);
-}
-.gd-interlude__levels {
+/* the LEVEL transition is the payoff — the loudest line of the plate */
+.gd-levelup__levels {
   display: flex;
   flex-direction: column;
   gap: var(--space-3xs);
+  animation: gd-beat-in 300ms ease-out both;
 }
-.gd-interlude__aline {
+.gd-levelup__line {
+  margin: 0;
+  font-size: var(--fs-2xl);
+  font-family: var(--font-card);
+  font-weight: 600;
+}
+.gd-levelup__aline {
   margin: 0;
   font-size: var(--fs-sm);
 }
-.gd-interlude__aline--suspended {
+.gd-levelup__aline--suspended {
   color: var(--cinnabar);
   font-weight: 600;
 }
-.gd-interlude__curtain {
+.gd-levelup__curtain {
   margin: 0;
-  font-size: var(--fs-lg);
+  font-size: var(--fs-md);
   font-weight: 600;
   font-family: var(--font-card);
+  animation: gd-beat-in 300ms ease-out both;
 }
-.gd-interlude__curtainNote {
+.gd-levelup__curtainNote {
   display: block;
   font-family: inherit;
   font-size: var(--fs-xs);
   font-weight: 400;
   opacity: 0.85;
 }
-.gd-interlude__match {
+.gd-levelup__skip {
   margin: 0;
-  font-size: var(--fs-xl);
-  font-weight: 700;
-  font-family: var(--font-card);
-  color: var(--goldleaf);
-}
-.gd-interlude__skip {
-  margin: var(--space-3xs) 0 0;
   font-size: var(--fs-2xs);
   opacity: 0.6;
 }
 .gd-interlude__dismiss {
-  align-self: flex-start;
+  align-self: center;
+  margin-top: var(--space-2xs);
 }
-/* Each stage's content settles in with one quiet entrance — sequential
- * reveal IS the pedagogy (research digest), so the motion is the arrival,
- * not a spectacle. The badge-rank remount (TableHeadline keys the rank span)
- * rides the same animation: the rail visibly ticks old → new. */
-.gd-interlude__order,
-.gd-interlude__verdict,
-.gd-interlude__levels,
-.gd-interlude__curtain,
-.gd-interlude__match {
-  animation: gd-interlude-in 320ms ease-out both;
-}
-.gd-team__rank {
-  animation: gd-interlude-in 320ms ease-out both;
-}
-@keyframes gd-interlude-in {
+/* One quiet entrance per beat surface, then steady (no loop — the no-blink
+   non-negotiable). The headline rank remount rides the same arrival. */
+@keyframes gd-beat-in {
   from {
     opacity: 0;
     transform: translateY(5px);
@@ -2450,12 +2502,15 @@ button.gd-plate {
     transform: none;
   }
 }
+.gd-team__rank {
+  animation: gd-beat-in 320ms ease-out both;
+}
 @media (prefers-reduced-motion: reduce) {
-  .gd-interlude__order,
-  .gd-interlude__verdict,
-  .gd-interlude__levels,
-  .gd-interlude__curtain,
-  .gd-interlude__match,
+  .gd-outcome,
+  .gd-levelup,
+  .gd-outcome__verdict,
+  .gd-levelup__levels,
+  .gd-levelup__curtain,
   .gd-team__rank {
     animation: none;
   }

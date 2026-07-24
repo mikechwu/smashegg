@@ -24,6 +24,7 @@ import {
   declSignature,
   handRows,
   concealedLeader,
+  dealSettled,
   holdPreDealFan,
   isCeremonyShowing,
   matchSelection,
@@ -767,6 +768,35 @@ describe('isCeremonyShowing (hand-1 ceremony overlay + dimTimer gate)', () => {
   it('hides the instant the match is decided, even mid-hand-1', () => {
     expect(isCeremonyShowing({ ...base, matchWinner: 0 })).toBe(false);
     expect(isCeremonyShowing({ ...base, matchWinner: 1 })).toBe(false);
+  });
+});
+
+describe('dealSettled (Item 1: reveal at the player’s pace — the deal-complete gate)', () => {
+  it('is FALSE through the pre-deal hold AND mid-deal, TRUE only once the hand is settled', () => {
+    expect(dealSettled({ holdFan: true, dealing: false })).toBe(false); // pre-deal hold
+    expect(dealSettled({ holdFan: false, dealing: true })).toBe(false); // mid-deal
+    expect(dealSettled({ holdFan: true, dealing: true })).toBe(false);
+    expect(dealSettled({ holdFan: false, dealing: false })).toBe(true); // settled — the player can see their sorted hand
+  });
+});
+
+describe('Item 1 wiring: nothing about the cards renders before the deal settles (regression pin)', () => {
+  const src = readFileSync(join(__dirname, '../../../src/client/GameTable.tsx'), 'utf8');
+  it('the anti-tribute REVEAL + the tribute center gate on settled — the reported bug cannot recur', () => {
+    // The "both big jokers!" reveal and the tribute prompt render ONLY once the
+    // deal has settled; during the deal the center yields to the trick well.
+    expect(src).toMatch(/showAnti = derived\.anti !== null && settled/);
+    expect(src).toMatch(/tributeCenterShowing = settled && \(inTributeCenter \|\| derived\.anti !== null\)/);
+    expect(src).toContain('tributeCenterShowing ? (');
+  });
+  it('the action bar, whose-turn line, active ring AND the event log all wait for settled', () => {
+    expect(src).toContain("view.phase !== 'ceremonyCut' && !interludeShowing && settled && (");
+    expect(src).toMatch(/interludeShowing \|\| !settled \? false : yourTurn/);
+    expect(src).toMatch(/active=\{\s*settled &&/);
+    // The feed's hand-start / anti-tribute lines wait too (sweep completeness).
+    expect(src).toMatch(/lines=\{settled \? derived\.feed : \[\]\}/);
+    // And the committed-tribute chip on the seat plate (Codex sweep catch).
+    expect(src).toMatch(/committed=\{settled && inTributeCenter/);
   });
 });
 
