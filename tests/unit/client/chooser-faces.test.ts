@@ -13,6 +13,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
+import { resolveScale } from './css-tokens';
 
 // The CSS-token ratchet needs the stylesheets as TEXT. Vitest stubs CSS
 // imports (`?raw` included) to '' under its default css:false, so fs it
@@ -430,7 +431,9 @@ describe('chooser 390px fit — CSS-token arithmetic (render verified by visual 
     );
     const chipGap = token(tableCss, /\.gd-chooser__chip\s*\{[^}]*gap:\s*([\d.]+)rem/, 'chip gap') * REM;
     const headerGap = token(tableCss, /\.gd-chooser__header\s*\{[^}]*gap:\s*([\d.]+)rem/, 'header gap') * REM;
-    const arrow = token(tableCss, /\.gd-chooser__arrow\s*\{[^}]*font-size:\s*([\d.]+)rem/, 'arrow size') * REM;
+    const arrow =
+      token(resolveScale(tableCss, appCss), /\.gd-chooser__arrow\s*\{[^}]*font-size:\s*([\d.]+)rem/, 'arrow size') *
+      REM;
     const appPad = token(appCss, /\.app-main\s*\{[^}]*padding:\s*[\d.]+rem\s+([\d.]+)rem/, 'app-main x-padding') * REM;
     const tablePad = token(tableCss, /\.gd-table\s*\{[^}]*?padding:\s*([\d.]+)rem/, 'gd-table padding') * REM;
 

@@ -15,6 +15,15 @@
      (which stays the UI ink/badge/seal colour). Only the card FRONT uses it —
      the backs paint their own background over it. */
   --card-face: #faf2e1;
+  /* Caution amber (visual-refinement round, owner Option A). The play-desk
+     clock's MIDDLE urgency stage was goldleaf, colliding with goldleaf's
+     reserved achievement/level meaning ("gold = you won" AND "gold = time low"
+     — one signal, two meanings). A distinct burnt amber-orange keeps the
+     ivory → amber → cinnabar ramp crisp for elders while freeing goldleaf for
+     level/jiefeng/victory only. Chosen for perceptual separation from BOTH
+     goldleaf (OKLab ΔE ~0.11) and cinnabar (~0.15) and contrast ~4.7:1 on the
+     desk panel; verified at 390px (STATUS). NEVER an achievement colour. */
+  --amber: #e37628;
 
   --font-ui: -apple-system, 'PingFang TC', 'Hiragino Sans TC', 'Noto Sans TC',
     'Microsoft JhengHei', sans-serif;
@@ -24,7 +33,9 @@
   background: var(--lacquer);
   color: var(--ivory);
   font-family: var(--font-ui);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
+  /* Literal, not --space-sm: a measured input to the chooser 390px fit budget
+     (chooser-faces.test) — kept explicit like the clamps, not on the scale. */
   padding: 0.5rem;
   max-width: 100%;
   overflow-x: hidden;
@@ -67,15 +78,15 @@ button.gd-plate {
        .gd-plates containers were removed with the LevelRail + 3-across layout. */
 .gd-plate {
   background: var(--rosewood);
-  border-radius: 8px;
-  padding: 0.375rem 0.5rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-xs) var(--space-sm);
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 0.3125rem;
+  gap: var(--space-xs);
   min-width: 0;
   border: 2px solid transparent;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .gd-plate--active {
   border-color: var(--cinnabar);
@@ -83,7 +94,7 @@ button.gd-plate {
 .gd-plate__dot {
   width: 0.5rem;
   height: 0.5rem;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   flex: none;
 }
 .gd-plate__dot--on {
@@ -104,8 +115,8 @@ button.gd-plate {
 .gd-plate__badge {
   background: var(--ivory);
   color: var(--ink);
-  border-radius: 4px;
-  padding: 0 0.3125rem;
+  border-radius: var(--radius-xs);
+  padding: 0 var(--space-xs);
   font-size: 0.75em;
 }
 /* The committed-tribute chip — the one persistent STATE the pill still
@@ -117,8 +128,8 @@ button.gd-plate {
   opacity: 0.7;
   font-size: 0.75em;
   border: 1px solid currentColor;
-  border-radius: 4px;
-  padding: 0 0.25rem;
+  border-radius: var(--radius-xs);
+  padding: 0 var(--space-2xs);
 }
 /* The count chip (R6, flank round item 2: a STANDALONE zone element on the
    side of the cards OPPOSITE the name pill — never inside it). Quiet
@@ -129,7 +140,7 @@ button.gd-plate {
 .gd-seatcount {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   opacity: 0.85;
   white-space: nowrap;
   flex: none;
@@ -141,7 +152,7 @@ button.gd-plate {
 }
 .gd-seatcount--critical {
   font-weight: 700;
-  font-size: 0.85rem;
+  font-size: var(--fs-md);
 }
 .gd-seatcount--hidden {
   opacity: 0.6;
@@ -211,7 +222,7 @@ button.gd-plate {
 .gd-well__waiting {
   animation: gd-fade-in 300ms ease-out;
   opacity: 0.7;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 @keyframes gd-sweep-in {
   from {
@@ -227,23 +238,23 @@ button.gd-plate {
 /* --- the cut panel (item 3; item 4 restyles it into the deck ribbon) ------ */
 .gd-cut {
   background: var(--rosewood);
-  border-radius: 8px;
-  padding: 0.75rem 0.875rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-lg) 0.875rem;
   max-width: 20rem;
   width: 100%;
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: var(--space-xs);
 }
 .gd-cut__title {
   margin: 0;
   font-family: var(--font-card);
-  font-size: 1rem;
+  font-size: var(--fs-xl);
 }
 .gd-cut__prompt {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   opacity: 0.85;
 }
 /* The spread ribbon (obs 1): CUT_RIBBON_SLIVERS overlapping card backs
@@ -264,7 +275,7 @@ button.gd-plate {
   width: 100%;
   max-width: 20rem;
   height: calc(var(--sliver-w) * 1.45);
-  margin: 0.25rem auto 0.35rem;
+  margin: var(--space-2xs) auto var(--space-xs);
 }
 .gd-cut__sliver {
   position: absolute;
@@ -287,7 +298,7 @@ button.gd-plate {
   display: flex;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 0.375rem;
+  gap: var(--space-xs);
 }
 .gd-cut__flip {
   display: inline-flex;
@@ -375,26 +386,26 @@ button.gd-plate {
 .gd-cut__ribbon--live:has(.gd-cut__slider:focus-visible) {
   outline: 2px solid var(--goldleaf);
   outline-offset: 3px;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
 }
 .gd-cut__confirm {
   align-self: center;
   background: var(--cinnabar);
   color: var(--ivory);
   border: none;
-  border-radius: 8px;
-  padding: 0.45rem 1.5rem;
-  font-size: 0.9375rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-3xl);
+  font-size: var(--fs-lg);
   font-weight: 600;
 }
 
 /* --- tribute panel --------------------------------------------------------- */
 .gd-tribute {
   background: var(--rosewood);
-  border-radius: 8px;
-  padding: 0.625rem 0.75rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-md) var(--space-lg);
   max-width: 100%;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 .gd-tribute--anti {
   animation: gd-anti-flash 700ms ease-out;
@@ -408,7 +419,7 @@ button.gd-plate {
   }
 }
 .gd-tribute__banner {
-  margin: 0 0 0.375rem;
+  margin: 0 0 var(--space-xs);
   font-weight: 600;
 }
 .gd-tribute__flows,
@@ -420,15 +431,15 @@ button.gd-plate {
 .gd-tribute__pairing {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  margin-top: 0.25rem;
+  gap: var(--space-xs);
+  margin-top: var(--space-2xs);
   flex-wrap: wrap;
 }
 .gd-tribute__own {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
-  margin-top: 0.375rem;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
   flex-wrap: wrap;
 }
 .gd-tribute__committed {
@@ -446,10 +457,10 @@ button.gd-plate {
 .gd-feed {
   list-style: none;
   margin: 0;
-  padding: 0.375rem 0.5rem;
+  padding: var(--space-xs) var(--space-sm);
   background: color-mix(in srgb, var(--rosewood) 55%, var(--lacquer));
-  border-radius: 8px;
-  font-size: 0.75rem;
+  border-radius: var(--radius-md);
+  font-size: var(--fs-xs);
   line-height: 1.35;
   opacity: 0.9;
   /* border-box: max-height below is a BOX height (padding already folded into
@@ -464,7 +475,7 @@ button.gd-plate {
   overflow-wrap: anywhere;
 }
 .gd-feed li + li {
-  margin-top: 0.125rem;
+  margin-top: var(--space-3xs);
 }
 
 /* --- cards ------------------------------------------------------------------ */
@@ -491,9 +502,9 @@ button.gd-plate {
   flex-direction: column;
   width: var(--gd-cardw);
   height: calc(var(--gd-cardw) * 1.45);
-  background: var(--card-face, #faf2e1);
+  background: var(--card-face);
   border: 2px solid var(--rosewood);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   position: relative;
   /* Stacking TRAP (panel finding 2026-07-16): position: relative alone
      creates NO stacking context, so a positioned theme descendant with a
@@ -569,7 +580,7 @@ button.gd-plate {
 .gd-card__index {
   font-family: var(--font-card);
   line-height: 1;
-  padding: 0.1875rem 0 0 0.25rem;
+  padding: 0.1875rem 0 0 var(--space-2xs);
   display: flex;
   flex-direction: column;
   align-items: flex-start;
@@ -775,9 +786,9 @@ button.gd-plate {
   color: var(--ivory);
   opacity: 0.65;
   border: 1px solid currentColor;
-  border-radius: 999px;
-  padding: 0.125rem 0.5rem;
-  font-size: 0.75rem;
+  border-radius: var(--radius-pill);
+  padding: var(--space-3xs) var(--space-sm);
+  font-size: var(--fs-xs);
   font-family: var(--font-ui);
 }
 .gd-handSort:hover {
@@ -790,7 +801,7 @@ button.gd-plate {
 .gd-fan {
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: var(--space-xs);
   max-width: 100%;
   /* The stack overlap is an INLINE margin on the card BUTTON of
      calc(var(--gd-cardw) * F): custom properties resolve against ANCESTORS,
@@ -817,7 +828,7 @@ button.gd-plate {
   border: none;
   padding: 0;
   line-height: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   flex: 0 1 auto;
   min-width: 0;
 }
@@ -857,7 +868,7 @@ button.gd-plate {
   flex-wrap: wrap;
   justify-content: center;
   align-items: flex-end;
-  row-gap: 0.375rem;
+  row-gap: var(--space-xs);
   padding-top: 0.875rem; /* room for the selection lift */
   /* Cancels the FIRST stack's own overlap margin (.gd-fan__stack below) —
      see that rule's comment for why the margin has to sit on every stack,
@@ -933,16 +944,17 @@ button.gd-plate {
  * exists only for the viewer's own turn — the loudness hierarchy's spine;
  * the quiet pre-stage is faces + naming with no shell. One ~200ms
  * entrance (gd-desk-in, runs ONCE — never a loop), then steady. Urgency
- * is D5's discrete stage classes: calm ivory → amber goldleaf → urgent
- * cinnabar+bold, carried by color/weight/copy so reduced motion loses
- * nothing. The vertical budget is recycled (the old reason band, the
+ * is D5's discrete stage classes: calm ivory → caution amber (--amber, a
+ * distinct hue from goldleaf) → urgent cinnabar+bold, carried by
+ * color/weight/copy AND the depleting bar so reduced motion loses nothing.
+ * The vertical budget is recycled (the old reason band, the
  * handclock, the acting ring shrink below), not invented (plan §2d). */
 .gd-desk {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.25rem;
-  margin: 0.25rem auto 0;
+  gap: var(--space-2xs);
+  margin: var(--space-2xs) auto 0;
   width: 100%;
   max-width: 24rem;
   box-sizing: border-box;
@@ -952,8 +964,8 @@ button.gd-plate {
   background: color-mix(in srgb, var(--rosewood) 55%, var(--lacquer));
   border: 1px solid color-mix(in srgb, var(--cinnabar) 55%, transparent);
   border-left: 4px solid var(--cinnabar);
-  border-radius: 10px;
-  padding: 0.375rem 0.75rem 0.5rem;
+  border-radius: var(--radius-lg);
+  padding: var(--space-xs) var(--space-lg) var(--space-sm);
   animation: gd-desk-in 200ms ease-out;
 }
 @keyframes gd-desk-in {
@@ -970,19 +982,19 @@ button.gd-plate {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 0.75rem;
+  gap: var(--space-lg);
   width: 100%;
 }
 .gd-desk__title {
   margin: 0;
-  font-size: 1.125rem;
+  font-size: var(--fs-2xl);
   font-weight: 700;
   color: var(--ivory);
 }
 .gd-desk__clock {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 1.5rem;
+  font-size: var(--fs-5xl);
   line-height: 1;
   color: var(--ivory);
   min-width: 1.5em;
@@ -990,7 +1002,7 @@ button.gd-plate {
   flex: none;
 }
 .gd-desk--amber .gd-desk__clock {
-  color: var(--goldleaf);
+  color: var(--amber);
 }
 .gd-desk--urgent .gd-desk__clock {
   color: var(--cinnabar);
@@ -1001,28 +1013,31 @@ button.gd-plate {
 .gd-desk--urgent .gd-desk__title {
   color: var(--cinnabar);
 }
-/* The planning window's own REGISTER (plan §2b; panel MED, Grok: the
-   copy alone was half the register) — goldleaf edge instead of cinnabar,
-   so a long first think reads as thinking room, not turn pressure. */
+/* The planning window's own REGISTER (plan §2b; panel MED, Grok: the copy
+   alone was half the register) — a CALM ivory edge instead of the cinnabar
+   turn-pressure edge, so a long first think reads as thinking room, not
+   pressure. (Was goldleaf; moved off gold with the amber-clock split so
+   goldleaf stays achievement-only — this state is calm, not caution, so it
+   takes the neutral ivory, not --amber.) */
 .gd-desk--planning {
-  border-color: color-mix(in srgb, var(--goldleaf) 60%, transparent);
-  border-left-color: var(--goldleaf);
+  border-color: color-mix(in srgb, var(--ivory) 30%, transparent);
+  border-left-color: color-mix(in srgb, var(--ivory) 55%, transparent);
 }
 .gd-desk__bar {
   width: 100%;
   height: 4px;
-  border-radius: 2px;
+  border-radius: var(--radius-hair);
   background: color-mix(in srgb, var(--ivory) 18%, transparent);
   overflow: hidden;
 }
 .gd-desk__barFill {
   display: block;
   height: 100%;
-  border-radius: 2px;
+  border-radius: var(--radius-hair);
   background: color-mix(in srgb, var(--ivory) 55%, transparent);
 }
 .gd-desk--amber .gd-desk__barFill {
-  background: var(--goldleaf);
+  background: var(--amber);
 }
 .gd-desk--urgent .gd-desk__barFill {
   background: var(--cinnabar);
@@ -1048,28 +1063,28 @@ button.gd-plate {
   margin-left: calc(var(--gd-cardw) * -0.6);
 }
 .gd-desk__more {
-  margin-left: 0.375rem;
+  margin-left: var(--space-xs);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   color: var(--ivory);
   background: var(--lacquer);
-  border-radius: 999px;
-  padding: 0.1rem 0.5rem;
-  font-size: 0.85rem;
+  border-radius: var(--radius-pill);
+  padding: 0.1rem var(--space-sm);
+  font-size: var(--fs-md);
   flex: none;
 }
 /* One-tap clear (elder finger precision): rides the STAGE row, so it can
    only exist with staged cards — a clear control with nothing selected is
    noise. Quiet styling: it must not compete with Play/Pass. */
 .gd-desk__clear {
-  margin-left: 0.5rem;
+  margin-left: var(--space-sm);
   background: var(--lacquer);
   border: 1px solid rgba(245, 239, 227, 0.4);
   color: var(--ivory);
-  border-radius: 999px;
-  padding: 0.3rem 0.9rem;
+  border-radius: var(--radius-pill);
+  padding: var(--space-xs) 0.9rem;
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--fs-md);
   cursor: pointer;
   flex: none;
   /* Elder floor (panel LOW, Codex): a 44px-class target — the whole arc
@@ -1080,14 +1095,14 @@ button.gd-plate {
 }
 .gd-desk__status {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--fs-xl);
   font-weight: 600;
   color: var(--ivory);
   text-align: center;
 }
 .gd-desk__statusHint {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: var(--fs-sm);
   opacity: 0.85;
   color: var(--ivory);
   text-align: center;
@@ -1095,14 +1110,14 @@ button.gd-plate {
 /* D6's timeout notice — ivory plate, neutral wording, transient (the
    TIMEOUT_NOTICE_MS wall-clock gate), capped by guard 4's policy. */
 .gd-desk__notice {
-  margin: 0.375rem auto 0;
+  margin: var(--space-xs) auto 0;
   text-align: center;
-  font-size: 0.9rem;
+  font-size: var(--fs-lg);
   font-weight: 600;
   color: var(--ink);
   background: var(--ivory);
-  border-radius: 8px;
-  padding: 0.375rem 0.75rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-xs) var(--space-lg);
   width: fit-content;
 }
 
@@ -1111,7 +1126,7 @@ button.gd-plate {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   flex-wrap: wrap;
   position: relative;
 }
@@ -1125,7 +1140,7 @@ button.gd-plate {
   align-items: center;
   justify-content: center;
   gap: 2.25rem;
-  margin-top: 0.25rem;
+  margin-top: var(--space-2xs);
 }
 .gd-actions__slots button {
   min-width: 5.5rem;
@@ -1142,18 +1157,18 @@ button.gd-plate {
   white-space: nowrap;
   background: var(--ivory);
   color: var(--ink);
-  border-radius: 6px;
-  padding: 0.125rem 0.5rem;
-  font-size: 0.75rem;
+  border-radius: var(--radius-sm);
+  padding: var(--space-3xs) var(--space-sm);
+  font-size: var(--fs-xs);
   z-index: 4;
 }
 .gd-actions button {
   background: var(--rosewood);
   color: var(--ivory);
   border: none;
-  border-radius: 8px;
-  padding: 0.5rem 1.125rem;
-  font-size: 0.9375rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) 1.125rem;
+  font-size: var(--fs-lg);
 }
 .gd-actions button:disabled {
   opacity: 0.45;
@@ -1166,7 +1181,7 @@ button.gd-plate {
   width: 100%;
   text-align: center;
   margin: 0;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   opacity: 0.75;
 }
 /* Card-face decl chooser (wild-chooser-ux.md §2, faces superseded to HAND
@@ -1183,11 +1198,12 @@ button.gd-plate {
   transform: translateX(-50%);
   background: var(--rosewood);
   border: 1px solid var(--ivory);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
+  /* Literal (fit input to chooser-faces 390px budget) — see .gd-table. */
   padding: 0.625rem;
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: var(--space-xs);
   z-index: 5;
   min-width: 11rem;
   width: max-content;
@@ -1196,7 +1212,7 @@ button.gd-plate {
 }
 .gd-chooser__title {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   opacity: 0.85;
 }
 /* Only the options scroll (beyond ~3, non-default configs) — title and
@@ -1204,18 +1220,18 @@ button.gd-plate {
 .gd-chooser__options {
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: var(--space-xs);
   overflow-y: auto;
   min-height: 0;
 }
 .gd-chooser .gd-chooser__option {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
+  gap: var(--space-2xs);
   background: var(--rosewood);
   border: 1px solid transparent;
-  border-radius: 8px;
-  padding: 0.375rem 0.5rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-xs) var(--space-sm);
   text-align: left;
 }
 /* Quiet top-option (strongest reading) affordance; NOT goldleaf — that
@@ -1227,6 +1243,7 @@ button.gd-plate {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  /* Literal (chooser-faces 390px fit inputs) — kept explicit like the clamps. */
   gap: 0.5rem;
 }
 .gd-chooser__chip {
@@ -1235,18 +1252,18 @@ button.gd-plate {
   gap: 0.25rem;
 }
 .gd-chooser__arrow {
-  font-size: 1rem;
+  font-size: var(--fs-xl);
   opacity: 0.9;
 }
 .gd-chooser__mult {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   opacity: 0.85;
 }
 /* The type label — demoted to the secondary cue (the faces carry the
    meaning); still the whole story for wild-free ambiguity (no chips). */
 .gd-chooser__label {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   opacity: 0.8;
 }
 /* The combo as it will hit the table — literally (owner: chooser cards
@@ -1270,7 +1287,7 @@ button.gd-plate {
   opacity: 0.55;
 }
 .gd-chooser__note {
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   opacity: 0.8;
 }
 
@@ -1363,7 +1380,7 @@ button.gd-plate {
   left: 0;
   right: 0;
   text-align: center;
-  font-size: 0.6875rem;
+  font-size: var(--fs-2xs);
   opacity: 0.6;
   margin: 0;
 }
@@ -1406,12 +1423,12 @@ button.gd-plate {
   position: absolute;
   inset: 0;
   background: color-mix(in srgb, var(--lacquer) 88%, transparent);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 10;
-  padding: 1rem;
+  padding: var(--space-xl);
 }
 .gd-overlay--tappable {
   cursor: pointer;
@@ -1423,27 +1440,32 @@ button.gd-plate {
 .gd-ceremony,
 .gd-result {
   background: var(--rosewood);
-  border-radius: 8px;
-  padding: 0.875rem 1rem;
+  border-radius: var(--radius-md);
+  padding: 0.875rem var(--space-xl);
   max-width: 22rem;
   width: 100%;
   text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: var(--space-xs);
 }
 .gd-ceremony__title {
   font-family: var(--font-card);
-  font-size: 1rem;
+  font-size: var(--fs-xl);
   margin: 0;
 }
 .gd-ceremony__line {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   opacity: 0.85;
 }
+/* The live "waiting for the cutter" line. STATIC emphasis (steady full-opacity
+   + medium weight), never a looped pulse: the no-blink non-negotiable reserves
+   gd-pulse for the urgent clock alone (the one sanctioned loop). Meaning rides
+   weight + opacity + copy, so reduced motion and this steady form read alike. */
 .gd-ceremony__line--pulse {
-  animation: gd-pulse 700ms ease-in-out infinite alternate;
+  opacity: 1;
+  font-weight: var(--weight-medium);
 }
 .gd-ceremony__line--marker {
   color: var(--ivory);
@@ -1470,8 +1492,8 @@ button.gd-plate {
   justify-content: center;
   align-items: flex-start;
   flex-wrap: wrap;
-  gap: 0.375rem;
-  margin: 0.125rem 0;
+  gap: var(--space-xs);
+  margin: var(--space-3xs) 0;
   /* No reserved min-height: the block only ever renders WITH a card in it,
      and the old 3.75rem floor was sized for the retired mini faces (panel
      LOW, Grok round 1) — inert under the hand-size cards, so gone. */
@@ -1480,7 +1502,7 @@ button.gd-plate {
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.125rem;
+  gap: var(--space-3xs);
   animation: gd-flip-in 300ms ease-out;
 }
 /* The marker card is the load-bearing card: cinnabar-edged, never goldleaf (that is
@@ -1489,10 +1511,10 @@ button.gd-plate {
 .gd-ceremony__flip--marker .gd-cardframe {
   outline: 2px solid var(--cinnabar);
   outline-offset: 1px;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
 }
 .gd-ceremony__cardLabel {
-  font-size: 0.625rem;
+  font-size: var(--fs-3xs);
   opacity: 0.75;
 }
 .gd-ceremony__cardLabel--marker {
@@ -1516,39 +1538,39 @@ button.gd-plate {
 .gd-ceremony__banner,
 .gd-result__headline {
   font-family: var(--font-card);
-  font-size: 1.25rem;
-  margin: 0.625rem 0;
+  font-size: var(--fs-3xl);
+  margin: var(--space-md) 0;
 }
 /* The ONE goldleaf moment of the ceremony (owner: goldleaf reserved, here
    only): who leads. */
 .gd-ceremony__banner {
   color: var(--goldleaf);
-  margin: 0.125rem 0 0;
+  margin: var(--space-3xs) 0 0;
 }
 .gd-ceremony__skip {
-  font-size: 0.6875rem;
+  font-size: var(--fs-2xs);
   opacity: 0.6;
-  margin: 0.625rem 0 0;
+  margin: var(--space-md) 0 0;
 }
 .gd-result__headline {
-  font-size: 1.75rem;
+  font-size: var(--fs-6xl);
 }
 .gd-result__headline--victory {
   color: var(--goldleaf);
 }
 .gd-result__standings {
   list-style: none;
-  margin: 0.5rem 0;
+  margin: var(--space-sm) 0;
   padding: 0;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 .gd-result button {
   background: var(--cinnabar);
   color: var(--ivory);
   border: none;
-  border-radius: 8px;
-  padding: 0.5rem 1.25rem;
-  margin-top: 0.5rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-2xl);
+  margin-top: var(--space-sm);
 }
 
 /* --- rejection toast ------------------------------------------------------------------ */
@@ -1560,27 +1582,27 @@ button.gd-plate {
   background: var(--ivory);
   color: var(--ink);
   border-left: 4px solid var(--cinnabar);
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-lg);
   display: flex;
   align-items: center;
-  gap: 0.625rem;
+  gap: var(--space-md);
   z-index: 20;
   max-width: min(92%, 24rem);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .gd-toast button {
   background: none;
   border: none;
   color: var(--cinnabar);
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   padding: 0;
 }
 
 /* --- desktop air ------------------------------------------------------------------------ */
 @media (min-width: 720px) {
   .gd-table {
-    padding: 1rem;
+    padding: var(--space-xl);
   }
 }
 
@@ -1594,18 +1616,18 @@ button.gd-plate {
 .gd-ring {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 
 /* --- topbar headline: team-level badges + the turn line (compact bar) ---- */
 .gd-headline {
   display: flex;
   align-items: center;
-  gap: 0.4rem 0.7rem;
+  gap: var(--space-xs) 0.7rem;
   flex-wrap: wrap;
   background: color-mix(in srgb, var(--rosewood) 60%, var(--lacquer));
-  border-radius: 10px;
-  padding: 0.4rem 0.7rem;
+  border-radius: var(--radius-lg);
+  padding: var(--space-xs) 0.7rem;
 }
 /* Compacted bar (owner directive): the big level numeral and the wild chip
    are gone — the two team badges lead the bar and ARE the level story; the
@@ -1613,18 +1635,18 @@ button.gd-plate {
    wrapping under at phone widths (the bar's own flex-wrap). */
 .gd-headline__teams {
   display: flex;
-  gap: 0.375rem;
+  gap: var(--space-xs);
 }
 .gd-headline__turn {
   margin: 0;
   margin-left: auto;
   min-width: 0;
-  font-size: 0.9rem;
+  font-size: var(--fs-lg);
   font-weight: 600;
   opacity: 0.9;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: var(--space-sm);
 }
 .gd-headline__turn--you {
   color: var(--cinnabar);
@@ -1639,33 +1661,34 @@ button.gd-plate {
    chip language. The planning-window word rides inside the
    chip (M4 timingClass), so a long first think never reads as a stuck turn.
    Urgency is reserved for YOUR turn running short (≤10s — the moment you are
-   about to be auto-passed): cinnabar fill + the same gd-pulse the jiefeng
-   banner uses; meaning never rides on colour alone (the aria states the
-   seconds). Since the elder round the chip is an ECHO on your own turn —
+   about to be auto-passed): cinnabar fill + gd-pulse — the ONE sanctioned
+   looped animation (the no-blink non-negotiable reserves the pulse for this
+   urgent clock alone); meaning never rides on colour alone (the aria states
+   the seconds). Since the elder round the chip is an ECHO on your own turn —
    the PLAY DESK owns the primary own-turn clock, and D4 hides this line at
    phone width while the desk is loud (gd-headline__turn--echo). */
 .gd-headline__clock {
   display: inline-flex;
   align-items: center;
-  gap: 0.35rem;
+  gap: var(--space-xs);
   background: var(--lacquer);
   border: 1px solid rgba(245, 239, 227, 0.25);
-  border-radius: 999px;
-  padding: 0.06rem 0.5rem;
+  border-radius: var(--radius-pill);
+  padding: 0.06rem var(--space-sm);
   color: var(--ivory);
   flex: none;
 }
 .gd-headline__clockNote {
-  font-size: 0.62rem;
+  font-size: var(--fs-3xs);
   font-weight: 400;
   opacity: 0.8;
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-label);
   white-space: nowrap;
 }
 .gd-headline__clockNum {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  font-size: 0.85rem;
+  font-size: var(--fs-md);
   min-width: 1.3em;
   text-align: center;
 }
@@ -1682,10 +1705,10 @@ button.gd-plate {
 .gd-team {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
-  border-radius: 6px;
-  padding: 0.2rem 0.55rem;
-  font-size: 0.875rem;
+  gap: var(--space-xs);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2xs) var(--space-sm);
+  font-size: var(--fs-md);
   border: 1px solid transparent;
 }
 .gd-team--us {
@@ -1697,12 +1720,12 @@ button.gd-plate {
   border-color: rgba(245, 239, 227, 0.25);
 }
 .gd-team__label {
-  font-size: 0.72rem;
+  font-size: var(--fs-xs);
   opacity: 0.85;
 }
 /* The connective word ("level"; zh "da") — quiet beside the goldleaf rank. */
 .gd-team__lvword {
-  font-size: 0.68rem;
+  font-size: var(--fs-2xs);
   opacity: 0.7;
 }
 /* The PLAYING team's badge (panel MED, Codex + Grok converging): once team
@@ -1714,30 +1737,30 @@ button.gd-plate {
   box-shadow: inset 0 -2px 0 var(--goldleaf);
 }
 .gd-team__now {
-  font-size: 0.6rem;
+  font-size: var(--fs-3xs);
   color: var(--goldleaf);
-  letter-spacing: 0.04em;
+  letter-spacing: var(--track-label);
 }
 /* The rank in goldleaf: F7's one bold move survives at badge scale (the
    big numeral is gone; goldleaf stays reserved for level + victory). */
 .gd-team__rank {
   font-family: var(--font-card);
   font-weight: 600;
-  font-size: 1.05rem;
+  font-size: var(--fs-2xl);
   line-height: 1;
   color: var(--goldleaf);
 }
 .gd-team__dots {
   color: var(--cinnabar);
-  font-size: 0.68rem;
-  letter-spacing: 0.1em;
+  font-size: var(--fs-2xs);
+  letter-spacing: var(--track-wide);
 }
 .gd-team--suspended .gd-team__rank {
   text-decoration: line-through;
   opacity: 0.7;
 }
 .gd-team__susp {
-  font-size: 0.6rem;
+  font-size: var(--fs-3xs);
   opacity: 0.75;
 }
 
@@ -1753,7 +1776,7 @@ button.gd-plate {
   grid-template-areas:
     '.    north  .'
     'west center east';
-  gap: 0.375rem;
+  gap: var(--space-xs);
   align-items: center;
 }
 .gd-ring__seat--north {
@@ -1782,14 +1805,14 @@ button.gd-plate {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.2rem;
+  gap: var(--space-2xs);
   background: var(--rosewood);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 2px solid transparent;
-  padding: 0.3rem 0.45rem;
+  padding: var(--space-xs) var(--space-sm);
   min-width: 0;
   max-width: 9rem;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   text-align: center;
   box-sizing: border-box;
 }
@@ -1804,7 +1827,7 @@ button.gd-plate {
 .gd-plate__head {
   display: inline-flex;
   align-items: center;
-  gap: 0.3rem;
+  gap: var(--space-xs);
   max-width: 100%;
 }
 .gd-ring .gd-plate__name {
@@ -1815,8 +1838,8 @@ button.gd-plate {
   min-width: 0;
 }
 .gd-plate__tag {
-  font-size: 0.6rem;
-  border-radius: 4px;
+  font-size: var(--fs-3xs);
+  border-radius: var(--radius-xs);
   padding: 0 0.28rem;
   flex: none;
 }
@@ -1846,7 +1869,7 @@ button.gd-plate {
 .gd-seatzone {
   display: flex;
   align-items: center;
-  gap: 0.375rem;
+  gap: var(--space-xs);
   min-width: 0;
 }
 .gd-seatzone--east {
@@ -1877,7 +1900,7 @@ button.gd-plate {
 .gd-seatzone--north.gd-seatzone--flanked > .gd-plate {
   position: absolute;
   right: 100%;
-  margin-right: 0.375rem;
+  margin-right: var(--space-xs);
   top: 50%;
   transform: translateY(-50%);
   width: max-content;
@@ -1889,7 +1912,7 @@ button.gd-plate {
 .gd-seatzone--north.gd-seatzone--flanked > .gd-seatcount {
   position: absolute;
   left: 100%;
-  margin-left: 0.375rem;
+  margin-left: var(--space-xs);
   top: 50%;
   transform: translateY(-50%);
   width: max-content;
@@ -1917,9 +1940,9 @@ button.gd-plate {
   background: color-mix(in srgb, var(--lacquer) 84%, transparent);
   color: var(--ivory);
   border: 1px solid rgba(245, 239, 227, 0.45);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.18rem 0.7rem;
-  font-size: 0.85rem;
+  font-size: var(--fs-md);
   font-weight: 600;
   white-space: nowrap;
   opacity: 0;
@@ -2097,7 +2120,7 @@ button.gd-plate {
 .gd-plate__state {
   display: inline-flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: var(--space-2xs);
   flex-wrap: wrap;
   justify-content: center;
   min-height: 0.85rem;
@@ -2111,7 +2134,7 @@ button.gd-plate {
 .gd-handzone {
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: var(--space-xs);
 }
 /* Quiet-table round: the sort pill moved BELOW the hand (was
  * .gd-handzone__sortrow, above the fan). 3 explicit, ALWAYS-present grid
@@ -2129,7 +2152,7 @@ button.gd-plate {
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
-  column-gap: 0.5rem;
+  column-gap: var(--space-sm);
 }
 .gd-actionsRow__spacer {
   /* Explicit (not relying on grid auto-placement filling the gap) — empty
@@ -2152,7 +2175,7 @@ button.gd-plate {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  gap: 0.25rem;
+  gap: var(--space-2xs);
 }
 
 /* --- bottom bar: your own seat plate + the (now-thin) log, one line ------ */
@@ -2162,7 +2185,7 @@ button.gd-plate {
 .gd-bottombar {
   display: flex;
   align-items: stretch;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   min-width: 0;
 }
 /* The plate keeps its own intrinsic (ring) width — it must never be
@@ -2186,13 +2209,13 @@ button.gd-plate {
   .gd-ring__table {
     grid-template-columns: minmax(7rem, 1fr) minmax(0, 1.5fr) minmax(7rem, 1fr);
     grid-template-rows: auto minmax(9rem, 1fr);
-    gap: 0.75rem;
+    gap: var(--space-lg);
     max-width: 38rem;
     margin: 0 auto;
     width: 100%;
     /* Ground the ring as a felt table rather than elements floating in void. */
-    padding: 1rem 0.75rem;
-    border-radius: 20px;
+    padding: var(--space-xl) var(--space-lg);
+    border-radius: var(--radius-table);
     background: radial-gradient(
       ellipse 70% 60% at 50% 50%,
       color-mix(in srgb, var(--rosewood) 26%, transparent),
@@ -2221,11 +2244,11 @@ button.gd-plate {
    block above. */
 @media (max-width: 719px) {
   .gd-headline {
-    padding: 0.3rem 0.6rem;
-    gap: 0.25rem 0.6rem;
+    padding: var(--space-xs) var(--space-md);
+    gap: var(--space-2xs) var(--space-md);
   }
   .gd-headline__turn {
-    font-size: 0.8rem;
+    font-size: var(--fs-sm);
   }
   /* D4: while the LOUD desk owns the viewer's turn, the headline's own-turn
      sentence + chip is a desktop-only echo — the phone carries exactly one
@@ -2300,7 +2323,7 @@ button.gd-plate {
   flex-direction: column;
   justify-content: flex-end;
   align-items: center;
-  padding: 0 1rem 3.5rem;
+  padding: 0 var(--space-xl) 3.5rem;
   cursor: pointer;
   background: radial-gradient(
     ellipse at 50% 22%,
@@ -2310,23 +2333,23 @@ button.gd-plate {
 }
 .gd-interlude__plate {
   background: var(--rosewood);
-  border-radius: 10px;
-  padding: 0.75rem 1rem 0.625rem;
+  border-radius: var(--radius-lg);
+  padding: var(--space-lg) var(--space-xl) var(--space-md);
   width: 100%;
   max-width: 22rem;
   box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
-  gap: 0.375rem;
+  gap: var(--space-xs);
 }
 .gd-interlude__title {
   font-family: var(--font-card);
-  font-size: 1rem;
+  font-size: var(--fs-xl);
   margin: 0;
 }
 .gd-interlude__line {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .gd-interlude__final {
   opacity: 0.85;
@@ -2337,12 +2360,12 @@ button.gd-plate {
   padding: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.125rem 0.75rem;
+  gap: var(--space-3xs) var(--space-lg);
 }
 .gd-interlude__orderLine {
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   display: flex;
-  gap: 0.375rem;
+  gap: var(--space-xs);
   min-width: 0;
 }
 .gd-interlude__place {
@@ -2356,7 +2379,7 @@ button.gd-plate {
 }
 .gd-interlude__verdict {
   margin: 0;
-  font-size: 0.9375rem;
+  font-size: var(--fs-lg);
   font-weight: 600;
 }
 .gd-interlude__verdict--won {
@@ -2365,11 +2388,11 @@ button.gd-plate {
 .gd-interlude__levels {
   display: flex;
   flex-direction: column;
-  gap: 0.125rem;
+  gap: var(--space-3xs);
 }
 .gd-interlude__aline {
   margin: 0;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .gd-interlude__aline--suspended {
   color: var(--cinnabar);
@@ -2377,27 +2400,27 @@ button.gd-plate {
 }
 .gd-interlude__curtain {
   margin: 0;
-  font-size: 0.9375rem;
+  font-size: var(--fs-lg);
   font-weight: 600;
   font-family: var(--font-card);
 }
 .gd-interlude__curtainNote {
   display: block;
   font-family: inherit;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 400;
   opacity: 0.85;
 }
 .gd-interlude__match {
   margin: 0;
-  font-size: 1rem;
+  font-size: var(--fs-xl);
   font-weight: 700;
   font-family: var(--font-card);
   color: var(--goldleaf);
 }
 .gd-interlude__skip {
-  margin: 0.125rem 0 0;
-  font-size: 0.6875rem;
+  margin: var(--space-3xs) 0 0;
+  font-size: var(--fs-2xs);
   opacity: 0.6;
 }
 .gd-interlude__dismiss {

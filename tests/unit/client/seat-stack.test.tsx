@@ -17,6 +17,7 @@ import { createElement } from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { resolveScale } from './css-tokens';
 import { SeatCount, SeatStack, type SeatStackDir } from '../../../src/client/table/SeatStack';
 import { SeatPlate, type SeatPlateProps } from '../../../src/client/table/SeatPlate';
 import {
@@ -1123,7 +1124,8 @@ describe('narrow-width chrome compression (review follow-up: hand above the fold
     return m![1]!;
   }
   function fontSizeRem(block: string, selector: string): number {
-    const m = block.match(
+    // Sizes ride scale tokens now; resolve them to the computed rem first.
+    const m = resolveScale(block, appCss).match(
       new RegExp(`${selector.replace(/[.\\-]/g, '\\$&')}\\s*\\{[^}]*font-size:\\s*([\\d.]+)rem`),
     );
     expect(m, `font-size not found for ${selector}`).not.toBeNull();

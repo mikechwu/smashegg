@@ -118,12 +118,11 @@ export function TimingPicker({ timing, disabled, onChange }: TimingPickerProps) 
 // segmented controls, cinnabar only for the active option, no goldleaf.
 const TIMING_PICKER_CSS = `
 .timing-picker {
-  background: #4A2C27;
-  border-radius: 10px;
-  padding: 0.9rem 1rem 1.1rem;
-  color: #F5EFE3;
-  font-family: -apple-system, 'PingFang TC', 'Hiragino Sans TC', 'Noto Sans TC',
-    'Microsoft JhengHei', sans-serif;
+  background: var(--rosewood);
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl);
+  color: var(--ivory);
+  font-family: var(--font-ui);
 }
 .timing-picker__group {
   border: 0;
@@ -136,31 +135,31 @@ const TIMING_PICKER_CSS = `
 }
 .timing-picker__label {
   padding: 0;
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #F5EFE3;
+  font-weight: var(--weight-medium);
+  font-size: var(--fs-lg);
+  color: var(--ivory);
 }
 .timing-picker__hint {
-  margin: 0.15rem 0 0.5rem;
-  font-size: 0.8rem;
+  margin: var(--space-3xs) 0 var(--space-sm);
+  font-size: var(--fs-sm);
   line-height: 1.4;
   color: rgba(245, 239, 227, 0.72);
 }
 .timing-picker__hint--option {
-  margin: 0.4rem 0 0;
+  margin: var(--space-xs) 0 0;
 }
 .timing-picker__segmented {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.4rem;
+  gap: var(--space-xs);
 }
 .timing-picker__option {
   border: 1px solid rgba(245, 239, 227, 0.3);
   background: rgba(245, 239, 227, 0.06);
-  color: #F5EFE3;
-  border-radius: 999px;
-  padding: 0.35rem 0.85rem;
-  font-size: 0.85rem;
+  color: var(--ivory);
+  border-radius: var(--radius-pill);
+  padding: var(--space-xs) var(--space-lg);
+  font-size: var(--fs-md);
   font-family: inherit;
   cursor: pointer;
 }
@@ -168,16 +167,16 @@ const TIMING_PICKER_CSS = `
   background: rgba(245, 239, 227, 0.14);
 }
 .timing-picker__option[aria-pressed='true'] {
-  background: #C3392B;
-  border-color: #C3392B;
-  color: #F5EFE3;
-  font-weight: 600;
+  background: var(--cinnabar);
+  border-color: var(--cinnabar);
+  color: var(--ivory);
+  font-weight: var(--weight-medium);
 }
 .timing-picker__option:disabled {
   cursor: not-allowed;
 }
 .timing-picker__option:focus-visible {
-  outline: 2px solid #F5EFE3;
+  outline: 2px solid var(--ivory);
   outline-offset: 2px;
 }
 @media (prefers-reduced-motion: no-preference) {

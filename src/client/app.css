@@ -22,6 +22,72 @@
     'Microsoft JhengHei', sans-serif;
   --font-card: 'Songti TC', 'Noto Serif TC', Georgia, serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ---- Scale tokens (visual-refinement round) -------------------------------
+     ONE set of scales for the whole app, defined once here and inherited by
+     .gd-table (which re-declares the palette + font stacks for self-containment) and by
+     the pickers' inline <style> blocks. The prior state was ~22 near-duplicate
+     font sizes, ~19 gap values, 10 radii and 7 one-off tracking values as raw
+     literals across both stylesheets; these tokens are the system they snap to.
+
+     DELIBERATELY NOT tokenized — these stay EXPLICIT literals on purpose:
+       • card-metric sizes `calc(var(--gd-cardw) * N)` (proportional to card width);
+       • measured / test-pinned fit constants (chooser padding + max-width, the
+         hand/ribbon clamps, the wild-seal offsets, the feed max-height math);
+       • functional one-off gaps (cut ribbon --gap 1.4rem, action slots 2.25rem);
+       • relative `em` font-sizes (0.75em/0.85em) that scale with their parent.
+     Tokenizing those would either break a literal-parsing pin or lose meaning. */
+
+  /* Type — a tuned ~1.08 body ladder (12→16px) + display anchors (18→28px).
+     Floor is 10px (never 9.6): aging eyes read zh-Hant micro-labels here. */
+  --fs-3xs: 0.625rem; /* 10px — micro caps labels/tags */
+  --fs-2xs: 0.6875rem; /* 11px — tiny hints / skip lines */
+  --fs-xs: 0.75rem; /* 12px — compact controls, quiet chips */
+  --fs-sm: 0.8125rem; /* 13px — default secondary body */
+  --fs-md: 0.875rem; /* 14px — readable body / louder count */
+  --fs-lg: 0.9375rem; /* 15px — compact action buttons / emphatic */
+  --fs-xl: 1rem; /* 16px — panel titles, form inputs */
+  --fs-2xl: 1.125rem; /* 18px — desk title, primary CTA */
+  --fs-3xl: 1.25rem; /* 20px — ceremony/result banner */
+  --fs-4xl: 1.375rem; /* 22px — app wordmark */
+  --fs-5xl: 1.5rem; /* 24px — desk clock (loudness spine), home hero */
+  --fs-6xl: 1.75rem; /* 28px — victory headline only */
+
+  /* Spacing — a 2/4/6/8… rhythm; 6px (--space-xs) is the dominant step. */
+  --space-3xs: 0.125rem; /* 2px */
+  --space-2xs: 0.25rem; /* 4px */
+  --space-xs: 0.375rem; /* 6px (dominant) */
+  --space-sm: 0.5rem; /* 8px */
+  --space-md: 0.625rem; /* 10px */
+  --space-lg: 0.75rem; /* 12px */
+  --space-xl: 1rem; /* 16px */
+  --space-2xl: 1.25rem; /* 20px */
+  --space-3xl: 1.5rem; /* 24px */
+  --space-4xl: 2rem; /* 32px */
+
+  /* Radius */
+  --radius-hair: 2px; /* progress bars */
+  --radius-xs: 4px; /* badges, tags, small chips */
+  --radius-sm: 6px; /* small controls, focus frames */
+  --radius-md: 8px; /* dominant: cards, buttons, inputs, small panels */
+  --radius-lg: 10px; /* large panels */
+  --radius-xl: 12px; /* page/table shells, callouts */
+  --radius-table: 20px; /* desktop ring ground only */
+  --radius-pill: 999px;
+  --radius-circle: 50%;
+
+  /* Tracking — for caps/labels; near-0 for zh-Hant body (never tracked). */
+  --track-tight: 0.02em; /* quiet short labels */
+  --track-label: 0.04em; /* small caps micro-labels */
+  --track-brand: 0.06em; /* serif wordmark */
+  --track-wide: 0.12em; /* room-code display */
+  --track-wider: 0.14em; /* uppercase code label */
+  --track-widest: 0.18em; /* manual uppercase entry (room code) */
+
+  /* Weight roles */
+  --weight-body: 400;
+  --weight-medium: 600;
+  --weight-bold: 700;
 }
 
 html {
@@ -56,7 +122,7 @@ a {
   max-width: 45rem; /* ~720px column, shared with .app-main */
   margin: 0 auto;
   box-sizing: border-box;
-  padding: 0.875rem 1rem 0.25rem;
+  padding: 0.875rem var(--space-xl) var(--space-2xs);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -64,14 +130,14 @@ a {
      wordmark at 390px, and a sideways-scrolling page is a defect —
      wrapping turns horizontal overflow into vertical flow structurally. */
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: var(--space-lg);
 }
 .app-wordmark {
   margin: 0;
   font-family: var(--font-card);
-  font-size: 1.375rem;
+  font-size: var(--fs-4xl);
   font-weight: 600;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track-brand);
 }
 .app-wordmark a {
   color: var(--ivory);
@@ -85,7 +151,7 @@ a {
   align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.25rem 0.75rem;
+  gap: var(--space-2xs) var(--space-lg);
   flex: none;
   /* Never wider than the viewport column: the navs inside wrap instead. */
   max-width: 100%;
@@ -96,18 +162,18 @@ a {
      one nav that outgrows the 390px column would extend the page sideways
      even though .app-controls wraps the navs against each other. */
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: var(--space-2xs);
   flex: none;
   max-width: 100%;
 }
 .app-locale button {
   background: none;
   border: 1px solid transparent;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--ivory);
   opacity: 0.6;
-  font-size: 0.75rem;
-  padding: 0.2rem 0.6rem;
+  font-size: var(--fs-xs);
+  padding: var(--space-2xs) var(--space-md);
   cursor: pointer;
 }
 .app-locale button:hover:not(:disabled) {
@@ -121,24 +187,27 @@ a {
 }
 /* Deck-theme drop-down (owner refinement 2026-07-16: one pill, not a button
    row). Native select, restyled to the same quiet pill as the locale
-   buttons; the goldleaf chevron is an inline SVG so the CSP stays
-   self-contained. The pill shows the ACTIVE theme's localized name. */
+   buttons; the chevron is an inline SVG so the CSP stays self-contained. Its
+   stroke is IVORY, not goldleaf — this shell honours the reservation stated at
+   the top of this file (goldleaf is the table's level/jiefeng/victory only,
+   never the shell); the gold chevron was a standing violation of that rule.
+   The pill shows the ACTIVE theme's localized name. */
 .app-themeSelect {
   appearance: none;
   -webkit-appearance: none;
   background-color: transparent;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23c9a227' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23f5efe3' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.6rem center;
   background-size: 0.5rem auto;
   border: 1px solid rgba(245, 239, 227, 0.4);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--ivory);
   opacity: 0.9;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-family: inherit;
   line-height: 1.2;
-  padding: 0.2rem 1.5rem 0.2rem 0.65rem;
+  padding: var(--space-2xs) var(--space-3xl) var(--space-2xs) var(--space-md);
   cursor: pointer;
   flex: none;
   max-width: 100%;
@@ -161,6 +230,8 @@ a {
   max-width: 45rem;
   margin: 0 auto;
   box-sizing: border-box;
+  /* x-padding (1rem) is a chooser-faces 390px fit input — the row stays
+     literal, not on the --space scale (measured constant, like the clamps). */
   padding: 0.5rem 1rem 3rem;
 }
 .app-main--wide {
@@ -177,44 +248,46 @@ a {
    no specificity, so these overrides must win by source order. */
 @media (max-width: 719px) {
   .app-header {
-    padding: 0.5rem 1rem 0;
-    gap: 0.25rem 0.75rem;
+    padding: var(--space-sm) var(--space-xl) 0;
+    gap: var(--space-2xs) var(--space-lg);
   }
   .app-wordmark {
-    font-size: 1.05rem;
+    /* Mobile compresses the wordmark (≤719px chrome shave); snap DOWN to
+       --fs-xl, not up — the desktop wordmark is --fs-4xl. */
+    font-size: var(--fs-xl);
   }
   .app-main {
-    padding-top: 0.25rem;
+    padding-top: var(--space-2xs);
   }
 }
 
 .app-alert {
   background: color-mix(in srgb, var(--cinnabar) 26%, var(--lacquer));
   border-left: 3px solid var(--cinnabar);
-  border-radius: 8px;
-  padding: 0.5rem 0.75rem;
-  margin: 0.75rem 0;
-  font-size: 0.875rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) var(--space-lg);
+  margin: var(--space-lg) 0;
+  font-size: var(--fs-md);
   overflow-wrap: anywhere;
 }
 .app-alert > p {
   margin: 0;
 }
 .app-alert__detail {
-  margin-top: 0.25rem !important;
+  margin-top: var(--space-2xs) !important;
   opacity: 0.8;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
 }
 .app-alert__dismiss {
   align-self: flex-start;
-  margin-top: 0.4rem;
+  margin-top: var(--space-xs);
   background: none;
   border: 1px solid rgba(245, 239, 227, 0.35);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--ivory);
   font-family: inherit;
-  font-size: 0.75rem;
-  padding: 0.15rem 0.65rem;
+  font-size: var(--fs-xs);
+  padding: var(--space-3xs) var(--space-md);
   cursor: pointer;
 }
 .app-alert__dismiss:hover {
@@ -222,7 +295,7 @@ a {
 }
 .app-quiet {
   opacity: 0.75;
-  font-size: 0.875rem;
+  font-size: var(--fs-md);
 }
 
 /* --- version-skew banner (M4) -------------------------------------------- */
@@ -232,10 +305,10 @@ a {
   box-sizing: border-box;
   width: calc(100% - 2rem);
   max-width: 45rem;
-  margin: 0.75rem auto 0;
+  margin: var(--space-lg) auto 0;
   display: flex;
   align-items: center;
-  gap: 0.75rem;
+  gap: var(--space-lg);
   flex-wrap: wrap;
 }
 .app-update > p {
@@ -243,13 +316,13 @@ a {
 }
 .app-update__actions {
   display: flex;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   flex: none;
 }
 .app-update__actions button {
-  border-radius: 999px;
-  font-size: 0.8125rem;
-  padding: 0.3rem 0.9rem;
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  padding: var(--space-xs) 0.9rem;
   cursor: pointer;
 }
 .app-update__reload {
@@ -276,9 +349,9 @@ a {
   background: var(--cinnabar);
   color: var(--ivory);
   border: none;
-  border-radius: 10px;
-  padding: 0.875rem 2rem;
-  font-size: 1.0625rem;
+  border-radius: var(--radius-lg);
+  padding: 0.875rem var(--space-4xl);
+  font-size: var(--fs-2xl);
   font-weight: 600;
   cursor: pointer;
 }
@@ -293,16 +366,16 @@ a {
 /* --- home -------------------------------------------------------------------- */
 .home-hero {
   text-align: center;
-  padding: 2.25rem 0 2rem;
+  padding: 2.25rem 0 var(--space-4xl);
 }
 .home-tagline {
   margin: 0 0 1.75rem;
   opacity: 0.85;
 }
 .home-hero h2 {
-  margin: 0 0 1rem;
+  margin: 0 0 var(--space-xl);
   font-family: var(--font-card);
-  font-size: 1.5rem;
+  font-size: var(--fs-5xl);
   font-weight: 600;
 }
 .home-create {
@@ -311,38 +384,38 @@ a {
 }
 .home-join {
   background: color-mix(in srgb, var(--rosewood) 55%, var(--lacquer));
-  border-radius: 10px;
-  padding: 1rem 1.125rem 1.125rem;
+  border-radius: var(--radius-lg);
+  padding: var(--space-xl) 1.125rem 1.125rem;
 }
 .home-join h2 {
-  margin: 0 0 0.625rem;
-  font-size: 1rem;
+  margin: 0 0 var(--space-md);
+  font-size: var(--fs-xl);
   font-weight: 600;
   opacity: 0.9;
 }
 .home-join form {
   display: flex;
   align-items: flex-end;
-  gap: 0.5rem;
+  gap: var(--space-sm);
   flex-wrap: wrap;
 }
 .home-join label {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.8125rem;
+  gap: var(--space-2xs);
+  font-size: var(--fs-sm);
   opacity: 0.9;
 }
 .home-join input {
   background: var(--lacquer);
   border: 1px solid rgba(245, 239, 227, 0.35);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--ivory);
   font-family: var(--font-mono);
-  font-size: 1.125rem;
-  letter-spacing: 0.18em;
+  font-size: var(--fs-2xl);
+  letter-spacing: var(--track-widest);
   text-transform: uppercase;
-  padding: 0.5rem 0.625rem;
+  padding: var(--space-sm) var(--space-md);
   width: 9.5em;
   max-width: 100%;
   box-sizing: border-box;
@@ -351,9 +424,9 @@ a {
   background: var(--rosewood);
   color: var(--ivory);
   border: 1px solid rgba(245, 239, 227, 0.25);
-  border-radius: 8px;
-  padding: 0.55rem 1.125rem;
-  font-size: 0.9375rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-sm) 1.125rem;
+  font-size: var(--fs-lg);
   cursor: pointer;
 }
 .home-join button:hover {
@@ -362,8 +435,8 @@ a {
 
 /* --- lobby --------------------------------------------------------------------- */
 .lobby-heading {
-  margin: 0.75rem 0 0.5rem;
-  font-size: 0.9375rem;
+  margin: var(--space-lg) 0 var(--space-sm);
+  font-size: var(--fs-lg);
   font-weight: 600;
   opacity: 0.75;
 }
@@ -373,29 +446,29 @@ a {
 .lobby-namepanel {
   display: flex;
   flex-direction: column;
-  gap: 0.3rem;
-  margin: 0 0 1.25rem;
+  gap: var(--space-xs);
+  margin: 0 0 var(--space-2xl);
 }
 .lobby-namepanel__label {
-  font-size: 0.75rem;
-  letter-spacing: 0.02em;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--track-tight);
   opacity: 0.85;
 }
 .lobby-namepanel__input {
   background: var(--lacquer);
   border: 1px solid rgba(245, 239, 227, 0.35);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   color: var(--ivory);
   font-family: inherit;
-  font-size: 1rem; /* >=16px so iOS Safari never zoom-jumps on focus */
-  padding: 0.5rem 0.625rem;
+  font-size: var(--fs-xl); /* >=16px so iOS Safari never zoom-jumps on focus */
+  padding: var(--space-sm) var(--space-md);
   width: 100%;
   box-sizing: border-box;
   min-width: 0;
 }
 .lobby-namepanel__hint {
   margin: 0;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   opacity: 0.6;
 }
 
@@ -418,8 +491,8 @@ a {
     '.    bottom  .';
   align-items: center;
   justify-items: center;
-  gap: 0.6rem 0.5rem;
-  margin: 0 0 1.25rem;
+  gap: var(--space-md) var(--space-sm);
+  margin: 0 0 var(--space-2xl);
   /* Containing block for the seat bubbles (owner overlay round): the ask
      floats ABOVE the table as an absolute overlay, so opening it NEVER
      reshapes this grid — the table area is constant and the lobby cannot
@@ -431,14 +504,14 @@ a {
   grid-area: disc;
   width: clamp(8.5rem, 40vw, 12rem);
   aspect-ratio: 1 / 1;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   box-sizing: border-box;
   padding: 0.85rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.25rem;
+  gap: var(--space-2xs);
   text-align: center;
   /* felt sheen: a soft top-lit radial so the disc reads as cloth, not a
      flat coin */
@@ -453,15 +526,15 @@ a {
     inset 0 -14px 26px rgba(0, 0, 0, 0.32);
 }
 .lobby-table__codelabel {
-  font-size: 0.625rem;
-  letter-spacing: 0.14em;
+  font-size: var(--fs-3xs);
+  letter-spacing: var(--track-wider);
   text-transform: uppercase;
   opacity: 0.75;
 }
 .lobby-table__code {
   font-family: var(--font-card);
   font-size: clamp(1.35rem, 6.5vw, 2rem);
-  letter-spacing: 0.12em;
+  letter-spacing: var(--track-wide);
   font-weight: 600;
   line-height: 1.1;
   overflow-wrap: anywhere;
@@ -470,10 +543,10 @@ a {
   background: rgba(0, 0, 0, 0.25);
   border: 1px solid rgba(245, 239, 227, 0.4);
   color: var(--ivory);
-  border-radius: 999px;
-  padding: 0.2rem 0.7rem;
+  border-radius: var(--radius-pill);
+  padding: var(--space-2xs) 0.7rem;
   font-family: inherit;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   cursor: pointer;
 }
 .lobby-table__copy:hover {
@@ -482,7 +555,7 @@ a {
 .lobby-table__status {
   margin: 0;
   min-height: 1.1em; /* reserved line: the toast never reflows the felt */
-  font-size: 0.6875rem;
+  font-size: var(--fs-2xs);
   opacity: 0.85;
 }
 
@@ -517,16 +590,16 @@ a {
 
 .lobby-seat {
   background: var(--rosewood);
-  border-radius: 10px;
+  border-radius: var(--radius-lg);
   border: 1px solid transparent;
-  padding: 0.5rem 0.6rem;
+  padding: var(--space-sm) var(--space-md);
   width: 100%;
   max-width: 11rem;
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 0.4rem;
+  gap: var(--space-xs);
   min-width: 0;
   /* Containing block for the seat bubble: the CHIP, not the wider wrapper —
      on a wide layout the flank column exceeds the chip's max-width, so
@@ -539,15 +612,15 @@ a {
   /* Minimal inset: the take-button fills the chip (width:100%), so this only
      sets the gap between the dashed rim and the button. Kept tight so the
      narrow flank seats have room for the CTA on one line (see table header). */
-  padding: 0.25rem;
+  padding: var(--space-2xs);
 }
 /* The targeted seat carries a steady cinnabar ring AND a soft cinnabar glow
    (never pulsing) — the SAME accent as the bubble's edge and tail, so the eye
    color-links the callout to its seat (the tail is the directional signal; the
    shared cinnabar is the associative one). */
 .lobby-seat--asking {
-  border: 2px solid var(--cinnabar, #c3392b);
-  border-radius: 10px;
+  border: 2px solid var(--cinnabar);
+  border-radius: var(--radius-lg);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--cinnabar) 28%, transparent);
 }
 
@@ -571,8 +644,8 @@ a {
      the bubble to its cinnabar-highlighted seat (owner: the dark-on-dark tail
      was hard to link to a seat). --bubble-surface fills the body AND the tail's
      inner triangle; --bubble-edge draws the body border AND the tail's rim. */
-  --bubble-surface: var(--ivory, #f5efe3);
-  --bubble-edge: var(--cinnabar, #c3392b);
+  --bubble-surface: var(--ivory);
+  --bubble-edge: var(--cinnabar);
   /* drop-shadow (not box-shadow) so the shadow wraps the whole arrow. */
   filter: drop-shadow(0 6px 16px rgba(0, 0, 0, 0.5));
   animation: lobby-bubble-in 150ms ease-out;
@@ -701,15 +774,15 @@ a {
 .lobby-sitask {
   position: relative; /* containing block for the corner × */
   background: var(--bubble-surface);
-  color: var(--lacquer, #2b1a18); /* dark ink on the ivory surface (AAA) */
+  color: var(--lacquer); /* dark ink on the ivory surface (AAA) */
   border: 2px solid var(--bubble-edge);
-  border-radius: 12px;
+  border-radius: var(--radius-xl);
   box-sizing: border-box;
-  padding: 0.85rem 0.7rem 0.5rem; /* top pad clears the corner × */
+  padding: 0.85rem 0.7rem var(--space-sm); /* top pad clears the corner × */
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: 0.4rem;
+  gap: var(--space-xs);
   width: 100%;
   text-align: center;
   animation: lobby-bubble-pop 150ms ease-out;
@@ -720,11 +793,11 @@ a {
   right: 0.2rem;
   background: none;
   border: 0;
-  color: var(--lacquer, #2b1a18);
+  color: var(--lacquer);
   opacity: 0.5;
-  font-size: 1.15rem;
+  font-size: var(--fs-2xl);
   line-height: 1;
-  padding: 0.15rem 0.35rem;
+  padding: var(--space-3xs) var(--space-xs);
   cursor: pointer;
 }
 .lobby-sitask__close:hover {
@@ -733,43 +806,43 @@ a {
 .lobby-sitask__input {
   width: 100%;
   box-sizing: border-box;
-  border-radius: 8px;
+  border-radius: var(--radius-md);
   border: 1px solid color-mix(in srgb, var(--lacquer) 30%, transparent);
   background: #fffdf8; /* a bright field on the ivory card */
-  color: var(--ink, #1f2430);
-  padding: 0.4rem 0.5rem;
+  color: var(--ink);
+  padding: var(--space-xs) var(--space-sm);
   /* 16px MINIMUM (guard 3, pinned): iOS Safari zooms the viewport on
      focus for any input below 16px — the overlay design depends on the
      page NOT zooming. The old 0.9rem (14.4px) was a live zoom bug. */
-  font-size: 1rem;
+  font-size: var(--fs-xl);
   font-family: inherit;
   text-align: center;
 }
 .lobby-sitask__input:focus {
   outline: none;
-  border-color: var(--cinnabar, #c3392b);
+  border-color: var(--cinnabar);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--cinnabar) 25%, transparent);
 }
 .lobby-sitask__hint {
   margin: 0;
   min-height: 1.05em;
-  font-size: 0.6875rem;
+  font-size: var(--fs-2xs);
   color: color-mix(in srgb, var(--lacquer) 72%, transparent);
 }
 .lobby-sitask__taken {
   margin: 0;
-  font-size: 0.8rem;
+  font-size: var(--fs-sm);
   font-weight: 700;
-  color: var(--cinnabar, #c3392b); /* the race-loss headline, in the accent */
+  color: var(--cinnabar); /* the race-loss headline, in the accent */
 }
 .lobby-sitask__confirm {
-  background: var(--cinnabar, #c3392b);
+  background: var(--cinnabar);
   border: 0;
-  color: var(--ivory, #f5efe3);
-  border-radius: 999px;
-  padding: 0.35rem 0.9rem;
+  color: var(--ivory);
+  border-radius: var(--radius-pill);
+  padding: var(--space-xs) 0.9rem;
   font-family: inherit;
-  font-size: 0.85rem;
+  font-size: var(--fs-md);
   font-weight: 700;
   cursor: pointer;
 }
@@ -780,25 +853,25 @@ a {
 .lobby-sitask__cancel {
   background: transparent;
   border: 1px solid color-mix(in srgb, var(--lacquer) 35%, transparent);
-  color: var(--lacquer, #2b1a18);
-  border-radius: 999px;
-  padding: 0.25rem 0.7rem;
+  color: var(--lacquer);
+  border-radius: var(--radius-pill);
+  padding: var(--space-2xs) 0.7rem;
   font-family: inherit;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   cursor: pointer;
 }
 .lobby-seat__row {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
+  gap: var(--space-xs);
   min-width: 0;
   flex-wrap: wrap;
 }
 .lobby-seat__dot {
   width: 0.5625rem;
   height: 0.5625rem;
-  border-radius: 50%;
+  border-radius: var(--radius-circle);
   flex: none;
 }
 .lobby-seat__dot--on {
@@ -817,9 +890,9 @@ a {
 .lobby-seat__you {
   background: var(--ivory);
   color: var(--ink);
-  border-radius: 4px;
-  font-size: 0.6875rem;
-  padding: 0 0.3125rem;
+  border-radius: var(--radius-xs);
+  font-size: var(--fs-2xs);
+  padding: 0 var(--space-xs);
 }
 /* Empty-seat take-a-seat button: the chip IS the button (§5). Compact by
    design: font and horizontal inset are minimized so "Take a seat" stays on a
@@ -831,10 +904,10 @@ a {
   background: var(--cinnabar);
   color: var(--ivory);
   border: none;
-  border-radius: 8px;
-  padding: 0.35rem;
+  border-radius: var(--radius-md);
+  padding: var(--space-xs);
   font-family: inherit;
-  font-size: 0.75rem;
+  font-size: var(--fs-xs);
   font-weight: 600;
   cursor: pointer;
   width: 100%;
@@ -848,11 +921,11 @@ a {
 .lobby-seat__leave {
   background: none;
   border: 1px solid rgba(245, 239, 227, 0.35);
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   color: var(--ivory);
   font-family: inherit;
-  font-size: 0.75rem;
-  padding: 0.125rem 0.6rem;
+  font-size: var(--fs-xs);
+  padding: var(--space-3xs) var(--space-md);
   cursor: pointer;
 }
 .lobby-seat__leave:hover {
@@ -862,24 +935,24 @@ a {
 .lobby-start {
   display: block;
   width: 100%;
-  margin: 0 0 0.375rem;
+  margin: 0 0 var(--space-xs);
 }
 .lobby-start__reason {
-  margin: 0 0 1rem;
+  margin: 0 0 var(--space-xl);
   text-align: center;
-  font-size: 0.8125rem;
+  font-size: var(--fs-sm);
   opacity: 0.75;
 }
 .lobby-config {
-  margin-top: 1.25rem;
+  margin-top: var(--space-2xl);
 }
 .lobby-config h3 {
-  margin: 0 0 0.5rem;
-  font-size: 1rem;
+  margin: 0 0 var(--space-sm);
+  font-size: var(--fs-xl);
 }
 .lobby-config__needSeat {
-  margin: 0 0 0.625rem;
-  font-size: 0.8125rem;
+  margin: 0 0 var(--space-md);
+  font-size: var(--fs-sm);
   color: rgba(245, 239, 227, 0.7);
 }
 

@@ -274,10 +274,16 @@ describe('PlayDesk render states', () => {
     expect(urgent).not.toContain('gd-desk__hurry');
   });
 
-  it('planning window reads as its own register — copy AND the goldleaf class (panel MED, Grok)', () => {
+  it('planning window reads as its own register — copy AND a calm ivory border (moved off goldleaf)', () => {
     const html = renderDesk({ planning: true, dueSeconds: 80, totalMs: 90_000 });
     expect(html).toContain('Your turn · planning');
     expect(html).toContain('gd-desk--planning');
+    // The register is a CALM IVORY border now (visual-refinement round: moved
+    // off goldleaf so gold stays achievement-only — this state is calm, not
+    // caution, so it is neither --amber nor gold). Assert the CSS, not the class.
+    const planningRule = stripCss(tableCss).match(/\.gd-desk--planning \{[^}]*\}/)?.[0] ?? '';
+    expect(planningRule).toContain('var(--ivory)');
+    expect(planningRule).not.toContain('goldleaf');
     // Quiet never wears it; a non-planning turn never wears it.
     expect(renderDesk({ dueSeconds: 40, totalMs: 45_000 })).not.toContain('gd-desk--planning');
   });
@@ -415,11 +421,21 @@ describe('desk CSS pins', () => {
     expect(css).not.toMatch(/\.gd-desk--quiet\s*\{[^}]*border/);
   });
 
-  it('urgency stages are color+weight (amber goldleaf, urgent cinnabar bold), never a pulse', () => {
-    expect(css).toMatch(/\.gd-desk--amber \.gd-desk__clock \{\s*color: var\(--goldleaf\);/);
+  it('urgency stages are color+weight (caution --amber distinct from goldleaf; urgent cinnabar bold), never a pulse', () => {
+    // Owner Option A: the caution stage moved OFF goldleaf so gold means
+    // achievement only. The clock ramps calm ivory -> caution --amber ->
+    // urgent cinnabar+bold, and the depleting bar carries time non-colour.
+    expect(css).toMatch(/\.gd-desk--amber \.gd-desk__clock \{\s*color: var\(--amber\);/);
     expect(css).toMatch(
       /\.gd-desk--urgent \.gd-desk__clock \{\s*color: var\(--cinnabar\);\s*font-weight: 700;/,
     );
+    // Structural pin: the caution hue is a DISTINCT palette colour from both
+    // goldleaf (achievement) and cinnabar (urgent) — never re-collapsed to gold.
+    const hex = (name: string) => css.match(new RegExp(`${name}:\\s*(#[0-9a-fA-F]{6})`))?.[1];
+    const amber = hex('--amber');
+    expect(amber, '--amber must be defined').toBeTruthy();
+    expect(amber, 'caution amber must differ from goldleaf (gold = achievement only)').not.toBe(hex('--goldleaf'));
+    expect(amber, 'caution amber must differ from cinnabar (urgent)').not.toBe(hex('--cinnabar'));
     expect(deskBlock).not.toContain('gd-pulse');
   });
 

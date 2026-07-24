@@ -226,6 +226,7 @@ describe('no lobby rename UI; leave releases the held seat (owner dropped rename
 import { SitAskPanel, sitIntent } from '../../../src/client/Lobby';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { resolveScale } from './css-tokens';
 
 const lobbySrc = readFileSync(join(__dirname, '../../../src/client/Lobby.tsx'), 'utf8').replace(
   /\/\*[\s\S]*?\*\//g,
@@ -509,8 +510,10 @@ describe('the seat bubble overlay (owner round)', () => {
 
   it('guard 3 pinned: the ask input is 16px (1rem) — below that iOS zooms the page', () => {
     const input = appCss.match(/\.lobby-sitask__input \{[^}]*\}/)?.[0] ?? '';
-    expect(input).toContain('font-size: 1rem');
-    expect(input).not.toMatch(/font-size: 0\.\d/);
+    // The size rides --fs-xl now; resolve it and assert the COMPUTED px is
+    // >= 16 (the iOS zoom floor is the invariant this guard exists for).
+    const rem = Number(resolveScale(input, appCss).match(/font-size:\s*([\d.]+)rem/)?.[1]);
+    expect(rem * 16, 'ask input must be >= 16px (iOS zoom floor)').toBeGreaterThanOrEqual(16);
   });
 });
 
