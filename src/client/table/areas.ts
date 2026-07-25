@@ -259,10 +259,15 @@ export function dissolveThinGroups(areas: HandAreas): HandAreas {
  * Move every selected slot to `destination`, then normalize.
  *
  * `destination` is an existing AreaId, or NEW_SHELF to mint one. Minting is
- * refused when `areaCount` already equals `maxAreas` — the cap is a PARAMETER,
- * not a constant, because the owner's decision makes it budget-aware: how many
- * bands fit depends on how many lines the hand occupies and whether the desk is
- * loud, so the UI computes it and the model merely obeys.
+ * refused when `areaCount` already equals `maxAreas`.
+ *
+ * `maxAreas` stays a PARAMETER even though every shipped caller now passes the
+ * constant AREA_HARD_MAX. It used to be a per-hand number the UI measured from
+ * the viewport — that is deleted, and setAsideDestination records why — so the
+ * parameter no longer carries a policy, only the model's own cap. It is kept
+ * because the property suite exercises the model ABOVE the shipped cap, which
+ * is what makes raising AREA_HARD_MAX a one-line change rather than a
+ * re-derivation.
  *
  * Total: any input is accepted and returns a well-formed result. Callers must
  * still consult `moveWouldChange` before OFFERING a control, so no press is
@@ -499,23 +504,56 @@ export function remapAreas(
 // ---------------------------------------------------------------------------
 
 /**
- * Where "set aside" should send the selection.
+ * Where "set aside" should send the selection. TOTAL — there is no "nowhere".
  *
- * A new shelf while the budget allows one; otherwise the LAST existing shelf,
- * so the control still does what it says. Returns null only when not even one
- * shelf fits — the single case where refusing (with a visible reason) is honest.
+ * A new shelf while the cap allows one; otherwise the LAST existing shelf, so
+ * the control still does what it says (the label-vs-effect divergence the Grok
+ * UI audit found, MED: at a cap of 2, once any shelf existed the control could
+ * neither mint a second nor fall back, so pressing it changed nothing).
  *
- * Without this, at a cap of 2 a button reading "set aside" did nothing to the
- * arrangement once any shelf existed: it could not mint a second and had no
- * destination to fall back to, so its label and its effect diverged (found by
- * the Grok UI audit, MED — the same label-vs-effect class as the finder's old
- * MAIN fallback, arrived at from the opposite direction).
+ * WHY THERE IS NO LONGER A BUDGET PARAMETER. This used to take a `maxAreas`
+ * measured from the viewport, and returned null when not even one shelf "fit".
+ * That null was the ONLY value that could hide the control — and on a
+ * phone-sized window it was the ordinary case, not the edge case its comment
+ * claimed, because `areaCountOf(null)` is 1: MAIN counts as one of the allowed
+ * areas, so an allowance of 1 means NO shelf rather than one.
+ *
+ * The budget was read from a viewport-relative rect on a page the client
+ * scrolls itself (ScrollActionsIntoView), so the same layout measured a
+ * different number depending only on how far the page happened to be scrolled
+ * when the sample was taken. The unscrolled reading always won, for two
+ * structural reasons: the allowance is a LAYOUT effect and the scroll is a
+ * PASSIVE one (React runs every layout effect before paint and passive effects
+ * after), and the effect's deps could only re-fire on a new VIEW-CARRYING
+ * frame — which cannot arrive during your own turn, since only you can act. So
+ * "set aside" was absent for a player's whole first turn and appeared on the
+ * next one against an unchanged hand: the owner's report.
+ *
+ * MEASURED, MANUALLY (a browser; NOT covered by any automated gate in this
+ * repo — the client suite is DOM-free and CI runs no browser):
+ *   - the cut is at window.innerHeight >= 766 present / <= 765 absent;
+ *   - 390x844, this repo's own reference viewport, is ABOVE that cut, which is
+ *     why every gate here ran green while the feature was missing in the field;
+ *   - in LANDSCAPE (844x340) the old rule never recovered at all — not on the
+ *     second turn, not ever, because no scroll offset can lift a 340px window
+ *     over the threshold;
+ *   - forced open at 390x659, 390x400, 844x340 and 844x280, the shelf the
+ *     budget would have refused rendered all 27 cards, none zero-sized and none
+ *     outside the fan box, with Play reachable (via the page's own scroll — it
+ *     sits below the fold in document space at those heights, which it already
+ *     did with no shelf at all).
+ * So the refusal never once fired correctly, and the budget is deleted rather
+ * than re-timed: a scroll-invariant version of it would compute a number whose
+ * only possible output is a state that never legitimately occurs.
+ *
+ * The arity is the guard — threading a measurement back in is a compile error
+ * (TS2554). The `AreaId` return type is NOT itself a guard: tsc accepts
+ * `number === null` without a diagnostic, so a leftover null-check would
+ * compile as always-true. The source pin in hand-areas-ui.test.ts covers that.
  */
-export function setAsideDestination(areas: HandAreas | null, maxAreas: number): AreaId | null {
+export function setAsideDestination(areas: HandAreas | null): AreaId {
   const count = areaCountOf(areas);
-  if (count < maxAreas) return NEW_SHELF;
-  if (count > 1) return count - 1;
-  return null;
+  return count < AREA_HARD_MAX ? NEW_SHELF : AREA_HARD_MAX - 1;
 }
 
 /** What the seam under one shelf offers, given the current selection. */
@@ -568,83 +606,26 @@ export function seamAction(
  * stated honestly rather than hidden: MERGE needs two shelves, so merge is
  * unreachable at this cap, and the ladder has one rung.
  *
- * The allowance machinery below is NOT dead weight at a cap of 2 — it still
- * refuses the FIRST shelf when even that does not fit, and it still carries the
- * monotonicity guarantee. Raising this constant is a one-line change if a
- * future layout frees the room; the budget ratchet decides, not this number.
+ * This is now the ONLY cap. There was a second one — a vertical-budget
+ * "allowance" measured from the fan's own position, ratcheted per hand — and it
+ * is gone; see setAsideDestination above for what it did and why measuring it
+ * correctly was not the fix. Its monotonicity guarantee (owner decision 1)
+ * survives in the strongest possible form: a constant is monotone, so the offer
+ * can no longer be withdrawn mid-hand by anything.
+ *
+ * Raising this constant is a one-line change if a future layout frees the room.
  */
 export const AREA_HARD_MAX = 2;
 
-// Geometry MEASURED on the current build at true 390x844 (zh-Hant, real dealt
-// 27-card hands) — docs/research/sort-areas.md §3. These are measurements, not
-// estimates, and each is quoted with what it was measured from.
-/** A band's floor cost: one card line (73.5px) plus its 14px lift headroom.
- *  Measured constant across k=2..7 single-card columns. */
-export const BAND_FLOOR_PX = 87.5;
-/** Value-columns that fit one line: the widest line's ink runs 334.6px of a
- *  342px container, so the 10th column wraps. */
-export const COLUMNS_PER_LINE = 9;
-/** Vertical space between the fan's bottom and the bottom of the Play button,
- *  RESERVED with the desk at its LOUD height (148.5px) rather than its quiet
- *  one (94.5px) — the safe direction, and the reason the allowance never needs
- *  to read desk state. Measured: fan bottom 649.1 -> Play bottom 809.6 gives
- *  160.5px quiet; the loud desk adds 54px. */
-export const RESERVED_BELOW_FAN_PX = 214.5;
-
-/**
- * How many areas the vertical budget can hold, from the fan's QUIET-state
- * geometry alone.
- *
- * WHY QUIET-STATE ONLY (the pathology found before the build): the desk is LOUD
- * exactly when a selection exists, and a selection is the precondition for
- * pressing "set aside". An allowance that read desk loudness would therefore be
- * most likely to REFUSE at the precise moment of use. So the desk's height is
- * not an input here; the caller passes the budget measured with the desk quiet.
- *
- * The model: bands stack, each costs at least one card LINE, and a band holding
- * more than `columnsPerLine` value-columns wraps to more. The cheapest possible
- * layout for B bands therefore needs `max(B, ceil(columns / columnsPerLine))`
- * lines, because the columns have to go somewhere no matter how they are split.
- * All figures are MEASURED, never assumed — see docs/research/sort-areas.md §3.
- */
-export function areaAllowance(input: {
-  /** Vertical space the fan may occupy, measured with the desk QUIET. */
-  fanBudgetPx: number;
-  /** Measured floor cost of one band (one card line plus its lift headroom). */
-  bandFloorPx: number;
-  /** Distinct value-columns the hand currently occupies. */
-  columns: number;
-  /** Measured wrap threshold — how many columns fit one line. */
-  columnsPerLine: number;
-}): number {
-  const { fanBudgetPx, bandFloorPx, columns, columnsPerLine } = input;
-  if (bandFloorPx <= 0 || columnsPerLine <= 0) return 1;
-  const linesNeeded = Math.max(1, Math.ceil(columns / columnsPerLine));
-  // Even one band does not fit: the fan already overflows its budget. MAIN
-  // still exists — you cannot be offered fewer than the hand you have.
-  if (linesNeeded * bandFloorPx > fanBudgetPx) return 1;
-  const affordable = Math.floor(fanBudgetPx / bandFloorPx);
-  return Math.max(1, Math.min(AREA_HARD_MAX, affordable));
-}
-
-/**
- * The MONOTONICITY RATCHET, and the whole basis of the feature's
- * predictability: within one hand the allowance may only ever GROW.
- *
- * A pure geometric allowance is *almost* monotone on its own — a hand shrinks
- * as it is played, so `columns` falls and the budget loosens. But it is not
- * monotone in general: a tribute card ARRIVING grows the hand and can add a
- * column, which would otherwise withdraw an offer the player could already
- * see. Taking the running maximum makes "the allowance never decreases within a
- * hand" true by construction rather than true by luck, so no future change to
- * the geometry above can quietly break it.
- *
- * Reset (back to the fresh computation) belongs to a new hand or a seat switch,
- * which is exactly where areas reset to `null` anyway.
- */
-export function ratchetAllowance(highWater: number, computed: number): number {
-  return Math.max(highWater, computed);
-}
+// The vertical-budget model that used to live here — BAND_FLOOR_PX,
+// COLUMNS_PER_LINE, RESERVED_BELOW_FAN_PX, areaAllowance() and
+// ratchetAllowance() — has been DELETED, not re-timed. It decided whether the
+// set-aside control existed, from a viewport-relative measurement taken at a
+// moment the player never sees, and it got that decision wrong on every phone.
+// setAsideDestination above carries the full account. Its geometry constants
+// were all measured at true 390x844 (docs/research/sort-areas.md §3) — an
+// inner height no phone browser actually has, which is why the error was
+// invisible to every gate in this repo.
 
 /**
  * Has anything happened that a held commit could describe, or that makes it

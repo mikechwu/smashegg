@@ -1214,6 +1214,19 @@ button.gd-plate {
   cursor: pointer;
   flex: none;
 }
+/* The same slot when the lifted cards are ALREADY set aside: a statement, not a
+   greyed control — the twin of .gd-sf__sent, which the finder sheet has always
+   shown for this exact state. Deliberately NOT in the "MANUAL SORT AREAS" block
+   above: hand-areas-ui.test.ts scans every selector there and requires each to
+   be one a zero-area fan can never emit, and this one renders whenever a
+   selection exists. */
+.gd-desk__setAsideNote {
+  margin: 0 0 0 var(--space-xs);
+  align-self: center;
+  font-size: var(--fs-sm);
+  color: color-mix(in srgb, var(--ivory) 80%, transparent);
+  flex: none;
+}
 .gd-desk__clear {
   margin-left: var(--space-sm);
   background: var(--lacquer);

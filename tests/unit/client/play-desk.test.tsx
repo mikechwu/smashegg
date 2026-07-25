@@ -536,6 +536,55 @@ describe('one-tap clear', () => {
     expect(empty).not.toContain('gd-desk__clear');
   });
 
+  // -------------------------------------------------------------------------
+  // THE SET-ASIDE SLOT IS TOTAL — the owner's phone bug, at the cheapest rung.
+  //
+  // Reported as: "put side feature is not always shown. Sometimes it doesn't
+  // show up in the first cycle. The feature show up in the 2nd cycle with the
+  // same hand cards." The prop was `canSetAside?: boolean` and a false rendered
+  // NOTHING, so a stage row with cards on it could carry no set-aside
+  // affordance at all. Two different things drove that false: a viewport-
+  // measured budget (the phone case — gone now, see table/areas.ts), and a
+  // selection already sitting on the shelf (still reachable, and the reason
+  // this sweep asserts BOTH kinds rather than only the one that was reported).
+  //
+  // This is the only leg that proves the affordance is total; the source pins
+  // in hand-areas-ui.test.ts match text, and scripts/measure-setaside.mjs is
+  // the expensive browser rung.
+  // -------------------------------------------------------------------------
+  it('with cards staged, the set-aside slot is NEVER empty — a control or a statement', () => {
+    for (const setAside of ['move', 'alreadyThere'] as const) {
+      const html = renderToStaticMarkup(createElement(PlayDesk, { ...clearProps, setAside }));
+      expect(html, `${setAside}: the stage row itself renders`).toContain('gd-desk__stage');
+      expect(html, `${setAside}: the set-aside slot is never empty`).toMatch(/gd-desk__setAside/);
+      expect(html, `${setAside}: never a greyed control`).not.toContain('disabled');
+    }
+  });
+
+  it('the two kinds are a button and a STATEMENT, and are not the same render', () => {
+    // Non-vacuity for the sweep above: without this, both branches could emit
+    // the button and the sweep would pass while measuring one state twice.
+    const move = renderToStaticMarkup(
+      createElement(PlayDesk, { ...clearProps, setAside: 'move' as const }),
+    );
+    const already = renderToStaticMarkup(
+      createElement(PlayDesk, { ...clearProps, setAside: 'alreadyThere' as const }),
+    );
+    expect(move).toContain('class="gd-desk__setAside"');
+    expect(move).toContain('Set aside');
+    expect(already).not.toContain('class="gd-desk__setAside"');
+    expect(already).toContain('gd-desk__setAsideNote');
+    expect(already).toContain('Already set aside');
+    expect(already).toContain('role="status"');
+  });
+
+  it('the slot follows the stage row, so it cannot appear with nothing lifted', () => {
+    const empty = renderToStaticMarkup(
+      createElement(PlayDesk, { ...clearProps, staged: [], setAside: 'move' as const }),
+    );
+    expect(empty).not.toContain('gd-desk__setAside');
+  });
+
   it('one clear zeroes BOTH surfaces: single selection source, both derivations pinned', () => {
     // The clear empties the ONE set (and closes the chooser)...
     expect(gameTableSrc).toMatch(

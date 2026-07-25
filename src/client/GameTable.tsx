@@ -26,22 +26,17 @@ import { DealOverlay } from './table/DealOverlay';
 import { HAND_SIZE, dealDirOrder, markerDealBeat } from './table/deal';
 import { EventFeed, FEED_LIMIT, type FeedLine } from './table/EventFeed';
 import { PlayOverlay } from './table/PlayOverlay';
-import { HandFan, groupHandColumns } from './table/HandFan';
+import { HandFan } from './table/HandFan';
 import {
   AREA_HARD_MAX,
-  BAND_FLOOR_PX,
-  COLUMNS_PER_LINE,
   MAIN_AREA,
   NEW_SHELF,
-  RESERVED_BELOW_FAN_PX,
   applyMove,
   applyMoveAsGroup,
-  areaAllowance,
   areaAt,
   commitIsResolved,
   areaCountOf,
   moveWouldChange,
-  ratchetAllowance,
   groupHealth,
   reconcileAreas,
   seamAction,
@@ -533,11 +528,6 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // value), so a player who never makes a shelf holds null for the whole
   // session and every branch below runs today's exact code.
   const [areas, setAreas] = useState<HandAreas | null>(null);
-  // How many bands the vertical budget can hold. RATCHETED per hand, so it can
-  // only ever grow while a hand is played — the monotonicity that makes the
-  // offer predictable (owner decision 1).
-  const [areaAllowed, setAreaAllowed] = useState(1);
-  const handZoneRef = useRef<HTMLDivElement>(null);
   // The slots this client last submitted, held until the resulting view lands.
   // This is what lets the partition drop the EXACT cards that left instead of
   // re-deriving membership by identity, which would silently move a twin
@@ -751,37 +741,17 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     setChooserOpen(false);
   }, [chooserKey]);
 
-  // The budget-aware allowance, measured from the fan's own position. It reads
-  // NO desk state on purpose: the desk is loud exactly when a selection exists,
-  // and a selection is the precondition for pressing "set aside", so an
-  // allowance that read loudness would refuse at the precise moment of use.
-  // The loud desk's height is RESERVED as a constant instead, which is the safe
-  // direction. Ratcheted, so it can only grow within a hand.
-  const allowanceCtxRef = useRef<string>('');
-  useIsomorphicLayoutEffect(() => {
-    const el = handZoneRef.current;
-    if (el === null || view === null || activeSeat === undefined) return;
-    const columns = groupHandColumns(
-      view.hand.map((_, i) => i),
-      view.hand,
-      view.currentLevel,
-    ).length;
-    const computed = areaAllowance({
-      fanBudgetPx: window.innerHeight - el.getBoundingClientRect().top - RESERVED_BELOW_FAN_PX,
-      bandFloorPx: BAND_FLOOR_PX,
-      columns,
-      columnsPerLine: COLUMNS_PER_LINE,
-    });
-    // The ratchet resets HERE, keyed on the arrangement context, rather than in
-    // the reconciliation effect. Two effects cannot then disagree about order:
-    // a reset written by the other effect used to land AFTER this one had
-    // already ratcheted, leaving a fresh hand stuck at 1 for its whole life
-    // (Codex UI audit, MED).
-    const key = `${activeSeat}:${view.handNo}`;
-    const fresh = allowanceCtxRef.current !== key;
-    allowanceCtxRef.current = key;
-    setAreaAllowed((prev) => (fresh ? computed : ratchetAllowance(prev, computed)));
-  }, [view?.hand, view?.handNo, view?.currentLevel, activeSeat]);
+  // There was a vertical-budget "allowance" effect here — it measured the fan's
+  // own position and decided how many bands the player could have. It is gone.
+  // It read `window.innerHeight - handZone.getBoundingClientRect().top`, which
+  // is VIEWPORT-relative on a page this component scrolls itself; being a
+  // LAYOUT effect it always ran before ScrollActionsIntoView's passive scroll,
+  // and its deps could only re-fire on a new view-carrying frame — which cannot
+  // arrive during your own turn, since only you can act. At window.innerHeight
+  // <= 765 it therefore latched "no room", hid "set aside" for the whole turn,
+  // and released it one turn later against an unchanged hand; in landscape it
+  // never released. See setAsideDestination in table/areas.ts for the full
+  // account, including which parts were measured by hand rather than gated.
 
   // Selection survives view updates (reconcileSelection, helpers): a seat
   // switch or a fresh deal (handNo/dealNo) resets outright, a changed hand
@@ -850,12 +820,12 @@ export function GameTable({ snapshot, store }: GameTableProps) {
 
   // Gate for the create-area control. `moveWouldChange` is the single predicate
   // every area control is offered on, so a dead press is impossible by
-  // construction rather than by review.
-  const setAsideTarget = setAsideDestination(areas, areaAllowed);
+  // construction rather than by review. It decides what the control SAYS, never
+  // whether it exists — the desk renders it either way (PlayDesk's `setAside`).
+  const setAsideTarget = setAsideDestination(areas);
   const setAsideWouldChange =
     view !== null &&
-    setAsideTarget !== null &&
-    moveWouldChange(areas, view.hand.length, selected, setAsideTarget, areaAllowed);
+    moveWouldChange(areas, view.hand.length, selected, setAsideTarget, AREA_HARD_MAX);
 
   const selectionCards: Card[] = useMemo(() => {
     if (view === null) return [];
@@ -1360,13 +1330,12 @@ export function GameTable({ snapshot, store }: GameTableProps) {
       setSfResult(null);
       return;
     }
-    const target = setAsideDestination(areas, areaAllowed);
-    if (target === null) return;
+    const target = setAsideDestination(areas);
     // applyMoveAsGroup, not applyMove: the player asked for exactly THESE cards
     // to go aside together, so exactly those are recorded as a group. The shelf's
     // contents are never re-inspected to work out what forms a flush.
     setAreas((current) =>
-      applyMoveAsGroup(current, view.hand.length, slots, target, areaAllowed),
+      applyMoveAsGroup(current, view.hand.length, slots, target, AREA_HARD_MAX),
     );
   };
 
@@ -1470,7 +1439,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           round): it's a secondary per-client preference, not a primary
           action, so it no longer sits above the cards competing with them
           for the first thing the eye meets. */}
-      <div className="gd-handzone" ref={handZoneRef}>
+      <div className="gd-handzone">
         <HandFan
           hand={view.hand}
           level={view.currentLevel}
@@ -1528,7 +1497,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
               return;
             }
             const destination = action === 'putBack' ? MAIN_AREA : shelf;
-            setAreas((current) => applyMove(current, view.hand.length, selected, destination, areaAllowed));
+            setAreas((current) => applyMove(current, view.hand.length, selected, destination, AREA_HARD_MAX));
             if (action === 'putBack') setSelected(new Set());
           }}
         />
@@ -1570,10 +1539,9 @@ export function GameTable({ snapshot, store }: GameTableProps) {
                min-content is 88+36+88) and CLIPS the straight-flush trigger,
                since .gd-table is overflow-x:hidden. This row already renders
                exactly when a selection exists and already carries a 44px pill. */
-            canSetAside={setAsideWouldChange}
+            setAside={setAsideWouldChange ? 'move' : 'alreadyThere'}
             onSetAside={() => {
-              if (setAsideTarget === null) return;
-              setAreas((current) => applyMove(current, view.hand.length, selected, setAsideTarget, areaAllowed));
+              setAreas((current) => applyMove(current, view.hand.length, selected, setAsideTarget, AREA_HARD_MAX));
               setSelected(new Set());
             }}
           />
@@ -1693,7 +1661,6 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           onExpand={() => setSfExpanded(true)}
           onClose={() => setSfResult(null)}
           onSendToArea={sendSfGroupToArea}
-          canSendToArea={setAsideDestination(areas, areaAllowed) !== null}
           isSetAside={(cards) => {
             // "Already set aside" means every card of this flush sits in the
             // SAME non-main area. Anything else (partly moved, split across

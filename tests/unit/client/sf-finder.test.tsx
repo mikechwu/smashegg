@@ -58,17 +58,15 @@ function sheet(hand: Card[], level: Rank, expanded = false): string {
       onClose: () => {},
       onSendToArea: () => {},
       isSetAside: () => false,
-      canSendToArea: true,
     }),
   );
 }
 
-/** The same sheet with every flush ALREADY in a set-aside area, and the sheet
- *  with nowhere to send. Both are states the areas round introduced. */
+/** The same sheet with every flush ALREADY in a set-aside area. */
 function sheetWith(
   hand: Card[],
   level: Rank,
-  over: { isSetAside?: (c: readonly Card[]) => boolean; canSendToArea?: boolean },
+  over: { isSetAside?: (c: readonly Card[]) => boolean },
 ): string {
   return renderToStaticMarkup(
     createElement(SfFinderSheet, {
@@ -79,7 +77,6 @@ function sheetWith(
       onClose: () => {},
       onSendToArea: () => {},
       isSetAside: over.isSetAside ?? (() => false),
-      canSendToArea: over.canSendToArea ?? true,
     }),
   );
 }
@@ -237,14 +234,32 @@ describe('SF finder UI — sending to a sort area (Decision 6 UPGRADED)', () => 
     expect(html, 'no dead button remains').not.toContain('gd-sf__stage"');
   });
 
-  it('with nowhere to send, the control is HIDDEN, not shown disabled', () => {
-    // Owner rule, and the distinction it rests on: the no-silent-no-op rule
-    // forbids a press that goes unanswered. A control that is absent cannot be
-    // pressed, so there is nothing to answer — removing the possibility is not
-    // the same as swallowing the response.
-    const html = sheetWith(HANDS.aLow, 'K', { canSendToArea: false });
-    expect(html).not.toContain('gd-sf__stage');
-    expect(html, 'and no greyed explanation in its place').not.toContain('disabled');
+  // WHAT USED TO BE HERE: 'with nowhere to send, the control is HIDDEN, not
+  // shown disabled', driven by a `canSendToArea: false` prop. Its PREMISE was
+  // deleted, not its rule. "Nowhere to send" came from a viewport-measured
+  // budget; setAsideDestination is total now, so there is always somewhere, and
+  // a test asserting behaviour in an unreachable state measures nothing.
+  //
+  // The load-bearing half — never a greyed control — survives below and in
+  // play-desk.test.tsx, asserted on the states that ARE reachable. Recorded as
+  // a premise that vanished rather than a rule reversed: what the owner
+  // reported is that the control's silent ABSENCE was itself the unanswered
+  // signal, which is the same rule read one level up.
+  it('the send control is never rendered disabled in any reachable state', () => {
+    for (const isSetAside of [() => false, () => true]) {
+      const html = sheetWith(HANDS.aLow, 'K', { isSetAside });
+      expect(html, 'a greyed control invites a press that answers nothing').not.toContain(
+        'disabled',
+      );
+    }
+  });
+
+  it('every listed flush carries an affordance — a control or a statement', () => {
+    // The finder's half of the invariant the owner's report violated on the
+    // desk: a flush is never listed with neither a way to act on it nor a
+    // sentence saying why. A false canSendToArea used to produce exactly that.
+    expect(sheetWith(HANDS.aLow, 'K', { isSetAside: () => false })).toContain('gd-sf__stage');
+    expect(sheetWith(HANDS.aLow, 'K', { isSetAside: () => true })).toContain('gd-sf__sent');
   });
 
   it('AUDIT F1 — the held result is DISCARDED whenever the hand it describes changes', () => {
@@ -276,7 +291,6 @@ describe('SF finder UI — sending to a sort area (Decision 6 UPGRADED)', () => 
         onClose: () => {},
         onSendToArea: () => {},
         isSetAside: () => false,
-        canSendToArea: true,
       }),
     );
     expect(html).toContain('gd-sf__empty');

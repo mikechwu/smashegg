@@ -34,11 +34,8 @@ import {
   slotsOfGroup,
   MAIN_AREA,
   NEW_SHELF,
-  areaAllowance,
-  ratchetAllowance,
   applyMove,
   areaAt,
-  setAsideDestination,
   areaCountOf,
   mergeAreas,
   moveWouldChange,
@@ -355,66 +352,34 @@ describe('the partition invariant, structurally', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 5. THE MONOTONE ALLOWANCE — predictability as a pinned invariant.
+// 5. THE CAP — predictability as a pinned invariant.
+//
+// This section used to be "THE MONOTONE ALLOWANCE" and pinned areaAllowance /
+// ratchetAllowance: a vertical budget, measured per hand from the fan's own
+// position, that decided how many bands the player could have. Both functions
+// are gone. The budget was read from a VIEWPORT-relative rect on a page the
+// client scrolls itself, so its answer depended on when the sample was taken —
+// which is how "set aside" came to be missing on phones for a player's first
+// turn and present on the next one with an identical hand. Monotonicity, the
+// property this section existed to protect (owner decision 1), now holds in the
+// strongest possible form: the cap is a constant, and a constant is monotone.
+// There is nothing left that could withdraw an offer mid-hand.
+//
+// What survives here is the MODEL's own cap, which applyMove still honours.
 // ---------------------------------------------------------------------------
 
-describe('MONOTONE ALLOWANCE — the allowance never decreases within a hand', () => {
-  // Measured at true 390x844 on the current build (docs/research/sort-areas.md
-  // §3): a band's floor is one card line plus its lift headroom, and 9
-  // value-columns fit one line.
-  const GEOMETRY = { bandFloorPx: 87.5, columnsPerLine: 9 };
-
-  it('MONOTONICITY: more columns can never buy MORE areas', () => {
-    // The property that makes the feature predictable. Swept over every budget
-    // and column count that can occur, not spot-checked: a hand only shrinks as
-    // it is played, so if the allowance could rise with column count it would
-    // FALL as the player plays — an offer vanishing under them.
-    for (let budget = 0; budget <= 600; budget += 12.5) {
-      let previous = Infinity;
-      for (let columns = 1; columns <= 27; columns += 1) {
-        const allowed = areaAllowance({ ...GEOMETRY, fanBudgetPx: budget, columns });
-        expect(
-          allowed,
-          `budget ${budget}: allowance rose from ${previous} to ${allowed} at ${columns} columns`,
-        ).toBeLessThanOrEqual(previous);
-        expect(allowed, 'MAIN always exists').toBeGreaterThanOrEqual(1);
-        expect(allowed, 'never exceeds the hard ceiling').toBeLessThanOrEqual(AREA_HARD_MAX);
-        previous = allowed;
-      }
-    }
-  });
-
-  it('the RATCHET makes monotonicity hold even when a tribute GROWS the hand', () => {
-    // The one case pure geometry cannot cover: a tribute card arriving adds a
-    // column mid-hand, so the raw computation can fall. The running maximum is
-    // what makes "never withdrawn" true by construction.
-    const small = areaAllowance({ ...GEOMETRY, fanBudgetPx: 260, columns: 8 });
-    const grown = areaAllowance({ ...GEOMETRY, fanBudgetPx: 260, columns: 26 });
-    expect(grown, 'raw geometry really can fall when the hand grows').toBeLessThan(small);
-    expect(ratchetAllowance(small, grown), 'the ratchet holds the earlier offer').toBe(small);
-  });
-
-  it('the ratchet is a running maximum and never shrinks over a sequence', () => {
-    let high = 1;
-    for (const columns of [27, 20, 14, 9, 5, 26, 3, 27, 2]) {
-      const next = ratchetAllowance(
-        high,
-        areaAllowance({ ...GEOMETRY, fanBudgetPx: 260, columns }),
-      );
-      expect(next, 'the ratchet never shrinks').toBeGreaterThanOrEqual(high);
-      high = next;
-    }
-  });
-
-  it('an existing shelf is never WITHDRAWN when the allowance is exceeded', () => {
-    // The other half of predictability. The allowance gates MINTING only:
-    // applyMove refuses to create a shelf past the cap, but nothing anywhere
-    // removes one, so a shelf that exists survives any budget change.
+describe('THE CAP — an offer, once made, is never withdrawn', () => {
+  it('an existing shelf is never WITHDRAWN when the cap is exceeded', () => {
+    // The other half of predictability. The cap gates MINTING only: applyMove
+    // refuses to create a shelf past it, but nothing anywhere removes one, so a
+    // shelf that exists survives any later cap. Exercised at a 3-area cap on
+    // purpose — the model must stay correct above the shipped AREA_HARD_MAX, so
+    // raising that constant is a one-line change and not a re-derivation.
     const hand: Card[] = ['3C', '4C', '5C', '6C'];
     const two = applyMove(null, hand.length, new Set([0, 1]), NEW_SHELF, 3)!;
     const three = applyMove(two, hand.length, new Set([2]), NEW_SHELF, 3)!;
     expect(areaCountOf(three)).toBe(3);
-    // The budget collapses to one area; the existing shelves stand.
+    // The cap collapses to one area; the existing shelves stand.
     expect(applyMove(three, hand.length, new Set([3]), NEW_SHELF, 1)).toBe(three);
     expect(areaCountOf(three), 'no shelf was withdrawn').toBe(3);
   });
@@ -570,17 +535,21 @@ describe('PROPERTY — the invariant holds after every operation, every hand cha
             }
             // All-or-nothing, exactly as the UI path does it.
             if (slots.size === group.cards.length) {
-              const target = setAsideDestination(areas, 3);
-              if (target !== null) {
-                const before = areas;
-                areas = applyMove(areas, prevCtx.hand.length, slots, target, 3);
-                if (!sameAreas(before, areas)) sfSends += 1;
-                assertInvariant(
-                  areas,
-                  prevCtx.hand,
-                  `after an SF send (seed ${seed} step ${step})`,
-                );
-              }
+              // The UI's rule — mint while there is room, else join the last
+              // shelf — inlined at a 3-area cap. NOT setAsideDestination, which
+              // is hardwired to the shipped AREA_HARD_MAX: this playout exists
+              // to hold the model correct ABOVE the cap the UI happens to use,
+              // so that raising that constant stays a one-line change.
+              const count = areaCountOf(areas);
+              const target = count < 3 ? NEW_SHELF : count - 1;
+              const before = areas;
+              areas = applyMove(areas, prevCtx.hand.length, slots, target, 3);
+              if (!sameAreas(before, areas)) sfSends += 1;
+              assertInvariant(
+                areas,
+                prevCtx.hand,
+                `after an SF send (seed ${seed} step ${step})`,
+              );
             }
           }
         }

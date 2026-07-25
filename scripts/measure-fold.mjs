@@ -22,6 +22,13 @@ import { chromium } from 'playwright';
 
 const BASE = process.env.FAN_SWEEP_BASE ?? 'http://localhost:5173';
 const DEALS = Number(process.env.FOLD_DEALS ?? 6);
+// The viewport is a KNOB, not a constant. It used to be hardcoded 390x844, and
+// 844 is an inner height no phone browser produces — Safari and Chrome keep
+// toolbars, so a 390x844 device reports ~664. Every geometry claim this repo
+// made was therefore measured at a size no user has, which is exactly how the
+// set-aside control could be missing on every phone while every gate ran green.
+const VW = Number(process.env.FOLD_W ?? 390);
+const VH = Number(process.env.FOLD_H ?? 844);
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
 const DRIVER = `async (input) => {
@@ -74,13 +81,13 @@ const FOLD = `() => {
 const browser = await chromium.launch();
 const rows = [];
 for (let deal = 0; deal < DEALS; deal += 1) {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: 2 });
   await ctx.addInitScript(() => localStorage.setItem('locale', 'zh-Hant'));
   const a = await ctx.newPage();
   await a.goto(BASE, { waitUntil: 'networkidle' });
   const drive = await a.evaluate(`(${DRIVER})(${JSON.stringify({ config: CONFIG })})`);
 
-  const ctxB = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  const ctxB = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: 2 });
   await ctxB.addInitScript((seed) => {
     localStorage.setItem('locale', 'zh-Hant');
     localStorage.setItem('room:' + seed.code, JSON.stringify({ tokens: [seed.tokens[0]], lastSeenSeq: seed.lastSeq }));
@@ -98,9 +105,25 @@ for (let deal = 0; deal < DEALS; deal += 1) {
     for (const i of [0, 2, 4]) cards[i]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
   });
   await page.waitForTimeout(200);
-  await page.evaluate(() =>
-    document.querySelector('.gd-desk__setAside')?.dispatchEvent(new MouseEvent('click', { bubbles: true })),
-  );
+  // FAIL LOUDLY if the control is not there. This used to be an optional-chained
+  // dispatch: `document.querySelector('.gd-desk__setAside')?.dispatchEvent(...)`.
+  // When the button was absent the press silently did nothing and the script
+  // recorded the NO-SHELF layout under the "one shelf" label — a green that
+  // measured the wrong thing (METHODOLOGY practice 11). It never noticed because
+  // it only ever ran at 844, above the height where the control went missing.
+  // Now that the viewport is a knob, that hole would open at every phone height.
+  const pressed = await page.evaluate(() => {
+    const btn = document.querySelector('.gd-desk__setAside');
+    if (btn === null) return false;
+    btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    return true;
+  });
+  if (!pressed) {
+    throw new Error(
+      `deal ${deal}: no .gd-desk__setAside with a selection lifted at ${VW}x${VH} — ` +
+        'the "one shelf" row would have measured the no-shelf layout',
+    );
+  }
   await page.waitForTimeout(500);
   const shelved = await page.evaluate(`(${FOLD})()`);
 
@@ -115,7 +138,7 @@ const show = (tag, m) =>
     : `${tag}: doc ${m.docBottom} vs fold ${m.fold} (viewport ${m.viewportBottom}, scrollY ${m.scrollY}, docH ${m.docHeight})` +
       `${m.docBottom > m.fold ? '  NEEDS SCROLL' : '  fits'}`;
 
-console.log('\n=== FOLD GATE @ true 390x844 (zh-Hant) ===');
+console.log(`\n=== FOLD GATE @ true ${VW}x${VH} (zh-Hant) ===`);
 let needScroll = 0;
 for (const row of rows) {
   console.log(`deal ${row.deal}`);

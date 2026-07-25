@@ -69,13 +69,14 @@ export interface SfFinderSheetProps {
    *  row's confirmation state — pressing send again would move nothing, and a
    *  press that moves nothing must not be offered. */
   isSetAside: (cards: readonly Card[]) => boolean;
-  /** Is there anywhere to send a flush at all? False only when the vertical
-   *  budget cannot hold even one shelf. The send control is then HIDDEN rather
-   *  than shown disabled with an explanation: a control that is not there cannot
-   *  be pressed, so there is no unanswered press to explain. That is a different
-   *  thing from swallowing a response, which is what the no-silent-no-op rule
-   *  actually forbids. */
-  canSendToArea: boolean;
+  // There was a `canSendToArea: boolean` here — "is there anywhere to send a
+  // flush at all?", false when a viewport-measured budget "could not hold even
+  // one shelf", and the send control was then HIDDEN. Its premise is gone:
+  // setAsideDestination is total now, so there is always somewhere to send.
+  // It was the SECOND surface of the same hidden control, and it mattered
+  // because game.areas.setAside and game.sf.send are the SAME string in
+  // zh-Hant — fixing only the desk would have left the reported symptom
+  // reproducible from the finder sheet.
 }
 
 /** One straight flush, drawn as it would hit the table — wild slots rendered as
@@ -102,13 +103,11 @@ function ArrangementPage({
   level,
   onSendToArea,
   isSetAside,
-  canSendToArea,
 }: {
   decomposition: Decomposition;
   level: Rank;
   onSendToArea: (cards: readonly Card[]) => void;
   isSetAside: (cards: readonly Card[]) => boolean;
-  canSendToArea: boolean;
 }) {
   return (
     <div className="gd-sf__page">
@@ -139,16 +138,14 @@ function ArrangementPage({
                 {t('game.sf.alreadySetAside')}
               </p>
             ) : (
-              canSendToArea && (
-                <button
-                  type="button"
-                  className="gd-sf__stage"
-                  aria-label={t('game.sf.sendAria')}
-                  onClick={() => onSendToArea(group.cards)}
-                >
-                  {t('game.sf.send')}
-                </button>
-              )
+              <button
+                type="button"
+                className="gd-sf__stage"
+                aria-label={t('game.sf.sendAria')}
+                onClick={() => onSendToArea(group.cards)}
+              >
+                {t('game.sf.send')}
+              </button>
             )}
           </div>
         );
@@ -158,8 +155,7 @@ function ArrangementPage({
 }
 
 export function SfFinderSheet(props: SfFinderSheetProps) {
-  const { result, level, expanded, onExpand, onClose, onSendToArea, isSetAside, canSendToArea } =
-    props;
+  const { result, level, expanded, onExpand, onClose, onSendToArea, isSetAside } = props;
   const [page, setPage] = useState(0);
 
   // Nothing found. The press STILL gets a visible answer (owner strengthen 2 —
@@ -275,7 +271,6 @@ export function SfFinderSheet(props: SfFinderSheetProps) {
         level={level}
         onSendToArea={onSendToArea}
         isSetAside={isSetAside}
-        canSendToArea={canSendToArea}
       />
     </div>
   );

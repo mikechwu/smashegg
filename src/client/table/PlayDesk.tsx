@@ -66,13 +66,24 @@ export interface PlayDeskProps {
   /** Manual sort areas: the create-area control shares this row with one-tap
    *  clear. The row already renders exactly when a selection exists, and the
    *  390px measurements refuted both actions-row placements, so this is the
-   *  validated home rather than a convenient one. */
-  canSetAside?: boolean;
+   *  validated home rather than a convenient one.
+   *
+   *  TOTAL, not a boolean. This was `canSetAside?: boolean`, and a false there
+   *  rendered NOTHING — a stage row with cards on it and no set-aside
+   *  affordance at all, which is how the feature came to be missing on phones
+   *  and, separately, whenever the lifted cards were already on the shelf. The
+   *  union has no falsy branch, so "the stage row is up but the slot is empty"
+   *  is now unrepresentable rather than merely unlikely. A plain union, so this
+   *  component still imports nothing from the areas model.
+   *
+   *  'alreadyThere' says what the straight-flush sheet already says for the
+   *  identical state (game.sf.alreadySetAside); the desk is catching up to it. */
+  setAside?: 'move' | 'alreadyThere';
   onSetAside?: () => void;
 }
 
 export function PlayDesk(props: PlayDeskProps) {
-  const { mode, dueSeconds, totalMs, planning, forcedPass, level, staged, stage, beat, tributePhase, tributeReady, onUnstage, onClearAll, canSetAside = false, onSetAside } = props;
+  const { mode, dueSeconds, totalMs, planning, forcedPass, level, staged, stage, beat, tributePhase, tributeReady, onUnstage, onClearAll, setAside = 'move', onSetAside } = props;
   const loud = mode !== 'quiet';
   const urgency = loud ? deskUrgency(dueSeconds, totalMs) : null;
   const fraction = loud ? deskFraction(dueSeconds, totalMs) : null;
@@ -198,7 +209,7 @@ export function PlayDesk(props: PlayDeskProps) {
           >
             {t('game.desk.clearAll')}
           </button>
-          {canSetAside && (
+          {setAside === 'move' ? (
             <button
               type="button"
               className="gd-desk__setAside"
@@ -207,6 +218,13 @@ export function PlayDesk(props: PlayDeskProps) {
             >
               {t('game.areas.setAside')}
             </button>
+          ) : (
+            // A STATEMENT, never a greyed button: a disabled control invites a
+            // press that answers nothing, and the finder sheet is already held
+            // to the same rule. Says what is true of the cards, not what to do.
+            <p className="gd-desk__setAsideNote" role="status">
+              {t('game.sf.alreadySetAside')}
+            </p>
           )}
         </div>
       )}

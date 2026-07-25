@@ -19,6 +19,7 @@ import type { Card } from '../../../src/engine/guandan/cards';
 import {
   AREA_HARD_MAX,
   MAIN_AREA,
+  areaCountOf,
   commitIsResolved,
   setAsideDestination,
   NEW_SHELF,
@@ -43,6 +44,13 @@ function A(areaOf: number[], areaCount: number, groupOf?: number[], groupSize?: 
 
 const read = (rel: string): string =>
   readFileSync(new URL(`../../../src/client/${rel}`, import.meta.url), 'utf8');
+
+/** Source pins must match CODE, not prose. Several of these files carry
+ *  comments that name the very identifiers the pins forbid — deliberately, so
+ *  the next reader learns why they are gone — and a bare substring check would
+ *  fire on the explanation instead of on a regression. */
+const stripComments = (src: string): string =>
+  src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '');
 
 const CSS = read('table/table.css');
 const FAN = read('table/HandFan.tsx');
@@ -281,8 +289,8 @@ describe('COMMIT LIFETIME — held until the hand really changes', () => {
 // ---------------------------------------------------------------------------
 
 describe('SET ASIDE — the word and the effect cannot diverge', () => {
-  it('mints a new shelf while the budget allows one', () => {
-    expect(setAsideDestination(null, 2)).toBe(NEW_SHELF);
+  it('mints a new shelf when none exists', () => {
+    expect(setAsideDestination(null)).toBe(NEW_SHELF);
   });
 
   it('AT THE CAP it joins the existing shelf instead of doing nothing', () => {
@@ -290,17 +298,103 @@ describe('SET ASIDE — the word and the effect cannot diverge', () => {
     // the control could not mint a second and had no fallback, so a button
     // reading "set aside" left the arrangement untouched.
     const one = A([1, MAIN_AREA, MAIN_AREA], 2);
-    expect(setAsideDestination(one, 2)).toBe(1);
+    expect(setAsideDestination(one)).toBe(1);
     const hand: Card[] = ['3C', '4C', '5C'];
-    const moved = applyMove(one, hand.length, new Set([2]), setAsideDestination(one, 2)!, 2)!;
+    const moved = applyMove(one, hand.length, new Set([2]), setAsideDestination(one), 2)!;
     expect(slotsOf(moved, 1), 'the cards really joined the shelf').toEqual([0, 2]);
   });
 
-  it('refuses ONLY when not even one shelf fits, which is the honest case', () => {
-    expect(setAsideDestination(null, 1)).toBeNull();
+  // WHAT USED TO BE HERE, and why it is gone:
+  //
+  //   it('refuses ONLY when not even one shelf fits, which is the honest case',
+  //      () => { expect(setAsideDestination(null, 1)).toBeNull(); });
+  //
+  // That test was green for the whole life of the feature, and it pinned the
+  // bug in place. Its title asserted the refusal was an honest edge case; it
+  // never checked whether real devices are IN that state. They are: the second
+  // argument came from a viewport measurement, and on every phone-sized window
+  // (innerHeight <= 765) it was 1 — so this "edge case" was the ordinary first
+  // turn, and `null` hid the control completely. Deleted rather than adapted:
+  // the state it describes is now unreachable, and a test asserting behaviour
+  // in an unreachable state measures nothing.
+  it('is TOTAL — there is no arrangement in which the control has nowhere to go', () => {
+    // The property the owner's bug report reduces to. Swept over every area
+    // count the model can reach, not spot-checked at the two the UI happens to
+    // produce, so raising AREA_HARD_MAX cannot quietly reintroduce a "nowhere".
+    const hand: Card[] = ['3C', '4C', '5C', '6C', '7C'];
+    const selected = new Set([0, 1]);
+    for (let count = 1; count <= AREA_HARD_MAX; count += 1) {
+      const areas =
+        count === 1 ? null : A([1, MAIN_AREA, MAIN_AREA, MAIN_AREA, MAIN_AREA], count);
+      const target = setAsideDestination(areas);
+      // Type-vacuous by design, and kept deliberately: the declared return is
+      // `AreaId`, so on THIS code the check cannot fail. It is a runtime guard
+      // against the REVERT — the old two-argument form returns null when called
+      // with one argument (maxAreas undefined makes both its comparisons
+      // false), and this is the assertion that fires. Confirmed by reverting
+      // the source and watching this test go red naming the null.
+      expect(target, `areaCount ${count}: a destination always exists`).not.toBeNull();
+      expect(
+        moveWouldChange(areas, hand.length, selected, target, AREA_HARD_MAX),
+        `areaCount ${count}: and it is not a no-op`,
+      ).toBe(true);
+      expect(
+        areaCountOf(applyMove(areas, hand.length, selected, target, AREA_HARD_MAX)),
+        `areaCount ${count}: the press really produces a shelf`,
+      ).toBeGreaterThan(1);
+    }
+  });
+
+  it('takes ONE argument — a viewport measurement can never be threaded back in', () => {
+    // The arity IS the guard. The return type is not: tsc raises no diagnostic
+    // for `someNumber === null`, so a leftover null-check would compile as a
+    // silently-always-true branch. A second argument is TS2554, which is why
+    // this reads the signature rather than trusting the type.
+    expect(setAsideDestination.length).toBe(1);
+    expect(read('table/areas.ts')).toMatch(
+      /export function setAsideDestination\(areas: HandAreas \| null\): AreaId\b/,
+    );
   });
 
   it('the shipped cap is 2, so this path is the common one, not an edge case', () => {
     expect(AREA_HARD_MAX).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The measurement that decided whether the feature EXISTED is gone for good.
+// ---------------------------------------------------------------------------
+
+describe('NO VIEWPORT MEASUREMENT GATES AN AFFORDANCE', () => {
+  // These match TEXT, not behaviour. They cannot prove the control appears —
+  // that is what the PlayDesk render sweep and scripts/measure-setaside.mjs are
+  // for. They are a tripwire against re-introducing the measurement, and
+  // against the leftover `=== null` guard tsc will not flag.
+  it('GameTable holds no allowance state, no ratchet and no rect read', () => {
+    const src = stripComments(read('GameTable.tsx'));
+    for (const banned of [
+      'areaAllowed',
+      'areaAllowance',
+      'ratchetAllowance',
+      'RESERVED_BELOW_FAN_PX',
+      'BAND_FLOOR_PX',
+      'COLUMNS_PER_LINE',
+      'handZoneRef',
+      'getBoundingClientRect',
+      'canSendToArea',
+    ]) {
+      expect(src, `${banned} must not return to GameTable`).not.toContain(banned);
+    }
+  });
+
+  it('areas.ts no longer exports the budget model', () => {
+    const src = stripComments(read('table/areas.ts'));
+    for (const banned of ['areaAllowance', 'ratchetAllowance', 'RESERVED_BELOW_FAN_PX']) {
+      expect(src, `${banned} must not return to the areas model`).not.toContain(banned);
+    }
+  });
+
+  it('the finder sheet has no send-availability prop left', () => {
+    expect(stripComments(read('table/SfFinderSheet.tsx'))).not.toContain('canSendToArea');
   });
 });
