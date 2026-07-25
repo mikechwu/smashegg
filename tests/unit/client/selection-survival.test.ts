@@ -118,13 +118,26 @@ describe('GameTable wiring pins', () => {
     expect(src).toMatch(/useEffect\(\(\) => \{\s*setChooserOpen\(false\);\s*\}, \[chooserKey\]\)/);
   });
 
-  it('blanket selection wipes are USER-initiated only: act() and the one-tap clear', () => {
-    // Two direct wipes, both the player's own act: act() clears the
-    // just-sent selection, and the desk's one-tap clear (prefill round
-    // item 2) empties it on request. Every SYSTEM transition still flows
-    // through the survival policy — the turn arriving can never wipe.
-    expect(src.match(/setSelected\(new Set\(\)\)/g) ?? []).toHaveLength(2);
+  it('blanket selection wipes are USER-initiated only, and each one is named', () => {
+    // FOUR direct wipes, every one the player's own press. The count alone is
+    // not the pin — each site is matched individually below, so a fifth,
+    // unnamed wipe fails here even though the count could be "fixed" by
+    // deleting one of these. Every SYSTEM transition still flows through the
+    // survival policy: the turn arriving can never wipe.
+    //   1. act()          — clears the just-sent selection.
+    //   2. onClearAll     — the desk's one-tap clear (prefill round item 2).
+    //   3. seam putBack   — the shelf empties into the hand, so the lift that
+    //                       described it is gone with it (sort-areas round).
+    //   4. onSetAside     — the cards have moved to a shelf; leaving them lifted
+    //                       would claim they are still staged for a play.
+    expect(src.match(/setSelected\(new Set\(\)\)/g) ?? []).toHaveLength(4);
     expect(src).toMatch(/onClearAll=\{\(\) => \{\s*setSelected\(new Set\(\)\);/);
+    expect(src, 'the seam put-back wipe').toMatch(
+      /if \(action === 'putBack'\) setSelected\(new Set\(\)\);/,
+    );
+    expect(src, 'the set-aside wipe').toMatch(
+      /onSetAside=\{\(\) => \{[\s\S]*?setSelected\(new Set\(\)\);/,
+    );
     expect(src).toMatch(/setSelected\(\(sel\) => reconcileSelection\(sel, prev, ctx\)\)/);
   });
 

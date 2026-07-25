@@ -63,10 +63,16 @@ export interface PlayDeskProps {
    *  parent empties the ONE selection set, which zeroes every derived
    *  surface at once — the fan's lifts AND this desk's faces/combo line. */
   onClearAll: () => void;
+  /** Manual sort areas: the create-area control shares this row with one-tap
+   *  clear. The row already renders exactly when a selection exists, and the
+   *  390px measurements refuted both actions-row placements, so this is the
+   *  validated home rather than a convenient one. */
+  canSetAside?: boolean;
+  onSetAside?: () => void;
 }
 
 export function PlayDesk(props: PlayDeskProps) {
-  const { mode, dueSeconds, totalMs, planning, forcedPass, level, staged, stage, beat, tributePhase, tributeReady, onUnstage, onClearAll } = props;
+  const { mode, dueSeconds, totalMs, planning, forcedPass, level, staged, stage, beat, tributePhase, tributeReady, onUnstage, onClearAll, canSetAside = false, onSetAside } = props;
   const loud = mode !== 'quiet';
   const urgency = loud ? deskUrgency(dueSeconds, totalMs) : null;
   const fraction = loud ? deskFraction(dueSeconds, totalMs) : null;
@@ -192,6 +198,16 @@ export function PlayDesk(props: PlayDeskProps) {
           >
             {t('game.desk.clearAll')}
           </button>
+          {canSetAside && (
+            <button
+              type="button"
+              className="gd-desk__setAside"
+              aria-label={t('game.areas.setAsideAria')}
+              onClick={onSetAside}
+            >
+              {t('game.areas.setAside')}
+            </button>
+          )}
         </div>
       )}
       {status !== null && <p className="gd-desk__status">{status}</p>}

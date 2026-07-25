@@ -18,11 +18,20 @@
 // so the same element persists across the re-lay and the slide animates even
 // across rows/columns.
 
-import { useLayoutEffect, useRef } from 'react';
+import { Fragment, useLayoutEffect, useRef } from 'react';
 import type { CSSProperties } from 'react';
 import { levelValue, type Card, type Rank } from '../../engine/guandan/cards';
 import { CardFace, cardLabel } from './CardFace';
 import { SORT_BEAT_MS } from './deal';
+import {
+  MAIN_AREA,
+  NO_GROUP,
+  areaAt,
+  bandOrder,
+  groupHealth,
+  groupsIn,
+  type HandAreas,
+} from './areas';
 import { useDeckTheme } from './useDeckTheme';
 import { t } from '../i18n';
 
@@ -98,6 +107,29 @@ export interface HandFanProps {
    *  restores full opacity (the dim's appear/disappear reads as flicker
    *  there, and the desk's staged faces carry the figure instead). */
   dimUnselected?: boolean;
+  /** Manual sort areas. `null`/undefined is the NEVER-USER state and takes the
+   *  byte-identical path below: no bands, no seams, no wrapper, no extra class
+   *  — the same single .gd-fan__stackRow this component has always rendered.
+   *  Non-null splits the settled fan into one band per area, MAIN last (nearest
+   *  the desk), each shelf closed by a seam. Ignored while DEALING: the deal
+   *  overlay measures those slot rects and that path stays untouched. */
+  areas?: HandAreas | null;
+  /** Label + handler for one shelf's seam. The seam is the shelf's only
+   *  control; `HandFan` renders it and reports presses, and never decides what
+   *  a press MEANS (that is `seamAction`, so "no silent no-op" stays provable
+   *  in one place). Required whenever `areas` is non-null. */
+  seamLabel?: (shelf: number) => string;
+  /** Accessible name for the seam. The visible label carries a direction arrow;
+   *  the aria spells the destination out, because an arrow is a spatial cue a
+   *  screen reader cannot convey. */
+  seamAria?: (shelf: number) => string;
+  /** A recorded group's label + accessible name + press. Named only while the
+   *  group is intact; the component asks `groupHealth` and shows a neutral mark
+   *  otherwise, so a stale grouping can never render a combination claim. */
+  groupLabel?: (group: number) => string;
+  groupAria?: (group: number) => string;
+  onGroupPress?: (group: number) => void;
+  onSeamPress?: (shelf: number) => void;
 }
 
 /** Split an index sequence into at most two balanced rows, same arithmetic as
@@ -178,6 +210,13 @@ export function HandFan({
   dimUnselected = false,
   readOnly = false,
   label,
+  areas = null,
+  seamLabel,
+  seamAria,
+  onSeamPress,
+  groupLabel,
+  groupAria,
+  onGroupPress,
 }: HandFanProps) {
   const theme = useDeckTheme();
   const cardRefs = useRef(new Map<number, HTMLElement>());
@@ -243,10 +282,101 @@ export function HandFan({
     return <div className="gd-fan" role="group" aria-label={label ?? t('game.hand.label')} />;
   }
 
+  // One value-column of the settled layout. Extracted verbatim from the single
+  // .gd-fan__stackRow this component used to render, so the never-user branch
+  // below emits byte-identical markup and the split branch cannot drift from it.
+  const renderStack = (column: number[], colIdx: number) => {
+    // Same offset for every card in THIS column (a function of its own size,
+    // not its position) — the first card takes no margin (it is the pile's
+    // top, drawn first/underneath); every later DOM sibling paints over it,
+    // so only the base (last) card shows its full face.
+    const marginTopW = stackMarginTopW(
+      column.length,
+      theme.metrics.stackStripW,
+      theme.metrics.aspect,
+    );
+    return (
+      <div className="gd-fan__stack" key={colIdx}>
+        {column.map((i, posInColumn) => {
+          const card = hand[i]!;
+          const isSelected = selected.has(i);
+          const classes = ['gd-fan__card'];
+          if (!readOnly && isSelected) classes.push('gd-fan__card--selected');
+          if (!readOnly && glow.has(card)) classes.push('gd-fan__card--glow');
+          const style: CSSProperties | undefined =
+            posInColumn === 0
+              ? undefined
+              : { marginTop: `calc(var(--gd-cardw) * ${marginTopW})` };
+          // readOnly renders the SAME markup shape as a picture: a span keeps
+          // every layout/overlap rule identical while offering no press target.
+          return readOnly ? (
+            <span
+              key={i}
+              className={classes.join(' ')}
+              style={style}
+              role="img"
+              aria-label={cardLabel(card, level)}
+            >
+              <CardFace card={card} level={level} size="hand" />
+            </span>
+          ) : (
+            <button
+              key={i}
+              ref={(el) => {
+                if (el) cardRefs.current.set(i, el);
+              }}
+              type="button"
+              className={classes.join(' ')}
+              style={style}
+              aria-pressed={isSelected}
+              aria-label={cardLabel(card, level)}
+              onClick={() => onToggle(i)}
+            >
+              <CardFace card={card} level={level} size="hand" />
+            </button>
+          );
+        })}
+      </div>
+    );
+  };
+
+  /** One card in a SHELF's flat run: same button, same variant-D contract, no
+   *  column margin. Overlap is CSS (the fan's own -0.6), so the geometry is the
+   *  measured one rather than a second convention. */
+  const renderFlat = (i: number) => {
+    const card = hand[i]!;
+    const isSelected = selected.has(i);
+    const classes = ['gd-fan__card'];
+    if (!readOnly && isSelected) classes.push('gd-fan__card--selected');
+    if (!readOnly && glow.has(card)) classes.push('gd-fan__card--glow');
+    return (
+      <button
+        key={i}
+        ref={(el) => {
+          if (el) cardRefs.current.set(i, el);
+        }}
+        type="button"
+        className={classes.join(' ')}
+        aria-pressed={isSelected}
+        aria-label={cardLabel(card, level)}
+        onClick={() => onToggle(i)}
+      >
+        <CardFace card={card} level={level} size="hand" />
+      </button>
+    );
+  };
+
+  // Areas apply to the SETTLED layout only. While dealing, the overlay measures
+  // the flat rows' slot rects, so that path never sees a band or a seam.
+  const split = !dealing && areas !== null && areas.areaCount > 1;
+  const fanClasses = ['gd-fan'];
+  if (dimUnselected) fanClasses.push('gd-fan--dim');
+  if (split) fanClasses.push('gd-fan--split');
+
   let displayIndex = -1;
   return (
     <div
-      className={dimUnselected ? 'gd-fan gd-fan--dim' : 'gd-fan'}
+      className={fanClasses.join(' ')}
       role="group"
       aria-label={label ?? t('game.hand.label')}
     >
@@ -297,66 +427,95 @@ export function HandFan({
               })}
             </div>
           ))
-        : (
-            <div className="gd-fan__stackRow">
-              {columns.map((column, colIdx) => {
-                // Same offset for every card in THIS column (a function of
-                // its own size, not its position) — the first card takes no
-                // margin (it is the pile's top, drawn first/underneath); every
-                // later DOM sibling paints over it, so only the base (last)
-                // card shows its full face.
-                const marginTopW = stackMarginTopW(
-                  column.length,
-                  theme.metrics.stackStripW,
-                  theme.metrics.aspect,
-                );
-                return (
-                  <div className="gd-fan__stack" key={colIdx}>
-                    {column.map((i, posInColumn) => {
-                      const card = hand[i]!;
-                      const isSelected = selected.has(i);
-                      const classes = ['gd-fan__card'];
-                      if (!readOnly && isSelected) classes.push('gd-fan__card--selected');
-                      if (!readOnly && glow.has(card)) classes.push('gd-fan__card--glow');
-                      const style: CSSProperties | undefined =
-                        posInColumn === 0
-                          ? undefined
-                          : { marginTop: `calc(var(--gd-cardw) * ${marginTopW})` };
-                      // readOnly renders the SAME markup shape as a picture: a
-                      // span keeps every layout/overlap rule identical while
-                      // offering no press target.
-                      return readOnly ? (
-                        <span
-                          key={i}
-                          className={classes.join(' ')}
-                          style={style}
-                          role="img"
-                          aria-label={cardLabel(card, level)}
-                        >
-                          <CardFace card={card} level={level} size="hand" />
-                        </span>
-                      ) : (
-                        <button
-                          key={i}
-                          ref={(el) => {
-                            if (el) cardRefs.current.set(i, el);
-                          }}
-                          type="button"
-                          className={classes.join(' ')}
-                          style={style}
-                          aria-pressed={isSelected}
-                          aria-label={cardLabel(card, level)}
-                          onClick={() => onToggle(i)}
-                        >
-                          <CardFace card={card} level={level} size="hand" />
-                        </button>
-                      );
-                    })}
+        : split
+          ? bandOrder(areas).map((band) => {
+              // A SHELF lays its cards out FLAT (overlapped runs), not in
+              // value-columns. Two set-aside flushes share the same values, so
+              // value-columns STACK them into one interleaved pile — the defect
+              // this round fixes. Separating them into their own columns was
+              // measured at 370.1px against a 342px box (it wraps, +122px); the
+              // flat run reuses the fan's own -0.6 overlap and fits 14 cards
+              // with a group gap. MAIN keeps its columns: it is the hand you
+              // scan by value.
+              const bandSlots = order.filter((i) => areaAt(areas, i) === band);
+              const liveGroups = band === MAIN_AREA ? [] : groupsIn(areas, band);
+              return (
+              <Fragment key={band}>
+                <div className="gd-fan__stackRow">
+                  {band === MAIN_AREA ? (
+                    groupHandColumns(bandSlots, hand, level).map(renderStack)
+                  ) : (
+                    <>
+                      {/* Recorded groups first, each its own flat run. Group
+                          ORDER follows the current display order, so the
+                          descending toggle reverses groups and their contents
+                          together — one rule, both directions. */}
+                      {liveGroups
+                        .map((g) => ({ g, slots: bandSlots.filter((i) => areas.groupOf[i] === g) }))
+                        .filter((x) => x.slots.length > 0)
+                        .sort((a, b) => bandSlots.indexOf(a.slots[0]!) - bandSlots.indexOf(b.slots[0]!))
+                        .map(({ g, slots }) => (
+                          <div className="gd-fan__run" key={`g${g}`}>
+                            <span className="gd-fan__runCards">
+                              {slots.map((i) => renderFlat(i))}
+                            </span>
+                            {/* The group's own control. It is the ONLY way to
+                                act on one group, and it always changes the
+                                selection, so it can never be a dead press. The
+                                combination is NAMED only while the group is
+                                intact — once a member has gone the label would
+                                be a claim that stopped holding. */}
+                            <button
+                              type="button"
+                              className="gd-fan__runTag"
+                              aria-label={groupAria?.(g) ?? ''}
+                              onClick={() => onGroupPress?.(g)}
+                            >
+                              {groupHealth(areas, g) === 'intact' ? groupLabel?.(g) ?? '' : '•••'}
+                            </button>
+                          </div>
+                        ))}
+                      {/* Loose cards keep the flat run too, so one shelf reads
+                          as one kind of object. */}
+                      {bandSlots.filter((i) => (areas.groupOf[i] ?? NO_GROUP) === NO_GROUP).length >
+                        0 && (
+                        <div className="gd-fan__run gd-fan__run--loose">
+                          <span className="gd-fan__runCards">
+                            {bandSlots
+                              .filter((i) => (areas.groupOf[i] ?? NO_GROUP) === NO_GROUP)
+                              .map((i) => renderFlat(i))}
+                          </span>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+                {band !== MAIN_AREA && (
+                  // The seam: the shelf's only control, and a DESTRUCTIVE one
+                  // (it moves cards between bands). It sits BELOW its shelf and
+                  // above the next band's own lift headroom, so variant D's
+                  // documented near-miss — a tap at the top of a lifted card
+                  // lands on whatever is above its hit box — resolves onto the
+                  // next band's inert padding, never onto this button. The CSS
+                  // adds a further margin on top of that headroom; the fan
+                  // tap-target sweep measures the resulting gap.
+                  <div className="gd-fan__seamRow">
+                    <button
+                      type="button"
+                      className="gd-fan__seam"
+                      aria-label={seamAria?.(band)}
+                      onClick={() => onSeamPress?.(band)}
+                    >
+                      {seamLabel?.(band) ?? ''}
+                    </button>
                   </div>
-                );
-              })}
-            </div>
-          )}
+                )}
+              </Fragment>
+              );
+            })
+          : (
+              <div className="gd-fan__stackRow">{columns.map(renderStack)}</div>
+            )}
     </div>
   );
 }
