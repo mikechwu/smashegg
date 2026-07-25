@@ -1,5 +1,173 @@
 # STATUS
 
+## CI red diagnosed: a 1-in-100 flake that was a real logic error (2026-07-25)
+
+CI failed `tests/e2e/reconnection.e2e.test.ts` — "lobby-era lastSeenSeq forces
+snapshot-only resync":
+
+```
+AssertionError: expected undefined to be defined
+  const hint = hints.find((h) => h.value !== secret);
+  expect(hint).toBeDefined();                      // reconnection.e2e.test.ts:272
+```
+
+**Not a product defect, and NOT this round's work.** The reconnection path, the
+resync branch selection, the room and the engine all behaved correctly. The
+defect was in the test's own choice of a "wrong" guess, and `git blame` puts it
+at bd505e6 (2026-07-14, M4) — untouched since, so it has been latent across
+every deploy of the sort-areas arc and simply had not come up yet.
+
+**Mechanism, established by exhaustive replay rather than by reasoning.** The
+harness picked `wrongGuess = secret === 1 ? 2 : 1`. That is always a wrong
+guess, which is all it was written to guarantee — but at `secret === 1` the
+guess of 2 draws a `'lower'` verdict, and the engine narrows
+`hi = min(hi, value - 1) = 1`. The consistent range collapses to `lo === hi === 1`
+and `legalActions` (`{midpoint(lo,hi), lo, hi}`) degenerates to the single hint
+`{1}` — **which IS the secret**. The test, whose whole point is to act purely
+from the snapshot's hints, then has nothing safe to play. Replaying the exact
+action sequence for all 100 secrets: **exactly one secret breaks it**, and
+rooms draw their secret from server-side random bytes
+(`seed = code + random hex`), so it is ~1% of runs.
+
+That rate is the actual hazard. A test that fails 1% of the time reads as
+infrastructure noise, and "flaky, re-run it" would have buried a deterministic,
+fully diagnosable logic error indefinitely.
+
+**Fix — one shared rule, with the second half of the guarantee made explicit.**
+`wrongGuessFor(secret, rangeMax)` now lives in `tests/e2e/helpers.ts` and
+guarantees *both* that the guess is wrong *and* that the range stays OPEN:
+
+```
+secret >= 3  ->  guess 1        : 'higher', leaving lo = 2, hi = rangeMax
+secret <= 2  ->  guess rangeMax : 'lower',  leaving lo = 1, hi = rangeMax - 1
+```
+
+Either way `lo < hi`, so the hint set holds at least two distinct values and
+therefore at least one that is not the secret; and repeating the guess
+re-derives the same bounds, so it is safe from several seats and across several
+turns. `rangeMax` is typed as `GNConfig['rangeMax']` (the 100|1000 union) rather
+than `number`, because at `rangeMax = 2` the second arm would return the secret
+— the precondition is in the type instead of in a comment. The same
+`secret === 1 ? 2 : 1` rule was copy-pasted into **three** e2e files
+(reconnection, version, room); all three now call the shared helper. Only
+reconnection asserted on the hints, so only it could fail, but the other two
+were one assertion away from the same trap.
+
+**QA ratchet — pinned by a cheaper rung, per the standing rule.** The e2e cannot
+pin this itself: it sees one random secret per run. The invariant is proven in
+`tests/unit/engine/guess-number.test.ts` by exhaustive engine replay over
+**every** secret at **both** `rangeMax` sizes — **1,100 distinct
+(secret, rangeMax) pairs**, run twice each because the suite also varies
+`suddenDeath` (2,200 iterations, but that flag provably cannot matter here: it
+is consulted only on a CORRECT guess, and these guesses are never correct) —
+asserting the
+guess is accepted, never correct, leaves `lo < hi`, and leaves a playable
+non-secret hint. Two guards on the regression itself:
+  • **Non-vacuity** — it asserts the *superseded* rule DID collapse at secret 1,
+    so it provably tells the two rules apart. Verified by reverting the helper:
+    the regression goes red and names secret 1.
+  • **Reachability** — a real seed is searched for that makes `init` draw
+    secret 1, so the failing draw is demonstrated, not hypothesised.
+
+**A note against myself:** the first version of that regression looped over
+`SUDDEN_DEATH` and `BEST_OF_3` and claimed to cover "both config sizes" — but
+both are `rangeMax: 100`, so the axis that mattered was constant while the axis
+that could not matter varied. That is practice 11's markerSeat instance exactly,
+committed while fixing a sibling of it. The configs are now spelled out.
+
+Gate: typecheck (4 tsconfigs) + unit **1237/1237 (51 files)** + lint:hooks +
+e2e **44/44 (10 files)**. The e2e green is reported with its limit stated: it
+drew random secrets, so it is ~99% certain never to have exercised the branch
+that failed. The proof of the fix is the exhaustive unit replay, not that run.
+The new `secret <= 2 -> guess rangeMax` branch WAS separately verified over the
+wire by temporarily forcing it (12/12 across the three affected files) — a
+`rangeMax` guess is accepted by the server and keeps the range open in a real
+room.
+
+## SELF-CORRECTION: two gates from the 94d1440 round do not hold (2026-07-25)
+
+Fixing the CI flake above, I swept the whole suite for **other** assertions of
+the same class — truth that depends on a random draw and holds for most draws
+but not all. The engine and client/server unit slices came back clean with
+documented checked-file lists. The gate scripts did not. Both findings below
+are **pre-existing**, from the 94d1440 round; neither is caused by the CI fix.
+Neither is caught by CI, because CI runs typecheck + unit + e2e only — the
+`measure-*` scripts are manual gates (playwright is deliberately not a repo
+dependency), so each has only ever run when I ran it.
+
+### A. The fold gate FAILS on unchanged code — CONFIRMED EMPIRICALLY
+
+STATUS previously recorded `scripts/measure-fold.mjs (base layout passes)` and
+"without a shelf Play fits in 6/6 (doc 809.6-830.9 vs an 844 fold)". **That was
+true of that sample and is not a property of the layout.** Re-run today at
+`FOLD_DEALS=16` against unchanged HEAD:
+
+```
+deal 15
+  no shelf : doc 852.2 vs fold 844 (viewport 835.2, scrollY 17, docH 959)  NEEDS SCROLL
+WITHOUT a shelf, Play needs scrolling in 1/16 deals.
+FAIL: the BASE layout needs scrolling                      (exit 1)
+```
+
+The settled fan's height is a **step function of the dealt hand**, not a
+constant: every extra copy in a fan line's tallest column costs 21.3px
+(0.42 x the 50.7px `--gd-cardw`). Observed base positions across 16 deals were
+quantized exactly as that predicts — 758.1 / 788.4 / 809.6 / 830.9 / **852.2**.
+The old 6-deal run drew only the middle two buckets, and its recorded spread
+(830.9 - 809.6 = 21.3px) is **exactly one quantum** — the tell that the sample
+never varied the thing that mattered.
+
+Frequency, recomputed independently over 200,000 real double-deck deals
+(`P(S>=9) = 7.31%`, where S is the sum of per-line tallest columns; a separate
+300k-deal estimate gave 7.57%): the base layout puts Play below the fold on
+**~7% of deals**, so a 6-deal gate reports FAIL on ~37% of runs by chance alone.
+
+**The product consequence, stated plainly:** Play/Pass is below the fold on
+roughly one deal in fourteen with **no shelf open** — not only for the opt-in
+shelf whose scrolling cost the owner accepted. `ScrollActionsIntoView` still
+brings it into view, so the button is reachable; what is false is the claim
+that the base layout fits. Whether ~7% is acceptable, or the base layout needs
+the height back, is an owner call and is NOT decided here.
+
+### B. The tap-target sweep measures the group bar ZERO times — CONFIRMED
+
+Commit 94d1440 claims "the fan tap-target sweep now also covers the group bar,
+so the shorter of the two destructive fan controls is inside measured coverage
+instead of argued for on paper." **It is not.** The chain, verified by reading:
+
+  • `scripts/measure-fan-tap-targets.mjs:142` builds its shelf by pressing
+    `.gd-desk__setAside` — the only shelf it ever builds.
+  • `GameTable.tsx:1576` wires that control to `applyMove`.
+  • `areas.ts` `applyMove` carries `groupOf` through unchanged (all `NO_GROUP`);
+    only `applyMoveAsGroup` ever assigns a group id, and it is reachable solely
+    from the straight-flush finder's send-to-area path, which the script never
+    opens.
+  • `HandFan.tsx:441` renders a `.gd-fan__runTag` only for
+    `groupsIn(areas, band)` — empty for an `applyMove`-built shelf.
+
+So `document.querySelectorAll('.gd-fan__seam, .gd-fan__runTag')` is always
+exactly the one seam. The guard at :152 only skips when the count is **zero**,
+which the seam alone satisfies, so the script sweeps the seam, prints
+`PASS: seam state swept — 0 stolen points` and exits 0 **having taken no sample
+against the group bar at all**. The 46px group bar's tap safety is still
+argued-on-paper, exactly what that commit said it had stopped being.
+
+Note the trap for the fix: routing the script through the finder is the only
+way to create a real group, and ~39% of deals contain no straight flush at all
+— so a naive fix would go back to silently measuring nothing on those deals. A
+correct fix has to FAIL (or loudly skip) when it finds no group bar, rather
+than pass by default.
+
+### Class note
+B is compensated-failure practice 11 in its purest form: a gate green because
+the thing it was meant to measure was absent, not because it passed. A is the
+sibling the practice does not yet name — **an under-powered sample presented as
+a property**, where the variable that decides the outcome (the deal) was
+neither controlled nor recorded in the gate's output. The fold script already
+records `scrollY` and the document position, which is why the compensator could
+not hide this time; it does not record the deal shape, which is why the sample
+could.
+
 ## Deploy record (2026-07-24) — 94d1440 verified live (health build == pushed HEAD)
 
 Owner word: "ready to deploy", after the panel round closed both HIGHs.
