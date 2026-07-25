@@ -19,7 +19,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { Seat } from '../../src/engine/core/game';
-import type { GNView } from '../../src/engine/guess-number';
+import type { GNConfig, GNView } from '../../src/engine/guess-number';
 import type { ClientMessage, RoomInfo, ServerMessage } from '../../src/shared/protocol';
 import type { RoomTiming } from '../../src/shared/timing';
 
@@ -482,6 +482,38 @@ export function nextGuess(view: GNView): number {
     else if (g.verdict === 'lower') hi = Math.min(hi, g.value - 1);
   }
   return Math.floor((lo + hi) / 2);
+}
+
+/** A guess that is guaranteed WRONG for `secret`, and that also guarantees the
+ *  round's consistent range stays OPEN (lo < hi) however many times any seat
+ *  repeats it.
+ *
+ *  Both halves matter, and CI proved it. The obvious rule — "guess 1, unless
+ *  the secret is 1, in which case guess 2" — delivers only the first half. At
+ *  secret === 1 a guess of 2 is indeed wrong, but its 'lower' verdict narrows
+ *  hi to value-1 = 1, collapsing the range onto the secret itself. From there
+ *  legalActions ({midpoint, lo, hi}) is the single entry {1} — which IS the
+ *  secret — so a test that needs a hint it can safely play has none. That
+ *  fails for exactly 1 of the rangeMax possible secrets — ~1% of runs, since
+ *  rooms draw their secret from server-side random bytes. That rate is the
+ *  real hazard: it reads as CI noise rather than as the deterministic logic
+ *  error it is. Latent from M4 (bd505e6) until CI finally drew secret 1.
+ *
+ *  This rule keeps the range open for EVERY secret:
+ *    secret >= 3  ->  guess 1        : 'higher', leaving lo = 2, hi = rangeMax
+ *    secret <= 2  ->  guess rangeMax : 'lower',  leaving lo = 1, hi = rangeMax-1
+ *  Either way lo < hi, so legalActions offers at least two distinct values and
+ *  therefore at least one that is not the secret. Repeating the guess re-derives
+ *  the same bounds, so it is safe from several seats and across several turns.
+ *
+ *  Pinned exhaustively over every secret, for both rangeMax sizes, by
+ *  tests/unit/engine/guess-number.test.ts. */
+export function wrongGuessFor(secret: number, rangeMax: GNConfig['rangeMax']): number {
+  // rangeMax is deliberately the config's own 100|1000 union rather than
+  // `number`: the rule relies on rangeMax being comfortably above 2, and at
+  // rangeMax = 2 the second arm would return the secret itself. Keeping the
+  // precondition in the type means no caller can void the invariant.
+  return secret <= 2 ? rangeMax : 1;
 }
 
 /** Wait for the first fan-out event at/after `fromSeq` on this client and

@@ -22,6 +22,7 @@ import {
   nextGuess,
   startServer,
   stopAllServers,
+  wrongGuessFor,
   WsClient,
   type DevServer,
   type EventMsg,
@@ -317,7 +318,7 @@ describe('GameRoom e2e (M2 gate)', () => {
     const dump = await getDump(server1, code);
     const secret = dump.snapshot.state?.secret as number;
     expect(typeof secret).toBe('number');
-    const wrongGuess = secret === 1 ? 2 : 1;
+    const wrongGuess = wrongGuessFor(secret, config.rangeMax);
 
     let seq = startedSeq;
     for (const seat of [seatA.seat, seatB.seat, seatA.seat]) {

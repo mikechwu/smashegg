@@ -17,6 +17,7 @@ import {
   makePersistDir,
   startServer,
   stopAllServers,
+  wrongGuessFor,
   WsClient,
   type DevServer,
   type EventMsg,
@@ -77,7 +78,7 @@ describe('Version-skew signal e2e (M4)', () => {
     // (dump route, PLAN §6 — dev-gated, always open under startServer).
     const dump = await getDump(server1, code);
     const secret = dump.snapshot.state?.secret as number;
-    const wrongGuess = secret === 1 ? 2 : 1;
+    const wrongGuess = wrongGuessFor(secret, CONFIG.rangeMax);
 
     let seq = startedSeq;
     for (const seat of [seatA.seat, seatB.seat]) {

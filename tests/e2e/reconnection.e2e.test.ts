@@ -23,6 +23,7 @@ import {
   getRoomInfo,
   startServer,
   stopAllServers,
+  wrongGuessFor,
   WsClient,
   type DevServer,
   type EventMsg,
@@ -105,7 +106,7 @@ describe('Reconnection acceptance e2e (M4)', () => {
       lobbySeq: welcomeA.seq,
       startedSeq: started.seq,
       secret,
-      wrongGuess: secret === 1 ? 2 : 1,
+      wrongGuess: wrongGuessFor(secret, CONFIG.rangeMax),
     };
   }
 

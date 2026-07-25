@@ -6,6 +6,9 @@ import { describe, expect, it } from 'vitest';
 import type { GNAction, GNConfig, GNEvent, GNState } from '../../../src/engine/guess-number';
 import { GuessNumberGame } from '../../../src/engine/guess-number';
 import { getGame, GAME_REGISTRY } from '../../../src/shared/games';
+// The rule under test lives with the e2e harness that depends on it; that
+// module is pure declarations, so importing it here spawns nothing.
+import { wrongGuessFor } from '../../e2e/helpers';
 
 const SUDDEN_DEATH: GNConfig = { rangeMax: 100, suddenDeath: true };
 const BEST_OF_3: GNConfig = { rangeMax: 100, suddenDeath: false };
@@ -280,5 +283,117 @@ describe('GuessNumberGame', () => {
       const eventRoundTrip = JSON.parse(JSON.stringify(event));
       expect(eventRoundTrip).toEqual(event);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Regression for a 1-in-rangeMax CI flake (QA ratchet: the finding is pinned
+// by a cheap deterministic rung, not by remembering it).
+//
+// tests/e2e/reconnection.e2e.test.ts plays a deliberately WRONG guess from
+// each seat and then acts purely from the resync snapshot's hints, which
+// requires the hints to offer some value that is not the secret. The old rule
+// "guess 1, unless the secret is 1, in which case guess 2" broke that at
+// secret === 1: guessing 2 narrows hi to 1, the consistent range collapses to
+// lo === hi === 1, and legalActions degenerates to the single hint {1} — the
+// secret itself. Rooms draw their secret from server-side random bytes, so
+// that is ~1% of runs: green almost always, and indistinguishable from
+// infrastructure noise until someone replays every secret.
+//
+// The e2e cannot pin this itself (it sees one random secret per run), so the
+// invariant is proven HERE by exhaustive replay over every secret, at both
+// config sizes.
+// ---------------------------------------------------------------------------
+describe('wrongGuessFor: the harness rule that keeps the range open', () => {
+  /** Replay what the e2e does — the same wrong guess from each of two seats —
+   *  and report the state the acting seat would then be asked to act from. */
+  function replay(
+    config: GNConfig,
+    secret: number,
+    guess: number,
+  ): { state: GNState; hints: GNAction[] } {
+    const base = GuessNumberGame.init(config, 2, 'exhaustive-replay').state;
+    // Only `secret` is substituted; every other field is the engine's own
+    // freshly-initialized round (lo=1, hi=rangeMax, toAct=0). Substituting
+    // beats hunting a seed per secret. What is asserted separately below is
+    // narrower than this exhaustive sweep: that secret 1 — the ONE value the
+    // superseded rule broke on — really is drawable from a real seed, so the
+    // failing draw is demonstrated rather than assumed. Reachability of the
+    // other secrets is not asserted, and is not needed: `nextInt` draws
+    // uniformly from [1, rangeMax], and the rule is proven for all of them.
+    let state: GNState = { ...base, secret };
+    for (const seat of [0, 1] as const) {
+      const res = GuessNumberGame.applyAction(state, seat, { type: 'guess', value: guess });
+      if (!res.ok) throw new Error(`guess ${guess} rejected at secret ${secret}: ${res.error.code}`);
+      state = res.state;
+    }
+    return { state, hints: GuessNumberGame.legalActions(state, state.toAct) };
+  }
+
+  // Spelled out rather than reusing SUDDEN_DEATH/BEST_OF_3: those differ only
+  // in suddenDeath, which cannot matter here (it is consulted solely on a
+  // CORRECT guess, and these guesses are never correct). rangeMax is the axis
+  // that does matter, so both sizes appear explicitly.
+  const RULE_CONFIGS: GNConfig[] = [
+    { rangeMax: 100, suddenDeath: true },
+    { rangeMax: 100, suddenDeath: false },
+    { rangeMax: 1000, suddenDeath: true },
+    { rangeMax: 1000, suddenDeath: false },
+  ];
+
+  for (const config of RULE_CONFIGS) {
+    const { rangeMax } = config;
+
+    it(`offers a non-secret hint for EVERY secret in [1, ${rangeMax}] (suddenDeath=${config.suddenDeath})`, () => {
+      const collapsed: number[] = [];
+      const noPlayableHint: number[] = [];
+
+      for (let secret = 1; secret <= rangeMax; secret++) {
+        const guess = wrongGuessFor(secret, rangeMax);
+        expect(guess).not.toBe(secret); // half one: the guess is always wrong
+        expect(guess).toBeGreaterThanOrEqual(1);
+        expect(guess).toBeLessThanOrEqual(rangeMax);
+
+        const { state, hints } = replay(config, secret, guess);
+
+        // Never terminal: two wrong guesses cannot end the round, so the
+        // seq arithmetic the e2e asserts on (applied.seq === seq + 1) holds.
+        expect(state.phase).toBe('guessing');
+        expect(state.guesses.every((g) => g.verdict !== 'correct')).toBe(true);
+
+        // half two: the range stayed OPEN, which is what makes the hint set
+        // more than one value wide.
+        if (state.lo >= state.hi) collapsed.push(secret);
+        if (!hints.some((h) => h.value !== secret)) noPlayableHint.push(secret);
+      }
+
+      expect(collapsed).toEqual([]);
+      expect(noPlayableHint).toEqual([]);
+    });
+
+    it(`the superseded rule DID collapse at secret 1 (non-vacuity, ${rangeMax}, suddenDeath=${config.suddenDeath})`, () => {
+      // Without this the regression above could pass for the wrong reason —
+      // it must be able to tell the two rules apart.
+      const naive = (secret: number): number => (secret === 1 ? 2 : 1);
+      const { state, hints } = replay(config, 1, naive(1));
+      expect(state.lo).toBe(1);
+      expect(state.hi).toBe(1);
+      expect(hints.map((h) => h.value)).toEqual([1]); // the only hint IS the secret
+      expect(hints.some((h) => h.value !== 1)).toBe(false);
+
+      // ...and the current rule survives the same secret.
+      const fixed = replay(config, 1, wrongGuessFor(1, rangeMax));
+      expect(fixed.state.lo).toBeLessThan(fixed.state.hi);
+      expect(fixed.hints.some((h) => h.value !== 1)).toBe(true);
+    });
+  }
+
+  it('secret 1 is genuinely reachable from a real seed (the draw is not hypothetical)', () => {
+    let found: string | null = null;
+    for (let i = 0; i < 5000 && found === null; i++) {
+      const seed = `reachability-${i}`;
+      if (GuessNumberGame.init(SUDDEN_DEATH, 2, seed).state.secret === 1) found = seed;
+    }
+    expect(found).not.toBeNull();
   });
 });
