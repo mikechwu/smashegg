@@ -120,8 +120,108 @@ for (let i = 0; i < baseline.length; i += 1) {
   await page.waitForTimeout(40);
 }
 
-const areas = baseline.map((c) => c.ownedPx).sort((a, b) => a - b);
-console.log(`baseline px^2 min/median/max: ${areas[0]} / ${areas[areas.length >> 1]} / ${areas[areas.length - 1]}`);
+const spread = baseline.map((c) => c.ownedPx).sort((a, b) => a - b);
+console.log(`baseline px^2 min/median/max: ${spread[0]} / ${spread[spread.length >> 1]} / ${spread[spread.length - 1]}`);
+
+// ---------------------------------------------------------------------------
+// SORT AREAS: the SEAM is a DESTRUCTIVE control (it moves cards between bands),
+// and variant D's documented near-miss means a tap aimed at the top of a lifted
+// card lands on whatever sits above that card's hit box. Relocating the seam out
+// of the lift strip is only half the fix — the state has to be MEASURED, or a
+// destructive mis-tap hides in geometry nobody sweeps. This phase builds a real
+// shelf through the real controls and re-runs the sweep in that state.
+// ---------------------------------------------------------------------------
+let seamFailures = 0;
+const madeShelf = await page.evaluate(() => {
+  const cards = [...document.querySelectorAll('.gd-fan__card')];
+  for (const i of [0, 2, 4]) cards[i]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  return cards.length > 0;
+});
+await page.waitForTimeout(200);
+const pressed = await page.evaluate(() => {
+  const btn = document.querySelector('.gd-desk__setAside');
+  if (!btn) return false;
+  btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  return true;
+});
+await page.waitForTimeout(350);
+
+const seamCount = await page.evaluate(
+  () => document.querySelectorAll('.gd-fan__seam, .gd-fan__runTag').length,
+);
+if (!madeShelf || !pressed || seamCount === 0) {
+  console.log(`SKIP: could not build a shelf (madeShelf=${madeShelf} pressed=${pressed} seams=${seamCount})`);
+  seamFailures += 1;
+} else {
+  // (a) No point inside ANY card may resolve to a seam, in every single-selection
+  //     state — the same sweep shape as above, but the thief we look for is the
+  //     destructive control rather than a neighbouring card.
+  const SEAM_STEAL = `() => {
+    const cards = [...document.querySelectorAll('.gd-fan__card')];
+    // BOTH destructive controls inside the fan: the shelf's seam and each
+    // recorded group's bar. The bar is only 26px tall and sits directly under
+    // its run — i.e. in the region where variant D's near-miss is VERTICAL —
+    // so it belongs in the measured coverage, not just the seam.
+    const seams = [...document.querySelectorAll('.gd-fan__seam, .gd-fan__runTag')];
+    const GRID = 5;
+    let stolen = 0;
+    for (const el of cards) {
+      const r = el.getBoundingClientRect();
+      for (let x = r.left + GRID / 2; x < r.right; x += GRID) {
+        for (let y = r.top + GRID / 2; y < r.bottom; y += GRID) {
+          const hit = document.elementFromPoint(x, y);
+          if (hit && seams.some((s) => s === hit || s.contains(hit))) stolen += 1;
+        }
+      }
+    }
+    return stolen;
+  }`;
+  const areaCards = await page.evaluate(() => document.querySelectorAll('.gd-fan__card').length);
+  let stolenTotal = 0;
+  for (let i = 0; i < areaCards; i += 1) {
+    await clickCard(i);
+    await page.waitForTimeout(30);
+    stolenTotal += await page.evaluate(`(${SEAM_STEAL})()`);
+    await clickCard(i);
+    await page.waitForTimeout(25);
+  }
+  // (b) The GAP the safety argument rests on: a lifted face paints 14px above
+  //     its hit box, so the seam must sit further than that from the next band.
+  const gap = await page.evaluate(() => {
+    const seams = [...document.querySelectorAll('.gd-fan__seam, .gd-fan__runTag')];
+    const cards = [...document.querySelectorAll('.gd-fan__card')];
+    let min = Infinity;
+    for (const s of seams) {
+      const sb = s.getBoundingClientRect().bottom;
+      for (const el of cards) {
+        const r = el.getBoundingClientRect();
+        if (r.top >= sb) min = Math.min(min, r.top - sb);
+      }
+    }
+    return min === Infinity ? null : Math.round(min * 10) / 10;
+  });
+  const LIFT_PX = 14;
+  // The clearance that actually matters is measured against the LIFTED PAINT,
+  // not the hit box: a selected face paints LIFT_PX above its own button, so
+  // the visible top of a lifted card is that much closer to the seam than the
+  // hit-box gap suggests. The first version of this check reported the hit-box
+  // number and read as a stronger guarantee than it was (Codex UI audit).
+  const paintClearance = gap === null ? null : Math.round((gap - LIFT_PX) * 10) / 10;
+  if (stolenTotal > 0) {
+    console.log(`SEAM FAIL: ${stolenTotal} sampled points inside a card resolve to a seam`);
+    seamFailures += 1;
+  }
+  if (paintClearance === null || paintClearance <= 0) {
+    console.log(`SEAM FAIL: seam overlaps the lifted paint (clearance ${paintClearance}px)`);
+    seamFailures += 1;
+  }
+  console.log(
+    seamFailures === 0
+      ? `PASS: seam state swept — 0 stolen points; gap to hit box ${gap}px, clearance above lifted paint ${paintClearance}px`
+      : 'FAIL: seam state',
+  );
+}
+
 console.log(victims === 0 ? 'PASS: zero victims across the full sweep' : `FAIL: ${victims} victim measurements`);
 await browser.close();
-process.exit(victims === 0 ? 0 : 1);
+process.exit(victims === 0 && seamFailures === 0 ? 0 : 1);

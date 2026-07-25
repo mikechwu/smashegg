@@ -15,6 +15,17 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 9. **Dated, supersession-marked research docs.** Research files are dated and corrections are appended with explicit "superseded by" markers (e.g. the partysocket version note in cloudflare-facts.md §9) rather than silently rewritten — later readers can see what was known when.
 10. **Self-correction logging.** When an earlier framing turns out wrong (including our own review findings against our own docs), the correction is logged in STATUS.md as a process entry, not silently patched.
 
+11. **Compensated-failure checks (the recurring defect class).** A check can pass because a COMPENSATING MECHANISM hid the failure. The green is real and the numbers are real — they just measure something other than the claim. Five instances in this project so far:
+    - e2e titles claiming more than the run actually proved;
+    - "390px verified" that was really ~606px, because Chrome's window clamp silently supplied a wider viewport;
+    - a staleness e2e passing because retention and staleness were both 1.5s, so the TTL alarm supplied the wake that the arming under test was supposed to;
+    - a uniformity sweep passing because `markerSeat` had collapsed onto a uniform `firstDrawer`, so the thing varied was constant;
+    - "Play/Pass stayed above the fold (834-835)" — measured with `getBoundingClientRect()`, which is VIEWPORT-relative, on a page `ScrollActionsIntoView` had already scrolled 112px. The document position was 947 against an 844 fold: the reading recorded the safety net working, not the layout fitting. Recorded TWICE before it was caught.
+
+    **Operational rule: when measuring whether X fits, first disable or explicitly account for every mechanism that compensates when X does not.** Name the compensator before taking the measurement — auto-scroll, a retry, a fallback, a clamp, a default that happens to equal the value under test. If it cannot be disabled, measure a quantity it cannot touch (a DOCUMENT coordinate rather than a viewport one; a raw count rather than a capped one) and record the compensator's own state alongside the result so a later reader can tell the two apart.
+
+    **Structural response, not vigilance.** `scripts/measure-fold.mjs` records `scrollY` and the document position on every run precisely so this instance cannot recur unnoticed; the true-390 iframe recipe (practice below) is the same response to the clamp instance. Prefer building the compensator's state into the measurement's OUTPUT over remembering to check for it.
+
 ## Tool & model ladders (current)
 
 Web research runs on the built-in WebSearch/WebFetch tools, `curl` via shell for direct page/PDF fetches, and `gh api` for GitHub content. **Firecrawl is disabled as of 2026-07-13 (credit limit reached — owner instruction); state this in every research-agent prompt.** Escalate to costlier tooling only on demonstrated failure of a cheaper rung, and log the failure.

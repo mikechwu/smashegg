@@ -1,5 +1,665 @@
 # STATUS
 
+## Shelf grouping — PANEL RUN, both HIGHs fixed; fold decision recorded (2026-07-24)
+
+### PROCESS: the compensated-failure class is now in METHODOLOGY (practice 11)
+The viewport-vs-document error was the FIFTH instance of one shape: **a check
+passed because a compensating mechanism hid the failure** (e2e titles; the 606px
+clamp behind "390px"; retention==staleness supplying the wake the arming was
+meant to; markerSeat collapsed onto a uniform firstDrawer; ScrollActionsIntoView
+masking a layout that does not fit). Operational rule recorded: **when measuring
+whether X fits, first disable or explicitly account for every mechanism that
+compensates when X does not** — and prefer building the compensator's state into
+the measurement's OUTPUT over remembering to check for it.
+
+### PANEL (owner split) — Codex 3, Grok 4. They converged INDEPENDENTLY on the same three.
+  • **HIGH (both lineages) — a REJECTED action's commit could delete cards later.**
+    My previous fix (hold the commit until the hand changes) closed one hole and
+    opened another: a rejection leaves the hand unchanged, so the commit stayed
+    pending and still matched `prevHand`; when the server later acted for an idle
+    seat, that stale commit would be honoured and would remove slots nobody
+    played — with twins, preserving the wrong copy and leaving an 'intact' label
+    on a group whose real member had departed.
+    FIXED by validating against the observed DELTA rather than hand-equality:
+    the cards a commit names must be a sub-multiset of what actually departed,
+    or it is discarded whole (never applied piecemeal). Three named regressions
+    pin it, including the partial-match case.
+  • **MED (both lineages) — the 26px group bar was NOT defensible**, and the
+    owner's own reading was the same. The area argument (3427px^2 > 1936px^2)
+    was WRONG because touch error is DIRECTIONAL: the bar was forgiving
+    horizontally and 26px vertically, sitting directly under its run — the
+    region where variant D's near-miss is VERTICAL — while controlling a
+    destructive action. **Raised to 44px** (measured 131.8x46 and 111.5x46).
+    Cost: the shelf band grows 115.5 -> 135.5px. Two-run shelves still measure
+    `lines=1`, and the sweep still reports 0 stolen points / zero victims.
+  • **MED (both lineages) — THREE recorded groups in one shelf WRAPS, and it is
+    reachable.** Three 5-card runs plus two gaps is 131.8*3 + 12 = **407.4px**
+    against a 342px box. Reachable via a crosshatch hand (three suits of the same
+    five ranks) because at `AREA_HARD_MAX = 2` every flush after the first shares
+    the one shelf. This is the pre-authorised NULL RESULT at the top of the
+    range, stated rather than left unremarked: **two groups fit on one line,
+    three do not.** Not fixed this round; the options (cap recorded groups per
+    shelf, or a stacked group layout) are an owner call.
+
+### FOLD DECISION RECORDED — accepted for the opt-in shelf, conditions checked
+Base layout keeps the guarantee (Play fits 6/6 without a shelf); any shelf needs
+scrolling (6/6). Accepted because the shelf is opt-in and the DEFAULT experience
+is untouched — the standing "scrolling doesn't excuse below-fold Play" position
+is SCOPED to what a player gets without asking, not waived.
+  • **Condition 1 (no moving target) — MEASURED, mostly holds, one violation.**
+    `ScrollActionsIntoView`'s deps are `[loud, stagedCount, targetRef]`, and
+    `stagedCount` changes on EVERY card tap, so the effect re-runs each time;
+    `block:'nearest'` makes it a no-op while the row is already visible. Across
+    6 deals x 4 taps: **5/6 settle ONCE on the first selection and hold**
+    (scrollY 0 -> 152 -> 152 -> 152 -> 152). **1/6 re-fired on the fourth tap**
+    (scrollY 7 -> 54), moving Play ~47px mid-turn — the A' hazard from a
+    different source. NOT changed unilaterally: keying the effect to `loud` alone
+    is a one-word fix but alters shipped scroll behaviour on the DEFAULT path
+    (and risks the desk growing Play back out of view with no recovery), so it is
+    an owner call.
+  • Conditions 2 (real iPhone: iOS dynamic toolbar makes viewport height
+    unstable) and 3 (does the player PERCEIVE the scroll) are recorded for the
+    real-device and elder sessions — neither can be closed by the iframe.
+
+### VERIFICATION
+  • Fan tap-target sweep re-run and **widened to include `.gd-fan__runTag`**, so
+    the group bar is inside measured coverage rather than argued for on paper:
+    `700/1000/3750` baseline unchanged, 0 stolen points, zero victims.
+  • `scripts/measure-fold.mjs` standing gate: base layout PASSES.
+  • Gate: typecheck (4 tsconfigs) + unit **1228/1228 (51 files)** + lint:hooks +
+    build.
+
+### ELDER SESSION — items recorded (not run)
+Can they see which cards form which flush without explanation; is the 44px group
+bar reachable without mis-taps given the vertical near-miss above it; do they
+PERCEIVE the auto-scroll or does Play appear from nowhere; does send-to-area read
+as organizing rather than playing; is the chip pager understood.
+
+### STILL OPEN
+Desktop verification (not run); the real-device session; the three-group wrap
+decision; the `stagedCount` scroll-dep decision.
+
+## Shelf grouping — DEFECT 2 DIAGNOSED (my own measurement was wrong), DEFECT 1 FIXED (2026-07-24)
+
+### DEFECT 2 — NOT A REGRESSION. The earlier "within the fold" readings were an artifact.
+Decomposed the measurement per band instead of staring at the total, and ran
+BOTH shelf constructions in the SAME session so the comparison is like-for-like.
+
+| construction | main | shelf | fan | desk | Play (viewport) | scrollY | **Play (document)** |
+|---|---|---|---|---|---|---|---|
+| desk-made (3 cards) | 24c/2ln | 3c/1ln/87.5 | 410.9 | 94.5 | 835.1 | **112** | **947.1** |
+| finder-made (flush) | 22c/2ln | 5c/1ln/87.5 | 389.6 | 94.5 | 925.9 | **0** | **904.6** |
+
+**`getBoundingClientRect()` is VIEWPORT-relative.** The desk-made cases only
+looked comfortable because `ScrollActionsIntoView` had already scrolled the page
+112px; in DOCUMENT terms they are 947.1 — **42px WORSE than the finder-made
+904.6**. So the finder layout is not a regression, it is slightly better, and
+the 121px spread was construction (and scroll), not a wrap.
+
+**I have to correct my own prior report.** Last round I told the owner "Play
+stayed above the fold 8/8 (834.6-835.4)". That number was measured under scroll,
+so it recorded the SAFETY NET working, not the layout fitting. The honest
+statement is the one below.
+
+**THE REAL, LOCALIZED FACT** (new gate, 6 deals): **without a shelf Play fits in
+6/6** (doc 809.6-830.9 vs an 844 fold). **With ANY shelf it needs scrolling in
+6/6** (doc 925.9-968.4). This belongs to the SORT-AREAS feature — a shelf costs
+~87-137px — not to this round's grouping, which was my hypothesis and is now
+measured rather than assumed. **Whether an opt-in shelf may rely on scrolling is
+an OWNER DECISION**, not something to ratify silently: the standing position is
+that below-fold Play/Pass is a defect class, not something scrolling excuses.
+
+### NEW STANDING GATE: `scripts/measure-fold.mjs`
+The fold has decided three rounds running, so it now has a scripted check beside
+the tap-target sweep. It records `scrollY` and the DOCUMENT position precisely
+so the safety net can never again be mistaken for a fit. It fails on the BASE
+layout only; the shelf's cost is reported for the owner rather than ratified.
+
+### DEFECT 1 — FIXED. The two 44px sibling controls WERE the overflow.
+Folded the control into the group's own footprint: a BAR SPANNING THE RUN
+instead of a sibling pill. That reclaims all 88px, and satisfies the tap floor by
+AREA rather than min-width — measured **131.8x26 = 3427px^2** and
+**111.5x26 = 2899px^2**, both above a 44x44 target's 1936px^2 (WCAG 2.5.8 AA
+minimum is 24px). It also answers "how do I select just this flush" with the
+affordance sitting ON the thing it selects, and it is a distinct strip, not the
+card faces, so tapping a card still means that card.
+MEASURED AFTER: every two-run shelf now reports **lines=1**, including the 5+4
+case that previously wrapped. Cost: the shelf band grows 87.5 -> 115.5px (+28px),
+which is cheaper than the 79.5px wrap it replaces.
+
+### VERIFICATION CLOSED THIS ROUND
+  • **Fan tap-target sweep re-run** after the final CSS (ratchet-mandated, and it
+    had not been run since): `700/1000/3750` baseline UNCHANGED, seam 0 stolen
+    points, zero victims.
+  • Gate: typecheck (4 tsconfigs) + unit **1225/1225 (51 files)** + lint:hooks +
+    build.
+
+### STILL NOT DONE (named, not implied)
+The panel, desktop verification, and the elder session (now carrying "can they
+see which cards form which flush without explanation"). I ran out of room before
+these; they are the remaining blockers, along with the owner call on the shelf's
+fold cost.
+
+## Shelf grouping — RECORDED groups built and pinned; TWO MEASURED DEFECTS OPEN (superseded above)
+
+Real-player finding: a shelf holding two straight flushes rendered as one flat
+pile. **The model half is done and gated; the layout half is NOT clean and I am
+reporting that rather than shipping past it.**
+
+DIAGNOSIS FIRST (arithmetic from already-MEASURED constants — card 50.7px,
+column pitch 35.5px, flat pitch 20.3px, container 342px):
+  • The cause was value-COLUMNS: two set-aside flushes share the same values, so
+    `groupHandColumns` stacks them into one interleaved pile. That IS the defect.
+  • Giving each group its own value-columns needs **370.1px vs a 342px box — it
+    wraps** (+122px a line). Unaffordable, exactly as the owner's brief warned.
+  • A FLAT overlapped run per group (the fan's own -0.6 ratio, already measured
+    and shipped in the finder panel) spans 271.6px for two 5-card flushes.
+  • Mixed (groups flat, leftovers as columns) wraps at just 2 leftover columns
+    (346.6px), so the whole SHELF is laid flat; MAIN keeps its value-columns
+    because it is the hand you scan by value.
+
+BUILT — the model, which follows the twin-remap precedent exactly:
+  • `HandAreas` gains `groupOf` (parallel to `areaOf`, remapped in the SAME walk
+    so the two can never disagree) and `groupSize` (each group's size AT SEND).
+  • **RECORDED, never re-derived.** `applyMoveAsGroup` records exactly the slots
+    the player sent. Decompositions are not unique, so recomputing "what forms a
+    flush" from shelf contents could regroup the same cards differently for no
+    visible reason.
+  • **DEGRADES, never lies** — an explicit ladder: `intact` (every recorded
+    member present) is the ONLY state that may name the combination; `broken`
+    (>=2 remain) still draws a group, because "these were set aside together" is
+    still true, but carries NO combination claim; below two members the group
+    DISSOLVES and survivors rejoin the loose cards. Splitting a group across
+    bands also ends it.
+  • **Twin-safe by construction**: membership is a SLOT label, not rank+suit, so
+    it rides the same identity-exact remap. Pinned: playing the MAIN twin leaves
+    a shelved flush whole and still `intact`.
+  • **Non-authoritative**: the annotation holds no card list that could disagree
+    with the hand; legality still comes only from the committed set.
+  • Selection: each group's control selects exactly that group, or clears it if
+    already exactly selected — always a change, never a dead press.
+  • Ordering resolved: groups render in the order their first member appears in
+    the CURRENT display order, so the descending toggle reverses groups and
+    their contents together — one rule, both directions.
+
+GATE: typecheck (4 tsconfigs) + unit **1225/1225 (51 files)** + lint:hooks +
+build. Bundle 445.92 kB.
+
+### TWO OPEN DEFECTS, MEASURED AT TRUE 390x844 (zh-Hant, real deals)
+1. **A two-group shelf can still wrap.** The group controls are 44px each (the
+   elder floor), so two runs plus two controls is ~350px against 342px. Removing
+   the runs' inline padding bought 16px and fixed the common cases — 5+1 and 5+2
+   card shelves now sit on ONE line — but **5+4 cards still wraps** (measured
+   342.3px, lines=2, shelf 87.5 -> 167px). The honest reading: the per-group
+   control on the same line does not fit at the top of the range. The owner's
+   pre-authorised null result ("no separator fits without a wrap") applies to
+   that band of cases, not to all of them.
+2. **Play/Pass measured BELOW the 844 fold in every shelf case this round**
+   (846.4 / 883.3 / 904.6 / 925.9 / 967.1), against 834.6-835.4 measured LAST
+   round for a desk-made shelf. **I have not isolated the cause** — the shelf
+   band itself measures the same 87.5px, so it is not simply the new layout —
+   and I am recording it as a reproducible measurement rather than guessing.
+   This is the project's serious regression class and needs a decision before
+   this round ships.
+
+NOT DONE THIS ROUND (stated, not implied): the panel was not run; the elder
+session item ("can they see which cards form which flush without explanation")
+is added but not run; no desktop verification; the fan tap-target sweep was not
+re-run after the final CSS change.
+
+## SF finder x sort areas — panel SIMPLIFIED, send-to-area replaces staging (2026-07-24)
+
+Owner round after real-player feedback. The through-line: sort areas made half
+the finder's UI obsolete. The remainder DESCRIPTION existed because the player
+had nowhere to put a flush; now they pull it aside and look at their own hand.
+
+**1. SEND TO A SORT AREA, not the play desk.** `onStage` -> `onSendToArea`;
+`stageSfGroup` -> `sendSfGroupToArea`, which runs the SAME `applyMove` every
+other area control uses. Nothing is staged, nothing is submitted. The sheet now
+STAYS OPEN after a send — each flush has its own control, and closing after the
+first would make the second unreachable. A sent flush's row becomes a STATEMENT
+(「已放一旁」), not a button, because pressing again would move nothing.
+  **DECISION 6 UPGRADED, NOT REVERSED — recorded, not silently contradicted.**
+  The old rule (single SF stageable, multi-SF view-only) existed because two
+  flushes are not one legal play and so cannot both be staged for COMMIT.
+  Sending to an area is organizing, not committing, so the reason does not apply
+  to the new action. Nothing about what may be PLAYED changed. `gd-sf__viewOnly`
+  is gone and its test is rewritten to pin the upgrade.
+  **OVERFLOW DECIDED: multiple flushes SHARE one set-aside area.** With the
+  measured cap of MAIN + one shelf, hiding the control for flushes with nowhere
+  to go would hide it for EVERY flush after the first — the player could not set
+  aside a second flush at all, which defeats the feature. Sharing always
+  answers, and "set aside" stays literally true. It also needed no new rule:
+  `setAsideDestination` already mints a new shelf while the budget allows and
+  joins the existing one at the cap, so "each flush gets its own area" is simply
+  what happens when there IS room. One rule for where set-aside sends things.
+
+**2. NO-ROOM CONTROL HIDDEN, not disabled.** `setAsideBlocked` and
+「沒有空間再開一組」 are deleted (string removed from all three locales).
+DISTINCTION RECORDED so the standing rule is not misread: no-silent-no-op
+forbids a press that goes UNANSWERED. A control that is absent cannot be
+pressed, so there is nothing to answer — removing the possibility is not the
+same as swallowing the response. The rule never required dead controls.
+
+**3. PANEL SIMPLIFIED — UI subtracted, CORRECTNESS NOT.** Removed: the remainder
+tag chips, the short-read explainer, the 看剩下的牌 reveal, and the read-only
+remainder fan. **The engine-side remainder is untouched** — pinned by a new
+boundary test asserting every decomposition still carries a remainder and closed
+factual tags, because ranking is the Pareto frontier of (SF value, remainder
+quality) and losing it would collapse ranking to SF strength alone and bury the
+"break it and I have two bombs" arrangement the feature exists for. The engine
+suite and its oracle pass unchanged.
+  **PAGER REDESIGNED** (players did not realise several arrangements existed):
+  an arrow stepper whose position sat in small text is now a sentence
+  (「這手牌有 N 種拆法」) plus one directly tappable chip per way — any
+  arrangement is ONE press away instead of up to five, and at most 6 chips ever
+  render (the engine's own shown cap), which fits 342px. SINGLE-ARRANGEMENT
+  CASE: no chips, no arrows, nothing implying a second page — but the sentence
+  still answers "is there more?", so three chips on a later hand is more detail
+  rather than a surprise.
+
+**4. FACES OVERLAP**, reusing the fan's OWN measured ratio rather than a new one.
+MEASURED at true 390px: card 50.7px, pitch 20.3px, **overlap ratio 0.60** —
+exactly `.gd-fan__row`'s -0.6 — 5 cards spanning 131.8px.
+
+**5. RECALL DIRECTION CUE.** 「收回手牌」 -> 「↓ 收回手牌」, with an aria that
+spells the destination out (an arrow is a spatial cue a screen reader cannot
+convey). The arrow is always correct because `bandOrder` renders MAIN last, so
+"back to main" is always downward.
+
+GATE: typecheck (4 tsconfigs) + unit **1219/1219 (51 files)** + lint:hooks +
+build + the fan tap-target sweep in BOTH states (`700/1000/3750` baseline
+unchanged; seam 0 stolen points). Bundle 442.99 kB / 143.83 kB gzip.
+  **The finder is now a source of area edits, so it entered the partition
+  invariant's surface**: the seeded playout property now interleaves real
+  finder-driven sends (`findStraightFlushes` -> first-unclaimed slots ->
+  `setAsideDestination` -> `applyMove`) with the other area operations and
+  asserts the invariant after each, with a coverage floor proving sends actually
+  occurred.
+
+VISUAL (true 390x844, zh-Hant, 6 real dealt hands): no viewport overflow, no
+sideways page scroll, every press >= 44px, and none of the six removed surfaces
+present. VERIFIED vs NOT, honestly:
+  • Overlap ratio, card width and pitch: MEASURED (above).
+  • **The 10-card worst case was NOT observed** — real deals produced 5-card
+    groups. It is BOUNDED BY ARITHMETIC FROM THE MEASURED PITCH: 50.7 + 9*20.3 =
+    **233.4px**, inside the 346px content box, so it cannot clip. Stated as a
+    computed bound, not as an observation.
+  • **A multi-flush arrangement was NOT observed at 390px** in these deals
+    (every arrangement had one group). It is covered by the component-level
+    render test (twin-double renders >= 2 send controls), which is a static
+    render, not a 390px visual. Carried as an open visual check.
+  • Several ARRANGEMENTS was observed (2 chips rendered).
+
+CARRIED HONESTLY: `HandFan`'s `readOnly` prop is now UNUSED — the finder's
+remainder fan was its only consumer. It is kept rather than deleted: it is
+audited, tested behaviour and a general fan capability, and this round's mandate
+was to subtract the finder's remainder DISPLAY, not to remove a fan feature. It
+is flagged so an auditor does not have to discover it.
+
+STILL OPEN: the elder session (now also: does send-to-area read as organizing
+rather than playing; is the chip pager understood); drag; the seam
+paint-clearance trade-off.
+
+## Manual sort areas — UI BUILT, panel run, THIRD AREA MEASURED AWAY (2026-07-24)
+
+The UI on the pinned model. Both audit lineages ran against the built tree and
+both found real defects; all are fixed and pinned. Record:
+docs/research/sort-areas.md §7b.
+
+WHAT SHIPPED (behind zero-area absence, so a never-user sees almost none of it):
+  • **Bands + seam** (HandFan). `areas === null` takes the byte-identical path —
+    one `.gd-fan__stackRow`, no wrapper class, no seam. Split mode renders one
+    band per area, MAIN LAST (nearest the desk), each shelf closed by a SEAM: a
+    full-width 44px button that is the shelf's only control.
+  • **The seam's action is a pure total function** (`seamAction`): cards lifted
+    outside → moveHere; the whole shelf lifted → putBack; anything else →
+    selectAll. The third branch is what makes a PARTIAL shelf selection safe —
+    it cannot fall through to a no-op move.
+  • **Create control on the desk stage row** beside one-tap clear (the
+    measurement-validated home; both actions-row cells were refuted last round).
+  • **SF finder unified** onto the same `applyMove` — no second staging path.
+
+### THE THIRD AREA: MEASURED AND REMOVED
+End-to-end on the built UI at true 390x844, zh-Hant, driving the real controls
+across 8 real dealt hands: **second band reached 8/8, THIRD band reached 0/8**,
+refused on every deal at every column count 11-15, with the reason shown. Play
+stayed above the fold 8/8 (834.6-835.4) but by only ~9px.
+  Also corrected honestly: **a shelf is not the cheap +14px case in practice.**
+  §3.3's +14px assumed a split keeping both bands under the 9-column wrap;
+  pulling a few cards usually leaves MAIN still over it, so the shelf adds a
+  whole line — fan 294.7 -> 432.2, **+137px**. The earlier figure was the best
+  case, not the common one.
+  **`AREA_HARD_MAX` is now 2**, under the owner's standing authorisation ("if
+  the window is rare or erratic, report it and fall back to two"). A rung that
+  never opens is worse than an absent one. COSTS STATED, NOT HIDDEN: merge needs
+  two shelves, so **merge is unreachable at this cap and the ladder has one
+  rung**. `mergeAreas` stays in the model, tested but not UI-reachable.
+  NUANCE FOR THE OWNER: the allowance reads `window.innerHeight`, so a desktop
+  viewport WOULD open the third. The cap makes the model one thing everywhere
+  rather than a feature that exists on desktop and never on the reference
+  device — a judgement call, flagged not buried.
+
+### PANEL (owner decision 3 — disclosed split)
+Claude produced the model AND the UI, so BOTH external lineages are clean
+auditors of it. Codex 3 findings, Grok 6. Every one fixed and pinned:
+  • **Codex HIGH — the commit was consumed too early, silently reintroducing the
+    twin defect this whole round exists to fix.** The reconciliation effect has
+    NO dependency array, so it runs on every render — including the one `act()`
+    causes by clearing the selection, BEFORE the server replies. That render
+    consumed and nulled the commit; the real hand change then fell back to the
+    identity walk. Fixed: the commit is held until `commitIsResolved(prev, ctx)`
+    — extracted as a PURE predicate precisely so this is behaviour-tested rather
+    than pinned by a comment in a React effect.
+  • **Grok HIGH — server-originated removals have no commit at all**, and my own
+    property harness could not have caught it: it only ever committed for
+    actions it applied itself. An AFK seat's `defaultAction` (auto-played lead,
+    timed-out tribute) removes cards with no `act()` call, so the fallback ran —
+    and dismantled the shelf. Fixed by SHELF-FIRST tie-breaking in the fallback
+    walk: when copies of one value compete for fewer survivors, MAIN gives one
+    up before any shelf. Justification, not a hack: the engine removes by
+    multiset (`remaining.indexOf`), so which twin left is NOT a fact of the
+    matter even server-side; given a free choice, preserve what the player
+    deliberately built.
+  • **Grok MED — at the cap, a button reading "set aside" did not set aside.**
+    With one shelf and `AREA_HARD_MAX = 2` it could not mint a second and had no
+    fallback. Fixed with `setAsideDestination`: a new shelf while the budget
+    allows, otherwise JOIN the existing shelf; null only when not even one fits,
+    which is the single case where refusing (with a visible reason) is honest.
+    Same label-vs-effect class as the finder's old MAIN fallback, reached from
+    the opposite direction.
+  • **Grok MED — progressive disclosure leaked to never-users.** The "no room
+    for another group" status could show to someone who never engaged with
+    areas. Fixed: gated on `areas !== null`. CARRIED HONESTLY: the create button
+    itself still appears for a never-user with a selection. That is the bounded,
+    deliberate delta the design study named — a literal zero-new-pixels feature
+    is undiscoverable — and it is now stated plainly rather than claimed away.
+  • **Codex MED — the allowance could stick at 1 for a whole hand.** Two effects
+    disagreed about order: the reconciliation effect's reset landed after the
+    allowance effect had already ratcheted. Fixed by moving the ratchet reset
+    INTO the allowance effect, keyed on the arrangement context.
+  • **Codex LOW — the seam clearance comment overclaimed, and it was right.**
+    The seam sits 20px from a card's HIT BOX, but the lifted FACE paints 14px
+    above that, so clearance above the visible card is **6px, not 20px**.
+    Comment, test and sweep now report the true numbers. Raising it to 20px
+    costs another 14px of column, which measurement says pushes Play below the
+    fold (~835 today with one shelf) — so it is a FLAGGED TRADE-OFF for the
+    owner, not a silent change. What IS fully guaranteed and measured: no point
+    inside any card resolves to a seam in any selection state.
+
+### THE SWEEP NOW MEASURES THE SEAM (fix 1's second half)
+`scripts/measure-fan-tap-targets.mjs` — the REQUIRED gate — builds a real shelf
+through the real controls and sweeps that state too, so the destructive control
+cannot hide in unmeasured geometry:
+  `baseline px^2 min/median/max: 700 / 1000 / 3750`
+  `PASS: seam state swept — 0 stolen points; gap to hit box 20px, clearance above lifted paint 6px`
+  `PASS: zero victims across the full sweep`
+The baseline spread is IDENTICAL to the documented variant-D baseline
+(docs/audits/fan-variant-d.md), i.e. the fan's geometry is unchanged.
+
+### TEST NOTE (honest)
+Three existing assertions were REWRITTEN, not merely made green, because the
+shelf-first fallback deliberately changed behaviour they pinned. In particular
+the old "NON-VACUITY: the identity-blind path dismantles the shelf" no longer
+distinguishes the two paths — the fallback is now correct for that case too — so
+it was replaced by the case where the commit is still load-bearing: the player
+deliberately playing the SHELF's twin, which only the commit can know.
+`selection-survival`'s blanket-wipe pin went 2 -> 4 wipes; rather than bump the
+count it now MATCHES EACH SITE individually, so a fifth unnamed wipe still fails.
+
+GATE (green): typecheck (4 tsconfigs) + unit **1217/1217 (51 files)** +
+lint:hooks + build + the fan tap-target sweep in BOTH states. Bundle 442.86 kB /
+143.93 kB gzip (+5.5 kB raw over the pre-UI build).
+
+STILL OPEN (not claimed as done):
+  • **The elder session is the real gate for this feature** and has not run. Add
+    to the batch: does the two-area model read as intended; is non-drag grouping
+    discoverable; does zero-area truly feel unchanged. Batch with the already
+    open items (play-desk reflow, dual-render "how many nines", variant-D
+    top-of-card unselect, seat-bubble keyboard occlusion).
+  • Drag was NOT built. All three design lineages independently found per-card
+    drag unworkable at 390px against variant D; the owner's premise asked for
+    both paths, so this remains an owner call, not a silent omission.
+  • The seam paint-clearance trade-off above.
+
+## Manual sort areas — PARTITION MODEL + INVARIANT + TWIN-REMAP FIX built and gated (2026-07-24)
+
+Owner decisions taken (see the design-study entry below for what they resolve).
+Owner sequencing honoured: the model and its invariant are built and pinned
+BEFORE any UI. **No UI this round** — the bundle is byte-identical (437.32 kB /
+142.02 kB gzip) because nothing imports the module yet, which is itself the
+evidence that no shipped behaviour changed.
+
+WHAT IT IS: `src/client/table/areas.ts` — a pure, React-free, DOM-free model of
+the hand's client-only visual PARTITION. Area 0 is MAIN (always exists, drawn
+nearest the desk); 1..n-1 are SHELVES drawn above it.
+
+THE TWO STRUCTURAL DECISIONS:
+  • **`HandAreas | null`, where `null` IS "no areas"** — absence, not
+    `singleArea(n)`. This is what makes progressive disclosure real instead of
+    nominal: a never-user holds `null` forever, so reconcile returns the same
+    value with no allocation, no state commit and no re-render. The pre-build
+    critique proved the alternative impossible — a TOTAL `areaOf` map over a hand
+    whose LENGTH changes can never return the same instance, so the "never-user
+    allocates nothing" claim would have been false on the commonest wire message
+    there is (any play that shrinks the hand).
+  • **`areaOf: readonly AreaId[]`** — a total function slot → area. DISJOINTNESS
+    and COVERAGE are therefore theorems about the TYPE ("a card in two areas" and
+    "a card in no area" have no inhabitants), not assertions about a value. Only
+    the scalar agreement `areaOf.length === hand.length` stays validated, at the
+    single construction site that ever builds against a hand it did not match.
+
+THE TWIN-REMAP FIX (the round's most serious finding, built first per owner):
+`remapAreas` does NOT re-derive membership by identity when the client caused the
+change. It removes the EXACT slots the client committed — which it knows, from the
+selection it submitted — and every surviving slot keeps its area. A `HandCommit`
+carries the hand it was made against, so a STALE commit (an action the server
+rejected, hand unchanged) is recognised and ignored instead of corrupting the next
+real change. Cards with no predecessor (a tribute arriving) land in MAIN.
+  The walk is per-VALUE, deliberately NOT via a re-derived comparator: `view.hand`
+  is sorted by the engine's own `sortCards`, and re-deriving that ordering here
+  would be a second driftable copy of an engine rule — the exact defect class the
+  straight-flush round already paid for once (the drifted `bombTier` copy).
+  Grouping by value needs only equality, so there is nothing to drift.
+
+EVERY HAND-CHANGE SOURCE VERIFIED (the owner's explicit requirement, not just
+plays). Engine mechanism read FIRST, then the remap built to match:
+  1. **Own play** — `index.ts:700-706,734`: `remaining.indexOf(card)` removes a
+     MULTISET, hand re-sorted for the view. Committed slots known → exact.
+  2. **Tribute pay** — `tribute.ts:376` → `moveCards`. Committed slot known →
+     exact. (Swept.)
+  3. **Tribute return** — `tribute.ts:448` → `moveCards`. Committed slot known →
+     exact. (Named case; never fell to the swept seat — see honest note 1.)
+  4. **Arrival** (this seat RECEIVES a tribute card) — the same `moveCards`
+     pushes to the recipient, so the hand GROWS. No predecessor → MAIN. This is
+     why the remap had to handle growth, not only shrinkage.
+  5. **Anti-tribute — NULL RESULT, diagnosed:** it does not change the hand at
+     all. `moveCards` has exactly TWO callers (`:376`, `:448`), and the
+     anti-tribute path only READS hands for the big-joker reveal check
+     (`tribute.ts:123-133`) before returning a decision/anti outcome. Nothing to
+     remap, so nothing was written for it — verified absence, not an oversight.
+  6. **Fresh deal / seat switch** — reset to `null`. (Swept.)
+
+TESTS (tests/unit/client/hand-areas.test.ts, 20 cases) — HOUSE IDIOM, a custom
+seeded playout harness driving the real GuandanGame, exactly like
+obligations.property.test.ts. **No fast-check**: there is no property-testing
+library in this repo and its absence is a stated decision; both external design
+proposals sketched `fc.commands` and neither had read that header.
+  • **Named twin regression + its NON-VACUITY.** Two 5S, one in MAIN and one
+    anchoring a shelved straight flush; play the MAIN one. With the commit the
+    shelf survives whole; the sibling test asserts that the identity-blind path
+    really does dismantle it (`main:'5S', shelves:['6S,7S,8S,9S']`), so the pin
+    cannot silently stop proving anything.
+  • Stale-commit rejection, tribute ARRIVAL into MAIN, the atomic
+    leave-and-arrive exchange, and twins in the SAME shelf being order-independent.
+  • Progressive disclosure at model level: null-in/null-out, same-instance return
+    on an unchanged hand, reset on seat switch and fresh deal, and — the exit —
+    emptying the last shelf returns to `null`, so getting back to exactly-today is
+    always reachable.
+  • No-silent-no-op: `moveWouldChange` gates every control; pinned for an empty
+    selection, for a refused mint at the cap, for moving cards already in the
+    destination, and that the ESCAPE (put it back) is always a real change.
+  • **Front-end-only source ratchet**: the module's imports must be exactly
+    `['../../engine/guandan/cards', './helpers']` and every one type-only, and the
+    source may not contain fetch/WebSocket/store/act(/JSON.stringify/localStorage/
+    useState/useEffect/document/window.
+  • **THE PROPERTY** over operation SEQUENCES: six seeded playouts interleave
+    random area edits (create/move/merge) with real engine steps, asserting the
+    invariant after EVERY operation AND a CONSERVATION property — a shelf may
+    lose only what was committed OUT OF THAT SHELF, and only MAIN may gain.
+    Coverage floor asserts the sweep really exercised it: **293 area edits, 184
+    observed twins-split-across-areas**, and the sources `ownPlay`, `tributePay`,
+    `arrival`, `freshDeal`.
+
+TWO HONEST NOTES:
+  1. **`tributeReturn` was never exercised by the swept seat** across every seed
+     tried, so it is deliberately NOT in the coverage floor — claiming it would be
+     claiming coverage the run does not have. It is pinned by its own named case
+     (the atomic leave-and-arrive exchange) instead.
+  2. **The first CONSERVATION model was itself wrong, and the property caught it.**
+     It subtracted the committed cards from every shelf, so a card committed out of
+     MAIN was also deducted from a shelf holding its twin — the very value-blindness
+     the fix exists to remove, reproduced in the checker, which then reported the
+     correct implementation as broken. The model is now keyed per SOURCE AREA.
+NON-VACUITY PROVEN BY MUTATION: making `remapAreas` ignore the commit (the old
+identity-blind path) fails 3 tests including the property, at seed areas-1 step 5.
+
+GATE (green): typecheck (4 tsconfigs) + unit **1188/1188 (50 files)**, up from
+1168/49 + lint:hooks + build. Bundle unchanged.
+
+DECISION 1 ANSWER — is the budget-aware third area implementable and predictable?
+  • **Implementable: yes, with no model change.** `maxAreas` is already a
+    PARAMETER of `applyMove`, not a constant, precisely so the UI computes the
+    allowance and the model merely obeys.
+  • **Predictable: only in a restricted form, and the naive version is
+    pathological.** The two inputs to "does a third band fit" are fan height and
+    desk height — and **the desk is loud exactly when a selection exists**, which
+    is the precondition for pressing Set aside. A gate that reads desk loudness
+    would therefore be most likely to REFUSE precisely at the moment of use.
+    Recommended form: compute the allowance from the fan's QUIET-state geometry
+    only, never during a selection; within a hand the hand only shrinks, so the
+    allowance is MONOTONE — a third shelf can appear but never vanish mid-hand —
+    and an existing shelf is never withdrawn. Monotonicity is what makes it
+    predictable; a refusal still needs a visible reason (house rule).
+  • **Not yet measurable.** Which hands actually admit three bands cannot be
+    measured until the UI exists (a band's floor cost is ~87.5px whatever it
+    holds, and 3 bands measured 402.2px against a column already at the fold). If
+    the window turns out rare or erratic, that is the finding the owner
+    pre-authorised — a clean two-area version beats a confusing three.
+
+NEXT (UI phase): create control on the desk stage row beside `.gd-desk__clear`;
+the seam OUT of variant D's 14px lift strip and INTO the tap-target sweep's
+measured coverage; the SF-finder rewire without the label inversion; then the
+panel per owner decision 3.
+
+## Manual sort areas — DESIGN STUDY done, owner decisions taken (2026-07-24)
+
+Owner mission: the MODEL is decided (a sort area is a client-only PARTITION of the
+hand by card identity); this round designs the INTERACTION as a multi-lineage
+design study. **No code changed** — the owner's sequencing is proposals → owner
+picks → build the partition model + invariant FIRST → UI after. Record:
+docs/research/sort-areas.md.
+
+THREE INDEPENDENT PROPOSALS against one brief, none seeing another's answer, each
+reading the repo itself: Codex (`codex exec`, throwaway clone), Grok
+(`grok --prompt-file`, throwaway clone), and in-house Claude (a 12-agent workflow:
+4 code-map + 4 prior-art agents → proposer → 3 adversarial critiques).
+
+MEASUREMENTS DECIDED IT (true 390x844, zh-Hant, real dealt 27-card hands, headless
+chromium driving a fresh untimed local dev room in-page — the
+scripts/measure-fan-tap-targets.mjs driver reused verbatim; probes in scratch):
+  • **The fan already wraps and has NO horizontal slack.** 27 cards = 12-13
+    value-columns; **9 fit per line**; the widest line's ink is **334.6px of a
+    342px** container — **7.4px slack** against a **50.7px** column. Side-by-side
+    areas inside the fan row are IMPOSSIBLE at 390px. This refuted the Codex
+    layout (which had named this its own riskiest assumption — correctly).
+  • **Column→height curve:** 10-13 columns = 2 lines = 252.1px; ≤9 columns = 1
+    line = 130.1px. **The second line costs 122px.**
+  • **Areas as bands** (same real columns redistributed into sibling stack rows):
+    2 bands **+14px** ([9,4]) to **+35px** ([8,5]); **3 bands +150px**. A
+    standalone single-card-column band is 87.5px for every k in 2..7.
+    This CORRECTED my own hypothesis that splitting would be free — each band
+    carries its own 14px lift padding and row gap. Cheap for the second area,
+    expensive for the third.
+  • **The vertical budget is already overdrawn.** Bottom bar bottom = 860.1 idle /
+    871.6 staged against an 844 fold — already below it today. Play/Pass clears by
+    9-34px depending on the deal.
+  • **A new pill in the secondary column is NOT affordable:** actions row 59→95px
+    (**+36px**), Play's bottom **+18px**. Staged Play measured 821.1px in one deal
+    and 835.4px in another; +18 puts it at **853.4 — below the fold**. This refuted
+    the Grok placement.
+
+CONVERGENCE (all three, independently) — treated as settled: the play desk is NOT
+an area (areas organize, the desk commits, `selected → matchSelection → Play →
+server` untouched, so a sort-area bug can only mis-organize); selection stays
+global across areas with no mode switch; "commit a whole area" is bulk SELECTION,
+not a second commit pipeline; one-tap clear clears the SELECTION only; descending
+sort stays whole-hand; a fresh deal or seat switch resets to zero areas; the SF
+finder unifies onto the area mechanism; and per-card finger drag is the wrong
+primary mechanic at 390px.
+
+THE IN-HOUSE PROPOSAL IS THE STRONGEST and is the one recommended: it derived the
+390px arithmetic independently and correctly (9 columns/line, 342px content,
+50.70px card, 73.52px height, already-wrapping fan — all matching the measurements
+above, which were taken separately), and its area cap follows from a budget rather
+than a round number. Its three adversarial lenses returned **11, 13 and 16
+findings**. The ones that change the DESIGN:
+  • **NO ROOM IN THE ACTIONS ROW, IN EITHER CELL.** Right cell: +36px, Play below
+    the fold (measured here). Left cell (the in-house placement): the critique read
+    two literals the proposal did not — `.gd-actions__slots{gap:2.25rem}` (36px) and
+    its `button{min-width:5.5rem}` (88px) — so the middle track's min-content is
+    **88+36+88 = 212px**; with gaps and a 72px button the row needs **390px of a
+    342px box**. `.gd-table{overflow-x:hidden}` means it CLIPS, and
+    `.gd-actionsRow__sort` is `justify-self:end`, so what gets clipped is the
+    straight-flush trigger. A third lens measured Play/Pass shifting 20.6px with
+    Pass stealing 12.6px of that trigger. Proposed home instead: the desk's stage
+    row beside `.gd-desk__clear`, which already renders iff the selection is
+    non-empty and already carries a 44px pill.
+  • **THE TWIN-REMAP DEFECT (most serious finding of the round).** The
+    first-unclaimed-slot idiom is IDENTITY-BLIND BETWEEN TWINS IN DIFFERENT AREAS.
+    Two 5S, one in MAIN and one on a shelf inside a straight flush; play the MAIN
+    one; the remap walks old slots ascending, MAIN claims the survivor, the shelf's
+    slot finds nothing and drops — **the surviving 5S lands in MAIN and the shelf
+    is silently dismantled**, i.e. the exact holding the feature exists to protect.
+    An earlier research pass had called this swap "unobservable because each area's
+    multiset is unchanged" — true only when the twins SHARE an area; the critique
+    overturned it. Fix available and clean: the client knows exactly which slots it
+    committed, so drop THOSE SLOTS from the partition instead of re-deriving
+    membership by identity.
+  • **`AREA_MAX = 2` costs two things the owner asked for**: merge needs two
+    shelves so it is unreachable, and the escalation ladder has one rung instead of
+    three. Raising the cap to 3 costs +150px measured against a fold that is
+    already breached. A genuine owner trade.
+  • Also: `Set aside` is a silent no-op on a strict subset of the last shelf at the
+    cap; the SF-finder rewire's `?? MAIN_AREA` makes a button labelled 「放一邊」
+    DELETE the band; the seam sits in the very 14px strip variant D reserves for
+    the lift of the band below, so the documented near-miss turns from a benign
+    wrong selection into a DESTRUCTIVE area move; `reconcileAreas` cannot return the
+    same instance while `areaOf` is total over a changing hand (fix: represent "no
+    areas" as `null`, not `singleArea(n)`); and the zero-area tap-target baseline
+    CANNOT be built as specified — the sweep makes a fresh room per run and the deal
+    seed is server-side random (game-room.ts:1416), so no stable geometry artefact
+    exists and a deterministic deal would be a server change the brief forbids.
+
+HOUSE-STYLE FINDINGS: there is **no property-testing library** in the repo —
+obligations.property.test.ts states the idiom explicitly (custom seeded playout
+harness, replayable `{seed, config, actions}` failure lines for scripts/replay.ts).
+Both external proposals sketched fast-check; that would be a new devDependency and
+a new idiom, a separate argument to win.
+
+PANEL INTEGRITY (flagged, not resolved unilaterally): the mission gives both
+external lineages a PROPOSAL role now and an AUDIT role at the gate, which is in
+tension with producer≠auditor. Recommending the IN-HOUSE model keeps both external
+lineages unanchored on authorship; Codex is the cleanest (its layout differed most
+and was refuted), Grok is mildly anchored (its membership-vector + band structure
+is close to the in-house one).
+
+OPEN: the owner's pick of the interaction model, plus the numbered decisions
+(area cap vs merge + ladder; where the create control lives; whether drag ships at
+all given that all three lineages independently found per-card drag unworkable
+against variant D — which contradicts the decided premise "two ways to group, both
+required").
+
 ## Deploy record (2026-07-24) — 416ce54 verified live (health build == pushed HEAD)
 
 Round close on the owner's word ("after pass audit from codex and grok and
