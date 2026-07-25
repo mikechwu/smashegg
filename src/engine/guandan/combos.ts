@@ -536,8 +536,14 @@ function effectiveType(form: CanonicalForm, config: RuleVariant): ComboType {
 
 /** Position on the §3.11 bomb ladder. Same tier ⇒ same type & size, so
  *  same-tier comparison falls through to comboKeyValue. Only call for
- *  forms where isBombForm() is true. */
-function bombTier(form: CanonicalForm, config: RuleVariant): number {
+ *  forms where isBombForm() is true.
+ *
+ *  EXPORTED so no other surface re-types the ladder: the straight-flush finder
+ *  needs a bomb-strength weight for its remainder ranking, and an independent
+ *  copy silently DRIFTED here (it hard-coded jokerBomb 100, missing the
+ *  jokerBombSupreme=false 75 rung) — the "second oracle" failure this codebase
+ *  keeps designing out. One ladder, one definition. */
+export function bombTier(form: CanonicalForm, config: RuleVariant): number {
   switch (form.type) {
     case 'jokerBomb':
       // §3.11: joker bomb beats everything — unless the jokerBombSupreme=

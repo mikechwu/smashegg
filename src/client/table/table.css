@@ -2558,3 +2558,274 @@ button.gd-plate {
     animation: none;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Straight-flush finder (docs/research/straight-flush-finder.md, Decisions 5+6).
+   A bottom SHEET over the lower table: the hand fan stays visible behind it, so
+   the player keeps seeing the cards the arrangement is talking about.
+   Layout spine — every page has the SAME two zones in the SAME order at the SAME
+   screen position (SET ASIDE above LEFT WITH), so stepping between arrangements reads as one
+   quantity changing in place, never a layout diff. 390px is the binding width:
+   the faces row scrolls sideways INSIDE its own container so the sheet itself
+   never scrolls horizontally.
+   --------------------------------------------------------------------------- */
+.gd-sfOpen {
+  font-size: var(--fs-xs);
+  /* The trigger lives in the tight SECONDARY column beside the sort toggle, which
+     ships at ~23px. 2rem is a real improvement on the 27px this started at while
+     staying compact: giving this one control 44px would both mismatch its
+     neighbour and push the Play/Pass row down — a 390px regression this project
+     has already fought once. The systemic secondary-pill size is flagged to the
+     owner rather than redesigned here (it would change a shipped control). */
+  min-height: 2rem;
+  padding: var(--space-2xs) var(--space-sm);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--ivory);
+  background: transparent;
+  color: var(--ivory);
+  white-space: nowrap;
+}
+.gd-sf {
+  position: fixed;
+  /* Inset + auto margins instead of left:50% + translateX: 100vw INCLUDES the
+     scrollbar, so a min(26rem, 100vw) sheet overflowed a true 390px viewport by
+     the scrollbar width and CLIPPED its own left edge (caught in visual QA).
+     Insetting to 0 and letting the margins centre it cannot exceed the width. */
+  inset-inline: 0;
+  bottom: 0;
+  margin-inline: auto;
+  max-width: 26rem;
+  max-height: 82vh;
+  overflow-y: auto;
+  background: var(--rosewood);
+  border: 1px solid var(--ivory);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  padding: var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  z-index: 40;
+  color: var(--ivory);
+}
+/* A CONSTANT frame while stepping. The sheet is bottom-anchored and used to be
+   sized by its content, so a 2-flush way made it TALLER and a 1-flush way
+   SHORTER — the whole panel, header and stepper included, jumped up and down as
+   the player paged (owner). A fixed height for the paged states means the top
+   edge, the stepper and the remainder footer all hold still and only the cards
+   between them change. The empty "no flush" state keeps its natural height —
+   there is nothing to page through, so a tall frame would just be a big hole. */
+.gd-sf--paged {
+  height: min(82vh, 44rem);
+}
+.gd-sf__head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+}
+.gd-sf__title {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: var(--weight-bold);
+  flex: 1;
+}
+.gd-sf__count {
+  font-size: var(--fs-sm);
+  opacity: 0.85;
+}
+.gd-sf__close {
+  font-size: var(--fs-sm);
+  /* >= 44px like every other press in the sheet (visual QA: this was 28px). */
+  min-height: 2.75rem;
+  min-width: 2.75rem;
+  padding: var(--space-2xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--ivory);
+  background: transparent;
+  color: var(--ivory);
+}
+.gd-sf__empty {
+  margin: 0;
+  font-size: var(--fs-md);
+  padding: var(--space-lg) 0;
+  text-align: center;
+}
+/* The stepper. Big targets (elder finger precision) and the position is stated
+   in WORDS beside the arrows, so it is never arrow-only. */
+.gd-sf__stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+.gd-sf__step {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  font-size: var(--fs-2xl);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--ivory);
+  background: transparent;
+  color: var(--ivory);
+}
+.gd-sf__step:disabled {
+  opacity: 0.35;
+}
+.gd-sf__position {
+  font-size: var(--fs-md);
+  font-weight: var(--weight-medium);
+}
+.gd-sf__page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  /* STRETCH to the sheet's height. Without this the page only grew to its
+     content, so `margin-top: auto` on the remainder pinned it to the foot ONLY
+     when the page overflowed — i.e. the "remainder stays in the same place"
+     promise held for tall (3-flush) pages and quietly failed for the common
+     short (1-flush) one, which is exactly when the player is stepping and
+     comparing (UX audit). Now the footer is genuinely fixed for every shape. */
+  flex: 1;
+  min-height: 0;
+}
+/* Zone labels carry the meaning in WORDS (set-aside / left-with) — never colour
+   alone — so they must be READABLE. At --fs-3xs/0.75 they were the quietest text
+   on a panel whose whole metaphor they carry, and uppercase does nothing for CJK
+   anyway (UX audit: "tiny zone labels erase the metaphor"). */
+.gd-sf__zoneLabel {
+  margin: 0;
+  font-size: var(--fs-sm);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--track-wide);
+  opacity: 1;
+}
+.gd-sf__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  padding: var(--space-sm);
+  border: 1px solid color-mix(in srgb, var(--ivory) 35%, transparent);
+  border-radius: var(--radius-md);
+}
+.gd-sf__faces {
+  display: flex;
+  gap: var(--space-2xs);
+  overflow-x: auto;
+  padding-bottom: var(--space-3xs);
+}
+/* The remainder is drawn by the read-only HAND FAN, so it inherits the hand's
+   own column grouping and overlap — the player scans it exactly like their hand
+   (owner: one way to read cards, not two). It only needs room to scroll. */
+.gd-sf__remainderFan {
+  overflow-x: auto;
+  padding-top: var(--space-2xs);
+}
+/* Inspecting, not comparing: release the pin so the block scrolls WITH the cards
+   it just revealed (pinned, it kept the summary on screen and pushed the cards
+   out of reach beneath it). */
+.gd-sf__leaves.gd-sf__leaves--open {
+  /* Doubled class: the base .gd-sf__leaves rule is defined LATER in the file, so
+     a single-class override would lose on source order. */
+  position: static;
+  margin-top: var(--space-xs);
+}
+.gd-sf__groupName {
+  margin: 0;
+  font-size: var(--fs-sm);
+}
+.gd-sf__alt {
+  opacity: 0.8;
+}
+.gd-sf__stage {
+  align-self: flex-start;
+  font-size: var(--fs-lg);
+  min-height: 2.75rem;
+  padding: var(--space-2xs) var(--space-lg);
+  border-radius: var(--radius-md);
+  /* SECONDARY on purpose (loudness hierarchy): this only moves cards to the play
+     area — the actual play is still the table's own Play button, which owns the
+     solid cinnabar. Three solid-red CTAs stacked in a helper sheet out-shouted
+     the real action (visual QA, the crosshatch page). */
+  border: 1px solid var(--cinnabar);
+  background: transparent;
+  color: var(--ivory);
+  font-weight: var(--weight-bold);
+}
+.gd-sf__viewOnly {
+  margin: 0;
+  font-size: var(--fs-2xs);
+  opacity: 0.85;
+}
+/* The remainder block is STICKY to the foot of the sheet. Three flush rows (a
+   four-suit crosshatch) pushed it below the fold and made its position depend on
+   the arrangement — which destroys the design's promise that stepping moves ONE
+   quantity in the SAME place. Sticky restores a constant screen position. */
+.gd-sf__leaves {
+  position: sticky;
+  bottom: 0;
+  background: var(--rosewood);
+  border-top: 1px solid color-mix(in srgb, var(--ivory) 30%, transparent);
+  padding-top: var(--space-xs);
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+}
+/* The remainder scoreboard — pinned position, so flipping pages moves ONE
+   number, not the layout. Tags are the engine's closed factual vocabulary. */
+.gd-sf__scoreboard {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+  min-height: 2rem;
+  align-items: center;
+}
+.gd-sf__tag {
+  font-size: var(--fs-sm);
+  padding: var(--space-3xs) var(--space-sm);
+  border-radius: var(--radius-xs);
+  border: 1px solid color-mix(in srgb, var(--ivory) 45%, transparent);
+}
+/* The two loud facts get WEIGHT, not just colour (no colour-only meaning). */
+.gd-sf__tag--bomb,
+.gd-sf__tag--straightFlush {
+  font-weight: var(--weight-bold);
+  border-color: var(--goldleaf);
+}
+.gd-sf__partial {
+  margin: 0;
+  /* This is the sentence that keeps the tag line from over-claiming, so it may
+     not be the faintest text on the panel (UX audit: it sat at --fs-2xs/0.75
+     while the tags it qualifies were --fs-sm). */
+  font-size: var(--fs-sm);
+  opacity: 0.9;
+}
+.gd-sf__reveal {
+  align-self: flex-start;
+  font-size: var(--fs-sm);
+  min-height: 2.75rem;
+  padding: var(--space-2xs) var(--space-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--ivory);
+  background: transparent;
+  color: var(--ivory);
+}
+.gd-sf__moreRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+}
+.gd-sf__more {
+  margin: 0;
+  font-size: var(--fs-2xs);
+  opacity: 0.85;
+  flex: 1;
+}
+.gd-sf__expand {
+  font-size: var(--fs-sm);
+  min-height: 2.75rem;
+  padding: var(--space-2xs) var(--space-md);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--ivory);
+  background: transparent;
+  color: var(--ivory);
+}

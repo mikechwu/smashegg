@@ -29,6 +29,8 @@ import { PlayOverlay } from './table/PlayOverlay';
 import { HandFan } from './table/HandFan';
 import { InterludeOverlay } from './table/InterludeOverlay';
 import { InterludeOutcome } from './table/InterludeOutcome';
+import { SfFinderSheet } from './table/SfFinderSheet';
+import { findStraightFlushes, type SfFinderResult } from '../engine/guandan/straight-flush-finder';
 import { PlayDesk } from './table/PlayDesk';
 import { TableHeadline } from './table/TableHeadline';
 import { ResultOverlay } from './table/ResultOverlay';
@@ -541,6 +543,14 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     });
   };
 
+  // Straight-flush finder (docs/research/straight-flush-finder.md). The finder is
+  // an ON-DEMAND press, never a render-path call: a full 27-card hand costs
+  // ~130-170ms, so it runs once when the player opens the sheet and the RESULT is
+  // held until they close it. Storing the result (not just an "open" flag) is
+  // what keeps it off the render path.
+  const [sfResult, setSfResult] = useState<SfFinderResult | null>(null);
+  const [sfExpanded, setSfExpanded] = useState(false);
+
   const room = snapshot.room;
   const nameFor = (seat: Seat): string =>
     room?.seats.find((s) => s.seat === seat)?.name ?? t('room.seatTab', { seat: seat + 1 });
@@ -716,6 +726,22 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     const prev = selectionCtxRef.current;
     selectionCtxRef.current = ctx;
     setSelected((sel) => reconcileSelection(sel, prev, ctx));
+
+    // The finder's held result belongs to the hand it was computed from. If that
+    // hand changes AT ALL — a seat switch, a fresh deal, a play/tribute leaving,
+    // an auto-pass — the arrangements on screen describe cards the player may no
+    // longer hold, and staging them would match those IDENTITIES against the NEW
+    // hand and lift the WRONG cards (audit F1). So the sheet closes with the hand
+    // it was about. Same context comparison the selection uses, so the two can
+    // never disagree about what "this hand" means.
+    const changed =
+      prev !== null &&
+      (prev.seat !== ctx.seat ||
+        prev.handNo !== ctx.handNo ||
+        prev.dealNo !== ctx.dealNo ||
+        prev.hand.length !== ctx.hand.length ||
+        prev.hand.some((card, i) => card !== ctx.hand[i]));
+    if (changed) setSfResult((r) => (r === null ? r : null));
   });
 
   // R3: no reset effect for the remote counters — they are keyed by dealNo
@@ -1175,6 +1201,46 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     setChooserOpen(false);
   };
 
+  // Open the finder: run the pure engine ONCE over the viewer's own hand and hold
+  // the result. Assistant-only — no server call, nothing authoritative, and it
+  // reads only view.hand (this seat's own cards).
+  const openSfFinder = () => {
+    setSfExpanded(false);
+    setSfResult(findStraightFlushes(view.hand, view.currentLevel, variant));
+  };
+
+  // "Pick this one" — NON-DESTRUCTIVE and reversible (owner brief): it only
+  // populates the ordinary client-only selection Set, exactly as tapping those
+  // cards in the fan would, so the play desk, the one-tap clear and
+  // matchSelection all keep working unchanged. Nothing is submitted here; a real
+  // play still flows through matchSelection → the server's own validatePlay, so
+  // a finder bug can only mis-SUGGEST, never mis-play.
+  // Twin-safe: each card claims the FIRST hand slot not already claimed, the
+  // remapSelectionByIdentity idiom — two copies of 5S must take two distinct slots.
+  const stageSfGroup = (cards: readonly Card[]) => {
+    const next = new Set<number>();
+    for (const card of cards) {
+      for (let i = 0; i < view.hand.length; i += 1) {
+        if (view.hand[i] === card && !next.has(i)) {
+          next.add(i);
+          break;
+        }
+      }
+    }
+    // ALL OR NOTHING. A card that is no longer in hand used to be skipped and the
+    // PARTIAL selection committed anyway (audit F2) — the player would press
+    // "put in the play area" and silently get four of the five cards, which is
+    // worse than doing nothing. The closing effect above makes this near
+    // unreachable; this keeps it impossible rather than merely unlikely.
+    if (next.size !== cards.length) {
+      setSfResult(null);
+      return;
+    }
+    setSelected(next);
+    setChooserOpen(false);
+    setSfResult(null);
+  };
+
   // During the beat's early stages the headline stays FROZEN at the ended
   // hand's state — the level-transition stage is what animates it forward
   // (the beat teaches the always-present rail; plan §C). Degrades to the
@@ -1389,6 +1455,22 @@ export function GameTable({ snapshot, store }: GameTableProps) {
                 {handDescending ? t('game.sort.descending') : t('game.sort.ascending')}
               </button>
             )}
+            {/* The finder is a HELPER, so it sits with the sort toggle in the
+                secondary column, never competing with Play/Pass. Same gate as
+                the sort toggle: meaningless until the player can see a settled
+                hand. It is offered whether or not a flush exists — the press
+                itself must always answer (a button that appears only when it
+                would succeed teaches nothing and reads as flaky). */}
+            {!holdFan && !dealing && settled && (
+              <button
+                type="button"
+                className="gd-sfOpen"
+                aria-label={t('game.sf.openAria')}
+                onClick={openSfFinder}
+              >
+                {t('game.sf.open')}
+              </button>
+            )}
           </div>
         </div>
 
@@ -1413,6 +1495,20 @@ export function GameTable({ snapshot, store }: GameTableProps) {
             {t('game.action.dismiss')}
           </button>
         </div>
+      )}
+
+      {/* The finder sheet. Rendered LAST so it sits over the lower table with the
+          fan still visible behind it — the player keeps seeing the hand the
+          arrangement is talking about. */}
+      {sfResult !== null && (
+        <SfFinderSheet
+          result={sfResult}
+          level={view.currentLevel}
+          expanded={sfExpanded}
+          onExpand={() => setSfExpanded(true)}
+          onClose={() => setSfResult(null)}
+          onStage={stageSfGroup}
+        />
       )}
 
       {ceremonyShowing && derived.ceremony !== null && (

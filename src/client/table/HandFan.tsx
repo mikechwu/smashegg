@@ -80,6 +80,18 @@ export interface HandFanProps {
    *  byte-for-byte untouched. `dealing` and `hidden` are mutually exclusive by
    *  construction (the gate short-circuits on dealing). */
   hidden?: boolean;
+  /** Accessible group name. Defaults to "your hand"; the finder passes the
+   *  remainder's own name so a screen reader is not told this IS the hand when it
+   *  is what would be LEFT of it (UX audit). */
+  label?: string;
+  /** Render the fan as a PICTURE, not a control: no buttons, no press targets,
+   *  no selection affordance — same layout, same faces, same column grouping.
+   *  Used by the straight-flush finder to draw "what you'd be left with", so the
+   *  player reads a remainder EXACTLY the way they read their own hand instead of
+   *  learning a second card layout (owner: presentation must be consistent with
+   *  the hand). A tappable card that does nothing would also be a silent no-op
+   *  press, which this project forbids. */
+  readOnly?: boolean;
   /** D3 (elder-visibility round): while the viewer is staging on their OWN
    *  turn, unselected piles dim mildly (~0.72) so the lifted cards read as
    *  the figure and the rest as ground. Pure CSS class — reduced motion
@@ -164,6 +176,8 @@ export function HandFan({
   dealOrder,
   hidden = false,
   dimUnselected = false,
+  readOnly = false,
+  label,
 }: HandFanProps) {
   const theme = useDeckTheme();
   const cardRefs = useRef(new Map<number, HTMLElement>());
@@ -226,7 +240,7 @@ export function HandFan({
   // so the dealing slot-measurement path stays untouched. Hooks above run
   // unconditionally (this file's rule); only the card render is skipped.
   if (hidden) {
-    return <div className="gd-fan" role="group" aria-label={t('game.hand.label')} />;
+    return <div className="gd-fan" role="group" aria-label={label ?? t('game.hand.label')} />;
   }
 
   let displayIndex = -1;
@@ -234,7 +248,7 @@ export function HandFan({
     <div
       className={dimUnselected ? 'gd-fan gd-fan--dim' : 'gd-fan'}
       role="group"
-      aria-label={t('game.hand.label')}
+      aria-label={label ?? t('game.hand.label')}
     >
       {dealing
         ? rows.map((row, rowIdx) => (
@@ -244,12 +258,28 @@ export function HandFan({
                 const card = hand[i]!;
                 const isSelected = selected.has(i);
                 const classes = ['gd-fan__card'];
-                if (isSelected) classes.push('gd-fan__card--selected');
-                if (glow.has(card)) classes.push('gd-fan__card--glow');
+                // readOnly means "no selection affordance" — so it must not paint
+                // one either, even if a caller hands it non-empty sets (audit:
+                // the contract was half-true, visual state slipped through).
+                if (!readOnly && isSelected) classes.push('gd-fan__card--selected');
+                if (!readOnly && glow.has(card)) classes.push('gd-fan__card--glow');
                 if (revealed !== undefined && displayIndex >= revealed) {
                   classes.push('gd-fan__card--undealt');
                 }
-                return (
+                // readOnly holds in BOTH layout branches. No caller pairs it with
+                // dealOrder today, but honouring it only in the settled branch
+                // left the contract half-true — a future readOnly+dealing caller
+                // would silently get press targets back (pre-deploy audit, LOW).
+                return readOnly ? (
+                  <span
+                    key={i}
+                    className={classes.join(' ')}
+                    role="img"
+                    aria-label={cardLabel(card, level)}
+                  >
+                    <CardFace card={card} level={level} size="hand" />
+                  </span>
+                ) : (
                   <button
                     key={i}
                     ref={(el) => {
@@ -286,13 +316,26 @@ export function HandFan({
                       const card = hand[i]!;
                       const isSelected = selected.has(i);
                       const classes = ['gd-fan__card'];
-                      if (isSelected) classes.push('gd-fan__card--selected');
-                      if (glow.has(card)) classes.push('gd-fan__card--glow');
+                      if (!readOnly && isSelected) classes.push('gd-fan__card--selected');
+                      if (!readOnly && glow.has(card)) classes.push('gd-fan__card--glow');
                       const style: CSSProperties | undefined =
                         posInColumn === 0
                           ? undefined
                           : { marginTop: `calc(var(--gd-cardw) * ${marginTopW})` };
-                      return (
+                      // readOnly renders the SAME markup shape as a picture: a
+                      // span keeps every layout/overlap rule identical while
+                      // offering no press target.
+                      return readOnly ? (
+                        <span
+                          key={i}
+                          className={classes.join(' ')}
+                          style={style}
+                          role="img"
+                          aria-label={cardLabel(card, level)}
+                        >
+                          <CardFace card={card} level={level} size="hand" />
+                        </span>
+                      ) : (
                         <button
                           key={i}
                           ref={(el) => {

@@ -751,7 +751,8 @@ describe('PLAN §3 interface obligations 1-6 (seeded property playouts)', () => 
       expect(phases.has('playing')).toBe(true);
       expect(phases.has('tribute'), `${name}: tribute phase reached`).toBe(true);
       expect(phases.has('returnTribute'), `${name}: returnTribute phase reached`).toBe(true);
-    });
+    }, 30_000); // each seed is a full match playout; the default profile runs 3,
+    // which brushes the 5s default budget under parallel-suite CPU contention.
   }
 
   it('terminal states satisfy result/actors/view obligations (overshootWinsGame reaches matchEnd)', () => {
