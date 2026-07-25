@@ -309,5 +309,19 @@
   "game.tag.triple": "三張",
   "game.tag.pair": "對子",
   "game.tag.scatter": "散牌",
-  "game.tag.cardsLeft": "剩 {count} 張"
+  "game.tag.cardsLeft": "剩 {count} 張",
+  "game.areas.setAside": "放一旁",
+  "game.areas.setAsideAria": "把選好的牌移到另一組",
+  "game.areas.selectAll": "全選這組",
+  "game.areas.putBack": "↓ 收回手牌",
+  "game.areas.moveHere": "移到這組",
+  "game.areas.shelfLabel": "放一旁的牌",
+  "game.sf.send": "放一旁",
+  "game.sf.sendAria": "把這副同花順移到分開的一組",
+  "game.sf.alreadySetAside": "已放一旁",
+  "game.sf.waysLead": "這手牌有 {total} 種拆法",
+  "game.sf.waysOne": "這手牌只有一種拆法",
+  "game.sf.wayAria": "第 {index} 種,共 {total} 種",
+  "game.areas.putBackAria": "把這些牌移回下方的主手牌",
+  "game.areas.groupAria": "選取這組放一旁的 {count} 張牌"
 }

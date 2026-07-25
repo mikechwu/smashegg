@@ -28,7 +28,7 @@ import { createElement } from 'react';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { SfFinderSheet, tagText } from '../../../src/client/table/SfFinderSheet';
+import { SfFinderSheet } from '../../../src/client/table/SfFinderSheet';
 import {
   findStraightFlushes,
   REMAINDER_TAG_KINDS,
@@ -56,7 +56,30 @@ function sheet(hand: Card[], level: Rank, expanded = false): string {
       expanded,
       onExpand: () => {},
       onClose: () => {},
-      onStage: () => {},
+      onSendToArea: () => {},
+      isSetAside: () => false,
+      canSendToArea: true,
+    }),
+  );
+}
+
+/** The same sheet with every flush ALREADY in a set-aside area, and the sheet
+ *  with nowhere to send. Both are states the areas round introduced. */
+function sheetWith(
+  hand: Card[],
+  level: Rank,
+  over: { isSetAside?: (c: readonly Card[]) => boolean; canSendToArea?: boolean },
+): string {
+  return renderToStaticMarkup(
+    createElement(SfFinderSheet, {
+      result: findStraightFlushes(hand, level, CONFIG),
+      level,
+      expanded: false,
+      onExpand: () => {},
+      onClose: () => {},
+      onSendToArea: () => {},
+      isSetAside: over.isSetAside ?? (() => false),
+      canSendToArea: over.canSendToArea ?? true,
     }),
   );
 }
@@ -104,7 +127,13 @@ describe('SF finder UI — the press always answers', () => {
   });
 });
 
-describe('SF finder UI — the two zones are fixed and in order', () => {
+describe('SF finder UI — the panel is the set-aside zone and nothing else', () => {
+  // RETIRED BY OWNER DECISION, not by failure: the "left with" zone (tag chips,
+  // the short-read disclaimer, the reveal button and the read-only remainder
+  // fan) was REMOVED because sort areas let the player pull the flush aside and
+  // read the remainder in their own hand. What the old block pinned — zone order
+  // and the sticky remainder footer — describes UI that no longer exists. The
+  // ENGINE-side remainder is a separate matter and is pinned below.
   for (const [name, hand, level] of [
     ['twinDouble', HANDS.twinDouble, '2'],
     ['wildHeavy', HANDS.wildHeavy, '2'],
@@ -112,64 +141,63 @@ describe('SF finder UI — the two zones are fixed and in order', () => {
     ['heartsLevel', HANDS.heartsLevel, '7'],
     ['full', HANDS.full, '2'],
   ] as const) {
-    it(`${name}: set-aside zone comes BEFORE the left-with zone, both present`, () => {
+    it(`${name}: the removed remainder surface is gone from the panel`, () => {
       const html = sheet([...hand], level);
-      const labels = [...html.matchAll(/gd-sf__zoneLabel">([^<]*)</g)].map((m) => m[1]);
-      expect(labels.length, 'both zone labels render').toBeGreaterThanOrEqual(2);
-      // The scoreboard always follows the faces — the fixed reading order.
-      expect(html.indexOf('gd-sf__group')).toBeLessThan(html.indexOf('gd-sf__scoreboard'));
-      // The remainder block is always present and STICKY, so its screen position
-      // does not move with the number of flush rows above it.
-      expect(html).toContain('gd-sf__leaves');
-      const result = findStraightFlushes([...hand], level, CONFIG);
-      const empty = result.decompositions[0]!.remainder.length === 0;
-      if (empty) {
-        // Nothing left to reveal — offering the press would open nothing.
-        expect(html).not.toContain('gd-sf__reveal');
-      } else {
-        // Flagged as a SHORT read, with the real cards one tap away (Grok's
-        // caveat: only the strongest structure is named).
-        expect(html).toContain('gd-sf__partial');
-        expect(html).toContain('gd-sf__reveal');
+      for (const gone of [
+        'gd-sf__leaves',
+        'gd-sf__scoreboard',
+        'gd-sf__tag',
+        'gd-sf__partial',
+        'gd-sf__reveal',
+        'gd-sf__remainderFan',
+      ]) {
+        expect(html, `${gone} must not render any more`).not.toContain(gone);
       }
+      // The set-aside zone itself still leads the page.
+      expect(html).toContain('gd-sf__zoneLabel');
+      expect(html).toContain('gd-sf__group');
     });
   }
-});
 
-describe('SF finder UI — the vocabulary that reaches the screen is closed and factual', () => {
-  it('every tag kind renders a real localized phrase in all three locales', () => {
-    const before = getLocale();
-    try {
-      for (const locale of ['en', 'zh-Hant', 'zh-Hans'] as const) {
-        setLocale(locale);
-        for (const kind of REMAINDER_TAG_KINDS) {
-          const text = tagText({ kind, count: 2 });
-          expect(text.length, `${locale}/${kind} has copy`).toBeGreaterThan(0);
-          expect(text, `${locale}/${kind} is not a raw key`).not.toContain('game.tag.');
-          expect(text, `${locale}/${kind} has no unresolved placeholder`).not.toContain('{');
-        }
+  it('THE BOUNDARY — the ENGINE still computes remainder quality, so ranking survives', () => {
+    // The load-bearing half of this round: ranking is the Pareto frontier of
+    // (SF value, remainder quality). If the UI subtraction had reached the
+    // engine, ranking would collapse to SF strength alone and bury the
+    // "break it and I have two bombs" arrangement the feature exists for.
+    const result = findStraightFlushes([...HANDS.crosshatch], '2', CONFIG);
+    for (const d of result.decompositions) {
+      expect(d.remainder, 'the remainder is still computed').toBeDefined();
+      expect(d.tags.length, 'remainder tags are still produced').toBeGreaterThan(0);
+      for (const tag of d.tags) {
+        expect(REMAINDER_TAG_KINDS, 'still the closed vocabulary').toContain(tag.kind);
       }
-    } finally {
-      setLocale(before);
     }
   });
+});
 
-  it('no advisory or comparative word can reach the screen', () => {
+describe('SF finder UI — no advisory word can reach the screen', () => {
+  // The tag-vocabulary tests that lived here are RETIRED BY OWNER DECISION: the
+  // tags no longer render, so "every tag kind has copy" and "the tag map is
+  // exhaustive" now describe a map the component does not have. The engine's
+  // vocabulary is still closed and is pinned engine-side (see the boundary test
+  // above and the engine suite). What survives is the guard that actually
+  // protects the player — nothing on this panel may ADVISE — now applied to the
+  // copy the panel still ships.
+  const banned =
+    /\b(better|best|recommend|recommended|should|stronger|strongest|optimal|worse|advice|prefer)\b/i;
+
+  it('the rendered panel carries no comparative or advisory word, in any locale', () => {
     const before = getLocale();
-    const banned = /\b(better|best|recommend|recommended|should|stronger|strongest|optimal|worse|advice|prefer)\b/i;
     try {
       for (const locale of ['en', 'zh-Hant', 'zh-Hans'] as const) {
         setLocale(locale);
-        for (const kind of REMAINDER_TAG_KINDS) {
-          expect(tagText({ kind, count: 2 }), `${locale}/${kind}`).not.toMatch(banned);
-        }
         for (const [hand, level] of [
           [HANDS.twinDouble, '2'],
           [HANDS.wildHeavy, '2'],
+          [HANDS.crosshatch, '2'],
           [HANDS.full, '2'],
         ] as const) {
-          const html = sheet([...hand], level);
-          const text = html.replace(/<[^>]+>/g, ' ');
+          const text = sheet([...hand], level).replace(/<[^>]+>/g, ' ');
           expect(text, `${locale} rendered copy is non-advisory`).not.toMatch(banned);
         }
       }
@@ -178,41 +206,51 @@ describe('SF finder UI — the vocabulary that reaches the screen is closed and 
     }
   });
 
-  it('the tag map is EXHAUSTIVE over the engine vocabulary — a new kind is a compile error, and none is missing at runtime', () => {
-    // Structural: the map is typed Record<RemainderTag['kind'], TranslationKey>,
-    // so adding an engine kind without copy fails typecheck. Runtime belt:
-    for (const kind of REMAINDER_TAG_KINDS) {
-      expect(sheetSrc, `${kind} has a copy entry`).toContain(`${kind}: 'game.tag.`);
-    }
-    const mapped = [...sheetSrc.matchAll(/^\s{2}(\w+): 'game\.tag\./gm)].map((m) => m[1]);
-    expect(mapped.sort()).toEqual([...(REMAINDER_TAG_KINDS as readonly RemainderTagKind[])].sort());
+  it('the engine vocabulary is still CLOSED even though it no longer renders', () => {
+    // The UI subtraction must not be read as permission to widen the model.
+    expect([...REMAINDER_TAG_KINDS].sort()).toEqual(
+      ['bomb', 'cardsLeft', 'fullHouse', 'pair', 'run', 'scatter', 'straightFlush', 'triple'].sort(),
+    );
+  });
+
+  it('the panel no longer imports the tag vocabulary at all', () => {
+    expect(sheetSrc, 'no tag copy map remains').not.toContain("game.tag.");
   });
 });
 
-describe('SF finder UI — staging (owner Decision 6)', () => {
-  it('a SINGLE-flush arrangement offers "pick this", a MULTI-flush arrangement is marked view-only', () => {
+describe('SF finder UI — sending to a sort area (Decision 6 UPGRADED)', () => {
+  it('EVERY flush gets its own send control, including a multi-flush arrangement', () => {
+    // The upgrade, stated as a test. The old rule marked multi-flush
+    // arrangements VIEW-ONLY because two flushes are not one legal play, so both
+    // could not be staged for COMMIT. Sending to an area is not committing, so
+    // the reason does not apply and each flush carries its own control.
     const twin = sheet(HANDS.twinDouble, '2'); // its first page pulls TWO flushes
-    expect(twin).toContain('gd-sf__viewOnly');
-    const single = sheet(HANDS.aLow, 'K'); // one flush only
-    expect(single).not.toContain('gd-sf__viewOnly');
+    expect([...twin.matchAll(/gd-sf__stage"/g)].length).toBeGreaterThanOrEqual(2);
+    expect(twin, 'the view-only restriction is gone').not.toContain('gd-sf__viewOnly');
+    const single = sheet(HANDS.aLow, 'K');
     expect(single).toContain('gd-sf__stage');
   });
 
-  it('every flush row is INDEPENDENTLY stageable, including inside a multi-flush arrangement', () => {
-    const twin = sheet(HANDS.twinDouble, '2');
-    const stageButtons = [...twin.matchAll(/gd-sf__stage"/g)].length;
-    expect(stageButtons, 'one stage button per flush row').toBeGreaterThanOrEqual(2);
+  it('an ALREADY set-aside flush shows a statement, never a press that moves nothing', () => {
+    const html = sheetWith(HANDS.aLow, 'K', { isSetAside: () => true });
+    expect(html).toContain('gd-sf__sent');
+    expect(html, 'no dead button remains').not.toContain('gd-sf__stage"');
+  });
+
+  it('with nowhere to send, the control is HIDDEN, not shown disabled', () => {
+    // Owner rule, and the distinction it rests on: the no-silent-no-op rule
+    // forbids a press that goes unanswered. A control that is absent cannot be
+    // pressed, so there is nothing to answer — removing the possibility is not
+    // the same as swallowing the response.
+    const html = sheetWith(HANDS.aLow, 'K', { canSendToArea: false });
+    expect(html).not.toContain('gd-sf__stage');
+    expect(html, 'and no greyed explanation in its place').not.toContain('disabled');
   });
 
   it('AUDIT F1 — the held result is DISCARDED whenever the hand it describes changes', () => {
-    // A stale sheet describes cards the player may no longer hold; staging it
-    // would match those IDENTITIES against the NEW hand and lift the WRONG cards
-    // (seat switch, fresh deal, a play/tribute leaving). The sheet is closed by
-    // the SAME context comparison the selection reconciliation uses, so the two
-    // can never disagree about what "this hand" means.
     const effect = gameTableSrc.slice(
       gameTableSrc.indexOf('const selectionCtxRef'),
-      gameTableSrc.indexOf('const selectionCtxRef') + 1800,
+      gameTableSrc.indexOf('const selectionCtxRef') + 2200,
     );
     expect(effect).toContain('setSfResult');
     for (const field of ['prev.seat !== ctx.seat', 'prev.handNo !== ctx.handNo', 'prev.dealNo !== ctx.dealNo']) {
@@ -221,14 +259,11 @@ describe('SF finder UI — staging (owner Decision 6)', () => {
     expect(effect, 'and on any change to the cards themselves').toMatch(/prev\.hand\.some/);
   });
 
-  it('AUDIT F2 — staging is ALL OR NOTHING: a partial match commits nothing', () => {
-    // A card no longer in hand used to be skipped and the partial selection
-    // committed — pressing "put in the play area" would silently stage four of
-    // five cards, which is worse than doing nothing.
-    const fn = gameTableSrc.match(/const stageSfGroup[\s\S]*?\n  \};/)![0];
-    expect(fn).toMatch(/if \(next\.size !== cards\.length\)/);
-    // The bail-out returns BEFORE the selection is written.
-    expect(fn.indexOf('next.size !== cards.length')).toBeLessThan(fn.indexOf('setSelected(next)'));
+  it('ALL OR NOTHING survives the rewrite: a partial match moves nothing', () => {
+    const fn = gameTableSrc.match(/const sfGroupSlots[\s\S]*?\n  \};/)![0];
+    expect(fn).toMatch(/next\.size === cards\.length \? next : null/);
+    const send = gameTableSrc.match(/const sendSfGroupToArea[\s\S]*?\n  \};/)![0];
+    expect(send, 'a null slot map abandons the send').toMatch(/if \(slots === null\)/);
   });
 
   it('AUDIT F3 — found:true with an empty list renders the nothing-found state, never a crash', () => {
@@ -239,23 +274,32 @@ describe('SF finder UI — staging (owner Decision 6)', () => {
         expanded: false,
         onExpand: () => {},
         onClose: () => {},
-        onStage: () => {},
+        onSendToArea: () => {},
+        isSetAside: () => false,
+        canSendToArea: true,
       }),
     );
     expect(html).toContain('gd-sf__empty');
-    expect(html).not.toContain('gd-sf__stepper');
+    expect(html).not.toContain('gd-sf__way');
   });
 
-  it('staging is NON-DESTRUCTIVE and twin-safe: it only populates the ordinary selection set', () => {
-    const fn = gameTableSrc.match(/const stageSfGroup[\s\S]*?\n  \};/);
-    expect(fn, 'stageSfGroup exists').not.toBeNull();
-    const body = fn![0];
-    // Twin-safe: first UNCLAIMED matching slot (the remapSelectionByIdentity idiom).
-    expect(body).toContain('!next.has(i)');
-    // It sets the ordinary selection — nothing is submitted, no decl is sent.
-    expect(body).toContain('setSelected(next)');
+  it('sending ORGANIZES, it does not commit: no selection, no submit, no decl', () => {
+    const body = gameTableSrc.match(/const sendSfGroupToArea[\s\S]*?\n  \};/)![0];
+    expect(body).toContain('applyMove');
+    expect(body, 'it must not stage for play any more').not.toContain('setSelected');
     expect(body).not.toContain('store.act');
     expect(body).not.toMatch(/\bdecl\b/);
+    // Twin-safe via the shared slot mapper.
+    expect(gameTableSrc.match(/const sfGroupSlots[\s\S]*?\n  \};/)![0]).toContain('!next.has(i)');
+  });
+
+  it('the sheet STAYS OPEN after a send, or the second flush would be unreachable', () => {
+    const body = gameTableSrc.match(/const sendSfGroupToArea[\s\S]*?\n  \};/)![0];
+    // setSfResult(null) appears ONLY on the all-or-nothing bail-out, never on a
+    // successful send.
+    const afterBail = body.slice(body.indexOf('if (slots === null)'));
+    expect(body.match(/setSfResult\(null\)/g) ?? []).toHaveLength(1);
+    expect(afterBail).toContain('setSfResult(null)');
   });
 });
 
@@ -389,11 +433,6 @@ describe('SF finder UI — elder/mobile non-negotiables', () => {
     expect(decl, 'an opaque ground so scrolling faces do not bleed through').toMatch(/background:/);
   });
 
-  it('VISUAL-QA REGRESSION — an EMPTY remainder offers no "see the cards" press', () => {
-    const html = sheet(HANDS.twinDouble, '2'); // both flushes pulled, nothing left
-    expect(html).toContain('gd-sf__scoreboard'); // it still says "0 left"
-    expect(html).not.toContain('gd-sf__reveal'); // but nothing to open
-  });
 
   it('the staging button is SECONDARY — cinnabar stays reserved for the real play', () => {
     // Three solid-red CTAs stacked in a helper sheet out-shouted the table's own
@@ -421,26 +460,6 @@ describe('SF finder UI — elder/mobile non-negotiables', () => {
     expect(sheet(HANDS.none, '2')).not.toContain('gd-sf--paged');
   });
 
-  it('OWNER — the remainder is drawn by the HAND FAN itself, so it reads exactly like the hand', () => {
-    // A wrapped grid of loose cards was a second card layout to learn. The
-    // remainder now reuses HandFan (read-only), inheriting the same-value column
-    // grouping and overlap the player already reads their own hand with.
-    expect(sheetSrc).toContain('<HandFan');
-    expect(sheetSrc).toContain('readOnly');
-    // It is a PICTURE, not a control: no press target that would do nothing —
-    // and that holds in BOTH layout branches (pre-deploy audit LOW: honouring
-    // readOnly only in the settled branch left a future readOnly+dealing caller
-    // with press targets back).
-    const fan = stripTs(read('src/client/table/HandFan.tsx'));
-    expect([...fan.matchAll(/readOnly \?/g)].length, 'both branches honour readOnly').toBe(2);
-    expect([...fan.matchAll(/role="img"/g)].length).toBe(2);
-    // "No selection affordance" must also mean it PAINTS none, even if a caller
-    // hands it non-empty sets (pre-deploy audit: the contract was half-true).
-    expect([...fan.matchAll(/!readOnly && isSelected/g)].length).toBe(2);
-    expect([...fan.matchAll(/!readOnly && glow\.has/g)].length).toBe(2);
-    // And it is sorted like the hand, so the order matches too.
-    expect(sheetSrc).toMatch(/sortCards\(decomposition\.remainder, level\)/);
-  });
 
   it('the sheet never scrolls the page sideways: wide face rows scroll INSIDE their own container', () => {
     const faces = tableCss.slice(tableCss.indexOf('.gd-sf__faces {'));
@@ -449,11 +468,29 @@ describe('SF finder UI — elder/mobile non-negotiables', () => {
     expect(shell).not.toMatch(/overflow-x:\s*auto/); // the shell itself does not
   });
 
-  it('the position is stated in WORDS, not arrows alone', () => {
+  it('the pager states the count in WORDS and offers one chip per way', () => {
+    // Real players did not notice several arrangements existed. The old arrow
+    // stepper stated position in small text; the pager now leads with a sentence
+    // and gives each way its own directly tappable chip.
     const html = sheet(HANDS.crosshatch, '2');
-    expect(html).toContain('gd-sf__position');
+    expect(html).toContain('gd-sf__waysLead');
     const text = html.replace(/<[^>]+>/g, ' ');
-    expect(text).toMatch(/\d/); // a spoken "1 of N"
+    expect(text, 'the count is spoken, not implied by arrows').toMatch(/\d/);
+    const chips = [...html.matchAll(/gd-sf__way[ "]/g)].length;
+    expect(chips, 'one chip per shown way').toBeGreaterThan(1);
+    expect(html, 'exactly one chip is marked current').toContain('gd-sf__way--on');
+  });
+
+  it('a SINGLE arrangement shows no pager chrome at all', () => {
+    // No arrows, no chips, nothing implying a second page — but the sentence
+    // still answers "is there more?", so three chips on a later hand is more
+    // detail rather than a surprise.
+    const html = sheet(HANDS.aLow, 'K');
+    const ways = findStraightFlushes([...HANDS.aLow], 'K', CONFIG).decompositions.length;
+    expect(ways, 'this hand really has one arrangement').toBe(1);
+    expect(html).toContain('gd-sf__waysLead');
+    expect(html, 'no chips').not.toContain('gd-sf__wayChips');
+    expect(html, 'no arrows').not.toContain('gd-sf__step');
   });
 
   it('renders in zh-Hant (the default locale, longest glyphs) without unresolved keys', () => {

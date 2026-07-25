@@ -877,6 +877,128 @@ button.gd-plate {
   min-width: 0;
   max-width: 100%;
 }
+/* ---------------------------------------------------------------------------
+   MANUAL SORT AREAS — bands and seams (docs/research/sort-areas.md).
+   Every rule here requires .gd-fan--split or .gd-fan__seam*, neither of which a
+   ZERO-AREA fan ever emits — that is the never-user contract expressed in CSS
+   rather than promised in prose, and hand-areas-ui.test.tsx pins it by scanning
+   this block's own selectors. Nothing above this comment changes. */
+.gd-fan--split {
+  /* The seam supplies its own spacing between bands; the fan's own gap would
+     double it. */
+  gap: 0;
+}
+/* The seam ROW is inert: it exists to give the destructive button below a
+   parent that does not itself take presses, and to carry the safety margin. */
+/* A SHELF's contents: flat overlapped runs, one per recorded group, plus one
+   for the loose cards. MEASURED basis (docs/research/sort-areas.md): separating
+   two set-aside flushes into their own value-columns needs 370.1px against a
+   342px box and wraps (+122px a line); the flat run reuses the fan's OWN -0.6
+   overlap — 50.7px card, 20.3px pitch — so two 5-card flushes span 271.6px with
+   a gap and a whole shelf holds 14 cards before it wraps. */
+.gd-fan__run {
+  display: flex;
+  align-items: flex-end;
+  flex: none;
+  /* NO inline padding. Measured: two runs plus their two 44px controls came to
+     ~350px against a 342px box and wrapped the shelf to a second line (+79.5px).
+     The controls are the floor (44px is the elder target), so the padding is
+     what gives way — the control sitting between two runs is itself the
+     separator. */
+}
+/* The gap BETWEEN runs is what makes the groups read as separate objects. It is
+   the only horizontal cost this round adds, and the capacity above already
+   accounts for it. */
+.gd-fan__run + .gd-fan__run {
+  margin-left: var(--space-xs);
+}
+/* The group's control: a BAR SPANNING THE RUN, not a sibling pill.
+   MEASURED reason: two 44px sibling pills cost 88px of width and pushed a 5+4
+   shelf to 342.3px against a 342px box — the controls WERE the overflow, since
+   the runs alone are ~254px. Spanning the run reclaims all 88px and satisfies
+   the tap floor by AREA instead of by min-width: a 131.8px x 24px bar is
+   3163px^2, well above a 44x44 target's 1936px^2 (WCAG 2.5.8 AA minimum is
+   24px). It also answers "how do I select just this flush" with the affordance
+   sitting on the thing it selects, and it is a DISTINCT strip rather than the
+   card faces, so tapping a card still means that card. */
+.gd-fan__run {
+  flex-direction: column;
+  align-items: stretch;
+}
+.gd-fan__runCards {
+  display: flex;
+  align-items: flex-end;
+}
+.gd-fan__runCards > .gd-fan__card + .gd-fan__card {
+  margin-left: calc(var(--gd-cardw) * -0.6);
+}
+.gd-fan__runTag {
+  display: block;
+  width: 100%;
+  /* 44px, not 26px. Both audit lineages rejected the area-equivalence argument
+     independently and they are right: touch error is DIRECTIONAL, and this bar
+     sits directly under its run — the region where variant D's near-miss is
+     VERTICAL — while controlling a destructive action. A large area does not
+     compensate for a short vertical target when the known error is vertical.
+     26px cleared WCAG 2.5.8 AA (24px) but not this project's own standing
+     "every press >= 44px", and the seam got 44px for exactly this reason. */
+  min-height: 2.75rem;
+  margin-top: var(--space-3xs);
+  padding: 0 var(--space-2xs);
+  border: 0;
+  border-top: 2px solid color-mix(in srgb, var(--ivory) 55%, transparent);
+  background: none;
+  color: var(--ivory);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  line-height: 2.75rem;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.gd-fan__seamRow {
+  display: flex;
+  justify-content: center;
+  /* VARIANT-D SAFETY GAP. A selected card's face paints 14px above its own hit
+     box (table.css:848 — the documented near-miss), so whatever sits above a
+     band can be hit by a tap aimed at the top of a lifted card. The band below
+     already reserves 14px of INERT padding-top for that lift; this margin adds
+     6px more.
+     THE HONEST NUMBERS (corrected after the Codex UI audit, which caught the
+     first version of this comment overclaiming): the seam's bottom edge is 20px
+     from a card's HIT BOX, but the lifted FACE paints 14px above that hit box,
+     so the clearance above the lifted PAINT is 6px, not 20px. What is fully
+     guaranteed — and measured — is that no point inside any card resolves to a
+     seam in any selection state, i.e. the seam steals none of a card's own
+     tappable area. Raising the paint clearance to 20px costs another 14px of
+     column height, which measurement shows would push Play below the 844 fold
+     (it sits at ~835 with one shelf), so it is a flagged trade-off rather than
+     a silent change. Measured every run by
+     scripts/measure-fan-tap-targets.mjs. */
+  margin-bottom: var(--space-xs);
+}
+.gd-fan__seam {
+  /* A full-width line that IS a button — the shelf's only control. */
+  flex: 1 1 auto;
+  min-height: 2.75rem; /* 44px: this is a primary elder target, not a pill. */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  background: none;
+  border: 0;
+  border-top: 1px solid color-mix(in srgb, var(--ivory) 35%, transparent);
+  color: var(--ivory);
+  font-family: inherit;
+  font-size: var(--fs-sm);
+  cursor: pointer;
+  padding: 0 var(--space-sm);
+}
+.gd-fan__seam:hover {
+  background: color-mix(in srgb, var(--ivory) 8%, transparent);
+}
+
 .gd-fan__stack {
   display: flex;
   flex-direction: column;
@@ -1076,6 +1198,22 @@ button.gd-plate {
 /* One-tap clear (elder finger precision): rides the STAGE row, so it can
    only exist with staged cards — a clear control with nothing selected is
    noise. Quiet styling: it must not compete with Play/Pass. */
+/* The create-area control, sharing the stage row with one-tap clear. Matches
+   the clear pill's geometry so the row reads as one set of choices, and carries
+   the same 44px floor. */
+.gd-desk__setAside {
+  margin-left: var(--space-xs);
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--ivory) 45%, transparent);
+  color: var(--ivory);
+  border-radius: var(--radius-pill);
+  padding: var(--space-xs) 0.9rem;
+  font-family: inherit;
+  font-size: var(--fs-md);
+  min-height: 2.75rem;
+  cursor: pointer;
+  flex: none;
+}
 .gd-desk__clear {
   margin-left: var(--space-sm);
   background: var(--lacquer);
@@ -2705,11 +2843,65 @@ button.gd-plate {
   border: 1px solid color-mix(in srgb, var(--ivory) 35%, transparent);
   border-radius: var(--radius-md);
 }
+/* The finder's pager. Chips, not arrows: any arrangement is ONE press away and
+   "which am I on" is answered by position. At most 6 ever render (the engine's
+   own shown cap), so 6 * 44px + gaps fits the 342px content box. */
+.gd-sf__ways {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2xs);
+  align-items: center;
+}
+.gd-sf__waysLead {
+  font-size: var(--fs-md);
+  color: var(--ivory);
+  margin: 0;
+  text-align: center;
+}
+.gd-sf__wayChips {
+  display: flex;
+  gap: var(--space-xs);
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.gd-sf__way {
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid color-mix(in srgb, var(--ivory) 45%, transparent);
+  background: none;
+  color: var(--ivory);
+  font-family: inherit;
+  font-size: var(--fs-md);
+  cursor: pointer;
+}
+/* The current chip is marked by FILL AND WEIGHT, never colour alone. */
+.gd-sf__way--on {
+  background: color-mix(in srgb, var(--ivory) 22%, transparent);
+  border-color: var(--ivory);
+  font-weight: 700;
+}
+/* A flush already sitting in a set-aside group: a statement, not a control. */
+.gd-sf__sent {
+  margin: 0;
+  font-size: var(--fs-sm);
+  color: color-mix(in srgb, var(--ivory) 80%, transparent);
+}
 .gd-sf__faces {
   display: flex;
-  gap: var(--space-2xs);
   overflow-x: auto;
   padding-bottom: var(--space-3xs);
+  /* A group is at most 10 cards (8 + 2 wilds), so the layout problem is
+     bounded. Faces OVERLAP at the fan's own measured ratio rather than a new
+     one: .gd-fan__row uses -0.6w, leaving the left 40% of a 50.7px card
+     visible, and the corner index is legible in that sliver (that is the
+     shipped basis for the hand itself, so reusing it means one overlap
+     convention on screen, not two). 10 cards then span
+     (1 + 9*0.4) * 50.7 = 233px at 390px, inside the sheet's content box. */
+  --gd-cardw: clamp(2.75rem, 13vw, 4.25rem);
+}
+.gd-sf__faces > * + * {
+  margin-left: calc(var(--gd-cardw) * -0.6);
 }
 /* The remainder is drawn by the read-only HAND FAN, so it inherits the hand's
    own column grouping and overlap — the player scans it exactly like their hand

@@ -7,9 +7,18 @@
 // place, every time:
 //     SET ASIDE  — which cards go aside (real card faces; a wild shows as the
 //                card it stands for, the wild-chooser precedent)
-//     LEFT WITH  — what you would be left with (a short factual read, and the
-//                cards themselves one tap away)
-//     PICK THIS  — can I take it
+//     SEND IT    — put that flush in a sort area
+//
+// WHAT SORT AREAS CHANGED (owner round, after the areas UI landed). The panel
+// used to DESCRIBE the remainder — tag chips, a short-read disclaimer, and a
+// "see the cards left" reveal — because the player had nowhere to actually put
+// a flush. Now they can pull it aside for real and look at their own hand, so
+// the description was replaced by the thing itself. The remainder MODEL is
+// untouched: the engine still computes remainder quality, because ranking is
+// the Pareto frontier of (SF value, remainder quality) and without it the
+// ranking would collapse to SF strength alone and bury the "break it and I have
+// two bombs" arrangement this feature exists to surface. This round subtracted
+// UI, not correctness.
 //
 // WHY ONE AT A TIME (owner Decision 5): 390px cannot hold N card fans side by
 // side, and the senior-UI evidence is unambiguous — few controls, big faces,
@@ -19,34 +28,30 @@
 // header ("3 ways") is what tells the player alternatives exist — the
 // sheet never dumps them.
 //
-// HONESTY (UX audit): the remainder line names only ONE holding, so it is NOT
-// "the full quality at a glance". The copy says so in those terms ("only one
-// holding is named here") — naming the RULE, not just pointing at the cards —
-// and the real cards are always one tap away; the player's own judgement stays
-// the authority. Nothing here advises: the tags are the engine's closed FACTUAL
-// vocabulary, rendered verbatim, and the staging button says what it actually
-// does ("put in the play area") because "pick this one" + a closing sheet read
-// as "I already played".
+// DECISION 6 UPGRADED, NOT REVERSED. The old rule was: a single flush may be
+// staged (it is one legal bomb), a multi-flush arrangement is view-only. Its
+// REASON was that two flushes are not one legal play, so they cannot both be
+// staged for COMMIT. Sending to a sort area is not committing — it is
+// organizing — so every flush in an arrangement now carries its own send
+// button, and the reason for the old restriction simply does not apply to the
+// new action. Nothing about what may be PLAYED changed.
 //
 // This component OWNS NO GAME LOGIC. Arrangements come from the pure engine
-// finder; staging just hands the parent a set of hand indices, which flows
-// through the ordinary selection → matchSelection → server path.
+// finder; sending hands the parent a card set, which the parent moves into a
+// sort area through the SAME applyMove every other area control uses.
 
 import { useState } from 'react';
 import type { Card, Rank } from '../../engine/guandan/cards';
 import type {
   Decomposition,
-  RemainderTag,
   SfFinderResult,
   SfGroup,
 } from '../../engine/guandan/straight-flush-finder';
 import { SF_FINDER_PRIMARY_SHOWN } from '../../engine/guandan/straight-flush-finder';
 import { resolveComboFaces } from './helpers';
 import { CardFace, GhostFace, comboDeclNode } from './CardFace';
-import { HandFan } from './HandFan';
-import { rankOf, sortCards, suitOf } from '../../engine/guandan/cards';
+import { rankOf, suitOf } from '../../engine/guandan/cards';
 import { t } from '../i18n';
-import type { TranslationKey } from '../i18n';
 import { tNode } from '../i18n/react';
 
 export interface SfFinderSheetProps {
@@ -56,36 +61,21 @@ export interface SfFinderSheetProps {
   expanded: boolean;
   onExpand: () => void;
   onClose: () => void;
-  /** Stage ONE straight flush's cards (owner Decision 6: a single SF is one
-   *  legal bomb; a multi-SF arrangement is view-only). The parent maps the cards
-   *  onto hand indices and populates the ordinary selection. */
-  onStage: (cards: readonly Card[]) => void;
-}
-
-/** The closed factual tag vocabulary → its localized phrase. Counted kinds carry
- *  their count; presence kinds are a bare word. Exhaustive by construction: a
- *  new tag kind is a COMPILE error here, which is the point — the vocabulary is
- *  pinned so nobody can quietly add an advisory word. */
-const TAG_KEYS: Record<RemainderTag['kind'], TranslationKey> = {
-  bomb: 'game.tag.bomb',
-  straightFlush: 'game.tag.straightFlush',
-  run: 'game.tag.run',
-  fullHouse: 'game.tag.fullHouse',
-  triple: 'game.tag.triple',
-  pair: 'game.tag.pair',
-  scatter: 'game.tag.scatter',
-  cardsLeft: 'game.tag.cardsLeft',
-};
-
-/** Stable empty collections + no-op so the read-only fan never re-renders on new
- *  object identities and can never be interacted with. */
-const EMPTY_SELECTION: ReadonlySet<number> = new Set<number>();
-const EMPTY_GLOW: ReadonlySet<Card> = new Set<Card>();
-const noop = (): void => {};
-
-export function tagText(tag: RemainderTag): string {
-  const key = TAG_KEYS[tag.kind];
-  return tag.count === undefined ? t(key) : t(key, { count: tag.count });
+  /** Send ONE straight flush to a sort area. The parent maps the cards onto hand
+   *  indices and moves them through the ordinary area machinery; nothing is
+   *  submitted and nothing is staged for play. */
+  onSendToArea: (cards: readonly Card[]) => void;
+  /** Is this flush ALREADY sitting together in a set-aside area? Drives the
+   *  row's confirmation state — pressing send again would move nothing, and a
+   *  press that moves nothing must not be offered. */
+  isSetAside: (cards: readonly Card[]) => boolean;
+  /** Is there anywhere to send a flush at all? False only when the vertical
+   *  budget cannot hold even one shelf. The send control is then HIDDEN rather
+   *  than shown disabled with an explanation: a control that is not there cannot
+   *  be pressed, so there is no unanswered press to explain. That is a different
+   *  thing from swallowing a response, which is what the no-silent-no-op rule
+   *  actually forbids. */
+  canSendToArea: boolean;
 }
 
 /** One straight flush, drawn as it would hit the table — wild slots rendered as
@@ -110,109 +100,66 @@ function GroupFaces({ group, level }: { group: SfGroup; level: Rank }) {
 function ArrangementPage({
   decomposition,
   level,
-  onStage,
+  onSendToArea,
+  isSetAside,
+  canSendToArea,
 }: {
   decomposition: Decomposition;
   level: Rank;
-  onStage: (cards: readonly Card[]) => void;
+  onSendToArea: (cards: readonly Card[]) => void;
+  isSetAside: (cards: readonly Card[]) => boolean;
+  canSendToArea: boolean;
 }) {
-  const [showCards, setShowCards] = useState(false);
-  const single = decomposition.groups.length === 1;
-
   return (
     <div className="gd-sf__page">
-      {/* ZONE 1 — what goes aside. */}
       <p className="gd-sf__zoneLabel">{t('game.sf.take')}</p>
-      {/* This frames the rows BELOW it, so it leads them rather than trailing
-          them — where it sat before, it peeked out from under the sticky
-          remainder footer (visual QA). */}
-      {!single && <p className="gd-sf__viewOnly">{t('game.sf.viewOnly')}</p>}
-      {decomposition.groups.map((group, i) => (
-        <div className="gd-sf__group" key={i}>
-          <GroupFaces group={group} level={level} />
-          <p className="gd-sf__groupName">
-            {comboDeclNode(group.forms[0]!)}
-            {/* The end-position pair is ONE set-aside with two playable tops —
-                a footnote, never a second arrangement (research §1). */}
-            {group.forms.length > 1 && (
-              <span className="gd-sf__alt">
-                {' · '}
-                {tNode('game.sf.alsoPlayableAs', { combo: comboDeclNode(group.forms[1]!) })}
-              </span>
+      {decomposition.groups.map((group, i) => {
+        const sent = isSetAside(group.cards);
+        return (
+          <div className="gd-sf__group" key={i}>
+            <GroupFaces group={group} level={level} />
+            <p className="gd-sf__groupName">
+              {comboDeclNode(group.forms[0]!)}
+              {/* The end-position pair is ONE set-aside with two playable tops —
+                  a footnote, never a second arrangement (research §1). */}
+              {group.forms.length > 1 && (
+                <span className="gd-sf__alt">
+                  {' · '}
+                  {tNode('game.sf.alsoPlayableAs', { combo: comboDeclNode(group.forms[1]!) })}
+                </span>
+              )}
+            </p>
+            {/* Every flush gets its OWN send control — see the header note on
+                Decision 6 being upgraded rather than reversed. Once a flush is
+                already set aside the control becomes a STATEMENT, not a button:
+                pressing it again would move nothing, and this project does not
+                ship presses that do nothing. */}
+            {sent ? (
+              <p className="gd-sf__sent" role="status">
+                {t('game.sf.alreadySetAside')}
+              </p>
+            ) : (
+              canSendToArea && (
+                <button
+                  type="button"
+                  className="gd-sf__stage"
+                  aria-label={t('game.sf.sendAria')}
+                  onClick={() => onSendToArea(group.cards)}
+                >
+                  {t('game.sf.send')}
+                </button>
+              )
             )}
-          </p>
-          {/* Owner Decision 6: a single SF is one legal bomb and can be staged;
-              each row of a multi-SF arrangement is independently stageable. */}
-          <button
-            type="button"
-            className="gd-sf__stage"
-            aria-label={t('game.sf.stageAria')}
-            onClick={() => onStage(group.cards)}
-          >
-            {t('game.sf.stage')}
-          </button>
-        </div>
-      ))}
-      {/* ZONE 2 — what is left. STICKY to the foot of the sheet: with three
-          flush rows above it (a four-suit crosshatch) it was pushed below the
-          fold, and its screen position moved with the number of flushes — which
-          destroys the whole point, that stepping between arrangements reads as
-          ONE quantity changing in the SAME place. Caught in visual QA at 390px. */}
-      {/* Sticky while COLLAPSED (comparison mode: the footer holds one position so
-          stepping moves one quantity). Once the cards are revealed the player has
-          stopped comparing and started INSPECTING, so it becomes a normal block
-          that scrolls with its own cards — otherwise the summary stayed pinned
-          while the truth it summarises was pushed out of reach below it. */}
-      <div className={showCards ? 'gd-sf__leaves gd-sf__leaves--open' : 'gd-sf__leaves'}>
-        <p className="gd-sf__zoneLabel">{t('game.sf.leaves')}</p>
-        <div className="gd-sf__scoreboard">
-          {decomposition.tags.map((tag, i) => (
-            <span className={`gd-sf__tag gd-sf__tag--${tag.kind}`} key={i}>
-              {tagText(tag)}
-            </span>
-          ))}
-        </div>
-        {/* An EMPTY remainder has nothing to reveal — offering "see the cards
-            left" there is a press that opens nothing (the no-silent-no-op rule
-            cuts both ways: never offer an action that cannot answer). */}
-        {decomposition.remainder.length > 0 && (
-          <>
-            <p className="gd-sf__partial">{t('game.sf.partialRead')}</p>
-            <button
-              type="button"
-              className="gd-sf__reveal"
-              aria-expanded={showCards}
-              onClick={() => setShowCards((v) => !v)}
-            >
-              {showCards ? t('game.sf.hideRemainder') : t('game.sf.showRemainder')}
-            </button>
-          </>
-        )}
-        {showCards && decomposition.remainder.length > 0 && (
-          // The remainder is drawn by the HAND FAN ITSELF, read-only. The player
-          // reads "what I'd be left with" in exactly the layout they read their
-          // own hand in — same same-value columns, same overlap, same faces —
-          // instead of learning a second way to scan cards (owner). A plain
-          // wrapped grid looked like a different kind of object to re-parse.
-          <div className="gd-sf__remainderFan">
-            <HandFan
-              hand={sortCards(decomposition.remainder, level)}
-              level={level}
-              selected={EMPTY_SELECTION}
-              onToggle={noop}
-              glow={EMPTY_GLOW}
-              readOnly
-              label={t('game.sf.leaves')}
-            />
           </div>
-        )}
-      </div>
+        );
+      })}
     </div>
   );
 }
 
 export function SfFinderSheet(props: SfFinderSheetProps) {
-  const { result, level, expanded, onExpand, onClose, onStage } = props;
+  const { result, level, expanded, onExpand, onClose, onSendToArea, isSetAside, canSendToArea } =
+    props;
   const [page, setPage] = useState(0);
 
   // Nothing found. The press STILL gets a visible answer (owner strengthen 2 —
@@ -260,31 +207,44 @@ export function SfFinderSheet(props: SfFinderSheetProps) {
         </button>
       </div>
 
-      {/* The stepper. Big targets, and the position is stated in words as well
-          as arrows so it is never arrow-only. */}
-      <div className="gd-sf__stepper">
-        <button
-          type="button"
-          className="gd-sf__step"
-          aria-label={t('game.sf.prev')}
-          disabled={index === 0}
-          onClick={() => setPage(index - 1)}
-        >
-          ‹
-        </button>
-        <span className="gd-sf__position" role="status">
-          {t('game.sf.position', { index: index + 1, total })}
-        </span>
-        <button
-          type="button"
-          className="gd-sf__step"
-          aria-label={t('game.sf.next')}
-          disabled={index >= total - 1}
-          onClick={() => setPage(index + 1)}
-        >
-          ›
-        </button>
-      </div>
+      {/* THE PAGER. Real players did not realise several arrangements existed:
+          the old form was an arrow stepper whose position line ("way 1 of 3")
+          was small header-adjacent text, and with a single arrangement it still
+          rendered pager chrome that implied movement where there was none.
+          Now: a sentence that says how many ways there are, and one directly
+          tappable chip per way. Chips beat arrows here — any way is ONE press
+          away instead of up to five, and "which of these am I on" is answered by
+          position rather than by reading a number. The engine caps the shown
+          list at 6, so at most 6 chips ever render and they fit 342px. */}
+      {total > 1 ? (
+        <div className="gd-sf__ways">
+          <p className="gd-sf__waysLead" role="status">
+            {t('game.sf.waysLead', { total })}
+          </p>
+          <div className="gd-sf__wayChips">
+            {shown.map((_, i) => (
+              <button
+                key={i}
+                type="button"
+                className={i === index ? 'gd-sf__way gd-sf__way--on' : 'gd-sf__way'}
+                aria-current={i === index ? 'true' : undefined}
+                aria-label={t('game.sf.wayAria', { index: i + 1, total })}
+                onClick={() => setPage(i)}
+              >
+                {i + 1}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        /* ONE way: no chips, no arrows, nothing that suggests a second page
+           exists. The sentence still ANSWERS the question the chips answer, so a
+           later hand showing three chips is an increase in detail rather than a
+           surprise. */
+        <p className="gd-sf__waysLead" role="status">
+          {t('game.sf.waysOne')}
+        </p>
+      )}
 
       {/* The display cap CAN hide non-dominated arrangements, so say so and offer
           the rest — never silent truncation (research §3). It sits HERE, directly
@@ -313,7 +273,9 @@ export function SfFinderSheet(props: SfFinderSheetProps) {
         key={index}
         decomposition={current}
         level={level}
-        onStage={onStage}
+        onSendToArea={onSendToArea}
+        isSetAside={isSetAside}
+        canSendToArea={canSendToArea}
       />
     </div>
   );

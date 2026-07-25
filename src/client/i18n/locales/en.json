@@ -309,5 +309,19 @@
   "game.tag.triple": "a triple",
   "game.tag.pair": "a pair",
   "game.tag.scatter": "loose cards",
-  "game.tag.cardsLeft": "{count} left"
+  "game.tag.cardsLeft": "{count} left",
+  "game.areas.setAside": "Set aside",
+  "game.areas.setAsideAria": "Move the selected cards into a separate group",
+  "game.areas.selectAll": "Pick all of these",
+  "game.areas.putBack": "↓ Back into your hand",
+  "game.areas.moveHere": "Move here",
+  "game.areas.shelfLabel": "Set-aside group",
+  "game.sf.send": "Set aside",
+  "game.sf.sendAria": "Move this straight flush into a set-aside group",
+  "game.sf.alreadySetAside": "Already set aside",
+  "game.sf.waysLead": "{total} ways to break up this hand",
+  "game.sf.waysOne": "One way to break up this hand",
+  "game.sf.wayAria": "Way {index} of {total}",
+  "game.areas.putBackAria": "Move these cards back down into your main hand",
+  "game.areas.groupAria": "Select this set-aside group of {count} cards"
 }

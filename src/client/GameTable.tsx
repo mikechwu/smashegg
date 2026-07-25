@@ -26,7 +26,32 @@ import { DealOverlay } from './table/DealOverlay';
 import { HAND_SIZE, dealDirOrder, markerDealBeat } from './table/deal';
 import { EventFeed, FEED_LIMIT, type FeedLine } from './table/EventFeed';
 import { PlayOverlay } from './table/PlayOverlay';
-import { HandFan } from './table/HandFan';
+import { HandFan, groupHandColumns } from './table/HandFan';
+import {
+  AREA_HARD_MAX,
+  BAND_FLOOR_PX,
+  COLUMNS_PER_LINE,
+  MAIN_AREA,
+  NEW_SHELF,
+  RESERVED_BELOW_FAN_PX,
+  applyMove,
+  applyMoveAsGroup,
+  areaAllowance,
+  areaAt,
+  commitIsResolved,
+  areaCountOf,
+  moveWouldChange,
+  ratchetAllowance,
+  groupHealth,
+  reconcileAreas,
+  seamAction,
+  slotsOfGroup,
+  setAsideDestination,
+  slotsOf,
+  type HandAreas,
+  type HandCommit,
+  type SeamAction,
+} from './table/areas';
 import { InterludeOverlay } from './table/InterludeOverlay';
 import { InterludeOutcome } from './table/InterludeOutcome';
 import { SfFinderSheet } from './table/SfFinderSheet';
@@ -55,6 +80,7 @@ import {
   isCeremonyShowing,
   isRedundantPassRejection,
   landRemoteDealt,
+  comboKey,
   matchSelection,
   MAX_TIMEOUT_NOTICES,
   multisetKey,
@@ -77,7 +103,7 @@ import {
   type SelectionContext,
 } from './table/helpers';
 import { timeoutMsFor } from '../shared/timing';
-import { t } from './i18n';
+import { t, type TranslationKey } from './i18n';
 import { describeError } from './errors';
 import './table/table.css';
 
@@ -485,6 +511,15 @@ export function foldEvents(
 
 // ---------------------------------------------------------------------------
 
+/** Seam label per action. A table, not a chain of ternaries, so adding a
+ *  SeamAction without giving it a label is a TYPE error rather than a blank
+ *  button (this project's no-silent-no-op rule, enforced at compile time). */
+const SEAM_LABEL_KEY: Record<SeamAction, TranslationKey> = {
+  selectAll: 'game.areas.selectAll',
+  putBack: 'game.areas.putBack',
+  moveHere: 'game.areas.moveHere',
+};
+
 export function GameTable({ snapshot, store }: GameTableProps) {
   const heldSeats: Seat[] = [...snapshot.seats.keys()].sort((a, b) => a - b);
   const [selectedSeat, setSelectedSeat] = useState<Seat | null>(null);
@@ -494,6 +529,20 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   const processedRef = useRef(new Map<Seat, unknown>());
   const feedIdRef = useRef(0);
   const [selected, setSelected] = useState<ReadonlySet<number>>(new Set());
+  // Manual sort areas. `null` IS the never-user state (absence, not a one-area
+  // value), so a player who never makes a shelf holds null for the whole
+  // session and every branch below runs today's exact code.
+  const [areas, setAreas] = useState<HandAreas | null>(null);
+  // How many bands the vertical budget can hold. RATCHETED per hand, so it can
+  // only ever grow while a hand is played — the monotonicity that makes the
+  // offer predictable (owner decision 1).
+  const [areaAllowed, setAreaAllowed] = useState(1);
+  const handZoneRef = useRef<HTMLDivElement>(null);
+  // The slots this client last submitted, held until the resulting view lands.
+  // This is what lets the partition drop the EXACT cards that left instead of
+  // re-deriving membership by identity, which would silently move a twin
+  // between bands (docs/research/sort-areas.md §6.2).
+  const pendingCommitRef = useRef<HandCommit | null>(null);
   const [chooserOpen, setChooserOpen] = useState(false);
   const [ceremonyDone, setCeremonyDone] = useState(false);
   // Item 4: which dealNo has finished animating + how many own slots have
@@ -702,6 +751,38 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     setChooserOpen(false);
   }, [chooserKey]);
 
+  // The budget-aware allowance, measured from the fan's own position. It reads
+  // NO desk state on purpose: the desk is loud exactly when a selection exists,
+  // and a selection is the precondition for pressing "set aside", so an
+  // allowance that read loudness would refuse at the precise moment of use.
+  // The loud desk's height is RESERVED as a constant instead, which is the safe
+  // direction. Ratcheted, so it can only grow within a hand.
+  const allowanceCtxRef = useRef<string>('');
+  useIsomorphicLayoutEffect(() => {
+    const el = handZoneRef.current;
+    if (el === null || view === null || activeSeat === undefined) return;
+    const columns = groupHandColumns(
+      view.hand.map((_, i) => i),
+      view.hand,
+      view.currentLevel,
+    ).length;
+    const computed = areaAllowance({
+      fanBudgetPx: window.innerHeight - el.getBoundingClientRect().top - RESERVED_BELOW_FAN_PX,
+      bandFloorPx: BAND_FLOOR_PX,
+      columns,
+      columnsPerLine: COLUMNS_PER_LINE,
+    });
+    // The ratchet resets HERE, keyed on the arrangement context, rather than in
+    // the reconciliation effect. Two effects cannot then disagree about order:
+    // a reset written by the other effect used to land AFTER this one had
+    // already ratcheted, leaving a fresh hand stuck at 1 for its whole life
+    // (Codex UI audit, MED).
+    const key = `${activeSeat}:${view.handNo}`;
+    const fresh = allowanceCtxRef.current !== key;
+    allowanceCtxRef.current = key;
+    setAreaAllowed((prev) => (fresh ? computed : ratchetAllowance(prev, computed)));
+  }, [view?.hand, view?.handNo, view?.currentLevel, activeSeat]);
+
   // Selection survives view updates (reconcileSelection, helpers): a seat
   // switch or a fresh deal (handNo/dealNo) resets outright, a changed hand
   // remaps still-held cards by identity (a server auto-play or a tribute
@@ -726,6 +807,22 @@ export function GameTable({ snapshot, store }: GameTableProps) {
     const prev = selectionCtxRef.current;
     selectionCtxRef.current = ctx;
     setSelected((sel) => reconcileSelection(sel, prev, ctx));
+    // Areas ride the SAME context comparison as the selection.
+    //
+    // The commit is held until the hand ACTUALLY CHANGES. This effect has no
+    // dependency array — it runs on every render — and act() calls
+    // setSelected(new Set()), which re-renders immediately, long before the
+    // server's reply lands. Consuming the commit on that intermediate render
+    // threw it away and left the later, real hand change to fall back on the
+    // identity walk, silently reintroducing the twin defect this whole round
+    // exists to fix (found by the Codex UI audit, HIGH). So: consume it only
+    // when it is used, or when the arrangement context resets and it can no
+    // longer mean anything.
+    if (prev !== null && commitIsResolved(prev, ctx)) {
+      const commit = pendingCommitRef.current;
+      pendingCommitRef.current = null;
+      setAreas((current) => reconcileAreas(current, prev, ctx, commit));
+    }
 
     // The finder's held result belongs to the hand it was computed from. If that
     // hand changes AT ALL — a seat switch, a fresh deal, a play/tribute leaving,
@@ -750,6 +847,15 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // there and the settled view counts take over, so a skipped or
   // reduced-motion deal lands on the true numbers regardless of how many
   // callbacks fired.
+
+  // Gate for the create-area control. `moveWouldChange` is the single predicate
+  // every area control is offered on, so a dead press is impossible by
+  // construction rather than by review.
+  const setAsideTarget = setAsideDestination(areas, areaAllowed);
+  const setAsideWouldChange =
+    view !== null &&
+    setAsideTarget !== null &&
+    moveWouldChange(areas, view.hand.length, selected, setAsideTarget, areaAllowed);
 
   const selectionCards: Card[] = useMemo(() => {
     if (view === null) return [];
@@ -1191,6 +1297,14 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   };
 
   const act = (action: GuandanAction) => {
+    // Capture WHAT LEFT before clearing the selection. Only actions that
+    // actually remove cards carry a commit; a pass removes nothing, so it must
+    // not claim to (a stale commit would be ignored anyway — reconcileAreas
+    // checks it against the hand it was made against — but not creating one is
+    // the honest form).
+    if (view !== null && (action.type === 'play' || action.type === 'payTribute' || action.type === 'returnTribute')) {
+      pendingCommitRef.current = { slots: new Set(selected), hand: view.hand };
+    }
     if (action.type === 'pass') localPassRef.current.set(activeSeat, Date.now());
     const actionId = store.act(activeSeat, action);
     if (action.type === 'pass' && actionId !== undefined) {
@@ -1217,7 +1331,9 @@ export function GameTable({ snapshot, store }: GameTableProps) {
   // a finder bug can only mis-SUGGEST, never mis-play.
   // Twin-safe: each card claims the FIRST hand slot not already claimed, the
   // remapSelectionByIdentity idiom — two copies of 5S must take two distinct slots.
-  const stageSfGroup = (cards: readonly Card[]) => {
+  // Cards -> hand slots, first-unclaimed (twin-safe). null when any card is no
+  // longer held, which is what makes the send all-or-nothing.
+  const sfGroupSlots = (cards: readonly Card[]): Set<number> | null => {
     const next = new Set<number>();
     for (const card of cards) {
       for (let i = 0; i < view.hand.length; i += 1) {
@@ -1227,18 +1343,31 @@ export function GameTable({ snapshot, store }: GameTableProps) {
         }
       }
     }
-    // ALL OR NOTHING. A card that is no longer in hand used to be skipped and the
-    // PARTIAL selection committed anyway (audit F2) — the player would press
-    // "put in the play area" and silently get four of the five cards, which is
-    // worse than doing nothing. The closing effect above makes this near
-    // unreachable; this keeps it impossible rather than merely unlikely.
-    if (next.size !== cards.length) {
+    return next.size === cards.length ? next : null;
+  };
+
+  // Send ONE straight flush to a sort area. NOT the play desk: pulling cards
+  // aside is organizing, not committing, so nothing is staged and nothing is
+  // submitted. The sheet STAYS OPEN — each flush in an arrangement has its own
+  // send control, and closing after the first would make the second unreachable.
+  //
+  // Twin-safe: each card claims the FIRST hand slot not already claimed, the
+  // remapSelectionByIdentity idiom. ALL OR NOTHING: a card no longer in hand
+  // means the whole send is abandoned rather than a partial group moved.
+  const sendSfGroupToArea = (cards: readonly Card[]) => {
+    const slots = sfGroupSlots(cards);
+    if (slots === null) {
       setSfResult(null);
       return;
     }
-    setSelected(next);
-    setChooserOpen(false);
-    setSfResult(null);
+    const target = setAsideDestination(areas, areaAllowed);
+    if (target === null) return;
+    // applyMoveAsGroup, not applyMove: the player asked for exactly THESE cards
+    // to go aside together, so exactly those are recorded as a group. The shelf's
+    // contents are never re-inspected to work out what forms a flush.
+    setAreas((current) =>
+      applyMoveAsGroup(current, view.hand.length, slots, target, areaAllowed),
+    );
   };
 
   // During the beat's early stages the headline stays FROZEN at the ended
@@ -1341,7 +1470,7 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           round): it's a secondary per-client preference, not a primary
           action, so it no longer sits above the cards competing with them
           for the first thing the eye meets. */}
-      <div className="gd-handzone">
+      <div className="gd-handzone" ref={handZoneRef}>
         <HandFan
           hand={view.hand}
           level={view.currentLevel}
@@ -1360,6 +1489,48 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           dealOrder={dealing ? derived.dealOrder : undefined}
           hidden={holdFan || interludeShowing}
           dimUnselected={desk === 'play' && selected.size > 0}
+          areas={areas}
+          seamLabel={(shelf) => t(SEAM_LABEL_KEY[seamAction(areas, selected, shelf)])}
+          groupLabel={(g) => {
+            // Named ONLY while intact — HandFan re-checks health too, but the
+            // label source must not even be able to produce a stale claim.
+            const slots = slotsOfGroup(areas, g);
+            if (groupHealth(areas, g) !== 'intact' || slots.length === 0) return '';
+            const match = matchSelection(
+              slots.map((i) => view.hand[i]!),
+              hints ?? [],
+              view.currentLevel,
+              variant,
+            )[0];
+            return match === undefined ? '' : t(comboKey(match.decl));
+          }}
+          groupAria={(g) => t('game.areas.groupAria', { count: slotsOfGroup(areas, g).length })}
+          onGroupPress={(g) => {
+            // Select exactly this group, or clear it if it is already exactly
+            // selected. Either way the selection changes, so the press always
+            // answers.
+            const slots = slotsOfGroup(areas, g);
+            const already =
+              slots.length > 0 && slots.every((i) => selected.has(i)) && selected.size === slots.length;
+            setSelected(already ? new Set() : new Set(slots));
+          }}
+          seamAria={(shelf) =>
+            seamAction(areas, selected, shelf) === 'putBack'
+              ? t('game.areas.putBackAria')
+              : t(SEAM_LABEL_KEY[seamAction(areas, selected, shelf)])
+          }
+          onSeamPress={(shelf) => {
+            // The seam never decides what it does — seamAction does, in one
+            // place, and it is total, so every press changes something visible.
+            const action = seamAction(areas, selected, shelf);
+            if (action === 'selectAll') {
+              setSelected(new Set(slotsOf(areas, shelf)));
+              return;
+            }
+            const destination = action === 'putBack' ? MAIN_AREA : shelf;
+            setAreas((current) => applyMove(current, view.hand.length, selected, destination, areaAllowed));
+            if (action === 'putBack') setSelected(new Set());
+          }}
         />
 
         {/* The play desk — keyed by mode so the arrival into a LOUD form plays
@@ -1390,6 +1561,20 @@ export function GameTable({ snapshot, store }: GameTableProps) {
             onClearAll={() => {
               setSelected(new Set());
               setChooserOpen(false);
+            }}
+            /* The create-area control lives HERE, on the desk's stage row beside
+               one-tap clear — the placement the 390px measurements validated.
+               Both actions-row cells were refuted: a new pill in the secondary
+               column costs +36px and pushes Play below the 844 fold, and the
+               left spacer cell overflows the 342px box (the middle track's
+               min-content is 88+36+88) and CLIPS the straight-flush trigger,
+               since .gd-table is overflow-x:hidden. This row already renders
+               exactly when a selection exists and already carries a 44px pill. */
+            canSetAside={setAsideWouldChange}
+            onSetAside={() => {
+              if (setAsideTarget === null) return;
+              setAreas((current) => applyMove(current, view.hand.length, selected, setAsideTarget, areaAllowed));
+              setSelected(new Set());
             }}
           />
         )}
@@ -1507,7 +1692,17 @@ export function GameTable({ snapshot, store }: GameTableProps) {
           expanded={sfExpanded}
           onExpand={() => setSfExpanded(true)}
           onClose={() => setSfResult(null)}
-          onStage={stageSfGroup}
+          onSendToArea={sendSfGroupToArea}
+          canSendToArea={setAsideDestination(areas, areaAllowed) !== null}
+          isSetAside={(cards) => {
+            // "Already set aside" means every card of this flush sits in the
+            // SAME non-main area. Anything else (partly moved, split across
+            // shelves) is not set aside, so the control stays offered.
+            const slots = sfGroupSlots(cards);
+            if (slots === null || slots.size === 0) return false;
+            const first = areaAt(areas, [...slots][0]!);
+            return first !== MAIN_AREA && [...slots].every((i) => areaAt(areas, i) === first);
+          }}
         />
       )}
 
