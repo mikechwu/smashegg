@@ -26,6 +26,24 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 
     **Structural response, not vigilance.** `scripts/measure-fold.mjs` records `scrollY` and the document position on every run precisely so this instance cannot recur unnoticed; the true-390 iframe recipe (practice below) is the same response to the clamp instance. Prefer building the compensator's state into the measurement's OUTPUT over remembering to check for it.
 
+12. **A sample is not a property (the sibling class).** Practice 11 is about measuring the wrong QUANTITY. This one is about measuring the right quantity too few times, or while holding the deciding variable constant, and then writing the result down as a rule. Instances so far:
+    - **"without a shelf Play fits 6/6"** — recorded as "the base layout puts Play above the fold". The true rate is ~8% of deals, so a 6-deal run sees nothing on 61% of runs. Worse, the recorded spread across those 6 deals was 809.6–830.9 = **exactly one 21.3px quantum** of the fan's step function: the sample never varied the thing that decided the outcome, and the numbers said so at the time.
+    - **`markerSeat` uniformity** — the swept axis had collapsed onto a constant (also listed under 11; it belongs to both).
+    - **a `wrongGuessFor` regression loop** that claimed to cover "both config sizes" while iterating `SUDDEN_DEATH` and `BEST_OF_3`, which are both `rangeMax: 100`. It varied `suddenDeath`, which provably cannot matter to the rule, and held `rangeMax`, which is the only axis that does. Caught by its own verbose test titles, and logged rather than quietly fixed.
+    - **`ceremony.test.ts` uniformity bands** (±2.3σ over 400–500 fixed seeds) — flagged, not yet resolved; see the diagnosis question below.
+
+    **Operational rule: before writing a measured result down as a property, state the sample size and say which axis was varied — and check that it is the axis that decides the outcome.** If the varied axis cannot change the answer, the run measured nothing about the claim however many samples it took. Report a RATE with its sample size and an interval, never a bare fraction and never a binary verdict, whenever the underlying quantity is deal-, seed- or draw-dependent.
+
+    **Diagnose fixed-sample and fresh-sample failures differently — they are not the same defect.** If the seeds are literals the result is deterministic and cannot flake: what you have is a brittle threshold that will break on the next legitimate change, and the fix is to widen it or make it structural. If the sample is drawn fresh each run, a ±2.3σ band has ~2% two-tailed false positives **by construction**, and the fix is more samples or an honest interval. Settle which one it is before choosing a remedy.
+
+    **Structural response.** `scripts/measure-fold.mjs` now prints a rate with a Wilson 95% interval, refuses to conclude below a stated `MIN_DEALS` floor, and reports the observed step-function buckets — so "how often" is the artifact and a binary verdict is not available to be misquoted.
+
+13. **A claimed mitigation must be executed, not cited.** When coverage is deliberately given up somewhere on the grounds that it is held elsewhere, the "elsewhere" is a claim about code and decays exactly like a doc claim. Two rules follow, and both were paid for:
+    - **Run the mutant against the named owner before writing the citation.** In the 2026-07-26 test-quality round the e2e gave up detection of a `legalPlays` that under-generates, citing `combos.test.ts` and `generate.test.ts` as owners. Injecting the mutant showed `combos.test.ts` green at 87/87 — it tests `beats()`, a pure comparison that never consults the generator. Only `generate.test.ts` held the line. The citation was written before the check, and was wrong; the change whose purpose was removing phantom mitigations had drafted one.
+    - **Make the dependency bidirectional.** The site giving up coverage points at the owner AND the owner carries a note saying what it now also covers. A one-way comment means deleting the owner is silent; a two-way one puts the consequence in front of whoever deletes it, at that moment.
+
+    This is the same family as the phantom TTL (a doc asserting a mitigation the code did not deliver) — the difference is only that the asserted mitigation is a test rather than a runtime mechanism.
+
 ## Tool & model ladders (current)
 
 Web research runs on the built-in WebSearch/WebFetch tools, `curl` via shell for direct page/PDF fetches, and `gh api` for GitHub content. **Firecrawl is disabled as of 2026-07-13 (credit limit reached — owner instruction); state this in every research-agent prompt.** Escalate to costlier tooling only on demonstrated failure of a cheaper rung, and log the failure.
