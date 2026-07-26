@@ -361,6 +361,42 @@ describe('Guandan e2e (M3 gate)', () => {
         // Normal trick churn crossed the wire too.
         expect(result.appliedHintTypes.has('play')).toBe(true);
         expect(result.eventTypesSeen.has('trickWon')).toBe(true);
+        // IF THIS LINE IS THE ONE THAT FAILED, READ THIS BEFORE RE-RUNNING.
+        // It is a known, measured, deal-dependent red — NOT infrastructure
+        // noise, and re-running will make it pass without fixing anything.
+        //
+        // jiefeng fires from exactly one site (engine/guandan/trick.ts): a
+        // trick closing on a winner whose hand is already empty. Whether that
+        // shape ever occurs in a match is a pure function of the deal, so a
+        // match can legitimately contain none. Measured 2026-07-25 by replaying
+        // this test's exact procedure: ~1 zero-jiefeng match in 10,000 (2 in
+        // 15,000 on one sweep, 0 in 5,000 on an independent one). The low tail
+        // is smooth — of 5,000 matches, 7 had exactly one jiefeng, 23 had two,
+        // 67 had three — so zero is an ordinary tail event, not an impossible
+        // one.
+        //
+        // REPRODUCES ON (server-format seeds, verified bit-identical twice):
+        //   59UYTP:d841503cb9e99471c9196c7f335e3683  (1036 actions, 8 hands)
+        //   MB5UN3:a5783f8d8906e6fd901151f9a6dcc36a  ( 670 actions, 5 hands)
+        // On both, every sibling assertion in this block passes and only this
+        // line fails.
+        //
+        // KEPT DELIBERATELY at ~1-in-10,000 (owner decision, 2026-07-26). The
+        // assertion is TRUE of the product — jiefeng occurs in essentially
+        // every completed match — so it is a coverage sentinel, unlike the 0.9%
+        // timing red which stated a rule the product does not guarantee.
+        // Narrowing it to "jiefeng or nothing" would make it vacuous; deleting
+        // it removes the only wire witness that this event type crosses the
+        // socket at all. The rule itself is pinned deterministically in
+        // tests/unit/engine/trick.test.ts (both branches, both jiefengRecipient
+        // values, the §5.6/§9.4 invariant) and house-rules.test.ts.
+        //
+        // HONESTY NOTE on the rate: one reviewer could not reproduce the
+        // ~1-in-10,000 figure — its replay harness deadlocks in ceremonyCut —
+        // and adopted the number above rather than measuring its own. Its
+        // "keep" position therefore rests on a premise it did not independently
+        // verify. The figure that IS independently verified is the pair of
+        // seeds above, which do reproduce.
         expect(result.eventTypesSeen.has('jiefeng')).toBe(true);
         expect(result.eventTypesSeen.has('playerFinished')).toBe(true);
         expect(result.eventTypesSeen.has('handEnded')).toBe(true);

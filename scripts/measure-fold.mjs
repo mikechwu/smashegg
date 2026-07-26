@@ -1,10 +1,18 @@
-// FOLD GATE — is Play/Pass reachable without scrolling, at true 390x844?
+// FOLD GATE — HOW OFTEN does Play/Pass fall below the fold, at true 390x844?
 //
 // A REQUIRED check whenever layout changes, alongside
-// scripts/measure-fan-tap-targets.mjs. The fold has been the deciding
-// constraint for several rounds and "Play/Pass below it" is this project's
-// serious-regression class, so it gets a scripted measurement rather than an
-// ad-hoc one somebody remembers to take.
+// scripts/measure-fan-tap-targets.mjs.
+//
+// IT REPORTS A RATE, NOT A VERDICT, and that is the whole point. The question
+// was never "did any deal scroll" — the answer to that is yes, and has always
+// been yes. The fan's settled height is a step function of the dealt hand, so
+// "does Play fit" is a property of the DEAL, not of the layout. Asking it as a
+// yes/no of a 6-deal sample produced a false claim that stood for weeks.
+//
+// The owner has ACCEPTED the ~8% below-fold rate (STATUS.md, 2026-07-25), so a
+// deal that needs scrolling is NOT a failure here. What this gate now watches
+// for is a base document position above the highest KNOWN bucket, which would
+// mean the step function itself moved — that is the regression signal.
 //
 // WHY IT MEASURES DOCUMENT COORDINATES. getBoundingClientRect() is
 // VIEWPORT-relative, so a page that ScrollActionsIntoView has already scrolled
@@ -21,7 +29,24 @@
 import { chromium } from 'playwright';
 
 const BASE = process.env.FAN_SWEEP_BASE ?? 'http://localhost:5173';
-const DEALS = Number(process.env.FOLD_DEALS ?? 6);
+
+// SAMPLE SIZE, JUSTIFIED RATHER THAN INHERITED.
+//
+// This defaulted to 6, and 6 could not answer the question it was asked. The
+// base layout puts Play below the fold on ~8% of deals, so a 6-deal run sees
+// nothing on (1 - 0.08)^6 = 61% of runs — and one such run is what put the
+// false claim "the base layout puts Play above the fold" into the record.
+//
+//   n=6   miss 61%   CI on a 0/6 result:  [0.0%, 39.0%]  (says nothing)
+//   n=24  miss 14%   CI on a 2/24 result: [2.3%, 25.8%]
+//   n=40  miss  3.6% CI on a 3/40 result: [2.6%, 20.0%]
+//
+// 40 is the default: it is the smallest round number whose miss probability is
+// under 5%, i.e. the point at which a clean run is weak evidence of absence
+// rather than no evidence at all. MIN_DEALS is the floor below which this
+// script refuses to draw a conclusion in either direction.
+const DEALS = Number(process.env.FOLD_DEALS ?? 40);
+const MIN_DEALS = Number(process.env.FOLD_MIN_DEALS ?? 24);
 // The viewport is a KNOB, not a constant. It used to be hardcoded 390x844, and
 // 844 is an inner height no phone browser produces — Safari and Chrome keep
 // toolbars, so a 390x844 device reports ~664. Every geometry claim this repo
@@ -31,8 +56,20 @@ const VW = Number(process.env.FOLD_W ?? 390);
 const VH = Number(process.env.FOLD_H ?? 844);
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
+// NOTE ON PACING. POST /api/rooms is rate-limited to 15 creates / 60s per IP
+// (CREATE_LIMITER, wrangler.toml). At the old n=6 that never mattered; at the
+// n=40 this gate now needs, a straight loop trips it and the run dies mid-way
+// with an opaque WebSocket error. So the create RETRIES on 429 rather than
+// failing, and the driver reports how long it waited — a gate that cannot
+// complete its own sample size is not a gate.
 const DRIVER = `async (input) => {
-  const res = await fetch('/api/rooms', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({gameId:'guandan', config: input.config, timing: {perTurnMs: null, planningMs: null}})});
+  let res = null;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    res = await fetch('/api/rooms', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({gameId:'guandan', config: input.config, timing: {perTurnMs: null, planningMs: null}})});
+    if (res.status !== 429) break;
+    await new Promise((r) => setTimeout(r, 6000));
+  }
+  if (res === null || !res.ok) throw new Error('room create failed: ' + (res ? res.status : 'no response'));
   const { code } = await res.json();
   const tokens = []; let lastSeq = 0;
   const ws = new WebSocket('ws://' + location.host + '/api/rooms/' + code + '/ws');
@@ -146,13 +183,97 @@ for (const row of rows) {
   console.log('  ' + show('one shelf', row.shelved));
   if ((row.plain?.docBottom ?? 0) > (row.plain?.fold ?? 0)) needScroll += 1;
 }
+
+// ---------------------------------------------------------------------------
+// THE ARTIFACT IS A RATE, NOT A VERDICT.
+//
+// The question was never "did any deal scroll" but "how often". This script
+// used to print PASS/FAIL from a 6-deal run, and that is how the false claim
+// "the base layout puts Play above the fold" entered the record: at a true rate
+// near 8%, a 6-deal run sees nothing on (1-0.08)^6 = 61% of runs. It reported a
+// SAMPLE as a PROPERTY. Six deals could not have answered the question it was
+// being asked, whichever way it came out.
+// ---------------------------------------------------------------------------
+const n = rows.length;
+
+// A READING THAT DID NOT HAPPEN IS NOT A READING THAT FOUND NOTHING.
+//
+// FOLD() returns null when `.gd-actionsRow__bar button` does not match. Without
+// this guard the null flows onward harmlessly-looking: `(null?.docBottom ?? 0) >
+// (null?.fold ?? 0)` is `0 > 0` = false, so the deal counts as "fits"; the
+// bucket list comes out empty; the novel-bucket check finds nothing; and the
+// script prints NO REGRESSION and exits 0 having measured NOTHING. A selector
+// rename would produce a perfectly green run. MIN_DEALS floors the number of
+// ROWS, which is not the same as the number of MEASUREMENTS — that gap is
+// exactly the class this rewrite exists to retire, so it is closed here.
+const measured = rows.filter((r) => r.plain !== null).length;
+const shelvedMeasured = rows.filter((r) => r.shelved !== null).length;
+if (measured < n || shelvedMeasured < n) {
+  console.log(
+    `\nFAIL: ${n - measured} of ${n} base readings and ${n - shelvedMeasured} of ${n} shelf ` +
+      `readings found no action bar. The selector '.gd-actionsRow__bar button' matched nothing — ` +
+      `this run measured nothing and must not be read as a pass.`,
+  );
+  await browser.close();
+  process.exit(1);
+}
+/** Wilson score interval — honest at small n, unlike the normal approximation,
+ *  and it never runs off the [0,1] ends. */
+function wilson95(k, total) {
+  if (total === 0) return '[n/a]';
+  const p = k / total, z = 1.96, d = 1 + (z * z) / total;
+  const centre = (p + (z * z) / (2 * total)) / d;
+  const half = (z * Math.sqrt((p * (1 - p)) / total + (z * z) / (4 * total * total))) / d;
+  return `[${Math.max(0, (centre - half) * 100).toFixed(1)}%, ${Math.min(100, (centre + half) * 100).toFixed(1)}%]`;
+}
+
+const shelfScroll = rows.filter((r) => (r.shelved?.docBottom ?? 0) > (r.shelved?.fold ?? 0)).length;
+console.log(`\n--- RATE (n=${n}) ---`);
 console.log(
-  `\nWITHOUT a shelf, Play needs scrolling in ${needScroll}/${rows.length} deals.` +
-    `\nWITH one shelf: ${rows.filter((r) => (r.shelved?.docBottom ?? 0) > (r.shelved?.fold ?? 0)).length}/${rows.length}.`,
+  `WITHOUT a shelf, Play needs scrolling in ${needScroll}/${n} = ` +
+    `${n ? ((needScroll / n) * 100).toFixed(1) : '0.0'}%   95% CI ${wilson95(needScroll, n)}`,
 );
-// The gate fails on the BASE layout only: a shelf is opt-in, and whether its
-// cost is acceptable is an owner decision recorded in STATUS, not something
-// this script should silently ratify.
-console.log(needScroll === 0 ? 'PASS: the base layout puts Play above the fold' : 'FAIL: the BASE layout needs scrolling');
+console.log(
+  `WITH one shelf:                          ${shelfScroll}/${n} = ` +
+    `${n ? ((shelfScroll / n) * 100).toFixed(1) : '0.0'}%   95% CI ${wilson95(shelfScroll, n)}`,
+);
+
+// The fan's settled height is a STEP function of the dealt hand — every extra
+// copy in a line's tallest column costs 21.3px — so the base positions fall
+// into buckets. The bucket list is the real signal: a NEW bucket above the
+// known maximum means the step function itself moved, which is a regression.
+// A changed rate within known buckets is just a different draw.
+const buckets = [...new Set(rows.map((r) => r.plain?.docBottom).filter((x) => x !== undefined))].sort(
+  (a, b) => a - b,
+);
+// Observed across n=16, n=24 and n=40 runs on 2026-07-25/26. A bucket BELOW
+// this range is a better deal, not a regression — only the top matters, which
+// is why the check below is one-sided.
+const KNOWN_BUCKETS = [736.9, 758.1, 767.1, 788.4, 809.6, 830.9, 852.2];
+console.log(`base-layout document positions observed: ${buckets.join(' / ')}`);
+console.log(`known buckets (n=80 cumulative, 2026-07-26): ${KNOWN_BUCKETS.join(' / ')}  (fold 844)`);
+const fresh = buckets.filter((b) => !KNOWN_BUCKETS.some((k) => Math.abs(k - b) < 0.5));
+if (fresh.length > 0) console.log(`NEW bucket(s) not previously recorded: ${fresh.join(', ')}`);
+const KNOWN_MAX = 852.2;
+const novel = buckets.filter((b) => b > KNOWN_MAX + 0.5);
+
+if (n < MIN_DEALS) {
+  console.log(
+    `\nINCONCLUSIVE: n=${n} is below the ${MIN_DEALS}-deal floor this gate needs to say anything ` +
+      `about a rate near 8% (at n=6 the miss probability is 61%). Re-run with FOLD_DEALS>=${MIN_DEALS}.`,
+  );
+  process.exit(2);
+}
+if (novel.length > 0) {
+  console.log(
+    `\nREGRESSION: base position(s) ${novel.join(', ')} exceed the known maximum ${KNOWN_MAX}. ` +
+      `The fan's step function has moved — this is the signal this gate exists to catch.`,
+  );
+  process.exit(1);
+}
+console.log(
+  `\nNO REGRESSION: every base position falls in a known bucket. The ~8% below-fold rate is the ` +
+    `ACCEPTED state of the product (owner decision 2026-07-25), not a failure — see STATUS.md. ` +
+    `Read the rate above; do not read this line as "the base layout fits", which is false.`,
+);
 await browser.close();
-process.exit(needScroll === 0 ? 0 : 1);

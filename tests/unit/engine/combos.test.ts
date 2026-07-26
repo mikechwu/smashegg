@@ -188,6 +188,20 @@ describe('§3 table — beats keys per type', () => {
     expect(beats(tube('A'), plate('A'), '2', cfg)).toBe(false);
   });
 
+  // This owns the beats-RELATION half of "a follower holding a bomb is never
+  // forced to pass": whether a bomb outranks a single is decided here.
+  //
+  // It does NOT own the GENERATOR half, and the distinction was checked rather
+  // than assumed. Injecting a `legalPlays` that drops bombs when answering a
+  // non-bomb leaves this entire file green (87/87) — `beats()` is a pure
+  // comparison and never consults the generator. The generator half is owned by
+  // tests/unit/engine/generate.test.ts ("a follower holding a BOMB is never
+  // forced to pass against a single" and "following filter: only beating
+  // projections are generated"), both of which DO go red under that mutant.
+  //
+  // Recorded because an earlier draft of this comment claimed this test owned
+  // the mutant outright. It does not, and stating a mitigation the code does not
+  // deliver is the defect class this round exists to remove.
   it('§3.9/§3.10: bombs beat every non-bomb; non-bombs never beat bombs', () => {
     expect(beats(bomb(4, '2'), jokerSingle('BJ'), '5', cfg)).toBe(true);
     expect(beats(bomb(4, '2'), straight('A'), '5', cfg)).toBe(true);

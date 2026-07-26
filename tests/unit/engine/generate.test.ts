@@ -321,6 +321,35 @@ describe('legalActionsFor / defaultPlayAction (§5.2/§5.3, game.ts defaultActio
     expect(canBeat.filter((a) => a.type === 'play').length).toBeGreaterThan(0);
   });
 
+  // COVERAGE THIS TEST NOW ALSO CARRIES — do not delete or weaken it without
+  // reading this. tests/e2e/timing.e2e.test.ts used to detect a `legalPlays`
+  // that under-generates against a single — a follower holding a bomb being
+  // told it has no legal play — on ~28% of deals, purely as a side effect of
+  // leading a level-rank single. That lead caused a 0.9%-per-run CI red and was
+  // changed to the lowest single, which deliberately gave up that detection on
+  // the grounds that THIS FILE owns the mutant deterministically.
+  //
+  // Verified rather than asserted: injecting that mutant turns this test red
+  // ("the bomb is offered as a legal answer: expected 0 to be greater than 0")
+  // and also the sibling "following filter" test. combos.test.ts, which an
+  // earlier draft named as an owner, stays fully green under it — `beats()` is
+  // a pure comparison and never consults the generator. So the compensation
+  // lives here, and only here.
+  it('a follower holding a BOMB is never forced to pass against a single (§3.9 through the generator)', () => {
+    const fourNines = ['9S', '9D', '9C', '9H'] as const;
+    const actions = legalActionsFor([...fourNines], single('A'), false, '2', cfg);
+    const plays = actions.filter((a) => a.type === 'play');
+    expect(plays.length, 'the bomb is offered as a legal answer').toBeGreaterThan(0);
+    expect(
+      plays.some((a) => a.type === 'play' && a.decl?.type === 'bomb'),
+      'and it is offered AS a bomb',
+    ).toBe(true);
+    expect(isForcedPass([...fourNines], single('A'), false, '2', cfg)).toBe(false);
+    // The same hand with the bomb broken up really IS forced, so the assertion
+    // above is discriminating rather than trivially true of any hand.
+    expect(isForcedPass(['9S', '8D', '7C', '6H'], single('A'), false, '2', cfg)).toBe(true);
+  });
+
   it('auto-pass round: isForcedPass ⇔ pass is the only legal action (following + no beating play)', () => {
     // The pure "no legal play" judgement — the single source of truth the DO's
     // timingClass and the client view both read; never re-derived client-side.
