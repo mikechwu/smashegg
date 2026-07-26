@@ -317,8 +317,31 @@ Frequency, recomputed independently over 200,000 real double-deck deals
 roughly one deal in fourteen with **no shelf open** — not only for the opt-in
 shelf whose scrolling cost the owner accepted. `ScrollActionsIntoView` still
 brings it into view, so the button is reachable; what is false is the claim
-that the base layout fits. Whether ~7% is acceptable, or the base layout needs
-the height back, is an owner call and is NOT decided here.
+that the base layout fits.
+
+#### OWNER DECISION (2026-07-25): ~7% is ACCEPTED, on condition it is noted
+
+The owner accepted the ~7% rate rather than reclaiming height, explicitly
+*"while clearly noted"*. So it is noted here, and this is the note:
+
+- **Play/Pass is below the fold on ~7% of deals with no shelf open**, at true
+  390x844. It is reachable only because `ScrollActionsIntoView` scrolls to it.
+  This is the accepted state of the product, not an outstanding bug.
+- **The claim it replaces is retired.** "The base layout puts Play above the
+  fold" is false and must not be re-asserted. `scripts/measure-fold.mjs` still
+  prints `PASS: the base layout puts Play above the fold` on a clean run and
+  exits non-zero otherwise — so **a FAIL from that script is now EXPECTED at a
+  rate of ~37% per 6-deal run and does not by itself indicate a regression.**
+  Read its per-deal document positions, not its exit code: the signal to watch
+  is a base position ABOVE the 852.2 bucket, which would mean the step function
+  itself changed.
+- **At phone heights this understates it.** At innerHeight 659 Play sits at
+  document ~830 against a 659 fold before any shelf exists, so below-the-fold
+  is the normal case there, not a 7% case. Same accepted resolution: the page
+  scrolls to it.
+- Anything that ADDS height above or below the fan spends a budget that is
+  already overdrawn on ~7% of deals. That is the number to weigh a future
+  layout change against.
 
 ### B. The tap-target sweep measures the group bar ZERO times — CONFIRMED
 
