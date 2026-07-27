@@ -2,7 +2,13 @@
 
 **Date: 2026-07-27.** Supersedes the phone half of the fold metric; the desktop half of G-FOLD stands.
 
-**Status: D1 RULED (§8); the span is FULLY DERIVED (§9).** Sections 1–7 are round 1 and
+**Status: D1 RULED (§8); the span is derived (§9); §9's RATES ARE WITHDRAWN and corrected in §10.**
+
+> **READ §10 FIRST.** Sections 9.2–9.4 contain numbers that later measurement
+> refuted: the 13.14% rate, the whole modelled distribution table, the desktop rows,
+> and the claim that "the 20.3px cannot be found in spacing". They are kept, struck,
+> for provenance — decisions were taken against them — but none of them should be
+> quoted. Sections 1–7 are round 1 and
 are kept as written. **Read §8 before quoting any number from §4 or §5: the round-1 figures were
 measured with no cards staged, which is not the state a player decides in, and the corrected staged
 figures change the verdict at 390×664 from +55.0px of slack to −20.3px.**
@@ -347,6 +353,9 @@ structural case is **170.4px** taller than anything the sample reached.
 subset of the 108-card shoe (12 non-level ranks × 8, level class × 8, SJ × 2, BJ × 2 = 15 classes).
 Each deal is scored at its **taller sort ordering**, since the player controls that.
 
+> **THIS TABLE IS WITHDRAWN** (see §10.1). Every share below is the max-over-sort-orderings
+> figure, which is right for a bound and wrong for a rate; the measured shares are in §10.3.
+
 | fanHeight | share | P(≥) |
 |---|---|---|
 | 252.1px | 16.97% | 99.27% |
@@ -373,11 +382,17 @@ the product default is `TIMING_PRESETS.standard` (45s/90s). A timed room renders
 bar: **+8.0px of desk** (deskHeight ≤ **156.5px**, not 148.5px). That 8px moves the threshold across
 a lattice step.
 
-| inner | FOLLOWING, timed (default) | FOLLOWING, untimed | LEADING | structural worst slack |
-|---|---|---|---|---|
-| **390×664** | **13.14% — 1 deal in 8** | 2.50% (1 in 40) | 0% | −156.2px |
-| 390×748 | <0.01% (1 in 33,333) | <0.01% | 0% | −72.2px |
-| 1366×681 | 2.50% (1 in 40) | 2.50% | 0% | −139.2px |
+> **THIS TABLE IS WITHDRAWN** (see §10.1) and is kept only for provenance. Its rates are the
+> max-over-sort-orderings ones; its desktop row uses 390-width geometry; and its
+> `structural worst slack` column is deleted outright — the 465.1px case it reported needs two
+> value classes at all 8 copies in one 27-card hand, **1 in 5.0 billion**, and sitting beside
+> the rates it anchored the remedy sizing twice. Corrected figures: §10.2 and §10.3.
+
+| inner | FOLLOWING, timed (default) | FOLLOWING, untimed | LEADING |
+|---|---|---|---|
+| **390×664** | ~~13.14%~~ → **measured 9.17% [5.2%, 15.7%]** | 2.50% (1 in 40) | 0% |
+| 390×748 | <0.01% (1 in 33,333) | <0.01% | 0% |
+| 1366×681 | withdrawn (390-width geometry) | withdrawn | 0% |
 
 ### 9.4 There is no cheap 20px
 
@@ -404,3 +419,84 @@ candidate chips still grow the desk by **0px**. The assumption is now a measurem
   slack. Against the staged, timed follow-state figures the deficit is larger; the "same quantity,
   new currency" observation stands but the number should not be quoted at 82px.
 - **§8.1's 1366×681 note** used the untimed desk. The timed follow-state rate there is 2.50%.
+
+---
+
+## 10. Round 4 (2026-07-27, W9–W15) — what §9 got wrong
+
+### 10.1 WITHDRAWN from §9
+
+| withdrawn | why | replacement |
+|---|---|---|
+| **13.14%** infeasible at 390×664 | the model scored each deal at the **taller of its two sort orderings** — right for a bound, wrong for a rate | **measured 9.17% [5.2%, 15.7%]**, n=120 |
+| §9.2's whole distribution table | same cause: every bin share is the max-over-orderings one | measured shares in §10.3 |
+| the **desktop rows** of §9.3 | computed with 390-width geometry (card 73.5, step 21.3, capacity 9) applied to 1366×681, where capacity is actually **18** | withdrawn pending re-measurement |
+| the **`structural worst slack`** column | anchored remedy sizing twice; the 465.1px case needs two value classes at all 8 copies in one 27-card hand — **1 in 5.0 billion** (2.0×10⁻¹⁰), not the "<1 in 200,000" the simulation could bound | deleted; use the marginal bin |
+| **"the 20.3px cannot be found in spacing"** (§9.4) | 20.3px was the deficit of the WORST OBSERVED hand at n=24 — a rare event. The deficit that carries the failure mass is **7.1px** | §10.2 |
+
+### 10.2 The failure is one lattice bin, and it is 7.1px deep
+
+With deskH = 156.5 (timed, staged) and K = 198.6 (following), `slack = 308.9 − fanH`:
+
+| bin | slack | share of deals | failures observed |
+|---|---|---|---|
+| 294.7 | **+14.2** | 20.0% | feasible |
+| **316.0** | **−7.1** | 8.3% | **10 of 11** |
+| 337.3 | −28.4 | 0.8% | 1 of 11 |
+
+Verified against the raw log: all 11 infeasible deals are exactly the deals at fanH
+316.0 (ten, slack −7) and 337.3 (one, slack −28.3). So **7.1px removes 91% of the
+failure mass and 28.4px removes all of it** — against §9.4's framing, which priced the
+remedy against a 1-in-120 hand. That was the same bound-versus-rate error the model
+made, applied to the remedy side.
+
+### 10.3 The remedy, priced against the marginal bin
+
+**The lattice makes intermediate recovery worthless.** Between step boundaries extra
+pixels buy nothing: 25px of spacing scores exactly what 8px scores, because the next
+bin is not reached until 337.3.
+
+| recovery | threshold | infeasible (model) | margin to the nearest bin |
+|---|---|---|---|
+| none | 308.9 | 7.74% | — |
+| seat-plate band, ~8px | 316.9 | **1.35%** | **0.9px** |
+| fan→desk 10px + desk→actions 15px | 333.9 | 1.35% | 17.9px, but collapses Play/Pass onto the desk |
+| both, 33px | 341.9 | 0.16% | 4.6px |
+| **card scale to the 2.75rem floor (cardW 44)** | **318.6** | **0.01%** | **4.8px** |
+
+**Card scale is the only lever with margin that does not remove anything.** `fanH` is
+linear in `cardW` with coefficient `2·aspect + 0.42·(d₁+d₂−2)` — 4.58 px/px at the
+252.1 bin, 5.84 at 316.0 — so the 6.7px of travel to the floor saves **30.7px** and
+**39.1px** respectively. It also shrinks the desk's staged card row (threshold
++9.7px) and raises per-line capacity from 9 to **10**, which changes the distribution
+rather than just shifting it. **cardW 47 — a 7.3% reduction — already reaches 0.16%**,
+beating the full 33px of spacing recovery.
+
+**The 8px band alone is not enough**, despite removing 91% of failures: 0.9px of
+margin is less than ordinary text-metric variation, and an en-locale title that wraps
+costs 27px outright.
+
+### 10.4 Sort order is a population, not a parameter
+
+The product default is **ascending** (`readHandSortDescending` returns true only when
+localStorage holds `'desc'` — `GameTable.tsx:201`), and the driver rendered that. The
+axis registry recorded `descending`, and **every driver copied the error**, so each
+one matched the wrong default and the justification rule never fired. A registry with
+a wrong default silently excuses every driver that shares it.
+
+Modelled: ascending **7.65%**, descending **9.28%**. The withdrawn 13.14% is not
+meaningless once corrected — it is P(at least one ordering fails), i.e. the share of
+deals where the player's sort choice *decides* feasibility. That is **~5.5% of deals**, and whether the toggle is a
+discoverable recovery affordance or an accident is a design question, not a
+measurement.
+
+### 10.5 Corrections to the round-3 wording
+
+"7.65% is consistent with the measured 9.17%" rested on an interval, [5.2%, 15.7%],
+wide enough to also accept the 13.14% that was rejected. **The defensible claim is the
+distribution match, not the rate match** — and the distribution match is on the
+discovery sample, so it is a fit, not a validation. A held-out test is required before
+the single-ordering model is treated as confirmed.
+
+The residual after any remedy must be reported as a bound: at n=120, 1 failure has a
+95% upper bound near **4.6%**, so "0.83%" is not a resolved number.

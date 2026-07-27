@@ -52,8 +52,8 @@ export const AXES = {
     note: 'A set-aside shelf costs ~137px of span. Opening one is a deliberate player action, so "none" is the default state, not the only one worth measuring.',
   },
   handSort: {
-    productDefault: 'descending',
-    note: 'The player toggles it. Reversing column order can move the deepest column between fan lines, which changes fanHeight — so a bound must hold at the TALLER of the two orderings.',
+    productDefault: 'ascending',
+    note: 'The player toggles it; a fresh player is ASCENDING (readHandSortDescending returns true only when localStorage holds "desc" — GameTable.tsx:201). Reversing column order moves the deepest column between fan lines, so it changes fanHeight: measured, the two orderings differ by 7.65% vs 9.28% infeasible at 390x664. A BOUND must hold at the taller ordering; a RATE must use the rendered one, and conflating those was the fan model\'s error.',
   },
   manualAreas: {
     productDefault: 'none',

@@ -56,7 +56,7 @@ export const AXES_PINNED = {
   locale: { value: 'zh-Hant' },
   roomTiming: { value: 'standard 45s/90s' },
   shelf: { value: 'none unless VFM_SHELF=1' },
-  handSort: { value: 'descending' },
+  handSort: { value: 'ascending' },
   manualAreas: { value: 'none' },
   leadOrFollow: { value: 'following only', justification: 'the leading population carries 132.5px more slack and essentially cannot fail; pooling would understate the rate a following player meets' },
   turnDecidability: { value: 'decidable turns only', justification: 'a forced-pass turn has no decision AND renders no countdown bar, so it would record the untimed desk under the timed label' },

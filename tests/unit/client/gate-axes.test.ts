@@ -127,3 +127,88 @@ describe('every gate declares its pinned value for every registered axis', () =>
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// THE REGISTRY IS DERIVED FROM THE PRODUCT, NOT MAINTAINED BY HAND.
+//
+// A hand-written axis list is "a list someone must remember to update" — the exact
+// phrase this project used to condemn the theme-coverage test. And it failed on its
+// first day in a way the existing checks could not see: `handSort` was registered
+// with productDefault 'descending' while `readHandSortDescending` (GameTable.tsx:201)
+// returns true only when localStorage holds 'desc', so a fresh player is ASCENDING.
+//
+// The consequence was worse than a wrong note. Every driver ALSO declared
+// 'descending', so each one MATCHED the wrong default and the justification rule
+// never fired — a registry with a wrong default silently excuses every driver that
+// shares the error. So the defaults are cross-checked against the code that
+// implements them, and the axis SET is derived from the product's own persistence
+// points rather than from memory.
+// ---------------------------------------------------------------------------
+describe('the registry is derived from the product surface', () => {
+  const clientSrc = (rel: string): string =>
+    readFileSync(new URL(`../../../src/client/${rel}`, import.meta.url), 'utf8');
+
+  /** Every persisted player PREFERENCE key the client writes. Room tokens are
+   *  excluded: they are session state, not a setting that changes layout. */
+  function persistedPreferenceKeys(): string[] {
+    const files = ['Lobby.tsx', 'GameTable.tsx', 'table/theme.ts', 'i18n/index.ts'];
+    const keys: string[] = [];
+    for (const f of files) {
+      for (const m of clientSrc(f).matchAll(/const \w*STORAGE_KEY = '([^']+)'/g)) keys.push(m[1]!);
+    }
+    return [...new Set(keys)];
+  }
+
+  it('finds the preference keys it is going to check (not vacuous)', () => {
+    const keys = persistedPreferenceKeys();
+    expect(keys.length, 'the client persists player preferences').toBeGreaterThanOrEqual(3);
+    expect(keys, 'the hand sort preference is one of them').toContain('pref:handSort');
+  });
+
+  it('every persisted player preference maps to a registered axis', () => {
+    // The map is explicit: a new preference must be TRIAGED, and a preference that
+    // genuinely cannot move the layout is recorded as such rather than ignored.
+    const MAPPING: Record<string, string | null> = {
+      'pref:handSort': 'handSort',
+      'pref:deckTheme': 'deckTheme',
+      locale: 'locale',
+      'pref:playerName': null, // a name string; cannot change any measured geometry
+    };
+    for (const key of persistedPreferenceKeys()) {
+      expect(
+        Object.prototype.hasOwnProperty.call(MAPPING, key),
+        `the client persists "${key}" but this test does not know whether it is a ` +
+          `measurement axis. Add it to MAPPING — pointing at a registered axis, or at ` +
+          `null with a reason — so a new player-facing toggle cannot appear unregistered.`,
+      ).toBe(true);
+      const axis = MAPPING[key];
+      if (axis === null) continue;
+      expect(AXIS_NAMES, `"${key}" maps to axis "${axis}", which must be registered`).toContain(axis);
+    }
+  });
+
+  it("the registry's product defaults match the code that implements them", () => {
+    // handSort: false unless the stored value is exactly 'desc'.
+    const gameTable = clientSrc('GameTable.tsx');
+    const readsDesc = /getItem\(HAND_SORT_STORAGE_KEY\) === 'desc'/.test(gameTable);
+    expect(readsDesc, 'the sort default is derived from a === comparison against "desc"').toBe(true);
+    expect(
+      AXES.get('handSort')!.productDefault,
+      'a fresh player has NOTHING stored, so the comparison is false and the default is ASCENDING. ' +
+        'This was registered as "descending" and every driver copied the error, so the ' +
+        'justification rule never fired.',
+    ).toBe('ascending');
+
+    // roomTiming: whatever DEFAULT_ROOM_TIMING points at.
+    const timing = readFileSync(
+      new URL('../../../src/shared/timing.ts', import.meta.url),
+      'utf8',
+    );
+    const defaultPreset = timing.match(/DEFAULT_ROOM_TIMING: RoomTiming = TIMING_PRESETS\.(\w+)/)?.[1];
+    expect(defaultPreset, 'DEFAULT_ROOM_TIMING names a preset').toBeTruthy();
+    expect(
+      AXES.get('roomTiming')!.productDefault,
+      `src/shared/timing.ts sets the default to TIMING_PRESETS.${defaultPreset}`,
+    ).toBe(defaultPreset);
+  });
+});

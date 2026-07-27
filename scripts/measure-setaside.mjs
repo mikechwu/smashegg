@@ -67,7 +67,7 @@ export const AXES_PINNED = {
   locale: { value: 'zh-Hant' },
   roomTiming: { value: 'UNTIMED', justification: 'PREDATES the timing finding; the desk height it measures IS timing-dependent, so this is a known gap' },
   shelf: { value: 'the swept axis', justification: 'this gate exists to ask whether the set-aside CONTROL is reachable at all, so the shelf state is the thing under test rather than a held parameter' },
-  handSort: { value: 'descending' },
+  handSort: { value: 'ascending' },
   manualAreas: { value: 'none' },
   leadOrFollow: { value: 'both' },
   turnDecidability: { value: 'both' },

@@ -1,5 +1,19 @@
 # Pre-registration — validating the fan-height model (W1)
 
+> **OUTCOME, appended 2026-07-27 — the text below is UNCHANGED and must stay so.**
+> A pre-registration is only worth anything if it is immutable, so this banner is
+> added above it rather than edited into it.
+>
+> **H0 (2.50%) REJECTED** — measured 11/120 = 9.17% [5.2%, 15.7%], against a
+> pre-registered cut of 8. The timing correction is real.
+> **H1 (13.14%) survived the rate test and was rejected by the DISTRIBUTION test**,
+> exactly as this document predicted the load-bearing test would be: 252.1px was
+> 30.8% observed against 17.0% predicted, 294.7px 20.0% against 30.5%.
+> **Diagnosis:** the model scored every deal at the taller of its two sort
+> orderings — correct for a bound, wrong for a rate. Corrected: ~7.65%.
+> **The diagnosis is NOT covered by this pre-registration** and needs a held-out
+> test before the single-ordering model is treated as confirmed.
+
 **Written 2026-07-27, BEFORE the measurement was run.** Every threshold below was
 fixed in this file and committed before `scripts/validate-fan-model.mjs` produced a
 single number. A threshold chosen after seeing the data is not a gate.

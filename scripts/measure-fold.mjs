@@ -114,7 +114,7 @@ export const AXES_PINNED = {
   locale: { value: 'zh-Hant' },
   roomTiming: { value: 'UNTIMED', justification: 'PREDATES the timing finding; this gate is VOID for the phone anyway and survives only for desktop' },
   shelf: { value: 'none and one-shelf, both measured' },
-  handSort: { value: 'descending' },
+  handSort: { value: 'ascending' },
   manualAreas: { value: 'none' },
   leadOrFollow: { value: 'both' },
   turnDecidability: { value: 'both' },

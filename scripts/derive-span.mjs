@@ -76,7 +76,7 @@ export const AXES_PINNED = {
   locale: { value: 'zh-Hant' },
   roomTiming: { value: 'SPAN_TIMING, default UNTIMED', justification: 'the untimed case is the CONTROL for the +8.0px the timed desk adds; both are measured and reported' },
   shelf: { value: 'none' },
-  handSort: { value: 'descending' },
+  handSort: { value: 'ascending' },
   manualAreas: { value: 'none' },
   leadOrFollow: { value: 'both, split by well presence', justification: 'the split IS this script\'s finding — K differs by 132.5px between them' },
   turnDecidability: { value: 'both' },

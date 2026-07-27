@@ -78,15 +78,26 @@ const MIN_DEALS = Number(process.env.SIM_MIN_DEALS ?? 12);
 const THEME = process.env.SIM_THEME ?? 'lacquer';
 // Whether to open a set-aside shelf as the second, worst-realistic state.
 const SHELF = process.env.SIM_SHELF !== '0';
+// ROOM TIMING — now the PRODUCT DEFAULT, not the convenient one. This gate was
+// pinned UNTIMED, so G-SIM could not detect a regression in the configuration the
+// product actually ships: a timed room renders the desk countdown bar, +8.0px of
+// desk, which crosses a 21.3px lattice step and moved the measured failure rate
+// from 1-in-40 to ~1-in-11. Recording that as a "justified deviation" is precisely
+// what practice 26 says is not a fix, so the default is flipped and every recorded
+// baseline is re-measured against it.
+const TIMED = process.env.SIM_TIMING !== 'untimed';
+const TIMING = TIMED
+  ? { perTurnMs: 45000, planningMs: 90000, autoPassNoPlay: true }
+  : { perTurnMs: null, planningMs: null };
 
 export const AXES_PINNED = {
   viewportWidth: { value: 'SIM_W (required)' },
   viewportHeight: { value: 'SIM_H (required)' },
   deckTheme: { value: 'SIM_THEME, default lacquer' },
   locale: { value: 'zh-Hant' },
-  roomTiming: { value: 'UNTIMED', justification: 'PREDATES the timing finding and is a KNOWN GAP: the product default is the standard preset, whose countdown bar adds 8.0px of desk. This gate has not yet been re-run timed' },
+  roomTiming: { value: 'standard 45s/90s (the product default)' },
   shelf: { value: 'none and one-shelf, both measured' },
-  handSort: { value: 'descending' },
+  handSort: { value: 'ascending' },
   manualAreas: { value: 'none' },
   leadOrFollow: { value: 'both, reported pooled', justification: 'the per-profile table pools them; the split lives in fan-height-distribution.mjs and validate-fan-model.mjs' },
   turnDecidability: { value: 'both', justification: 'stops at seat 0 first hints regardless of whether a play is available' },
@@ -101,7 +112,7 @@ const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","c
 const DRIVER = `async (input) => {
   let res = null;
   for (let attempt = 0; attempt < 12; attempt++) {
-    res = await fetch('/api/rooms', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({gameId:'guandan', config: input.config, timing: {perTurnMs: null, planningMs: null}})});
+    res = await fetch('/api/rooms', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({gameId:'guandan', config: input.config, timing: ${JSON.stringify(TIMING)}})});
     if (res.status !== 429) break;
     await new Promise((r) => setTimeout(r, 6000));
   }
@@ -149,7 +160,10 @@ console.log(
   `    INNER viewport; browser chrome EXCLUDED. A device whose SCREEN is ` +
     `${VW}x${VH} presents ~90-120px less inner height than this and is therefore WORSE.`,
 );
-console.log(`    deck theme: ${THEME} | locale: zh-Hant | varied: deal only | n=${DEALS}`);
+console.log(
+  `    deck theme: ${THEME} | locale: zh-Hant | sort: ascending (product default) | ` +
+    `timing: ${TIMED ? '45s/90s standard, the PRODUCT DEFAULT' : 'UNTIMED (not the default)'} | n=${DEALS}`,
+);
 console.log(
   `    Each deal probed at the SETTLED scroll (what the player sees), at scrollY=0\n` +
     `    (what the auto-scroll traded away), and with ONE CARD STAGED — the state the\n` +

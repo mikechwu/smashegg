@@ -69,7 +69,7 @@ export const AXES_PINNED = {
   locale: { value: 'zh-Hant' },
   roomTiming: { value: 'UNTIMED', justification: 'the desk is not in this sweep\'s hit-test scope' },
   shelf: { value: 'none' },
-  handSort: { value: 'descending' },
+  handSort: { value: 'ascending' },
   manualAreas: { value: 'none' },
   leadOrFollow: { value: 'both' },
   turnDecidability: { value: 'both' },

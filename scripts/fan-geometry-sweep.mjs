@@ -50,7 +50,7 @@ export const AXES_PINNED = {
   locale: { value: 'zh-Hant' },
   roomTiming: { value: 'standard 45s/90s' },
   shelf: { value: 'none' },
-  handSort: { value: 'descending' },
+  handSort: { value: 'ascending' },
   manualAreas: { value: 'none' },
   leadOrFollow: { value: 'both', justification: 'the well is not a term in the fan\'s geometry' },
   turnDecidability: { value: 'both' },

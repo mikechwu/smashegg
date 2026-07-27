@@ -65,7 +65,7 @@ export const AXES_PINNED = {
   locale: { value: 'zh-Hant' },
   roomTiming: { value: 'UNTIMED', justification: 'PREDATES the timing finding; containment is horizontal and the countdown bar is vertical, so it cannot reach the result' },
   shelf: { value: 'none and one-shelf, both measured' },
-  handSort: { value: 'descending' },
+  handSort: { value: 'ascending' },
   manualAreas: { value: 'none' },
   leadOrFollow: { value: 'both' },
   turnDecidability: { value: 'both' },

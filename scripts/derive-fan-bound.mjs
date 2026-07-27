@@ -52,7 +52,7 @@ export const AXES_PINNED = {
   locale: { value: 'zh-Hant' },
   roomTiming: { value: 'UNTIMED', justification: 'this script measures the FAN only; the desk is not a term in what it derives, so the countdown bar cannot reach its result' },
   shelf: { value: 'none' },
-  handSort: { value: 'descending' },
+  handSort: { value: 'ascending' },
   manualAreas: { value: 'none' },
   leadOrFollow: { value: 'both', justification: 'the trick well is not a term in the fan\'s own height' },
   turnDecidability: { value: 'both' },
