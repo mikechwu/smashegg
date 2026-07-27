@@ -71,27 +71,31 @@ const MIN_DEALS = Number(process.env.FOLD_MIN_DEALS ?? 24);
 // theme it measured. A fold conclusion that does not name its theme is scoped to
 // one theme whether or not it says so.
 const THEME = process.env.FOLD_THEME ?? 'lacquer';
-const VW = Number(process.env.FOLD_W ?? 390);
-const VH = Number(process.env.FOLD_H ?? 844);
-// A LIVE CONTRADICTION, CLOSED. The comment above has said since 2026-07-25 that
-// 844 is an inner height no phone browser produces — and the default on the line
-// above stayed 844, so every phone baseline this project recorded was measured
-// at it anyway. Measured 2026-07-27: at a real 390x664 or 390x748, Play/Pass is
-// below the fold at EVERY pile depth, including the shallowest. The "~8%
-// accepted baseline" is an artifact of the fictional height; the real rate is
-// 100%, and ScrollActionsIntoView is what makes the product usable there.
-// The default is left at 844 ONLY so the recorded baselines remain comparable
-// until the owner re-decides; running here without choosing a height now says so.
-const KNOWN_FICTIONAL = new Set([844]);
-if (KNOWN_FICTIONAL.has(VH) && process.env.FOLD_H === undefined) {
+// NO DEFAULT. A known-wrong default plus a warning IS this round's failure mode:
+// the comment above has said since 2026-07-25 that 844 is a height no phone
+// presents, and the default stayed 844 for weeks anyway, steering every phone
+// baseline at a fiction. A warning above a wrong default is the weakest possible
+// response — so there is no value to inherit. Every recorded figure names the
+// height it used, which is what keeps the history interpretable.
+//   phone, iOS Safari on a 390x844 device: ~664 with toolbars, ~748 minimized.
+//   844 itself is the SCREEN size and no browser presents it.
+if (process.env.FOLD_W === undefined || process.env.FOLD_H === undefined) {
   console.log(
-    `\n!! WARNING: defaulting to inner height ${VH}, which NO PHONE BROWSER PRESENTS.\n` +
-      '   iOS Safari on a 390x844 device reports ~664 (toolbars) to ~748 (minimized).\n' +
-      '   At those heights Play is below the fold at EVERY pile depth — the rate is\n' +
-      '   100%, not ~8%. Set FOLD_H explicitly. This default exists only to keep the\n' +
-      '   historical baselines comparable, and it measures a viewport nobody has.\n',
+    '\nFOLD_W and FOLD_H are REQUIRED — there is deliberately no default.\n\n' +
+      '  A fold rate is meaningless without the INNER viewport it was measured at,\n' +
+      '  and this gate previously defaulted to 390x844, which is a phone SCREEN\n' +
+      '  size that no browser ever presents. Measured 2026-07-27: at a real\n' +
+      '  390x664 or 390x748, Play is below the fold at EVERY pile depth — the rate\n' +
+      '  is 100%, not the ~8% recorded against 844.\n\n' +
+      '  Real phone inner heights (390 wide): 664 with toolbars, 748 minimized.\n' +
+      '  Desktop: subtract ~90-120px of browser chrome from the SCREEN height.\n\n' +
+      '  e.g.  FOLD_W=390 FOLD_H=664 node scripts/measure-fold.mjs\n',
   );
+  process.exit(2);
 }
+const VW = Number(process.env.FOLD_W);
+const VH = Number(process.env.FOLD_H);
+
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
 // NOTE ON PACING. POST /api/rooms is rate-limited to 15 creates / 60s per IP
