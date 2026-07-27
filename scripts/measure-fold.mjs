@@ -298,7 +298,14 @@ console.log(`\n--- RATE (n=${n}) ---`);
 // too small to mean anything. So the BASELINE is printed beside the rate, and
 // the verdict below is expressed against it.
 const BASELINES_NOSHELF = {
-  '390x844@lacquer': { rate: 0.125, lo: 0.043, hi: 0.310, n: 24, note: 'accepted 2026-07-25' },
+  // CANONICAL, and pooled deliberately. Two equally-sized samples gave 12.5%
+  // (3/24) and 4.2% (1/24) — point estimates a factor of three apart, with
+  // heavily overlapping intervals. Since G-FOLD now reads "must not raise the
+  // rate above the measured baseline", the baseline's VALUE is load-bearing and
+  // n=24 cannot pin it better than ~3x (practice 25). A baseline is measured
+  // once and re-used every round, so it earns a larger n than any single
+  // comparison does. Pooled: 4/48.
+  '390x844@lacquer': { rate: 0.0833, lo: 0.033, hi: 0.196, n: 48, note: 'CANONICAL, pooled 2026-07-25 + 07-27' },
 };
 const scopeKey = `${VW}x${VH}@${THEME}`;
 const nsBase = BASELINES_NOSHELF[scopeKey] ?? null;
@@ -341,7 +348,10 @@ const BASELINES = {
     buckets: [736.9, 758.1, 767.1, 788.4, 809.6, 830.9, 852.2],
     note: 'n=80 cumulative, 2026-07-25/26, phone reference',
   },
-  // cinnabar-court DELIBERATELY HAS NO BASELINE YET. A 6-deal bucket list was
+  // '390x844@cinnabar-court' DELIBERATELY HAS NO BASELINE YET — recorded as an
+  // explicit absence rather than an omission, because desktop-mode.test.ts
+  // requires every registered theme to be named here one way or the other.
+  // A 6-deal bucket list was
   // drafted here and removed: it immediately fired a false REGRESSION on a
   // seventh deal, because 6 deals cannot enumerate a step function's buckets.
   // "No baseline" is the honest state and the gate says so; asserting a wrong

@@ -23,7 +23,7 @@
 // scripts/measure-fold.mjs and scripts/measure-fan-tap-targets.mjs at stated
 // INNER viewport dimensions (METHODOLOGY practice 15).
 
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 const read = (rel: string): string =>
@@ -389,5 +389,69 @@ describe('the card clamp is duplicated on purpose — but the copies must agree'
     // to drift, and the person adding it should have to say so here.
     const clamps = TABLE.match(/clamp\(\s*[\d.]+rem\s*,\s*[\d.]+vw\s*,\s*[\d.]+rem\s*\)/g) ?? [];
     expect(clamps).toHaveLength(9);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EVERY SELECTABLE THEME MUST HAVE A FOLD BASELINE.
+//
+// The defect this exists for: `stackStripW` is a per-theme metric that drives
+// pile height, `cinnabar-court` declares 0.841 against lacquer's 0.42, and
+// measured it puts Play below the fold on 95.8% of deals on a phone with NO
+// shelf — against lacquer's 4.2%. It was missed for the whole life of the fold
+// gate because the gate's parameter space simply did not include theme.
+//
+// A LIST someone must remember to update is exactly what failed. This makes it
+// structural instead: registering a theme without recording a fold baseline for
+// it turns this red, at the moment the theme is added.
+// ---------------------------------------------------------------------------
+describe('the fold gate covers every SELECTABLE deck theme', () => {
+  const FOLD = stripComments(
+    readFileSync(new URL('../../../scripts/measure-fold.mjs', import.meta.url), 'utf8'),
+  );
+
+  /** Theme ids that actually register themselves, i.e. appear in the picker. */
+  function registeredThemeIds(): string[] {
+    const ids: string[] = [];
+    const dir = new URL('../../../src/client/table/themes/', import.meta.url);
+    const walk = (u: URL): void => {
+      for (const entry of readdirSync(u, { withFileTypes: true })) {
+        const child = new URL(entry.name + (entry.isDirectory() ? '/' : ''), u);
+        if (entry.isDirectory()) walk(child);
+        else if (entry.name.endsWith('.tsx') || entry.name.endsWith('.ts')) {
+          const src = readFileSync(child, 'utf8');
+          if (!src.includes('registerDeckTheme(')) continue;
+          const id = src.match(/\bid:\s*'([^']+)'/)?.[1];
+          if (id !== undefined) ids.push(id);
+        }
+      }
+    };
+    walk(dir);
+    return [...new Set(ids)];
+  }
+
+  it('finds the themes it is going to check (not vacuous)', () => {
+    const ids = registeredThemeIds();
+    expect(ids.length, 'at least the two shipping themes are discoverable').toBeGreaterThanOrEqual(2);
+    expect(ids).toContain('lacquer');
+  });
+
+  it('every registered theme is named in the fold gate, with a baseline or an explicit absence', () => {
+    for (const id of registeredThemeIds()) {
+      expect(
+        FOLD.includes(`@${id}`),
+        `deck theme "${id}" is registered (so it is in the picker) but scripts/measure-fold.mjs ` +
+          `never mentions "@${id}". stackStripW is per-theme and drives pile height, so a fold ` +
+          `rate measured on another theme does not describe this one. Either record a baseline ` +
+          `for it or record, in the BASELINES map, that it deliberately has none yet.`,
+      ).toBe(true);
+    }
+  });
+
+  it('the canonical phone baseline is pooled, not a single n=24 sample', () => {
+    // Two n=24 samples gave 12.5% and 4.2% — three-fold apart. Since G-FOLD is
+    // stated against the baseline, the baseline's own precision is load-bearing.
+    expect(FOLD).toContain("'390x844@lacquer': { rate: 0.0833");
+    expect(FOLD).toMatch(/n: 48/);
   });
 });
