@@ -1794,9 +1794,19 @@ button.gd-plate {
 }
 
 /* --- desktop air ------------------------------------------------------------------------ */
+/* RUNG 0 (docs/research/desktop-layout.md §7.6). This padding was --space-xl,
+   and it was part of a measured DEFECT: the ≥720 block made the desktop stack
+   ~30-50px TALLER than the phone's, and Play/Pass sat below the fold on 95.8%
+   [79.8, 99.3] of deals at an inner 1280x800 and 100% at 1024x768 (n=24 each).
+   Reversing this padding alone buys 24px and moved the rate not at all — the
+   ring re-siting below is what fixes it — but it is 24px of a deficit that had
+   no reason to exist, since the desktop fan is 60-70px SHORTER than the
+   phone's. Measured in DOCUMENT coordinates: the page scrolls itself
+   (ScrollActionsIntoView), so viewport-relative readings measure the safety
+   net rather than the layout (METHODOLOGY practice 11). */
 @media (min-width: 720px) {
   .gd-table {
-    padding: var(--space-xl);
+    padding: var(--space-sm);
   }
 }
 
@@ -2401,17 +2411,67 @@ button.gd-plate {
   min-width: 0;
 }
 
-/* --- desktop air (≥720px) ------------------------------------------------ */
+/* --- desktop table (≥720px) — RUNG 0 -------------------------------------- */
+/* WHAT THIS BLOCK USED TO BE, AND WHY IT CHANGED (the whole account lives in
+   docs/research/desktop-layout.md; the load-bearing numbers are repeated here
+   because a later reader edits this file, not that one).
+   It capped the ring at 38rem and the hand at 44rem, which meant the product
+   drew an IDENTICAL layout from 523px (where --gd-cardw stops growing) all the
+   way to 2478px, occupying 45.2% of that viewport with the two opponents 608px
+   apart. Three separate things were wrong and ONE change fixes all three:
+     - THE FOLD. Play/Pass was below the fold on 95.8% of deals at an inner
+       1280x800 and 100% at 1024x768 (n=24, document coordinates). Now 0/24
+       [0%, 13.8%] at both.
+     - THE RING. West-to-east span was 608px at EVERY width ≥720. Now 935 /
+       1181 / 1358 / 1624px at inner widths 1024 / 1280 / 1440 / 1920.
+     - THE WELL. The widest legal play is a 10-card bomb, (1 + 9*0.4) * 68 =
+       312.8px of ink (combos.ts caps bombs at 10; >10 has no interpretation) —
+       a BOUND, so it was CONSTRUCTED and measured, not waited for. The centre
+       track was 250.3px at EVERY viewport, so a bomb wrapped to two rows for
+       this project's whole life. It wrapped rather than clipped — graceful
+       degradation, as the well's own comment claims, verified by injecting ten
+       frames — so this was a clarity cost, never an information-correctness
+       one. The centre track is now 495.8 / 675.4px at 1280 / 1920 and a bomb
+       is one row.
+   TWO MEASURED NULL RESULTS, recorded so nobody re-tries them: reversing the
+   padding tax alone buys 24px and does not move the fold rate; and lifting the
+   caps buys exactly ZERO vertical (the ring stayed 341.8px tall while going
+   632 -> 1342px wide). The ring's height was set by its CONTENT — the two
+   vertical opponent strips — which is why the seats had to come out of the
+   grid's height math. */
 @media (min-width: 720px) {
   .gd-ring__table {
+    /* The side tracks still reserve their share even though the seat cells are
+       taken out of flow below: an empty grid cell still participates in track
+       sizing, so the centre keeps its 1.5fr and never runs under a seat. */
     grid-template-columns: minmax(7rem, 1fr) minmax(0, 1.5fr) minmax(7rem, 1fr);
-    grid-template-rows: auto minmax(9rem, 1fr);
+    /* 9rem was never the binding constraint — the seat cells were taller than
+       it — but once they leave the flow it becomes one, so it drops with them.
+       Measured: 5rem is what turns a 69px reclaim into 138.4px. */
+    grid-template-rows: auto minmax(5rem, 1fr);
     gap: var(--space-lg);
-    max-width: 38rem;
+    /* 94vw, not a rem cap: the point is to TRACK the viewport rather than stop
+       at one. 100rem (1600px) is the ceiling, so an ultrawide still shows a
+       table rather than a wall — the owner's "empty margin is correct; a 700px
+       column is the bug". */
+    max-width: min(94vw, 100rem);
     margin: 0 auto;
     width: 100%;
+    /* REQUIRED, and it was a real bug for one build without it. There is no
+       global `* { box-sizing: border-box }` in this project — rules opt in
+       individually — so `width: 100%` here meant 100% of the CONTENT box PLUS
+       this rule's own 24px of horizontal padding, i.e. a ring 24px wider than
+       the .gd-table that contains it. That never showed while the ring was
+       capped at 38rem (far below its parent), but the moment it tracks the
+       viewport the overflow appears, and .gd-table's `overflow-x: hidden`
+       CLIPPED the east seat — which now hangs at the ring's right edge — at
+       720, 1024, 1280 and 1440. Silently: no page scrollbar, no test failure,
+       and the fold gate still read 0/24. Caught by a probe that asked whether
+       any seat rect fell outside .gd-table's box, which is now what
+       check-clip-style geometry assertions are for. */
+    box-sizing: border-box;
     /* Ground the ring as a felt table rather than elements floating in void. */
-    padding: var(--space-xl) var(--space-lg);
+    padding: var(--space-sm) var(--space-lg);
     border-radius: var(--radius-table);
     background: radial-gradient(
       ellipse 70% 60% at 50% 50%,
@@ -2419,12 +2479,51 @@ button.gd-plate {
       transparent 72%
     );
   }
+  /* THE ONE STRUCTURAL CHANGE. West and east lay as vertical strips (the flank
+     round gave each seat its own handedness: east's right hand is its strip's
+     TOP, so it lays as a column). At 27 cards that is a 147.5px strip inside a
+     213px cell, and it — not the trick well, which is at most 98.6px — is what
+     made the ring 341.8px tall. Taking the two cells out of the grid's height
+     math is what converts surplus WIDTH into the vertical budget the fold
+     needs; no max-width change can do it, which was measured.
+     This is the same device the north flanks already use
+     (.gd-seatzone--north.gd-seatzone--flanked, above): hang the thing beside
+     the block instead of letting it size the row. The cells keep real rects,
+     so DealOverlay's and PlayOverlay's seat-rect reads still land. */
+  .gd-ring__seat--west,
+  .gd-ring__seat--east {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+  .gd-ring__seat--west {
+    left: 0;
+  }
+  .gd-ring__seat--east {
+    right: 0;
+  }
   .gd-ring__seat--west .gd-plate,
   .gd-ring__seat--east .gd-plate {
     max-width: 9rem;
   }
+  /* The hand zone is sized to its CONTENT's structural worst case, NOT to the
+     screen — and that is a deliberate difference from the ring above.
+     A first build lifted this to the ring's own min(94vw, 100rem). It looked
+     wrong immediately and the screenshot said why: `.gd-actionsRow` is a
+     1fr/auto/1fr grid and `.gd-bottombar` a full-width row, so a 1600px zone
+     flings the sort pills and the seat plate to the far edges while the fan
+     itself stays ~640px and centred. Widening this box spreads the hand's
+     CHROME, not the hand.
+     56rem (896px) is derived, not chosen. The structural maximum is 15 value
+     columns — 12 non-level natural ranks + the level class + both jokers,
+     provable and already written down at hand-fan.test.tsx:415 — which at
+     today's 0.70 pitch is (1 + 14 * 0.7) * 68 = 734px of ink. The old 44rem
+     (704px) is BELOW that, so a 15-column hand wrapped to two lines even at
+     2478px. It occurs on 3.4% of deals, so an 8-deal sample misses it 76% of
+     the time (METHODOLOGY practice 14: construct the bound, do not wait for
+     it). 896px clears 734 with 162px of slack. */
   .gd-handzone {
-    max-width: 44rem;
+    max-width: min(94vw, 56rem);
     margin: 0 auto;
     width: 100%;
   }

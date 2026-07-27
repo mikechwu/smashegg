@@ -257,15 +257,46 @@ console.log(
 const buckets = [...new Set(rows.map((r) => r.plain?.docBottom).filter((x) => x !== undefined))].sort(
   (a, b) => a - b,
 );
-// Observed across n=16, n=24 and n=40 runs on 2026-07-25/26. A bucket BELOW
-// this range is a better deal, not a regression — only the top matters, which
-// is why the check below is one-sided.
-const KNOWN_BUCKETS = [736.9, 758.1, 767.1, 788.4, 809.6, 830.9, 852.2];
+// THE BASELINE IS PER-VIEWPORT, and it has to be. The recorded buckets below
+// were all observed at 390x844; quoting them while measuring an inner 1280x800
+// compares a desktop layout against a phone's step function, which is not a
+// regression check at all. That is what this gate did for one run, and it
+// printed "NEW bucket(s) not previously recorded: ..." immediately followed by
+// "every base position falls in a known bucket" — two lines that contradict
+// each other, in the summary of a gate whose whole purpose is not to be
+// misread. Both defects are fixed here: the baseline is keyed by viewport, and
+// an unknown viewport says so instead of borrowing another one's numbers.
+const BASELINES = {
+  // inner WxH -> { buckets, note }. Only the TOP matters for the one-sided
+  // check; a lower bucket is a better deal, not a regression.
+  '390x844': {
+    buckets: [736.9, 758.1, 767.1, 788.4, 809.6, 830.9, 852.2],
+    note: 'n=80 cumulative, 2026-07-25/26, phone reference',
+  },
+  '1280x800': {
+    buckets: [641.7, 646, 664.6, 674.6, 693.2, 703.1, 721.7, 731.7, 750.3],
+    note: 'n=48 cumulative, 2026-07-27, AFTER rung 0 (before it, every bucket was 831.6-936.2)',
+  },
+  '1024x768': {
+    buckets: [613.1, 646, 674.6, 693.2, 703.1, 721.7],
+    note: 'n=24, 2026-07-27, AFTER rung 0 (before it: 100% below fold, 831.6-936.2)',
+  },
+};
+const key = `${VW}x${VH}`;
+const baseline = BASELINES[key] ?? null;
 console.log(`base-layout document positions observed: ${buckets.join(' / ')}`);
-console.log(`known buckets (n=80 cumulative, 2026-07-26): ${KNOWN_BUCKETS.join(' / ')}  (fold 844)`);
-const fresh = buckets.filter((b) => !KNOWN_BUCKETS.some((k) => Math.abs(k - b) < 0.5));
-if (fresh.length > 0) console.log(`NEW bucket(s) not previously recorded: ${fresh.join(', ')}`);
-const KNOWN_MAX = 852.2;
+if (baseline === null) {
+  console.log(
+    `NO RECORDED BASELINE for inner ${key}. The buckets above are this run's; ` +
+      'they are not compared against anything. Add them to BASELINES to arm the ' +
+      'regression check at this viewport — do NOT read a pass below as one.',
+  );
+} else {
+  console.log(`known buckets at inner ${key} (${baseline.note}): ${baseline.buckets.join(' / ')}`);
+  const fresh = buckets.filter((b) => !baseline.buckets.some((k) => Math.abs(k - b) < 0.5));
+  if (fresh.length > 0) console.log(`NEW bucket(s) not previously recorded here: ${fresh.join(', ')}`);
+}
+const KNOWN_MAX = baseline === null ? Infinity : Math.max(...baseline.buckets);
 const novel = buckets.filter((b) => b > KNOWN_MAX + 0.5);
 
 if (n < MIN_DEALS) {
@@ -282,9 +313,20 @@ if (novel.length > 0) {
   );
   process.exit(1);
 }
-console.log(
-  `\nNO REGRESSION: every base position falls in a known bucket. The ~8% below-fold rate is the ` +
-    `ACCEPTED state of the product (owner decision 2026-07-25), not a failure — see STATUS.md. ` +
-    `Read the rate above; do not read this line as "the base layout fits", which is false.`,
-);
+// Say only what was actually checked. The previous wording asserted "every base
+// position falls in a known bucket" unconditionally — including on runs that had
+// just listed eight positions that were in no known bucket, and on viewports
+// with no baseline at all.
+if (baseline === null) {
+  console.log(
+    `\nNO BASELINE CHECKED at inner ${key}. The rate above is this run's measurement; ` +
+      'nothing was compared, so this is not a pass. Record the buckets in BASELINES first.',
+  );
+} else {
+  console.log(
+    `\nNO REGRESSION at inner ${key}: no base position exceeds the recorded maximum ` +
+      `${KNOWN_MAX}. Lower buckets are a better deal, not a regression — the check is ` +
+      'one-sided by design. Read the RATE above; this line does not say "the layout fits".',
+  );
+}
 await browser.close();

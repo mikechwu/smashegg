@@ -29,8 +29,22 @@ import { chromium } from 'playwright';
 const BASE = process.env.FAN_SWEEP_BASE ?? 'http://localhost:5173';
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
+// POST /api/rooms is rate-limited to 15 creates / 60s per IP (CREATE_LIMITER).
+// Without a retry this gate dies on an opaque `ws error` — the 429 body is not
+// JSON, so `res.json()` throws, `code` is undefined, and the socket opens
+// against `/api/rooms/undefined/ws`. That is exactly what happened when it ran
+// alongside the fold gate. measure-fold.mjs already learned this ("a gate that
+// cannot complete its own sample size is not a gate"); the same retry belongs
+// here, because the SIGNAL of the failure pointed at the WebSocket rather than
+// at the create, which is how it stayed misdiagnosed.
 const DRIVER = `async (input) => {
-  const res = await fetch('/api/rooms', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({gameId:'guandan', config: input.config, timing: {perTurnMs: null, planningMs: null}})});
+  let res = null;
+  for (let attempt = 0; attempt < 12; attempt++) {
+    res = await fetch('/api/rooms', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({gameId:'guandan', config: input.config, timing: {perTurnMs: null, planningMs: null}})});
+    if (res.status !== 429) break;
+    await new Promise((r) => setTimeout(r, 6000));
+  }
+  if (res === null || !res.ok) throw new Error('room create failed: ' + (res ? res.status : 'no response'));
   const { code } = await res.json();
   const tokens = [];
   let lastSeq = 0;

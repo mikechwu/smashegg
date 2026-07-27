@@ -237,6 +237,21 @@ a {
 .app-main--wide {
   max-width: 72rem; /* the table screen widens; the table itself is full-bleed */
 }
+/* Rung 0 (docs/research/desktop-layout.md §7.6): the 72rem cap above was the
+   OUTERMOST of the three that froze the table at 45.2% of a 2478px viewport,
+   so lifting the ring and hand caps without this one would just move the
+   binding constraint one level out.
+   SCOPED TO ≥720 ON PURPOSE, and this is not cosmetic: `96vw` at 390px is
+   374.4px against a 390px viewport, so an unscoped rule would narrow the
+   PHONE's content column by 15.6px — the exact shape of leak the round's
+   byte-identity gate exists to prevent. A media query cannot apply below its
+   breakpoint by construction, which is why the guard is structural rather than
+   a matter of remembering. Pinned by desktop-mode.test.ts. */
+@media (min-width: 720px) {
+  .app-main--wide {
+    max-width: 96vw;
+  }
+}
 
 /* Narrow-width shell compression (seat-zone review follow-up): the remote
    seats now carry REAL 27-card strips, so at phone widths every pre-table

@@ -56,6 +56,12 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 
     **Structural response, not vigilance:** the gate scripts print the inner dimensions they used and an explicit statement that chrome is excluded, so a threshold cannot be re-quoted as a screen size by a later reader. Where a claim is about a DEVICE, the chrome allowance has to be stated and subtracted, or the claim is about a viewport that device never presents.
 
+16. **For a worst-case property, the MEDIAN is structurally the wrong statistic. Report the minimum and the violation rate.** Practices 12 and 14 are about how many samples and whether a bound exists. This one is about which number you print at the end, and it generalises a self-catch: a summary table in the desktop round reported a covered card's exposed strip as `44` — the median over 24 deals — while the claim being made was "every covered card's press target reaches 44px". Piles deep enough to fall short occur on 3.9% of deals, so about one deal in the sample had one, and the median could not show it. **A measure of central tendency applied to an "X must always be ≥ Y" property will always hide exactly the case the property exists to exclude**, and it does so more reliably as the case gets rarer — which is the opposite of what a summary should do.
+
+    **Operational rule: match the statistic to the quantifier.** "Always ≥ Y" → report the MINIMUM observed and the count/rate of violations. "Typically" or "how much" → a median or a rate with an interval is right. Never a median for a floor, never a maximum for a budget you must stay under without also giving the rate.
+
+    This was caught inside the same round that wrote practices 12 and 14, in the summary line of a probe built to enforce them — which is the ordinary way these fail. The response is the same as always: put it in the tooling, not in the reader. A gate that prints a floor prints `min` and `k/n`, or it is not reporting the property it claims.
+
 ## Tool & model ladders (current)
 
 Web research runs on the built-in WebSearch/WebFetch tools, `curl` via shell for direct page/PDF fetches, and `gh api` for GitHub content. **Firecrawl is disabled as of 2026-07-13 (credit limit reached — owner instruction); state this in every research-agent prompt.** Escalate to costlier tooling only on demonstrated failure of a cheaper rung, and log the failure.
