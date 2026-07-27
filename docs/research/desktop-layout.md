@@ -764,3 +764,136 @@ question at short heights and I have not measured that interaction.
 - **Carried open from earlier rounds, still open:** real-device / elder sessions
   not run; three recorded sort groups wrap on a phone; `HandFan`'s `readOnly`
   prop unused; merge unreachable at `AREA_HARD_MAX = 2`; no landscape styling.
+
+## 7. The revised ladder (2026-07-27) — the constraint is VERTICAL
+
+The owner's steer: clarity is the goal; zero overlap was one possibility, never
+the target. Asked properly — *where does clarity stop improving?* — the answer
+inverts the ladder every lineage proposed, including mine. All four proposals
+spent WIDTH. The hand's clarity constraint is HEIGHT.
+
+### 7.1 The index-ratio lever is not independently free
+
+Measured at a 68px card, on a card covered on both axes (the only card the
+constraint applies to), n=3 deals, values identical across all three:
+
+| | value |
+|---|---|
+| rank font-size at today's 0.36 | 24.48px |
+| index **ink** width (rank + suit) | 32.25px |
+| index ink right edge, from card left | **37.64px** |
+| index ink bottom, from card top | **29.48px** |
+| exposed **sliver** at pitch 0.70 | 47.61px |
+| exposed **strip** (covered card, pile) | **28.56px** |
+
+Two corrections to the premise, both favourable to knowing sooner:
+
+- **The ink occupies 79% of the sliver, not "about half".** The estimate compared
+  the *font-size* (24.5) to the sliver (47.6); the ink is rank and suit side by
+  side. Width headroom at today's pitch reaches ratio ~0.42 — a **17%** bigger
+  glyph, not ~100%.
+- **The height axis is already saturated, and today's shipped layout already
+  clips.** The ink bottom is 29.48px against a 28.56px strip: on every covered
+  card in a pile, the last ~1px of the index is under the card laid over it.
+  `fitsStrip` is NO at every ratio measured, **including today's 0.36**.
+
+**So the lever is gated by the pile strip — which is the same 28.6px that fails
+this project's own 44px press floor. They are one constraint with two symptoms,
+not two findings.**
+
+### 7.2 Where clarity actually stops improving with pitch
+
+Structural, not sampled (practice 14):
+
+| requirement | needs pitch | today |
+|---|---|---|
+| fully expose the index ink (37.64px of a 68px card) | **0.554** | 0.70 ✓ |
+| a covered column's press target ≥ 44px | **0.647** | 0.70 ✓ |
+
+**Today's 0.70 is set by the tap floor, and already over-serves the index by
+27%.** Everything above ~0.65 buys visibility of the card BODY — the large pip —
+which is redundant with the suit glyph the index already carries.
+
+**So pitch 1.00 is where overlap stops existing, not where clarity stops
+improving.** The owner's hypothesis is confirmed, and more strongly than posed:
+the answer is not "0.85 might be enough" but "0.70 already is, and the width a
+higher rung would consume buys redundancy". Recommend dropping the pitch ladder.
+
+### 7.3 The 配 marker: the caution resolves favourably
+
+The active wild mark is **not** the bottom-left seal. It is `gd-wild--gold`,
+which recolours `.gd-suit` to goldleaf — and `SuitMark` always carries
+`.gd-suit`, so **the marker IS the index's own suit glyph**
+(`art-pool/wild-marks/gold-heart.ts`, `table.css:546-557`). A bigger index makes
+the wild marker bigger; it cannot crowd it out. The source says why the seal was
+abandoned: it "was hidden under the next card" — the same strip constraint §7.1
+just measured, met once before and solved by moving the mark INTO the index.
+
+### 7.4 What the strip costs — n=24 deals, on top of the fold fix
+
+| variant | strip | index clipped | tap ≥44 | fan h | 1280×800 below fold | ≥1440 |
+|---|---|---|---|---|---|---|
+| base | 28.56 | YES | no | 198.3 | 95.8% [79.8, 99.3] | 4.2% / 0% |
+| **fix** | 28.56 | YES | no | 198.3 | **0/24** [0, 13.8] | 0/24 |
+| fix + stripW 0.50 | 34.0 | **no** | no | 214.6 | **0/24** [0, 13.8] | 0/24 |
+| fix + stripW 0.5477 | 37.3 | no | no | 224.4 | **0/24** [0, 13.8] | 0/24 |
+| fix + stripW 0.647 | **44.0** | no | **yes** | 244.6 | 8.3% [2.3, 25.8] | **0/24** |
+
+- **Unclipping the index is free** (stripW 0.50, +16.3px, still 0/24 everywhere).
+- **The 44px press floor costs 8.3% of deals at 1280×800 and nothing at ≥1440.**
+- Once the strip rises, the index ratio can follow: ≤0.42 at strip 34 (+17%
+  glyph), ≤0.54 at strip 44 (+50% glyph) — and the wild's gold heart grows too.
+
+**Three prices, all measured, none of them small:**
+
+1. **It needs the first width-reactive JavaScript in this client.** The strip is
+   a theme metric (`themes/lacquer.tsx:88`) that `HandFan` turns into an INLINE
+   `margin-top` per card (`HandFan.tsx:307-309`), with a factor that depends on
+   pile depth. A media query cannot re-express it.
+2. **If it leaks to the phone it is a disaster, and that is measured, not
+   feared.** The probe deliberately applied it at every width: the phone's
+   below-fold rate goes **12.5% → 25.0% at stripW 0.50 and → 79.2% [59.5, 90.8]
+   at 0.647**. This is the strongest argument for the width-reactive JS rather
+   than a theme change.
+3. **Deep piles cannot reach the floor at all.** `stackOffsetW = min(stripW,
+   2.95/(n−1))`, so 44px (0.647w) needs spread ≥ 0.647(n−1): today's 2.95 covers
+   depth ≤5 only. Pile depth is **bounded at 8** (two decks × four suits —
+   provable), and depth ≥6 occurs on **3.9%** of deals, ≥8 on 0.011%. Raising the
+   spread to cover depth 8 adds ~108px more and breaks the fold. **So the floor
+   is met on ~96% of deals and deep piles stay a stated exception.**
+
+   **A reporting self-catch:** the n=24 table above shows `44` because it reports
+   the MEDIAN, and with P(depth≥6) = 3.9% only about one deal in 24 has one. The
+   median hid exactly the tail that matters — practice 12 inside my own summary
+   line. The 96%/4% split above comes from the formula and the computed
+   distribution, not from that column.
+
+### 7.5 The other clarity surfaces, priced first as instructed
+
+The widest legal play is a **10-card bomb** (`combos.ts:468-474` — 7–10 cards can
+only be a bomb, >10 has no interpretation), and the well overlaps at −0.6, so its
+ink is `(1 + 9×0.4) × 68 = 312.8px`. A BOUND, not a sample.
+
+| | centre track today | under `fix` | fits the bomb? |
+|---|---|---|---|
+| 1280×800 | 250.3 | 495.8 | **no** → yes |
+| 1440×900 | 250.3 | 561.6 | **no** → yes |
+| 1920×1080 | 250.3 | 675.4 | **no** → yes |
+| 2478×1400 | 250.3 | 675.4 | **no** → yes |
+
+**The trick well is 250.3px at every viewport today and has never been able to
+hold the widest legal play.** It was not competing with the fan for width — it
+was losing to the ring's own 38rem cap, and the fold fix removes that.
+
+### 7.6 The ladder, revised
+
+| rung | what | buys | costs |
+|---|---|---|---|
+| **0 — the fix** | R1 + D3 + caps, ≥720 | fold 95.8%→0/24; opponents 608→1181-1624px apart; **well 250→496-675 vs a 313 bound** | CSS only; phone measured unchanged |
+| **1 — unclip the index** | stripW 0.42→0.50, desktop only | the index stops being clipped on every covered card | +16.3px; still 0/24 everywhere; needs width-reactive JS |
+| **2 — the press floor** | stripW →0.647, desktop only | 28.6→44px press target; index ratio to 0.54 (+50% glyph, wild included) | 8.3% below fold at 1280×800, 0/24 at ≥1440; deep piles (3.9%) still exempt |
+| ~~3 — pitch~~ | ~~0.80 / 0.85 / 1.00~~ | **body-pip visibility only** — the index is already fully exposed at 0.554 | width, a higher breakpoint, and the 15-column risk. **Recommend dropping.** |
+
+Rung 0 is a defect fix and should ship alone. Rungs 1–2 are one change with a
+real structural price (the first width-reactive JS) and should be decided
+together. Rung 3 should not be built.
