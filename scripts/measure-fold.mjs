@@ -175,7 +175,18 @@ const show = (tag, m) =>
     : `${tag}: doc ${m.docBottom} vs fold ${m.fold} (viewport ${m.viewportBottom}, scrollY ${m.scrollY}, docH ${m.docHeight})` +
       `${m.docBottom > m.fold ? '  NEEDS SCROLL' : '  fits'}`;
 
-console.log(`\n=== FOLD GATE @ true ${VW}x${VH} (zh-Hant) ===`);
+console.log(`\n=== FOLD GATE @ INNER ${VW}x${VH} (zh-Hant) ===`);
+// METHODOLOGY practice 15: say INNER, and name the chrome assumption. This
+// is what `window.innerHeight` reports, NOT a device or screen size —
+// playwright's `viewport` sets the inner size directly. A real machine whose
+// SCREEN is ${VW}x${VH} presents roughly 90-120px less inner height once
+// browser chrome is subtracted, so it is strictly WORSE than this reading.
+// Recorded twice as a correction ("390x844" vs a phone's real ~664; desktop
+// rows labelled as screen sizes) before it became a printed line.
+console.log(
+  `    inner viewport ${VW}x${VH}; browser chrome EXCLUDED. A device with a ` +
+    `${VW}x${VH} SCREEN presents ~90-120px less inner height than this.`,
+);
 let needScroll = 0;
 for (const row of rows) {
   console.log(`deal ${row.deal}`);

@@ -178,6 +178,11 @@ for (const { w, h } of VIEWPORTS) {
 await browser.close();
 
 console.log(`\n=== SET-ASIDE GATE: ${checks} first-turn checks over ${VIEWPORTS.length} viewports ===`);
+// METHODOLOGY practice 15: these are INNER viewport sizes, not screen sizes.
+console.log(
+  `    inner viewports ${VIEWPORTS.map((v) => v.w + 'x' + v.h).join(', ')}; ` +
+    'browser chrome EXCLUDED — a device with a matching SCREEN presents less inner height.',
+);
 if (checks === 0) {
   console.log('FAIL: no check ran — the gate measured nothing.');
   process.exit(1);

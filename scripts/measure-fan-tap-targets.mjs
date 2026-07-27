@@ -89,6 +89,11 @@ const pageA = await ctx.newPage();
 await pageA.goto(BASE, { waitUntil: 'networkidle' });
 const drive = await pageA.evaluate(`(${DRIVER})(${JSON.stringify({ config: CONFIG })})`);
 console.log('room:', drive.code);
+// METHODOLOGY practice 15: state the viewport in INNER dimensions and name
+// the chrome assumption, so no threshold here can be re-quoted as a screen
+// size. 390x844 is what `window.innerHeight` reports; a phone whose SCREEN
+// is 390x844 presents ~664 of inner height, which is a different layout.
+console.log('inner viewport 390x844; browser chrome EXCLUDED (not a screen size).');
 
 const ctxB = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
 await ctxB.addInitScript((seed) => {
