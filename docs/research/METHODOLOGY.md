@@ -93,6 +93,14 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 
     **Consequence, worked:** a scroll caused by opening a sort shelf is acceptable; the same scroll arriving because an opponent played is not. And cards closing the gap after cards LEAVE the hand (a play, a tribute, a send-to-shelf) is between operations rather than within a reach — and it matches the physical hand, which elders' mental model is built on. Confirmed non-A′ here by checking that set-aside moves the whole selection in one action, so a send is one reflow and never one per card.
 
+21. **When a `min()` does not appear to bind, look UP the parent chain — the real constraint may not be in the expression you are reading.** Raising a cap from 74rem to 78rem was measured afterwards to be a **no-op below inner 1350px**: at 1280 the element's width was set by `96vw − 32px − 16px = 1180.8px` from two ancestors' padding, so neither term of its own `min(94vw, 78rem)` was ever reached. The change shipped, and in the range that mattered it did nothing.
+
+    **Operational rule: before tuning a `max-width`/`min()`, measure the element's actual rendered width and compare it with every term.** If it matches none of them, the binding constraint is inherited and tuning the expression is theatre. State the range over which a cap actually binds, not just its value: "78rem, which binds from inner 1350px up".
+
+22. **A median is not a near-miss detector when the quantity is a step function.** An additive fix looked "2.4px short of the fold" — computed by comparing a median from one 12-deal sample against a threshold. The fan's height moves in **21.3px quanta** and its per-sample median moves by a whole quantum between samples, so the same fix measured in a fresh sample was 9.6px short on the median and 73.5px short on the worst case, with **50% of deals [25.4%, 74.6%] still failing**. It was never 2.4px away.
+
+    **Operational rule: never compare a median from one sample against a threshold to judge "how close". Report the RATE in a single sample, plus the worst case.** Two figures from different samples are not comparable at all when the quantity is deal-dependent — this is practice 16's shape (wrong statistic for the property) crossed with practice 12's (a sample is not a property).
+
 ## Tool & model ladders (current)
 
 Web research runs on the built-in WebSearch/WebFetch tools, `curl` via shell for direct page/PDF fetches, and `gh api` for GitHub content. **Firecrawl is disabled as of 2026-07-13 (credit limit reached — owner instruction); state this in every research-agent prompt.** Escalate to costlier tooling only on demonstrated failure of a cheaper rung, and log the failure.
