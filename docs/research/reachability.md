@@ -2,7 +2,7 @@
 
 **Date: 2026-07-27.** Supersedes the phone half of the fold metric; the desktop half of G-FOLD stands.
 
-**Status: D1 is RULED — G-SIM is stated against the `panel` set (§8).** Sections 1–7 are round 1 and
+**Status: D1 RULED (§8); the span is FULLY DERIVED (§9).** Sections 1–7 are round 1 and
 are kept as written. **Read §8 before quoting any number from §4 or §5: the round-1 figures were
 measured with no cards staged, which is not the state a player decides in, and the corrected staged
 figures change the verdict at 390×664 from +55.0px of slack to −20.3px.**
@@ -311,3 +311,96 @@ is at 748 (+85.0px) and on desktop (+71.4px). So the honest form is that 44px is
 
 **D3 — overlay vs collapsed** cannot be ruled until §8.5's composition has run. What is now settled is
 the *rule* for ranking them, not the ranking.
+
+---
+
+## 9. Round 3 (2026-07-27, later still) — every term of the span is now proved
+
+### 9.1 fanHeight's structural bound — the last sampled term, closed
+
+`scripts/derive-fan-bound.mjs`. Measured at inner 390 wide, lacquer:
+
+    fanHeight = 13.9 + lineHeight(d₁) + 6 + lineHeight(d₂),   lineHeight(d) = 73.5 + 21.3(d−1)
+
+additive to 0.2px across 8 deals. The pieces, each proved rather than assumed:
+
+- **Lines are exactly 2.** A line holds `floor(rowContentWidth / pitch) = floor(326.8 / 35.5) = 9`
+  columns, and there are ≤15 value classes, so 15 columns need 2 lines and never 3. **Every hand
+  measured renders on two lines** — the earlier probe reported "1 row" for all of them because it
+  counted `.gd-fan__stackRow` ELEMENTS, and the settled fan is a single element with `flex-wrap:
+  wrap` that wraps internally. Lines are now counted by distinct stack BOTTOMS.
+- **The 21.3px step is `stackOffsetW(n, 0.42) × cardW = 0.42 × 50.7`**, and it holds for every depth
+  up to 8 because the 2.95w spread budget only binds from 9 copies (`HandFan.tsx:180`), which two
+  decks cannot reach.
+- **The maximiser is 10 columns with depth 8 on each line** (8 + 8 + 8 singletons = 24 ≤ 27 cards).
+  Since `fanH` depends only on `d₁ + d₂`, *fewer* columns is worse — every extra column spends a card
+  that could have gone into a pile. Two lines need ≥10 columns; at 10 the depth cap binds, not the
+  card budget.
+
+**fanHeight ≤ 465.1px** — against an observed maximum of 294.7px over the 8 measured deals, i.e. the
+structural case is **170.4px** taller than anything the sample reached.
+
+### 9.2 …and its frequency, because a bound without one is not a decision input
+
+`scripts/fan-height-distribution.mjs`, 200,000 simulated deals. No browser and no engine import:
+`fanHeight` depends on the hand only through per-class card counts, and the deal is a uniform 27-card
+subset of the 108-card shoe (12 non-level ranks × 8, level class × 8, SJ × 2, BJ × 2 = 15 classes).
+Each deal is scored at its **taller sort ordering**, since the player controls that.
+
+| fanHeight | share | P(≥) |
+|---|---|---|
+| 252.1px | 16.97% | 99.27% |
+| 273.4px | 38.68% | 82.30% |
+| 294.7px | 30.48% | 43.62% |
+| 316.0px | 10.65% | 13.14% |
+| 337.3px | 2.21% | 2.50% |
+| 358.6px | 0.27% | 0.29% |
+| 379.9px | 0.02% | 0.02% |
+| 401.2px | 0.003% | 0.003% |
+
+The structural 465.1px case is **63.9px above anything 200,000 deals produced**, so it arrives less
+often than 1 in 200,000. The analytic model and the browser measurement agree: it predicts 2.50%
+infeasible at 390×664 untimed, against 4.2% [0.7, 20.2] measured at n=24.
+
+### 9.3 The rate splits by population — and by an axis nobody had varied
+
+**Leading vs following.** K is 198.6px when the trick well renders and 66.0px when the viewer leads
+and it is empty, so **a leading turn carries 132.5px more slack and essentially never fails**. A
+pooled rate averages a population that cannot fail with the one that can.
+
+**Room timing — never varied by any gate in this repo.** Every driver creates an UNTIMED room while
+the product default is `TIMING_PRESETS.standard` (45s/90s). A timed room renders the desk's countdown
+bar: **+8.0px of desk** (deskHeight ≤ **156.5px**, not 148.5px). That 8px moves the threshold across
+a lattice step.
+
+| inner | FOLLOWING, timed (default) | FOLLOWING, untimed | LEADING | structural worst slack |
+|---|---|---|---|---|
+| **390×664** | **13.14% — 1 deal in 8** | 2.50% (1 in 40) | 0% | −156.2px |
+| 390×748 | <0.01% (1 in 33,333) | <0.01% | 0% | −72.2px |
+| 1366×681 | 2.50% (1 in 40) | 2.50% | 0% | −139.2px |
+
+### 9.4 There is no cheap 20px
+
+K's 66.0px residual decomposes as **10px** (fan→desk) + **15px** (desk→actions) + **41px** (the action
+bar itself, which is content). And the 132.5px well difference is **73.5px** of well plus a **59px**
+band — but that band is **not empty**: the west/east seat plates and stacks reach document 367.7
+against a fan top of 375.7, so only ~**8px** of it is free.
+
+**Total pure recoverable spacing in the entire span is ~33px**, and taking all of it would collapse
+Play/Pass onto the desk and the fan onto the ring. The 20.3px cannot be found in spacing; closing the
+gap needs a different arrangement or less content.
+
+### 9.5 The level chip's limitation is closed
+
+The clock is now measured **as the server renders it**, not injected. Driving to a turn with a
+non-pass hint available (the forced-pass window is where `GameTable.tsx:1166` suppresses the clock)
+gives a real `.gd-desk__clock` at **36 × 24px — identical to the injected element**. With the longest
+own-turn title, free horizontal space is **84.4px**, exactly the injected-clock figure, and all three
+candidate chips still grow the desk by **0px**. The assumption is now a measurement.
+
+### 9.6 Corrections to earlier sections
+
+- **§8.5's 82px shelf deficit is stale.** It compared ~137px of shelf against 55px of *un-staged*
+  slack. Against the staged, timed follow-state figures the deficit is larger; the "same quantity,
+  new currency" observation stands but the number should not be quoted at 82px.
+- **§8.1's 1366×681 note** used the untimed desk. The timed follow-state rate there is 2.50%.

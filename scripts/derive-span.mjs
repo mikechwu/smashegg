@@ -60,13 +60,21 @@ const THEME = process.env.SPAN_THEME ?? 'lacquer';
 // "+N" pill, so staging beyond 10 cannot grow the row further. 12 is measured
 // anyway, to confirm the cap holds rather than to assume it does.
 const MAX_STAGE = Number(process.env.SPAN_MAX_STAGE ?? 12);
+// TIMING — an axis NO gate in this repo has ever varied. Every driver creates an
+// UNTIMED room (`{perTurnMs: null, planningMs: null}`) while the product's DEFAULT
+// is TIMING_PRESETS.standard (45s/90s). A timed room renders the desk's countdown
+// bar, which the untimed one does not, so every desk height this project has
+// recorded describes a configuration most rooms are not in.
+const TIMING = process.env.SPAN_TIMING === 'timed'
+  ? { perTurnMs: 45000, planningMs: 90000, autoPassNoPlay: true }
+  : { perTurnMs: null, planningMs: null };
 
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
 const DRIVER = `async (input) => {
   let res = null;
   for (let attempt = 0; attempt < 12; attempt++) {
-    res = await fetch('/api/rooms', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({gameId:'guandan', config: input.config, timing: {perTurnMs: null, planningMs: null}})});
+    res = await fetch('/api/rooms', {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({gameId:'guandan', config: input.config, timing: ${JSON.stringify(TIMING)}})});
     if (res.status !== 429) break;
     await new Promise((r) => setTimeout(r, 6000));
   }
@@ -132,7 +140,7 @@ const browser = await chromium.launch();
 const rows = [];
 console.log(`=== SPAN DECOMPOSITION @ INNER ${VW}x${VH} (${THEME}, zh-Hant) ===`);
 console.log('    INNER dimensions, browser chrome EXCLUDED.');
-console.log(`    ${DEALS} deals x staging 0..${MAX_STAGE} cards.\n`);
+console.log(`    ${DEALS} deals x staging 0..${MAX_STAGE} cards.  timing: ${process.env.SPAN_TIMING === 'timed' ? '45s/90s standard preset (the DEFAULT)' : 'UNTIMED (not the product default)'}\n`);
 
 for (let deal = 0; deal < DEALS; deal += 1) {
   const ctx = await browser.newContext({ viewport: { width: VW, height: VH } });
@@ -180,6 +188,7 @@ for (let deal = 0; deal < DEALS; deal += 1) {
       fanRows: t.fanRows,
       columns: t.columns,
       maxDepth: t.maxDepth,
+      boxes: { fan: t.fan, desk: t.desk, well: t.well, actions: t.actions },
       wellH: t.well?.h ?? null,
       wellPresent: (t.well?.h ?? 0) > 0,
       span: panel === null ? null : panel.span,
@@ -264,6 +273,31 @@ console.log(
   `  span:  ${Math.min(...withK.map((r) => r.span))} .. ${worstSpan.span}px ` +
     `(worst slack ${Math.min(...withK.map((r) => r.slack))}px against innerH ${VH})`,
 );
+
+// K's COMPOSITION. Of the four terms in the span, three are CONTENT (fanHeight =
+// cards, deskHeight = stage + title, and the 132.5px difference between K's two
+// values = the trick well). K's 66.0px residual is the only PURE INTER-ELEMENT
+// SPACING in the whole span, so it is the only place slack can be found without
+// removing something the player looks at. Decomposed here rather than left as a
+// constant.
+const gapRow = withK.find((r) => r.wellPresent && r.k === 1) ?? withK[0];
+if (gapRow !== undefined && gapRow.boxes !== undefined) {
+  const b = gapRow.boxes;
+  const g = (a, z) => Math.round((z - a) * 10) / 10;
+  console.log(`\n--- K's 66.0px RESIDUAL, DECOMPOSED (the only pure spacing in the span) ---`);
+  console.log(`  fan bottom -> desk top      ${String(g(b.fan.bottom, b.desk.top)).padStart(6)}px`);
+  console.log(`  desk bottom -> actions top  ${String(g(b.desk.bottom, b.actions.top)).padStart(6)}px`);
+  console.log(`  action bar's own height     ${String(b.actions.h).padStart(6)}px   (CONTENT, not spacing)`);
+  const spacing = Math.round((g(b.fan.bottom, b.desk.top) + g(b.desk.bottom, b.actions.top)) * 10) / 10;
+  console.log(
+    `  => ${spacing}px is spacing, ${b.actions.h}px is the control itself. ` +
+      `Recovering the whole ${spacing}px would collapse Play/Pass onto the desk.`,
+  );
+  console.log(
+    `  well top -> well bottom     ${String(b.well.h).padStart(6)}px   ` +
+      `well bottom -> fan top ${g(b.well.bottom, b.fan.top)}px   (together the 132.5px K difference)`,
+  );
+}
 
 // THE HOLE THIS SCRIPT EXISTS TO CLOSE: what staging costs, which every earlier
 // simultaneity figure omitted by measuring only the un-staged state.
