@@ -93,6 +93,57 @@ surface" with a door already open to it.
   vertical, untouched by de-overlapping horizontally
   (`docs/research/fan-tap-targets.md:18-22`).
 
+### The in-house proposal landed last and changed two conclusions
+
+Its central move is one neither external lineage made. The rank glyph is
+`calc(var(--gd-cardw) * 0.36)` and that index row must fit the EXPOSED SLIVER,
+`p x w`. Scale the index ratios with the pitch and the glyph becomes a fixed
+fraction of the fan's total ink — so **"bigger card" vs "less overlap" was never
+a legibility choice**. A pitch of 1.00 at a 68px card gives the same glyph as a
+96px card at today's 0.70, with **no change to fan height**; the 96px card costs
++41% of card height on the axis that is already failing. That is exactly what
+the ladder measured independently (`fix+zero68` vertically free, `fix+zero90`
+~190px), so equation and measurement agree.
+
+Consequence: card width **never changes**, so the nine-site clamp debt becomes
+irrelevant, and a third rung at 960px (pitch 0.80) appears that neither external
+proposal had.
+
+**Three corrections to my own write-up, all from that pass, all re-verified
+before acceptance:**
+
+1. **My "collapse the nine clamp literals" recommendation was wrong.** Five of
+   the nine are deliberate ANCESTOR definitions serving inline
+   `calc(var(--gd-cardw) * F)` styles; `table.css:805-813` records what a
+   missing one does — *"the calc is invalid at computed-value time and the
+   margin silently becomes 0 (verified live: stacked cards rendered
+   full-height, no overlap)"*. A wrong consolidation breaks the PHONE, silently.
+   It is also unnecessary: a media query restates a declaration, not a rule.
+2. **My 11–14 column range came from too small a sample.** The structural worst
+   case is 15, already written at `hand-fan.test.tsx:415`. P(15 columns) =
+   **3.43%** — re-derived independently here with a 200,000-deal simulation
+   (in-house 3.42%; distribution agrees to within noise). **An n=8 sample misses
+   it 75.6% of the time**, so 11–14 is just what n=8 of that distribution looks
+   like, and every width threshold from it used the wrong worst case. The
+   15-column hand must be CONSTRUCTED, never waited for. Practice 12, against my
+   own measurement this round.
+3. **My viewport labels are inner heights, not screen sizes.** Playwright's
+   `viewport` sets `innerHeight` directly (checked). A real 1280×800 laptop with
+   browser chrome presents ~680–710 inner, where the defect is WORSE than
+   measured. Same class as the "844 is an inner height no phone produces"
+   correction already on the record.
+
+It also named a standing invariant exception nobody had: a covered card in a
+pile exposes **28.6px** of uniquely tappable height at a 68px card (25.1px at 9
+deep) — above WCAG 2.5.8's 24px, below this project's own 44px floor
+(`HandFan.tsx:183-185`, `themes/lacquer.tsx:88`, both verified). Pre-existing;
+reported, not fixed.
+
+And it caught a real gap in mode admission: page zoom shrinks the CSS viewport
+rather than scaling the layout, so an elder at 150% zoom on a 1440×900 is at
+**960×600** — admitted to a desktop mode by width with 600px of height. Gating
+the desktop air on `and (min-height: 700px)` makes WCAG 1.4.4 statable.
+
 ### Process notes
 
 - **Two probe bugs, both caught by fail-loud guards rather than by luck.** The
@@ -110,6 +161,11 @@ surface" with a door already open to it.
 - **Disclosed panel asymmetry:** web search was ON for Grok and OFF for Codex
   (`codex exec` does not enable it by default). Both were given the same
   prior-art facts so neither depended on search for anything load-bearing.
+- **The in-house pass refuted its own draft in two places and said so** — it
+  proposed the clamp consolidation, had its own critique show that
+  `table.css:805-813` documents a live failure of exactly that shape, and
+  deleted it. That is the adversarial stage doing the job it exists for, on our
+  own side of the panel.
 - **Panel integrity flagged, not resolved:** both lineages have now DESIGNED,
   so whichever proposal is adopted, that lineage is anchored for the gate audit
   of the thing it designed. Owner decision 9 in the study.

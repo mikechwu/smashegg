@@ -52,12 +52,10 @@ count, both test pins, the `toBe(50.7)` arithmetic, the no-width-reactive-JS
 grep and the fan-tap-targets quote were each checked by hand, because a
 subagent's report is a claim, not a measurement.
 
-The synthesis stages — proposer, three adversarial critiques, revision — had
-**not completed when this document was written**, because one prior-art agent
-ran long and the phase is a barrier. So there is no third finished PROPOSAL
-here, only a third set of research. That is a smaller panel than planned and it
-is stated rather than implied; the two external proposals plus the measurements
-are what §4 compares.
+The synthesis stages — proposer, three adversarial critiques, revision — landed
+after §§3–6 were first written, and **changed two of the conclusions**. Rather
+than silently rewriting, the corrections are marked where they apply and
+collected in §4.4. The proposal itself is `proposals/desktop-C-inhouse.md`.
 
 **Disclosed asymmetry:** the audit recipe in METHODOLOGY passes
 `--disable-web-search` to Grok. This is a design study in which prior art is
@@ -521,6 +519,123 @@ horizontally. Variant D is retired only if the desktop hand also drops the
 same-value piles, which is a change to the hand's whole reading model, not a
 spacing change.
 
+### 4.4 The in-house proposal — a third answer, and three corrections to this document
+
+It arrived last and it is the best answer on the hand. Its central move is one
+neither external lineage made, and it dissolves a decision rather than choosing
+a side in it.
+
+**The design equation.** The rank glyph is `calc(var(--gd-cardw) * 0.36)`
+(`table.css:617`) and that index row has to fit the EXPOSED SLIVER, `p x w` —
+the 0.70 factor is written down as a fit budget at `table.css:1006-1011`. Let
+the index ratios scale with the pitch, and:
+
+```
+glyph  ~ 0.36 . p . w  =  0.36 x sliver
+15-column fan ink ~ 14 . p . w = 14 x sliver
+=>  glyph ~ 0.0257 x fan ink
+```
+
+**The glyph is a fixed fraction of the fan's total ink.** So once you fix how
+much horizontal arc the fan may occupy, index legibility is DETERMINED, and
+"bigger card" versus "less overlap" was never a legibility choice at all:
+
+| | card | pitch | sliver | 15-col ink | fan height |
+|---|---|---|---|---|---|
+| today, desktop | 68 | 0.70 | 47.6 | 734 | 198-227 |
+| **pitch to 1.00** | **68** | **1.00** | **68.0** | **1020** | **unchanged** |
+| a 96px card | 96 | 0.70 | 67.2 | 1037 | **+41%** |
+
+The bottom two rows give the same glyph. They differ only in what else they
+cost — and the bigger card costs height, on the axis that is already failing.
+**This is exactly what §3.10 measured independently**: `fix+zero68` was
+vertically free while `fix+zero90` cost ~190px. The equation explains the
+measurement, and the measurement confirms the equation.
+
+The consequence is a three-rung pitch ladder — 0.70 / 0.80 / 1.00 — at a card
+size that **never changes**, plus an intermediate mode at 960px that neither
+external proposal had.
+
+#### Correction 1 — decision 5 was wrong, and its own source says so
+
+§6 originally recommended collapsing the nine `clamp()` copies into one custom
+property. **Do not.** Five of the nine are deliberate ANCESTOR definitions
+serving inline `calc(var(--gd-cardw) * F)` styles emitted by
+`HandFan.tsx:307-309`; custom properties resolve against ancestors, and the
+card's own `--gd-cardw` lives on a DESCENDANT of the button that needs it.
+`table.css:805-813` records what happens when that ancestor definition is
+missing — *"the calc is invalid at computed-value time and the margin silently
+becomes 0 (verified live: stacked cards rendered full-height, no overlap)"* —
+and the same warning is repeated twice more. Consolidating them wrong produces,
+**on the phone**, 27 full-height cards at zero overlap, silently, because an
+invalid `calc()` yields the initial value with no error.
+
+And the consolidation was never needed: a media query restates a DECLARATION,
+not a rule, so the pitch ladder is four declarations that repeat the clamp
+literal exactly as the stylesheet already does. The in-house pass proposed this
+consolidation in its own draft, had it refuted by its own critique, and deleted
+it. The replacement keeps the only real benefit at a fraction of the risk: add
+lockstep pins for the two clamp copies pinned by nothing today
+(`.gd-desk__stage`, `.gd-sf__faces`).
+
+**If the card size never changes, the whole clamp debt is moot** — which is the
+strongest argument for the pitch ladder over a bigger card, on top of the
+vertical one.
+
+#### Correction 2 — my column-count range came from too small a sample
+
+§3.3 reports 11-14 value columns from n=8. The structural worst case is **15**
+(12 non-level ranks + the level class + both jokers), and it is already written
+down in this repo at `hand-fan.test.tsx:415`. The in-house pass computed how
+often it occurs; I re-derived it independently with a 200,000-deal simulation
+before accepting it:
+
+| columns | 10 | 11 | 12 | 13 | 14 | **15** |
+|---|---|---|---|---|---|---|
+| in-house | 1.90% | 10.82% | 28.89% | 35.91% | 18.89% | **3.42%** |
+| my independent run | 1.91% | 10.86% | 28.73% | 35.85% | 19.07% | **3.43%** |
+
+**An n=8 sample sees no 15-column hand 75.6% of the time.** So my 11-14 range is
+exactly what an 8-deal sample of this distribution looks like, and every width
+threshold derived from it was derived from the wrong worst case. This is
+practice 12 again, against my own measurement this time: **the 15-column hand
+must be CONSTRUCTED, never waited for**, and every width gate has to say so.
+
+The 1280px threshold survives — 15 columns at zero overlap with 6px gaps is
+~1104px of ink against ~1155px usable — but with ~50px of slack, not the ~200px
+the n=8 median implied.
+
+#### Correction 3 — my viewport labels are inner heights, not screen sizes
+
+Playwright's `viewport` sets `innerHeight` directly (checked: a 1280x800
+context reports `window.innerHeight === 800`). So every desktop row in §3.4 and
+§3.10 describes an **inner viewport**, not a device. A real 1280x800 laptop
+with browser chrome presents an inner height nearer 680-710, where the defect
+is WORSE than measured. The finding survives and strengthens; the labels were
+imprecise, and this is the same class as the "844 is an inner height no phone
+produces" correction this project already logged once.
+
+#### What else it contributes
+
+- **Modes admitted by WIDTH, vertical air admitted by HEIGHT.** Page zoom does
+  not scale a fixed layout, it shrinks the CSS viewport: an elder pressing
+  Cmd-+ to 150% on a 1440x900 is at **960x600**, admitted to a desktop mode by
+  width with 600px of height. Gating the desktop air on
+  `and (min-height: 700px)` is one media condition and it makes WCAG 1.4.4
+  (200% zoom without loss of function) a statable property rather than an
+  accident. Neither external proposal has this.
+- **A standing invariant exception nobody had named.** A covered card in a pile
+  exposes `stackOffsetW(n, stripW) x w` of uniquely tappable height; at lacquer's
+  `stackStripW: 0.42` and a 68px card that is **28.6px** (25.1px in a 9-deep
+  column). Above WCAG 2.5.8's 24px AA floor, below this project's own stated
+  44px floor. Verified in source (`HandFan.tsx:183-185`,
+  `themes/lacquer.tsx:88`). Pre-existing, not caused by anything here, and not
+  fixable this round — but it should stop being invisible.
+- Ring caps derived from the widest legal play rather than from taste: 7-10
+  cards can only be a bomb and >10 has no interpretation
+  (`combos.ts:468-474`), so the widest ink the centre must hold is
+  `(1 + 9x0.4) x 68 = 312.8px`.
+
 ## 5. What I would do, and why
 
 Offered as a recommendation, not a decision — the numbered list in §6 is what
@@ -539,11 +654,14 @@ seats actually go — the diagnostic's `left: 0 / right: 0` clips them (§3.6) �
 plus checking that `DealOverlay` and `PlayOverlay`'s seat-rect reads still
 land, since those measure the cells at runtime.
 
-**Change B — the hand.** Zero overlap with small gaps, at a card size gated on
-BOTH axes per §3.10. Zero overlap at today's 68px card is vertically free above
-1280px and grows the hand's ink from 639 to 956px — take that. A bigger card is
-a genuinely separate decision with a genuinely separate cost, and the honest
-version of the ladder is 68px ≥1280, 80px ≥1440×900, 90px ≥1920×1080.
+**Change B — the hand. REVISED after §4.4.** Widen the exposed sliver; do not
+enlarge the card. A pitch ladder 0.70 / 0.80 / 1.00 at a **constant 68px card**
+delivers the same index glyph as a 96px card (§4.4's equation, confirmed by
+§3.10's measurement that de-overlapping is vertically free while a 90px card
+costs ~190px), and because the card never changes size it never touches the
+nine-site clamp debt at all. The card-size ladder I proposed first — 68/80/90
+gated on both axes — is still *correct* as measured; it is simply the more
+expensive way to buy the same legibility, and §4.4 is why.
 
 **Do the modes as pure `@media` blocks, and make "no mode rules outside these
 blocks" the phone gate.** Grok proposed exactly this and it is the right shape
@@ -554,12 +672,17 @@ byte-identity property, cheap, and it is the same technique
 JS-visible mode would be the first width-reactive code in the client and should
 be resisted until something actually needs it.
 
-**Do not accept "token-level" as the plan for the card size.** §3.9 makes that
-a nine-site edit against six pins. Either it is done properly — collapse the
-nine literals to one real custom property and update the pins to check the
-lockstep through that property instead of by string equality — or the desktop
-card size stays at 68px. The half-measure (raise the ceiling, ship it) is the
-one that passes every test while measuring nothing.
+**Do not consolidate the nine clamp literals. REVISED after §4.4 — my first
+recommendation here was wrong.** Five of the nine are deliberate ancestor
+definitions, and getting the consolidation wrong renders 27 full-height
+zero-overlap cards **on the phone**, silently, because an invalid `calc()`
+yields the initial value with no error — `table.css:805-813` records exactly
+that failure, observed live. The consolidation is also unnecessary: a media
+query restates a declaration, not a rule. What §3.9 correctly rules out stands:
+raising the clamp CEILING alone is green everywhere while measuring nothing, so
+that must never be the plan. The safe version is to leave the card at 68px and
+move the pitch instead, plus lockstep pins for the two clamp copies pinned by
+nothing today.
 
 **What I would NOT do**, agreeing with both lineages: no second component tree,
 no rotate-to-landscape, no `AREA_HARD_MAX` bump, no 110px card, no sticky Play.
@@ -583,20 +706,23 @@ question at short heights and I have not measured that interaction.
    short-height rule** (Grok's shape), rather than four width modes (Codex's).
    Height is a real second axis: 1280×800 and 1920×1080 are the same width
    class and behave differently at every card size.
-3. **Zero overlap starts at 1280, not 1024.** Measured: at 1024 the hand wraps
-   and 54.2% of deals fall below the fold. At ≥1280 it is vertically free and
-   grows the hand's ink 639 → 956px.
-4. **Card size ladder, gated on both axes**: 68px ≥1280, 80px ≥1440×900, 90px
-   ≥1920×1080. Both external lineages said 90px at ≥1440; measurement says that
-   is below the fold on 50% of deals. Alternative: keep 68px everywhere and take
-   only the de-overlap win.
-5. **The card-size token debt.** A desktop card size is a nine-site literal edit
-   against six string-equality pins and one explicit prohibition
-   (`seat-stack.test.tsx:940-943`). Either collapse the nine `clamp()` copies to
-   one real custom property and re-express the pins through it, or decide the
-   desktop card stays 68px. **The half-measure — raise the clamp ceiling — is
-   green on every existing test while measuring nothing (§3.9), so it must not
-   be the plan.**
+3. **Widen the sliver, do not enlarge the card** (§4.4). A pitch ladder
+   0.70 / 0.80 / 1.00 at a constant 68px card buys the same index glyph as a
+   96px card at zero vertical cost, and sidesteps the clamp debt entirely.
+   The alternative — a card-size ladder of 68/80/90 gated on both axes — is
+   measured and correct but strictly more expensive for the same legibility.
+   **This supersedes what decisions 3 and 4 said in the first draft.**
+4. **Where the rungs sit.** Zero overlap (pitch 1.00) starts at **1280**, not
+   1024 — at 1024 the hand wraps and 54.2% of deals fall below the fold. The
+   in-house proposal adds an intermediate rung at **960** (pitch 0.80), derived
+   from the 15-column worst case rather than from a sample; neither external
+   proposal had it. All width thresholds must be re-checked against a
+   CONSTRUCTED 15-column hand, which an n=8 sample misses 75.6% of the time.
+5. **Do not consolidate the clamp literals** — my first recommendation, now
+   withdrawn (§4.4, correction 1). Five of the nine are deliberate ancestor
+   definitions and a wrong consolidation breaks the PHONE silently. What stands
+   from §3.9: raising the clamp CEILING alone is green everywhere while
+   measuring nothing, so that must never be the plan.
 6. **The event feed**: Codex would grow it into a desktop side rail; Grok would
    keep it a 2-line tail and calls a sidebar an attention and fold cost. Not
    settled by measurement. Recommend Grok's.
@@ -625,6 +751,16 @@ question at short heights and I have not measured that interaction.
   this product, on the grounds that the sliver machinery (the 配 marker, corner
   indices, ~12px silhouettes) is debt that abundance lets us drop rather than a
   target to aim at. Recorded so the road not taken is visible.
+- **A standing invariant exception, newly named (§4.4).** A covered card in a
+  pile exposes 28.6px of uniquely tappable height at a 68px card (25.1px at
+  9 deep) — above WCAG 2.5.8's 24px floor, below this project's own 44px one.
+  Pre-existing and not caused by anything here; it should be reported by the tap
+  gate at every mode and raised in its own round.
+- **Modes by width, vertical air by height (§4.4).** Page zoom shrinks the CSS
+  viewport rather than scaling the layout, so an elder at 150% zoom on a
+  1440×900 is at 960×600 — admitted to a desktop mode by width with 600px of
+  height. One media condition (`and (min-height: 700px)`) makes WCAG 1.4.4 a
+  statable property instead of an accident.
 - **Carried open from earlier rounds, still open:** real-device / elder sessions
   not run; three recorded sort groups wrap on a phone; `HandFan`'s `readOnly`
   prop unused; merge unreachable at `AREA_HARD_MAX = 2`; no landscape styling.
