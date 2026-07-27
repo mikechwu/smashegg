@@ -62,6 +62,14 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 
     This was caught inside the same round that wrote practices 12 and 14, in the summary line of a probe built to enforce them — which is the ordinary way these fail. The response is the same as always: put it in the tooling, not in the reader. A gate that prints a floor prints `min` and `k/n`, or it is not reporting the property it claims.
 
+17. **A refutation must be recorded with the conditions under which it holds, or it keeps applying after they change.** Practices 12/14/16 govern how a result is measured and reported. This one governs how a NEGATIVE result is stored — and negative results are the ones that quietly outlive their premises, because nobody re-opens a question that was settled.
+    - **The instance.** The sort-areas round refuted side-by-side areas on measurement: a 50.7px column against 7.4px of horizontal slack. That refutation was correct, and it was correct **at 390px**. It was then carried forward as "side-by-side is refuted" — full stop — and repeated in the desktop round's own "what I would not do" list. Re-measured against desktop arithmetic it turns out to be the **best available answer there**: laid side by side a shelf costs ZERO vertical, against 162.6px as a band, and it closes a 100%-below-fold gap at inner 1280×800.
+    - **Why the drift is systematic rather than careless.** A refutation compresses to a memorable sentence ("it doesn't fit") while its premise ("in 342px of content width") is the part that gets dropped, and a design that has been rejected once is rarely re-costed. Positive results get re-measured when they look wrong; negative ones are never looked at again.
+
+    **Operational rule: write a refutation as a conditional, never as a verdict.** "Refused AT 390px, because 15 columns × 50.7px against 342px leaves 7.4px" — not "refused". State the quantity, the threshold and the viewport (or the load, the version, the locale — whatever the binding condition was). When the conditions change materially, the refutation is void until re-measured, and the burden is on whoever cites it, not on whoever proposes it again.
+
+    **Corollary for design panels:** an external lineage's rejected proposal is worth re-reading whenever the constraints move. Codex's side-by-side layout was disqualified by measurement in one round and is the adopted answer in another, unchanged.
+
 ## Tool & model ladders (current)
 
 Web research runs on the built-in WebSearch/WebFetch tools, `curl` via shell for direct page/PDF fetches, and `gh api` for GitHub content. **Firecrawl is disabled as of 2026-07-13 (credit limit reached — owner instruction); state this in every research-agent prompt.** Escalate to costlier tooling only on demonstrated failure of a cheaper rung, and log the failure.

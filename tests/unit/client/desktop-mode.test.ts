@@ -126,6 +126,77 @@ describe('PHONE IDENTITY — rung 0 cannot reach a viewport below 720px', () => 
     expect(seatRule.test(desktop), 'the seat re-siting should be present at ≥720px').toBe(true);
   });
 
+  it('SIDE-BY-SIDE areas are ≥720px only — the phone keeps its bands', () => {
+    // The phone has no horizontal room: the sort-areas round refuted this exact
+    // layout at 390px on measurement (a 50.7px column against 7.4px of slack),
+    // and that refutation still holds THERE. It is the desktop arithmetic that
+    // voided it (METHODOLOGY practice 17: a refutation carries its conditions).
+    // So this rule leaking below 720 would re-introduce a layout already
+    // measured not to fit.
+    const phone = outsideMinWidth(TABLE);
+    const rowRule = /\.gd-fan--split\s*\{[^}]*flex-direction:\s*row/;
+    expect(rowRule.test(phone), 'no side-by-side split outside a ≥720px block').toBe(false);
+    const desktop = TABLE_DESKTOP.map((b) => b.body).join('\n');
+    expect(rowRule.test(desktop), 'side-by-side should be present at ≥720px').toBe(true);
+    // The wrap fallback is not optional: whether two areas fit is a property of
+    // the DEAL, so without it a card overflows .gd-table invisibly (measured at
+    // inner 720x900 before it was added).
+    const splitBlock = desktop.match(/\.gd-fan--split\s*\{[^}]*\}/)?.[0] ?? '';
+    expect(splitBlock, 'side-by-side must degrade by wrapping, not by overflowing').toContain(
+      'flex-wrap: wrap',
+    );
+    // The widened cap is conditional on a shelf actually being open.
+    expect(desktop, 'the split cap is scoped by :has()').toContain('.gd-handzone:has(.gd-fan--split)');
+    expect(phone, 'no :has() cap on the phone').not.toContain('.gd-handzone:has(');
+  });
+
+  it('the split hand cap clears the SPLIT bound, which is not the single-area one', () => {
+    // The 15-class bound does NOT survive splitting: a value can be a column in
+    // MAIN and also sit on the shelf, so the two areas are not partitioned by
+    // value. Re-derived here from the stylesheet's own numbers rather than from
+    // the 906.1px an n=12 sweep happened to produce — that sample understated
+    // the true bound by 237.5px, which is exactly practice 14's failure mode.
+    const REM = 16;
+    const cardPx =
+      Number(TABLE.match(/\.gd-card--hand\s*\{[^}]*clamp\([\d.]+rem,\s*[\d.]+vw,\s*([\d.]+)rem\)/)?.[1] ?? NaN) * REM;
+    const pitchFactor = Number(
+      (TABLE.match(/\.gd-fan__stack\s*\{[^}]*\}/)?.[0] ?? '').match(
+        /margin-left:\s*calc\([^)]*\)\s*\*\s*-([\d.]+)\)/,
+      )?.[1] ?? NaN,
+    );
+    const runFactor = Number(
+      (TABLE.match(/\.gd-fan__runCards > \.gd-fan__card \+ \.gd-fan__card\s*\{[^}]*\}/)?.[0] ?? '').match(
+        /margin-left:\s*calc\([^)]*\)\s*\*\s*-([\d.]+)\)/,
+      )?.[1] ?? NaN,
+    );
+    expect(cardPx).toBe(68);
+    expect(pitchFactor).toBeCloseTo(0.3, 10);
+    expect(runFactor, 'shelf run overlap is parseable').toBeCloseTo(0.6, 10);
+
+    const CLASSES = 15;
+    const HAND = 27;
+    const BAND_GAP = 12; // --space-lg between the two areas
+    const RUN_GAP = 6; //  --space-xs between recorded groups
+    const mainInk = (c: number): number => (1 + (c - 1) * (1 - pitchFactor)) * cardPx;
+    const shelfInk = (k: number): number =>
+      (1 + (k - 1) * (1 - runFactor)) * cardPx + Math.max(0, Math.floor(k / 2) - 1) * RUN_GAP;
+    let bound = 0;
+    for (let k = 1; k < HAND; k += 1) {
+      bound = Math.max(bound, mainInk(Math.min(CLASSES, HAND - k)) + BAND_GAP + shelfInk(k));
+    }
+    expect(Math.round(bound * 10) / 10).toBe(1143.6);
+
+    const desktop = TABLE_DESKTOP.map((b) => b.body).join('\n');
+    const capRem = Number(
+      desktop.match(/\.gd-handzone:has\(\.gd-fan--split\)\s*\{[^}]*max-width:\s*min\([\d.]+vw,\s*([\d.]+)rem\)/)?.[1] ?? NaN,
+    );
+    expect(capRem, 'the split cap is parseable').toBeGreaterThan(0);
+    expect(
+      capRem * REM,
+      `the split hand cap (${capRem * REM}px) must clear the split bound (${bound}px)`,
+    ).toBeGreaterThan(bound);
+  });
+
   it('the phone keeps the ring geometry the fold measurements were taken against', () => {
     // The base .gd-ring__table rule is what a phone renders. Its row floor and
     // its lack of a max-width are inputs to the 8.3% below-fold rate the owner

@@ -39,3 +39,37 @@ jobs:
       - name: E2E (wrangler dev)
         run: npm run test:e2e
         timeout-minutes: 15
+
+      # CONTAINMENT — the browser gate that runs on every push, and the reason
+      # this one and not the others.
+      #
+      # The fold and tap-target gates are MANUAL by design: playwright is
+      # deliberately not a repo dependency, and their questions are RATES over
+      # a deal-dependent step function, which needs n>=24 per viewport and
+      # therefore minutes. Sampling them in CI would report a number too small
+      # to mean anything (practice 12), which is worse than not running them.
+      #
+      # Containment is a different KIND of property. A box that escapes its
+      # container escapes on every deal at a given viewport — the clipped seat
+      # did — so a 1-deal sweep across the mode boundaries is adequate, and it
+      # is the class that produced no scrollbar, no red test and a clean fold
+      # rate. That asymmetry is the whole argument: automate the deterministic
+      # check, keep the statistical one manual and explicit.
+      #
+      # Its limit is printed by the script itself rather than left implicit: at
+      # this sample it catches STRUCTURAL violations, not ones needing a rare
+      # hand. The manual sweep still covers those.
+      - name: Install chromium for the containment gate
+        run: npx --yes playwright@1 install --with-deps chromium
+        timeout-minutes: 10
+
+      - name: Containment gate (browser, all mode boundaries)
+        run: |
+          npx wrangler dev --port 8787 > /tmp/wrangler-ci.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:8787/api/health > /dev/null && break
+            sleep 2
+          done
+          curl -sf http://localhost:8787/api/health > /dev/null || { echo "wrangler dev never became healthy"; cat /tmp/wrangler-ci.log; exit 1; }
+          BASE=http://localhost:8787 CONTAIN_DEALS=1 node scripts/check-containment.mjs
+        timeout-minutes: 15

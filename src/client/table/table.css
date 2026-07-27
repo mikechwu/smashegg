@@ -2527,6 +2527,52 @@ button.gd-plate {
     margin: 0 auto;
     width: 100%;
   }
+  /* A SPLIT hand needs a wider box, and only while it is split — so the cap is
+     conditional rather than permanently wide. Widening it unconditionally is
+     what flung the sort pills and the seat plate to the screen edges (see the
+     56rem comment above); `:has()` pays that cost only when a shelf is open.
+     Verified by execution, not cited: `CSS.supports('selector(:has(*))')` is
+     true and a `:has()` cap really does widen only the matching container.
+     74rem = 1184px is DERIVED from the split bound below, which is 1.56x the
+     single-area one — the 15-class bound does NOT survive splitting, because a
+     value can be a column in MAIN and also sit on the shelf. */
+  .gd-handzone:has(.gd-fan--split) {
+    max-width: min(94vw, 74rem);
+  }
+  /* SIDE BY SIDE, not stacked. A shelf as a BAND costs 162.6px of fan height,
+     which put Play below the fold on 12/12 deals at inner 1280x800; side by
+     side it costs ZERO — fan height and Play's document position are identical
+     to having no shelf at all (n=12, all shelf sizes measured).
+     THIS LAYOUT WAS REFUTED ONCE, CORRECTLY, AT 390px (docs/research/
+     sort-areas.md: a 50.7px column against 7.4px of slack). The refutation
+     held for that viewport's arithmetic and does not transfer to this one —
+     which is why it stays inside a min-width block and the phone keeps bands.
+     row-reverse: `bandOrder` emits shelves first and MAIN last, so reversing
+     puts MAIN on the LEFT — the reading-order anchor — with the aside beside
+     it, preserving "MAIN is the thing you play from" now that "lowest band" no
+     longer means anything. */
+  .gd-fan--split {
+    flex-direction: row-reverse;
+    align-items: flex-end;
+    justify-content: center;
+    gap: var(--space-lg);
+    /* LOAD-BEARING, and its absence was a real bug caught by the containment
+       check on this feature's first run. Whether two areas fit side by side is
+       a property of the DEAL (MAIN's column count) and of the viewport, so no
+       static breakpoint can guarantee it: at inner 720x900 with a shelf open a
+       card overflowed .gd-table by 6.7px — invisibly, because the table's own
+       `overflow-x: hidden` suppresses the scrollbar that would have shown it.
+       With wrap, a pair that does not fit falls back to stacking, which is the
+       banded layout it came from: it costs the vertical again, but only when
+       the horizontal genuinely is not there. Same graceful-degradation shape
+       the fan already uses for an oversized hand (.gd-fan__stackRow). */
+    flex-wrap: wrap;
+  }
+  /* The seam is a full-width line UNDER a band. Beside one it is the shelf
+     column's own footer, so it must stop reserving the band-stack's margin. */
+  .gd-fan--split .gd-fan__seamRow {
+    margin-bottom: 0;
+  }
 }
 
 /* --- narrow-width chrome compression (≤719px) ---------------------------- */
