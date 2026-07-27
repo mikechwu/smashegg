@@ -261,9 +261,26 @@ function wilson95(k, total) {
 
 const shelfScroll = rows.filter((r) => (r.shelved?.docBottom ?? 0) > (r.shelved?.fold ?? 0)).length;
 console.log(`\n--- RATE (n=${n}) ---`);
+// THE COMPARISON IS BUILT IN, NOT REMEMBERED.
+//
+// "Play below the fold is a serious regression" is a rule the base layout has
+// never satisfied: the phone's own no-shelf rate is ~12.5%, and the owner
+// accepted it on the record (2026-07-25). While the gate printed a rate against
+// an implied zero, every round re-discovered that gap by arguing over margins
+// too small to mean anything. So the BASELINE is printed beside the rate, and
+// the verdict below is expressed against it.
+const BASELINES_NOSHELF = {
+  '390x844': { rate: 0.125, lo: 0.043, hi: 0.310, n: 24, note: 'accepted 2026-07-25' },
+};
+const nsBase = BASELINES_NOSHELF[key] ?? null;
 console.log(
   `WITHOUT a shelf, Play needs scrolling in ${needScroll}/${n} = ` +
-    `${n ? ((needScroll / n) * 100).toFixed(1) : '0.0'}%   95% CI ${wilson95(needScroll, n)}`,
+    `${n ? ((needScroll / n) * 100).toFixed(1) : '0.0'}%   95% CI ${wilson95(needScroll, n)}` +
+    (nsBase
+      ? `\n    vs ACCEPTED no-shelf baseline ${(nsBase.rate * 100).toFixed(1)}% ` +
+        `[${(nsBase.lo * 100).toFixed(1)}%, ${(nsBase.hi * 100).toFixed(1)}%] (n=${nsBase.n}, ${nsBase.note}). ` +
+        `THE TARGET IS THE BASELINE, NOT ZERO.`
+      : `\n    no accepted baseline recorded for inner ${key} — this rate is not compared to anything.`),
 );
 console.log(
   `WITH one shelf:                          ${shelfScroll}/${n} = ` +

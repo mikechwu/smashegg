@@ -93,6 +93,21 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 
     **Consequence, worked:** a scroll caused by opening a sort shelf is acceptable; the same scroll arriving because an opponent played is not. And cards closing the gap after cards LEAVE the hand (a play, a tribute, a send-to-shelf) is between operations rather than within a reach — and it matches the physical hand, which elders' mental model is built on. Confirmed non-A′ here by checking that set-aside moves the whole selection in one action, so a send is one reflow and never one per card.
 
+24. **A clean ZERO is the most suspicious result a probe can return — verify the probe's SCOPE before believing it.** A zero is what you get when nothing is wrong *and* what you get when you are not looking at the right thing, and the two are indistinguishable from the output alone.
+    - **The instance.** A coverage probe reported an overlay "covers 0/24 MAIN cards". It measured the shelf BAND and never the SEAM ROW — a component instead of the composite — and the seam sat directly over MAIN. A different instrument (the tap probe) found **121 stolen tap points across 16 deals**.
+    - **Two more false zeros in the same round**, both from sampling rather than scope: a "0/12 below fold" that was 12.5% once the sample reached the structural worst case, and another that was 6.3%.
+    - **Third confidently-wrong instrument in this project**: viewport-vs-document coordinates, the fold gate's cross-viewport baseline, and now this.
+
+    **Operational rule: when a probe returns 0, enumerate what it examined and check that the enumeration covers the whole claim.** Print the scope in the probe's own output — "examined N elements: [list]" — so a reader can see what a zero is a zero *of*. The containment gate already refuses to pass below a minimum element count for this reason; extend the habit to every probe that can report an absence.
+
+    **And prefer overlapping instruments.** This error was caught because a second gate measured a different quantity over the same state. Two probes that can both see a defect are worth more than one probe that is twice as careful.
+
+25. **Say which question a sample size can answer: DETECTION or EQUIVALENCE.** They need very different n, and conflating them dresses "we could not tell" as "they are the same".
+    - **The instance.** n=16 gave 12.5% [3.5%, 36.0%] against an accepted baseline of 12.5% [4.3%, 31.0%], reported as "statistically indistinguishable". The intervals do overlap — but each spans ~30 percentage points, and at that width almost any rate is indistinguishable from almost any other. The honest statement is **"this sample lacks the power to detect a difference"**, which is a statement about the sample, not about the world.
+    - The same n=16 was ample for the other question it was asked: 12.5% vs 100% is not a close call.
+
+    **Operational rule: state the question with the number.** "n=16, enough to separate 12.5% from 100%, nowhere near enough to establish equivalence with a 12.5% baseline." An equivalence claim needs a pre-declared margin and the n to support it, or it should be written as an open question.
+
 23. **Before removing anything that looks like pure chrome or pure duplication, check whether the source records WHY it is there.** Twice now in this project a plausible simplification would have deleted a safety property, and both times a comment at the site said so:
     - **The nine clamp copies** looked like duplication. Five are deliberate ANCESTOR definitions serving inline `calc(var(--gd-cardw) * F)` styles; a missing one makes the calc invalid at computed-value time so the margin silently becomes 0, observed live as 27 full-height cards at zero overlap (`table.css:805-813`).
     - **The seam ROW** looked like 50px of control chrome — 43% of a shelf's vertical cost. `HandFan.tsx:493-501` records that it sits below its shelf and *above the next band's lift headroom* precisely so variant D's near-miss (a tap at the top of a lifted card lands on whatever is above its hit box) resolves onto inert padding instead of onto a destructive button. It is a safety mechanism wearing chrome's clothes.

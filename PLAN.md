@@ -352,6 +352,9 @@ Named empirical gate checks (promoted from the risk register per round-2 feedbac
 - **G-COMPOSE** (M0): the deployed hello-world proves one Worker serves static assets *and* answers through a Durable Object in a single deploy.
 - **G-ALARM** (M0, re-checked M2): a DO alarm fires on the free tier — at M0 as hello-world, at M2 while the DO is hibernated.
 - **G-WSMETER** (M2): inbound WS-message accounting against the DO request meter measured on real dashboards; budget table §1.6 re-validated with observed numbers.
+- **G-FOLD** (standing, restated 2026-07-27): **a change must not raise the below-fold rate above the measured no-shelf BASELINE for that viewport** — it is not "Play is never below the fold", which the product has never satisfied and was never going to. The phone's accepted baseline is 12.5% [4.3%, 31.0%] (n=24, owner decision 2026-07-25); desktop modes are 0/24 after rung 0. Reported by `scripts/measure-fold.mjs` as a rate with its Wilson interval, its sample size and its INNER viewport dimensions, printed beside the baseline so the comparison is in the instrument rather than in someone's memory.
+  Paired with it, and the reason the rule can be this shape at all: **auto-scroll must never move a target between the player committing to a reach and completing it** (METHODOLOGY practice 20). A scroll that follows the player's own deliberate press is safe; one that arrives unbidden is not.
+  *Why this was restated:* the old wording was a rule the base layout violated 12.5% of the time. For several rounds that gap was re-discovered rather than closed, and it produced arguments over 2.4px margins on a quantity that moves in 21.3px steps. A rule the product violates by design is the drift class this project keeps catching (METHODOLOGY practices 12, 22).
 
 | M | Deliverable | Exit gate (acceptance) |
 |---|---|---|
