@@ -1540,6 +1540,22 @@ export function GameTable({ snapshot, store }: GameTableProps) {
                since .gd-table is overflow-x:hidden. This row already renders
                exactly when a selection exists and already carries a 44px pill. */
             setAside={setAsideWouldChange ? 'move' : 'alreadyThere'}
+            /* applyMove, NOT applyMoveAsGroup — and that is load-bearing beyond
+               this call. The desktop split hand's width cap (78rem, table.css)
+               is derived from a bound that RESTS ON THIS: because only the
+               straight-flush finder records a group, and a straight flush is at
+               least 5 cards, a shelf can hold at most floor(k/5)+1 RUNS — and
+               run count, not card count, is what drives the shelf's width.
+               IF THIS EVER RECORDS A GROUP (a reasonable future feature: "keep
+               the cards I just selected together"), groups become any size >= 2,
+               the run bound collapses, and the proved maximum rises from
+               1207.2px to 1389.6px — past the cap, silently, until a containment
+               red. Whoever builds that must re-derive the cap in the same
+               change. The bound's own derivation names this file in return
+               (desktop-mode.test.ts), so the dependency is two-way.
+               One more property this call has that the bound does not depend on
+               but the elder review does: it moves the WHOLE selection in one
+               action, so a send is ONE reflow, never one per card. */
             onSetAside={() => {
               setAreas((current) => applyMove(current, view.hand.length, selected, setAsideTarget, AREA_HARD_MAX));
               setSelected(new Set());

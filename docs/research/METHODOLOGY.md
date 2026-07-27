@@ -78,6 +78,21 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 
     **Diagnostic question to ask of any breakpoint:** *what is the variable this threshold is standing in for?* If the honest answer is "how much content there happens to be", the breakpoint is a proxy and needs a fallback behind it.
 
+19. **A bound is only proved if its derivation cites a fact that CONSTRAINS the system.** Practice 14 says derive rather than sample. This is the test that says whether you actually did — and it exists because a derivation passed review here twice while still being a sample.
+    - **The failure shape.** "A 12-card shelf in 6 groups beside a 15-column MAIN" is a *scenario*: someone imagined a large configuration and computed its width. It looks derived — it has a formula and a worked number — and that is exactly why it survives review. It was 1143.6px, and the real maximum was 1389.6px under the same model.
+    - **What a real derivation looks like.** "A recorded group comes only from the straight-flush finder, and a straight flush is at least 5 cards, so runs ≤ ⌊k/5⌋+1" cites a fact about what the system *can* produce. The maximum then falls out of a search over the whole space rather than out of a chosen configuration.
+
+    **Operational test: for every bound, name the constraint and say where it lives.** A file and a line, or a rule of the game, or a type. If the answer is "it seemed like the worst case", it is a sample wearing a formula — relabel it as a sample and treat it accordingly (report the rate at which reality exceeds it, or provide a fallback).
+
+    **And pin the constraint bidirectionally, because it is usually behaviour rather than an invariant.** "Only the finder records groups" is true of today's code, not of the design. So the bound's derivation names the code it rests on, and that code carries a note saying which bound it would invalidate — the same two-way shape as practice 13's mitigation pointers, for the same reason: the person changing it should see the consequence while they are writing it.
+
+20. **"No moving target" means no movement between COMMITTING to a reach and COMPLETING it — not no movement during a turn.** Stated precisely because the loose form rules out reasonable designs and the precise form is what the evidence actually supports.
+    - The hazard the variant-D fisheye evidence established was *within a selection sequence*: a six-card straight is six aims, and a layout that moved after each tap moved the next target while the player was still reaching.
+    - Movement that follows immediately from the player's own deliberate press is **safe** — they are not mid-reach for anything else, and the movement is the response to their action.
+    - Movement that arrives **unbidden** — a clock tick, an opponent's play, a state transition, an auto-scroll not caused by this press — is the thing to refuse.
+
+    **Consequence, worked:** a scroll caused by opening a sort shelf is acceptable; the same scroll arriving because an opponent played is not. And cards closing the gap after cards LEAVE the hand (a play, a tribute, a send-to-shelf) is between operations rather than within a reach — and it matches the physical hand, which elders' mental model is built on. Confirmed non-A′ here by checking that set-aside moves the whole selection in one action, so a send is one reflow and never one per card.
+
 ## Tool & model ladders (current)
 
 Web research runs on the built-in WebSearch/WebFetch tools, `curl` via shell for direct page/PDF fetches, and `gh api` for GitHub content. **Firecrawl is disabled as of 2026-07-13 (credit limit reached — owner instruction); state this in every research-agent prompt.** Escalate to costlier tooling only on demonstrated failure of a cheaper rung, and log the failure.

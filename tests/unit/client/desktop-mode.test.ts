@@ -182,6 +182,14 @@ describe('PHONE IDENTITY — rung 0 cannot reach a viewport below 720px', () => 
     // and records nothing. A straight flush is at least 5 cards. THAT is the
     // structural fact that bounds run count — without it the shelf could be all
     // 2-card runs and the maximum would be 1389.6px instead.
+    //
+    // THIS IS A FACT ABOUT CURRENT BEHAVIOUR, NOT AN INVARIANT — which is why
+    // the dependency is pinned in both directions. GameTable's onSetAside
+    // carries the matching note, so whoever makes manual set-aside record a
+    // group sees that it invalidates this cap while they are writing it. The
+    // assertion below is what makes that pointer more than prose: it re-derives
+    // the bound from MIN_GROUP, so raising or removing the constraint changes
+    // the expected number and turns this red.
     const MIN_GROUP = 5;
     const mainInk = (c: number): number => (c === 0 ? 0 : (1 + (c - 1) * (1 - pitchFactor)) * cardPx);
     // g runs holding k cards: each run starts at a full card and adds
@@ -202,6 +210,22 @@ describe('PHONE IDENTITY — rung 0 cannot reach a viewport below 720px', () => 
     // the previous figure (1143.6) modelled the shelf as one run and was
     // therefore a configuration, not a maximum.
     expect(Math.round(bound * 10) / 10).toBe(1207.2);
+    // And the source really does still only record groups from the finder — a
+    // citation that is executed, not asserted (practice 13). If the desk's
+    // set-aside starts recording groups this goes red HERE, at the derivation,
+    // rather than later at a containment failure.
+    const gameTable = stripComments(
+      readFileSync(new URL('../../../src/client/GameTable.tsx', import.meta.url), 'utf8'),
+    );
+    const setAsideBody = gameTable.slice(
+      gameTable.indexOf('onSetAside={'),
+      gameTable.indexOf('onSetAside={') + 400,
+    );
+    expect(setAsideBody, 'the set-aside handler is findable').toContain('applyMove(');
+    expect(
+      setAsideBody,
+      'manual set-aside must not record a group — the 78rem cap is derived from it not doing so',
+    ).not.toContain('applyMoveAsGroup');
 
     const desktop = TABLE_DESKTOP.map((b) => b.body).join('\n');
     const capRem = Number(
