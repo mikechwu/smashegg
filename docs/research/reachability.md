@@ -1,8 +1,11 @@
 # Reachability — what replaces the phone fold metric
 
-**Date: 2026-07-27.** Status: the instrument is built and the base case is measured. **The definition
-is not settled and is put to the owner below (§6).** Supersedes the phone half of the fold metric;
-the desktop half of G-FOLD stands.
+**Date: 2026-07-27.** Supersedes the phone half of the fold metric; the desktop half of G-FOLD stands.
+
+**Status: D1 is RULED — G-SIM is stated against the `panel` set (§8).** Sections 1–7 are round 1 and
+are kept as written. **Read §8 before quoting any number from §4 or §5: the round-1 figures were
+measured with no cards staged, which is not the state a player decides in, and the corrected staged
+figures change the verdict at 390×664 from +55.0px of slack to −20.3px.**
 
 ## 1. Why the old metric died, in one paragraph
 
@@ -174,3 +177,137 @@ properties.
 
 It also does not catch horizontal problems (containment does, and rides along on every run), nor
 anything about whether the visible facts are *correct*.
+
+---
+
+## 8. Round 2 (2026-07-27, later) — the staged state, the derivation, and the D1 ruling
+
+### 8.1 The un-staged measurement was the wrong state, and it flattered the layout
+
+Every figure in §4 was taken with **no cards staged**. But a player stages, then decides — so the
+un-staged state is one they pass *through*, and the decision moment is the one after. Staging opens
+`.gd-desk__stage`, a card row worth **+54.0px** of desk height, and the span is additive in desk
+height, so the whole 54px lands on the budget.
+
+It **saturates at the first card**: the stage is a flex row with no wrap, capped at
+`DESK_STAGE_MAX_FACES = 10` (`helpers.ts:898`) and then a `+N` pill. Measured 0..12 staged cards, the
+desk reaches 148.5px at k=1 and never moves again. So one card is the worst case, not a sample of it.
+
+Re-measured with one card staged (lacquer, no shelf, worst over the sample):
+
+| inner | in-house | **panel** | minimal | n |
+|---|---|---|---|---|
+| 390×664 | −188.5px (100%) | **−20.3px, infeasible 4.2% [0.7, 20.2]; 12.5% not all visible at settle** | +459.5px (0%) | 24 |
+| 390×748 | −83.2px (100%) | **+85.0px (0%)** | +543.5px (0%) | 24 |
+| 1366×681 | −81.4px (81.3%) | **+71.4px (0%)** | +451.4px (0%) | 16 |
+
+**Correction to §5(a) and §5(c).** The base layout does **not** clear the panel bar at 390×664 in the
+decision state: the +55.0px of slack reported there was un-staged, and staged it is **−20.3px**. And
+§5(c)'s "rung 0 passes under *every* definition at 1366×681" is narrowed: it passes under the panel
+set (+71.4px) but fails the in-house set on 81.3% of deals once staging is included.
+
+### 8.2 The span is derived, not sampled (`scripts/derive-span.mjs`)
+
+    span = fanHeight + deskHeight + K       K = 198.5px (well renders) | 66.0px (viewer leads)
+
+Each K constant to **0.1px across 78 measured states** (6–24 deals × 0–12 staged cards). The 132.5px
+difference is the trick well: `.gd-well` has no `min-height`, so on a lead it renders 0×0, drops out
+of the profile, and the span's top jumps from the well down to the fan. The bound uses the larger.
+
+So **the span's bound reduces to the bounds of its two variable terms**:
+- `deskHeight ≤ 148.5px` — **structural**, per the saturation above;
+- `fanHeight` — **not yet bounded**. Observed 230.8..316px, and every observed value lies on the known
+  21.3px lattice (230.8 + 21.3·j, j = 0..4). Bounding it is what would convert every worst case here
+  from sampled to proved, and it is the single remaining piece.
+
+The first version of this script reported "NOT ADDITIVE: K moves over 0.1px" — a verdict its own
+number refuted, because the check demanded exact equality of independently-rounded terms. Fixed with a
+stated 1px tolerance; a threshold that calls 0.1px a structural term is an instrument defect.
+
+### 8.3 The level chip fits for free — which is what makes the D1 fix work
+
+The owner's D1 ruling adopts the panel set for the metric but treats the level's absence as a design
+defect with a named fix: put a level indicator **inside `.gd-desk`**, which the panel set already
+requires visible. Measured before building, at inner 390×664:
+
+- The title row is **27px tall, set by the TITLE, not the clock** (the clock is 24px). So any chip
+  ≤27px tall adds **zero** height — confirmed by injecting three candidates (`--fs-sm`/`--fs-md`,
+  with and without a suit glyph, 34.5–51.8px wide × 20.2–21.6px tall): desk height unchanged, **0px**,
+  in two different desk states (43px and 94.5px).
+- Horizontally, with the **longest** own-turn title in the default locale (`請快出牌 · 還剩 30 秒`,
+  180.6px) and a clock present, **84.4px** of free space remains.
+
+**So a level chip up to ~84px × 27px costs zero span.** Both properties, no trade — as the ruling
+predicted.
+
+**One limitation, stated rather than buried.** The clock was **injected** with its real class, not
+rendered naturally: a driven room never presented one at the probe moment. Diagnosed — in the timed
+run seat 0's turn was the forced-pass window, where `GameTable.tsx:1166` deliberately suppresses the
+clock (`forcedPassWindow ? null : dueSeconds`). The layout measurement is real; the assumption that a
+server-rendered clock renders identically is an assumption.
+
+### 8.4 The 664↔748 toolbar transition: the moving-target hazard does NOT materialise
+
+Promoted from §7 at the owner's instruction. iOS Safari collapses its toolbar on scroll, and the
+auto-scroll *is* a scroll — so the feared sequence is turn → auto-scroll → toolbar collapses →
+viewport grows 84px → layout reflows → targets move, which practice 20 forbids.
+
+**What headless can and cannot settle**, stated up front: it *cannot* decide whether Safari collapses
+on a **programmatic** `scrollIntoView` — Chromium has no such toolbar, and that is a real-device
+question. It *can* decide everything downstream, because that is the page's behaviour, not Safari's.
+
+Measured over 6 deals, transitioning 664→748 and back:
+
+- **Largest press-target movement: 0.0px.** Action bar, both buttons, first/middle/last hand card,
+  well and desk — none moved, in viewport coordinates.
+- **Round-trip residual: 0.0px.** `scrollY` identical before, during and after (176/176/176, …).
+- **No oscillation.** `ScrollActionsIntoView`'s deps are `[loud, stagedCount, targetRef]`; a resize
+  touches none of them, so the auto-scroll cannot re-fire and drive a feedback loop.
+
+The reason is the property verified last round: the layout is **height-independent** (the 536.2px
+offset held across nine heights). Growing the viewport reveals more below without moving anything.
+This also disposes of the iOS `100vh` subtlety — on iOS Safari `100vh` is the large viewport and does
+not shrink on collapse, but since nothing in the layout depends on viewport height, neither behaviour
+matters.
+
+**So the hazard splits in two, and only one half survives:**
+- *Moving target* — **refuted**, 0px worst case, conditional on the trigger being real (practice 17:
+  a refutation carries its conditions).
+- *Simultaneity cost* — **confirmed and large**: 84px between the two states, against a panel slack of
+  −20.3px at 664. The owner's sharpest case stands: a player who scrolls up to check the level
+  re-expands the toolbar, shrinking the viewport to 664 and losing 84px, so consulting an excluded
+  fact makes the remaining must-see facts *less* likely to fit. Relocating the level into the desk
+  (§8.3) removes that pathway entirely.
+
+### 8.5 Ranking the shelf options needs BOTH instruments — stated before comparing
+
+The panel's qualification is load-bearing and the owner's point sharpens it: **an overlay is
+absolutely positioned, so it does not add to the span at all — it OCCLUDES.** Simultaneity measures
+document extent; it is structurally blind to a surface painted over the top. So:
+
+- a **collapsed inline strip** costs span, and G-SIM sees all of it;
+- an **overlay** costs zero span and an amount of occlusion G-SIM cannot see;
+- ranking them on span alone would declare the overlay free, which is exactly the error of measuring
+  one option with an instrument that only sees the other's cost.
+
+**The composition rule: an option is ranked only when both instruments have run against it** — the
+simultaneity span *and* the occlusion probe — and the overlay is comparable at all only while it
+leaves Play/Pass live underneath. An overlay that suspends the turn is a different interaction state
+and neither instrument ranks it.
+
+**And the arithmetic rhymes.** The shelf costs ~137px against 55px of un-staged slack — an **82px**
+deficit, against the **81.9px** fold deficit the original phone-shelf arc was chasing. Same quantity,
+same source (the shelf's vertical footprint), new currency. The currency change did not shrink the
+problem; it made it measurable.
+
+### 8.6 D2 and D3, restated on the corrected numbers
+
+**D2 — collapsed indicator height.** The 24→44px change costs **exactly +20px of span**, structurally
+(the indicator sits inside the span; the span is additive). Last round this was priced against +55px
+of slack and called affordable in the base layout. **On the staged numbers it is not: the panel slack
+at 390×664 is −20.3px before the indicator exists.** There is no 20px to spend at that height; there
+is at 748 (+85.0px) and on desktop (+71.4px). So the honest form is that 44px is affordable everywhere
+*except* the tighter phone state, which is the one that matters most.
+
+**D3 — overlay vs collapsed** cannot be ruled until §8.5's composition has run. What is now settled is
+the *rule* for ranking them, not the ranking.

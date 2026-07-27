@@ -843,11 +843,23 @@ describe('straight-flush finder — remainder tag vocabulary is closed and factu
       new URL('../../../src/engine/guandan/straight-flush-finder.ts', import.meta.url),
       'utf8',
     );
-    expect(src, 'the finder must import the one bomb ladder').toContain('bombTier');
-    // No re-typed ladder: the tier constants must not appear as literals in CODE.
-    // Comments are stripped first — prose legitimately cites numbers (measured
-    // timings, budgets), and matching those was a false positive on the first run.
+    // COMMENTS FIRST, then assert. This ran against `src` (raw) while the
+    // negative half two lines below ran against `code` (stripped) — so the
+    // POSITIVE half was satisfiable by prose, and straight-flush-finder.ts:7
+    // already contains "bombTier" inside a header comment. Verified by mutation:
+    // removing the import, adding a drifted local `tierOf` ladder and rewriting
+    // all six call sites left this assertion GREEN.
     const code = src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    // And demand IMPORT SYNTAX, not the token. A comment cannot supply an import
+    // statement, and the property being pinned is "consumes the one ladder" —
+    // which is what an import from './combos' actually says.
+    expect(
+      code,
+      'the finder must IMPORT the one bomb ladder from combos, not re-declare one',
+    ).toMatch(/import\s*\{[^}]*\bbombTier\b[^}]*\}\s*from\s*'\.\/combos'/);
+    // No re-typed ladder: the tier constants must not appear as literals in CODE.
+    // Prose legitimately cites numbers (measured timings, budgets), and matching
+    // those was a false positive on the first run.
     const ladderLiterals = code.match(/\b(?:110|100|75|55)\b/g) ?? [];
     expect(ladderLiterals, `bomb-ladder literals re-typed in the finder: ${ladderLiterals.join(',')}`).toEqual([]);
     expect(code).not.toMatch(/function\s+bombWeight/);

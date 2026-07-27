@@ -63,14 +63,32 @@ describe('variant D — the paint/hit decoupling invariant', () => {
     expect(css).not.toMatch(/^\s*\.gd-card \{[^}]*pointer-events/m);
   });
 
-  it('the enforced end-to-end check exists where the docs point', () => {
+  it('the enforced end-to-end check still ENFORCES, not merely describes', () => {
+    // THIS TEST WAS VACUOUS AND NEEDED NO MUTATION TO SHOW IT.
+    //
+    // It asserted `toContain('ZERO VICTIMS')` against the RAW script text, and
+    // that phrase occurs exactly once in the whole repo outside this file: in
+    // measure-fan-tap-targets.mjs's HEADER COMMENT. The executed enforcement is
+    // spelled differently ("PASS: zero victims", `process.exit(victims === 0 …)`),
+    // so the assertion never touched it. Deleting the entire victim counter and
+    // the non-zero exit — gutting the gate to a no-op that always exits 0 — left
+    // this file green. `toContain('elementFromPoint')` was satisfied by the same
+    // header comment.
+    //
+    // Its own title said the quiet part: "the check EXISTS". A record existing is
+    // not a behaviour holding, and this suite is DOM-free precisely because it
+    // delegates the real guarantee to that script (see this file's header). So
+    // the delegation must be pinned to the script's EXECUTABLE text.
     expect(existsSync(join(__dirname, '../../../scripts/measure-fan-tap-targets.mjs'))).toBe(true);
-    const script = readFileSync(
-      join(__dirname, '../../../scripts/measure-fan-tap-targets.mjs'),
-      'utf8',
+    const raw = readFileSync(join(__dirname, '../../../scripts/measure-fan-tap-targets.mjs'), 'utf8');
+    const script = raw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+    expect(script, 'the sweep still hit-tests, rather than reading painted boxes').toContain(
+      'elementFromPoint',
     );
-    expect(script).toContain('elementFromPoint');
-    expect(script).toContain('ZERO VICTIMS');
+    expect(script, 'a victim is still counted').toMatch(/victims\s*\+=\s*1/);
+    expect(script, 'and a victim still fails the run — the gate exits non-zero').toMatch(
+      /process\.exit\([^)]*victims === 0/,
+    );
   });
 
   it('reduced motion collapses the FACE transforms in place (panel LOW, Grok: this suite is the D gate)', () => {

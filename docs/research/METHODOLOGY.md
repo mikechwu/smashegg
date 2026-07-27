@@ -130,7 +130,11 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 
     **Operational rule: when you record a finding that invalidates existing measurements, the record must be paired with EITHER changing the default OR making the old path fail loudly.** A comment above a wrong default is the weakest possible response, and a warning above a wrong default is barely stronger — the warning here would have been the same shape as the comment that preceded it. Prefer removing the wrong value entirely: `measure-fold.mjs` now REQUIRES `FOLD_W`/`FOLD_H` and exits 2 without them, so there is no value to inherit and every recorded figure names the height it used.
 
-    **Diagnostic question:** *if this finding is real, what currently-passing thing should now fail?* If the answer is "nothing", the finding has been documented rather than acted on.
+    **Two diagnostic questions, and the second is the one that was missing.**
+    1. *If this finding is real, what currently-passing thing should now fail?* If the answer is "nothing", the finding has been documented rather than acted on.
+    2. ***Where else does this pattern exist?*** A fix lands in the file where the finding was written, and stops there. **A sweep for siblings is part of the fix, not follow-up work** — until it has run, the fix is one instance of a class.
+
+    **The evidence that this is the norm rather than an occasional lapse.** The 2026-07-27 audit of all 26 practices found ZERO fully enforced and seven with no mechanism at all, and the specimen was perfect: `measure-fold.mjs` had its wrong default removed, while its sibling `measure-fan-tap-targets.mjs` — the REQUIRED gate for any fan change — still hardcoded `390x844` at two call sites, *directly beneath its own comment saying a 390×844 screen presents ~664 of inner height*. The correction was written, in the right file, and not applied to the file next to it. A single sibling grep would have caught it on the day.
 
 27. **A decision taken "because the metric is void" is a decision taken in a vacuum. Retake it under the metric that REPLACES the void one.** Practice 26 is about a finding that gets documented instead of acted on. This is about the opposite error in the same moment: acting *too fast* on a finding, by reading "this metric no longer discriminates" as "this cost no longer exists".
     - **The instance.** The phone fold metric died: measured at a real inner 390×664, Play is below the fold on 100% of deals, so every candidate layout scores the same and the metric ranks nothing. A pending decision — a 24px vs a 44px set-aside indicator — had been settled *for 24px* on that metric, because 44px cost 16.7% against 24px's 0%. The conclusion drawn was "at real heights both are 100%, so **collapsed-44 is now free**". It is not free. The 20px did not stop existing when the ruler broke; it moved to the ledger the replacement metric reads, where the layout has ~55px of worst-case slack and 20px of it is a third.
@@ -147,6 +151,23 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
     **Operational rule: name the candidate definitions in the tooling, compute all of them from one run, and print them side by side.** The probe then records per-element geometry only, and the definitions are applied in the REPORT — so a new definition costs a report change, never a re-measurement. Where a pass/fail must exist before the owner rules, gate on the WEAKEST defensible definition, because failing that one cannot be argued away by re-litigating the set.
 
     **And a definition question deserves a panel.** "What must be visible" is not resolvable by measuring harder. Two external lineages converged on a set that differed from the in-house one in three places — one omission and two over-inclusions — which no amount of additional sampling would have surfaced.
+
+29. **A test that greps a file's source text is checking PROSE, not behaviour — and usually it is checking that a RECORD EXISTS rather than that a BEHAVIOUR HOLDS.** This is practice 26's shape (the record substituting for the act) folded inside the mitigation meant to prevent it, and a sibling sweep found it three times in one afternoon.
+    - **The archetype, which needed no mutation to prove.** `fan-tap-targets.test.ts` asserted `expect(script).toContain('ZERO VICTIMS')` against the raw text of `measure-fan-tap-targets.mjs`. That phrase occurs exactly once in the repo: inside that script's **header comment**. The executed enforcement is spelled differently (`process.exit(victims === 0 …)`), so the assertion never touched it — deleting the entire victim counter and the non-zero exit, gutting the gate to a no-op, left the test green. Its own title said it: *"the enforced end-to-end check EXISTS"*. Existence is not enforcement.
+    - **The same defect in the engine.** `straight-flush-finder.test.ts` asserted `toContain('bombTier')` to pin "the finder consumes the one bomb ladder". The finder's header comment contains the token. Removing the real import, adding a drifted local ladder under another name, and rewriting all six call sites was built and run — the test stayed green.
+    - **And the one from the round before:** a theme-coverage check satisfied by a `//` comment that said the theme had *no* baseline.
+
+    **Escalating fixes, weakest to strongest — and the ladder matters, because two rungs of it also failed here.**
+    1. *Substring on raw text* — satisfied by any comment. Never sufficient.
+    2. *Substring on comment-stripped text* — better, still satisfied by a string literal or a disabled line.
+    3. *SYNTAX a comment cannot supply* — an `import { x } from './y'` statement, an object key `'WxH@theme':`, a call with its argument. This is the minimum for a source pin.
+    4. **RUN THE THING.** A gate's property is "it refuses"; so spawn it and read the exit code.
+
+    Rungs 1–3 are all still text, and text checks fail by *spelling*. A rule banning `viewport: { width: N, height: N }` was defeated by hoisting the literal into a named constant; a rule banning `process.env.X ?? <number>` was defeated by a default *list* (`'390x844,…'`), which is not a number. Both rules read as absolute and neither was.
+
+    **Operational rule: assert the behaviour if the thing can be run; if it cannot, demand syntax on comment-stripped text and say in the test WHY that syntax is the property.** Never assert on a phrase that appears in prose, and never let a test's name be "X exists" when the property is "X works".
+
+    **Corollary — when you do run it, check the failure is YOURS.** A gate that dies on `Cannot find package 'playwright'` also exits non-zero, which would make a refusal test pass for entirely the wrong reason: practice 11's compensated failure, inside the check written to close a compensated failure. So the gates' playwright imports are now **dynamic and below their guards**, and a paired test asserts the output contains no `ERR_MODULE_NOT_FOUND`.
 
 ## Tool & model ladders (current)
 

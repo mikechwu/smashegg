@@ -25,7 +25,6 @@
 // Requires playwright + chromium (deliberately NOT a repo dependency — a manual
 // gate, same policy as the fold and tap-target sweeps).
 
-import { chromium } from 'playwright';
 import { CONTAINMENT_PROBE, checkContainment, newTally, reportContainment } from './containment.mjs';
 import {
   PROFILES,
@@ -55,6 +54,18 @@ if (process.env.SIM_W === undefined || process.env.SIM_H === undefined) {
 }
 const VW = Number(process.env.SIM_W);
 const VH = Number(process.env.SIM_H);
+
+// The playwright import is DYNAMIC and deliberately BELOW the viewport guard.
+//
+// Static ESM imports are hoisted, so with `import { chromium } from 'playwright'`
+// at the top this script cannot reach its own refusal in an environment without
+// playwright — and playwright is deliberately not a repo dependency, so that
+// includes CI. The guard must be observable from outside for the rule "no gate
+// script inherits a viewport" to be checked by RUNNING the script rather than by
+// grepping it. Grepping it is what failed: the previous check matched one
+// spelling of `viewport: { width: N, height: N }` and was defeated by hoisting
+// the literal into a named constant.
+const { chromium } = await import('playwright');
 
 // Deal-dependent (the fan's height is a step function of the hand), so this
 // needs a real sample, and the floor below which it refuses to conclude is
@@ -111,6 +122,7 @@ const DRIVER = `async (input) => {
 const browser = await chromium.launch();
 const settled = newSimTally();
 const atTop = newSimTally();
+const stagedTally = newSimTally();
 const shelfTally = newSimTally();
 const containment = newTally();
 let scrolls = 0;
@@ -123,7 +135,9 @@ console.log(
 console.log(`    deck theme: ${THEME} | locale: zh-Hant | varied: deal only | n=${DEALS}`);
 console.log(
   `    Each deal probed at the SETTLED scroll (what the player sees), at scrollY=0\n` +
-    `    (what the auto-scroll traded away)${SHELF ? ', and with one set-aside shelf open' : ''}.\n`,
+    `    (what the auto-scroll traded away), and with ONE CARD STAGED — the state the\n` +
+    `    player actually DECIDES in, where the desk grows a card row` +
+    `${SHELF ? ', plus one set-aside shelf open' : ''}.\n`,
 );
 
 for (let deal = 0; deal < DEALS; deal += 1) {
@@ -172,10 +186,44 @@ for (let deal = 0; deal < DEALS; deal += 1) {
   await page.waitForTimeout(120);
   recordSimultaneity(await page.evaluate(`(${SIMULTANEITY_PROBE})({})`), `deal ${deal} top`, atTop);
 
+  // THE DECISION MOMENT, which the un-staged reading is not.
+  //
+  // Every simultaneity figure before 2026-07-27 was taken with NO cards staged.
+  // But a player stages, then decides — so the un-staged state is one the player
+  // passes THROUGH, and the state the metric is about is the one after. Staging
+  // opens `.gd-desk__stage`, a card row worth +54.0px of desk, and the span is
+  // additive in desk height (scripts/derive-span.mjs), so the whole 54px lands
+  // on the budget. Measuring only the un-staged state overstated the slack at
+  // 390x664 from ~+1px to +55px.
+  //
+  // ONE card is the worst case, not a sample of it: the stage is a flex row with
+  // no wrap, capped at DESK_STAGE_MAX_FACES = 10 faces and then a "+N" pill, so
+  // its height saturates at the first card. Verified 0..12 in derive-span.mjs.
+  const staged1 = await page.evaluate(() => {
+    const c = document.querySelector('.gd-fan__card');
+    if (c === null) return false;
+    c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    return true;
+  });
+  if (!staged1) {
+    throw new Error(`deal ${deal}: no .gd-fan__card to stage — the staged row would measure the un-staged layout`);
+  }
+  await page.waitForTimeout(260);
+  const st = recordSimultaneity(
+    await page.evaluate(`(${SIMULTANEITY_PROBE})({})`),
+    `deal ${deal} staged`,
+    stagedTally,
+  );
+  if (st.facts.find((f) => f.key === 'desk') === undefined) {
+    throw new Error(`deal ${deal}: desk vanished while staged — the staged reading is not of the desk state`);
+  }
+
   if (SHELF) {
     await page.evaluate(() => {
       const cards = [...document.querySelectorAll('.gd-fan__card')];
-      for (const i of [0, 2, 4]) cards[i]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      // Card 0 is already staged by the step above; clicking it again would
+      // UNstage it, so this adds to the selection rather than toggling it.
+      for (const i of [2, 4]) cards[i]?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     });
     await page.waitForTimeout(200);
     const pressed = await page.evaluate(() => {
@@ -228,6 +276,12 @@ const okSettled = reportSimultaneity(settled, { innerW: VW, innerH: VH, at: 'the
 console.log('\n############ AT scrollY=0 (what the auto-scroll traded away) ############');
 reportSimultaneity(atTop, { innerW: VW, innerH: VH, at: 'scrollY=0' });
 const tradeOk = reportScrollTrade(atTop, settled);
+console.log('\n############ WITH ONE CARD STAGED (the decision moment) ############');
+console.log(
+  'This is the state a player decides IN. The un-staged reading above is one they\n' +
+    'pass THROUGH; staging opens the desk stage row, worth +54.0px of span at 390px.',
+);
+const okStaged = reportSimultaneity(stagedTally, { innerW: VW, innerH: VH, at: 'the settled scroll' });
 if (SHELF) {
   console.log('\n############ WITH ONE SET-ASIDE SHELF OPEN ############');
   reportSimultaneity(shelfTally, { innerW: VW, innerH: VH, at: 'the settled scroll' });
@@ -270,7 +324,14 @@ if (!tradeOk) {
   );
 }
 
-if (!okSettled || !contOk) {
+if (!okStaged) {
+  console.log(
+    '\nThe STAGED state fails where the un-staged one may not. That is the state the\n' +
+      'player decides in, so it is the one G-SIM baselines must be recorded against.',
+  );
+}
+
+if (!okSettled || !okStaged || !contOk) {
   console.log(
     '\nFAIL: at the settled scroll position the player cannot see every critical ' +
       'fact at once. Read the DROP-ONE table above for which fact is spending the ' +

@@ -23,7 +23,9 @@
 // scripts/measure-fold.mjs and scripts/measure-fan-tap-targets.mjs at stated
 // INNER viewport dimensions (METHODOLOGY practice 15).
 
+import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 const read = (rel: string): string =>
@@ -497,6 +499,7 @@ describe('gate scripts name their viewport', () => {
     'measure-fan-tap-targets.mjs',
     'measure-setaside.mjs',
     'check-containment.mjs',
+    'derive-span.mjs',
   ];
   const readGate = (name: string): string =>
     readFileSync(new URL(`../../../scripts/${name}`, import.meta.url), 'utf8');
@@ -505,29 +508,69 @@ describe('gate scripts name their viewport', () => {
     for (const g of GATES) expect(readGate(g).length, `${g} is readable`).toBeGreaterThan(500);
   });
 
-  it('no gate script hardcodes a viewport in a browser context', () => {
+  // RUN THE GATE, DO NOT GREP IT.
+  //
+  // The first version of this asserted two regexes over the source text, and a
+  // sibling sweep defeated both without touching the behaviour:
+  //   - `viewport:\s*\{\s*width:\s*\d+…` matches ONE spelling. Hoisting the
+  //     literal into `const TAP_VIEWPORT = { width: 390, height: 844 }` and
+  //     passing `{ width: VW, height: VH }` pins the gate at the void height
+  //     forever with every assertion green. (This file even created that escape
+  //     hatch itself, as check-containment.mjs's DRIVER_VIEWPORT, and described
+  //     it as "a hole with a label on it" — the label is not a lock.)
+  //   - `process\.env\.\w*_H\s*\?\?\s*\d+` looks for a default NUMBER, so the
+  //     default viewport LISTS in check-containment.mjs and measure-setaside.mjs
+  //     went straight through. check-containment's began '390x844,…' — the CI
+  //     gate was measuring the void height while the rule read as absolute.
+  //
+  // Both failures are the same one: a string-presence assertion checks PROSE and
+  // SPELLING, not behaviour. The property is "running this with no viewport must
+  // refuse", so the test runs it with no viewport and looks at the exit code.
+  // (Each gate's playwright import is dynamic and below its guard precisely so
+  // this works where playwright is not installed, i.e. in CI.)
+  it('every gate script REFUSES to run without being told its viewport', () => {
     for (const g of GATES) {
-      const src = stripComments(readGate(g));
-      const literal = src.match(/viewport:\s*\{\s*width:\s*\d+\s*,\s*height:\s*\d+/);
+      const r = spawnSync(process.execPath, [`scripts/${g}`], {
+        cwd: fileURLToPath(new URL('../../../', import.meta.url)),
+        encoding: 'utf8',
+        timeout: 20_000,
+        env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '' },
+      });
+      const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
       expect(
-        literal,
-        `scripts/${g} passes a LITERAL viewport to newContext (${literal?.[0]}). A gate whose ` +
-          `viewport cannot move measures one height forever, and the height it was fixed at ` +
-          `here was 390x844 — a phone SCREEN size no browser presents. Take it from the caller.`,
-      ).toBeNull();
+        r.status,
+        `scripts/${g} exited ${r.status} with no viewport in the environment. It must REFUSE ` +
+          `(non-zero) rather than inherit one: the value it would have inherited, historically, ` +
+          `was 390x844 — a phone SCREEN size no browser presents.\n--- output ---\n${out.slice(0, 600)}`,
+      ).not.toBe(0);
+      expect(
+        out,
+        `scripts/${g} refused but did not say what to pass. The refusal has to name the knob ` +
+          `and a real inner height, or the next person guesses.`,
+      ).toMatch(/REQUIRED/);
+      expect(out, `scripts/${g}'s refusal must name a real phone inner height`).toMatch(/664|748/);
     }
   });
 
-  it('no gate script supplies a fallback height, so none can be inherited', () => {
-    // `?? 844` is the exact shape that survived its own correction comment.
+  it('the refusal is the guard, not a missing dependency', () => {
+    // A gate that dies on `Cannot find package 'playwright'` also exits non-zero,
+    // which would make the test above pass for entirely the wrong reason — the
+    // compensated-failure class (practice 11), inside the check written to close
+    // a compensated failure. So: assert the refusal is OURS.
     for (const g of GATES) {
-      const src = stripComments(readGate(g));
-      const fallback = src.match(/process\.env\.\w*(?:_H|_W|HEIGHT|WIDTH)\w*\s*\?\?\s*\d+/);
+      const r = spawnSync(process.execPath, [`scripts/${g}`], {
+        cwd: fileURLToPath(new URL('../../../', import.meta.url)),
+        encoding: 'utf8',
+        timeout: 20_000,
+        env: { PATH: process.env.PATH ?? '', HOME: process.env.HOME ?? '' },
+      });
+      const out = `${r.stdout ?? ''}${r.stderr ?? ''}`;
       expect(
-        fallback,
-        `scripts/${g} defaults a viewport dimension (${fallback?.[0]}). A known-wrong default ` +
-          `plus a warning is what already failed; there must be no value to inherit.`,
-      ).toBeNull();
+        out,
+        `scripts/${g} failed before reaching its own guard — this test would then be green ` +
+          `because of a missing module, not because the gate refuses. Move the playwright ` +
+          `import below the guard and make it dynamic.`,
+      ).not.toMatch(/ERR_MODULE_NOT_FOUND|Cannot find package/);
     }
   });
 

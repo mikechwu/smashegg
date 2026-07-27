@@ -27,22 +27,36 @@
 // Run: `npm run build && npx wrangler dev` (or any server), then
 // `BASE=http://localhost:8787 node scripts/check-containment.mjs`.
 
-import { chromium } from 'playwright';
 import { CONTAINMENT_PROBE, checkContainment, newTally, reportContainment } from './containment.mjs';
 
 const BASE = process.env.BASE ?? 'http://localhost:5173';
 const DEALS = Number(process.env.CONTAIN_DEALS ?? 2);
 // Every mode boundary this project has, plus one either side of each, because a
 // layout bug lives at a breakpoint far more often than in the middle of a band.
-const VIEWPORTS = (
-  process.env.CONTAIN_VIEWPORTS ??
-  '390x844,390x664,719x900,720x900,1024x768,1280x800,1400x900,1440x900,1920x1080,2478x1400'
-)
+// NO DEFAULT VIEWPORT LIST — and this file is why the rule had to be widened.
+// It defaulted to a ten-viewport list whose FIRST entry was 390x844, the inner
+// height measure-fold.mjs records as `void: true`. The test that banned default
+// dimensions looked for `process.env.X ?? <number>`; a comma-separated string
+// slipped straight through it, so the CI gate went on measuring a height no
+// browser presents while the rule read as absolute.
+if (process.env.CONTAIN_VIEWPORTS === undefined) {
+  console.log(
+    '\nCONTAIN_VIEWPORTS is REQUIRED — there is deliberately no default list.\n\n' +
+      '  Real phone INNER heights at 390 wide: ~664 with toolbars, ~748 minimized.\n' +
+      '  Desktop maximized: ~681 on a 1366x768 laptop, ~813 on 1440x900.\n' +
+      '  844 is a SCREEN size no browser presents as an inner height.\n\n' +
+      '  e.g.  CONTAIN_VIEWPORTS=390x664,720x900 node scripts/check-containment.mjs\n',
+  );
+  process.exit(2);
+}
+const VIEWPORTS = process.env.CONTAIN_VIEWPORTS
   .split(',')
   .map((s) => {
     const [w, h] = s.split('x').map(Number);
     return { w, h };
   });
+
+const { chromium } = await import('playwright');
 
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 

@@ -71,5 +71,10 @@ jobs:
             sleep 2
           done
           curl -sf http://localhost:8787/api/health > /dev/null || { echo "wrangler dev never became healthy"; cat /tmp/wrangler-ci.log; exit 1; }
-          BASE=http://localhost:8787 CONTAIN_DEALS=1 node scripts/check-containment.mjs
+          # Viewports are named HERE, not defaulted in the script: the default list
+          # this replaced began with 390x844, an inner height no browser presents.
+          # These are INNER dimensions with browser chrome excluded.
+          BASE=http://localhost:8787 CONTAIN_DEALS=1 \
+            CONTAIN_VIEWPORTS=390x664,390x748,719x900,720x900,1024x768,1280x800,1366x681,1440x813,1920x1080,2478x1400 \
+            node scripts/check-containment.mjs
         timeout-minutes: 15

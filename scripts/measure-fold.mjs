@@ -26,7 +26,6 @@
 // Requires playwright + chromium (deliberately NOT a repo dependency — this is
 // a manual gate script, same policy as the tap-target sweep).
 
-import { chromium } from 'playwright';
 import {
   CONTAINMENT_PROBE,
   checkContainment,
@@ -95,6 +94,18 @@ if (process.env.FOLD_W === undefined || process.env.FOLD_H === undefined) {
 }
 const VW = Number(process.env.FOLD_W);
 const VH = Number(process.env.FOLD_H);
+
+// The playwright import is DYNAMIC and deliberately BELOW the viewport guard.
+//
+// Static ESM imports are hoisted, so with `import { chromium } from 'playwright'`
+// at the top this script cannot reach its own refusal in an environment without
+// playwright — and playwright is deliberately not a repo dependency, so that
+// includes CI. The guard must be observable from outside for the rule "no gate
+// script inherits a viewport" to be checked by RUNNING the script rather than by
+// grepping it. Grepping it is what failed: the previous check matched one
+// spelling of `viewport: { width: N, height: N }` and was defeated by hoisting
+// the literal into a named constant.
+const { chromium } = await import('playwright');
 
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 

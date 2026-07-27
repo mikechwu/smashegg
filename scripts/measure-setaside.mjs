@@ -33,19 +33,32 @@
 // Requires playwright + chromium (deliberately NOT a repo dependency — this is
 // a manual gate script, same policy as the fold and tap-target sweeps).
 
-import { chromium } from 'playwright';
 
 const BASE = process.env.FAN_SWEEP_BASE ?? 'http://localhost:5173';
 const DEALS = Number(process.env.SETASIDE_DEALS ?? 3);
-/** width x height. 659 and 745 are realistic phone inner heights; 844 is the
- *  repo's historical reference (which cannot see this bug); 844x340 is the
- *  landscape case that separates a real fix from a threshold shift. */
-const VIEWPORTS = (process.env.SETASIDE_VIEWPORTS ?? '390x659,390x745,390x844,844x340')
+// NO DEFAULT VIEWPORT LIST. This defaulted to '390x659,390x745,390x844,844x340'
+// — a list whose third entry is the inner height measure-fold.mjs now records as
+// `void: true`, because no browser presents it. A default LIST is the same defect
+// as a default dimension and slipped past the check that banned the latter: the
+// check looked for `?? <number>`, and a comma-separated string is not a number.
+// The rule is about what can be INHERITED, not about the shape of the literal.
+if (process.env.SETASIDE_VIEWPORTS === undefined) {
+  console.log(
+    '\nSETASIDE_VIEWPORTS is REQUIRED — there is deliberately no default list.\n\n' +
+      '  Real phone INNER heights at 390 wide: ~664 with toolbars, ~748 minimized.\n' +
+      '  844 is a SCREEN size no browser presents as an inner height.\n\n' +
+      '  e.g.  SETASIDE_VIEWPORTS=390x664,390x748 node scripts/measure-setaside.mjs\n',
+  );
+  process.exit(2);
+}
+const VIEWPORTS = process.env.SETASIDE_VIEWPORTS
   .split(',')
   .map((s) => {
     const [w, h] = s.split('x').map(Number);
     return { w, h };
   });
+
+const { chromium } = await import('playwright');
 
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
