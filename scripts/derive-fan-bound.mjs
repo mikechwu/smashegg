@@ -45,6 +45,23 @@ const THEME = process.env.FANB_THEME ?? 'lacquer';
 
 const { chromium } = await import('playwright');
 
+export const AXES_PINNED = {
+  viewportWidth: { value: 'FANB_W (required)' },
+  viewportHeight: { value: 'FANB_H (required)' },
+  deckTheme: { value: 'FANB_THEME, default lacquer' },
+  locale: { value: 'zh-Hant' },
+  roomTiming: { value: 'UNTIMED', justification: 'this script measures the FAN only; the desk is not a term in what it derives, so the countdown bar cannot reach its result' },
+  shelf: { value: 'none' },
+  handSort: { value: 'descending' },
+  manualAreas: { value: 'none' },
+  leadOrFollow: { value: 'both', justification: 'the trick well is not a term in the fan\'s own height' },
+  turnDecidability: { value: 'both' },
+  orientation: { value: 'portrait' },
+  textScale: { value: '100%' },
+  browserChrome: { value: 'none (headless inner size)', justification: 'inner size set directly' },
+  handSize: { value: '27 (first decision)' },
+};
+
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
 const DRIVER = `async (input) => {

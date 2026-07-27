@@ -408,9 +408,23 @@ describe('GameTable wiring pins', () => {
     // component (ScrollActionsIntoView) because GameTable's hook section
     // ends before its early returns — the first shape crashed the table on
     // a viewless render (Rules of Hooks) and the live drive caught it.
-    expect(gameTableSrc).toMatch(
-      /if \(loud\) targetRef\.current\?\.scrollIntoView\(\{ block: 'nearest', behavior: 'auto' \}\)/,
-    );
+    // WHAT THIS PINS IS THE TRIGGER, NOT THE DESTINATION. It used to pin the
+    // literal `scrollIntoView({block:'nearest'})` call, which made it a pin on
+    // WHERE the page scrolls — and that was replaced (2026-07-27) by a
+    // max-coverage target that also considers what LEAVES the screen, because
+    // 12.5% of deals ended with a needed fact off-screen while only 4.2% were
+    // geometrically impossible. The guarantee this test exists for is that a LOUD
+    // desk brings the buttons into view INSTANTLY, and that is unchanged: same
+    // condition, same dependency list, same non-smooth behaviour. Practice 20 is
+    // about a target moving between committing to a reach and completing it — a
+    // property of WHEN a scroll fires, which is what is pinned here.
+    expect(gameTableSrc, 'the loud desk still triggers it').toMatch(/if \(!loud\) return;/);
+    expect(gameTableSrc, 'still instant, never smooth').toMatch(/behavior: 'auto'/);
+    expect(gameTableSrc, 'never smooth').not.toMatch(/behavior: 'smooth'/);
+    expect(
+      gameTableSrc,
+      'the scrollIntoView fallback survives for a DOM where the decision set is unfindable',
+    ).toMatch(/targetRef\.current\?\.scrollIntoView\(\{ block: 'nearest', behavior: 'auto' \}\)/);
     expect(gameTableSrc).toMatch(/\}, \[loud, stagedCount, targetRef\]\)/);
     expect(gameTableSrc).toMatch(
       /<ScrollActionsIntoView\s+loud=\{deskLoud\}\s+stagedCount=\{stagedCards\.length\}\s+targetRef=\{actionsRowRef\}/,

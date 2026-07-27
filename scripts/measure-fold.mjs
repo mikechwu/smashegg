@@ -107,6 +107,23 @@ const VH = Number(process.env.FOLD_H);
 // the literal into a named constant.
 const { chromium } = await import('playwright');
 
+export const AXES_PINNED = {
+  viewportWidth: { value: 'FOLD_W (required)' },
+  viewportHeight: { value: 'FOLD_H (required)' },
+  deckTheme: { value: 'FOLD_THEME, default lacquer' },
+  locale: { value: 'zh-Hant' },
+  roomTiming: { value: 'UNTIMED', justification: 'PREDATES the timing finding; this gate is VOID for the phone anyway and survives only for desktop' },
+  shelf: { value: 'none and one-shelf, both measured' },
+  handSort: { value: 'descending' },
+  manualAreas: { value: 'none' },
+  leadOrFollow: { value: 'both' },
+  turnDecidability: { value: 'both' },
+  orientation: { value: 'portrait' },
+  textScale: { value: '100%' },
+  browserChrome: { value: 'none (headless inner size)', justification: 'inner size set directly' },
+  handSize: { value: '27 (first decision)' },
+};
+
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
 // NOTE ON PACING. POST /api/rooms is rate-limited to 15 creates / 60s per IP

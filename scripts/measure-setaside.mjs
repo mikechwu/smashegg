@@ -60,6 +60,23 @@ const VIEWPORTS = process.env.SETASIDE_VIEWPORTS
 
 const { chromium } = await import('playwright');
 
+export const AXES_PINNED = {
+  viewportWidth: { value: 'SETASIDE_VIEWPORTS (required)' },
+  viewportHeight: { value: 'SETASIDE_VIEWPORTS (required)' },
+  deckTheme: { value: 'lacquer', justification: 'this gate asks whether the set-aside CONTROL renders, which no theme affects' },
+  locale: { value: 'zh-Hant' },
+  roomTiming: { value: 'UNTIMED', justification: 'PREDATES the timing finding; the desk height it measures IS timing-dependent, so this is a known gap' },
+  shelf: { value: 'the swept axis', justification: 'this gate exists to ask whether the set-aside CONTROL is reachable at all, so the shelf state is the thing under test rather than a held parameter' },
+  handSort: { value: 'descending' },
+  manualAreas: { value: 'none' },
+  leadOrFollow: { value: 'both' },
+  turnDecidability: { value: 'both' },
+  orientation: { value: 'portrait' },
+  textScale: { value: '100%' },
+  browserChrome: { value: 'none (headless inner size)', justification: 'inner size set directly' },
+  handSize: { value: '27' },
+};
+
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
 // Build the room IN-PAGE — driving it from node races the token capture.

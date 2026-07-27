@@ -62,6 +62,23 @@ const VH = Number(process.env.TAP_H);
 // spelling of `viewport: { width: N, height: N }` and was defeated by hoisting
 // the literal into a named constant.
 const { chromium } = await import('playwright');
+export const AXES_PINNED = {
+  viewportWidth: { value: 'TAP_W (required)' },
+  viewportHeight: { value: 'TAP_H (required)' },
+  deckTheme: { value: 'lacquer', justification: 'hit geometry comes from the card BUTTON box, which no theme changes; the theme changes only the painted face' },
+  locale: { value: 'zh-Hant' },
+  roomTiming: { value: 'UNTIMED', justification: 'the desk is not in this sweep\'s hit-test scope' },
+  shelf: { value: 'none' },
+  handSort: { value: 'descending' },
+  manualAreas: { value: 'none' },
+  leadOrFollow: { value: 'both' },
+  turnDecidability: { value: 'both' },
+  orientation: { value: 'portrait' },
+  textScale: { value: '100%' },
+  browserChrome: { value: 'none (headless inner size)', justification: 'inner size set directly' },
+  handSize: { value: '27' },
+};
+
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
 // POST /api/rooms is rate-limited to 15 creates / 60s per IP (CREATE_LIMITER).

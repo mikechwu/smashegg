@@ -14,6 +14,7 @@
 // here from batches as they arrive.
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { decisionScrollTop } from './table/decision-scroll';
 import type { Seat } from '../engine/core/game';
 import { teamOf } from '../engine/guandan/types';
 import type { GuandanAction, GuandanEvent, HandResult } from '../engine/guandan/types';
@@ -127,10 +128,10 @@ const useIsomorphicLayoutEffect = typeof window !== 'undefined' ? useLayoutEffec
 /** The desk-and-buttons visibility GUARANTEE (visual-round find): the full
  *  column can overflow a phone viewport with a tall fan, and an elder does
  *  not know to scroll — so a LOUD desk (and each growth of its staged
- *  strip) snaps the action row into view. Instant, never smooth: no motion
+ *  strip) brings the decision into view. Instant, never smooth: no motion
  *  to sit through, nothing for reduced-motion to lose. A child component
  *  because GameTable's own hook section ends before its early returns —
- *  this effect depends on post-return derivations. */
+ *  this effect depends on post-early-return derivations. */
 function ScrollActionsIntoView({
   loud,
   stagedCount,
@@ -141,7 +142,13 @@ function ScrollActionsIntoView({
   targetRef: RefObject<HTMLDivElement | null>;
 }) {
   useEffect(() => {
-    if (loud) targetRef.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+    if (!loud) return;
+    const top = decisionScrollTop();
+    // The fallback is the previous behaviour verbatim, for the case where the
+    // decision set cannot be located at all (an unexpected DOM). Reaching the
+    // control matters more than optimising the view around it.
+    if (top === null) targetRef.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' });
+    else window.scrollTo({ top, behavior: 'auto' });
   }, [loud, stagedCount, targetRef]);
   return null;
 }

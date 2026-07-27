@@ -79,6 +79,23 @@ const THEME = process.env.SIM_THEME ?? 'lacquer';
 // Whether to open a set-aside shelf as the second, worst-realistic state.
 const SHELF = process.env.SIM_SHELF !== '0';
 
+export const AXES_PINNED = {
+  viewportWidth: { value: 'SIM_W (required)' },
+  viewportHeight: { value: 'SIM_H (required)' },
+  deckTheme: { value: 'SIM_THEME, default lacquer' },
+  locale: { value: 'zh-Hant' },
+  roomTiming: { value: 'UNTIMED', justification: 'PREDATES the timing finding and is a KNOWN GAP: the product default is the standard preset, whose countdown bar adds 8.0px of desk. This gate has not yet been re-run timed' },
+  shelf: { value: 'none and one-shelf, both measured' },
+  handSort: { value: 'descending' },
+  manualAreas: { value: 'none' },
+  leadOrFollow: { value: 'both, reported pooled', justification: 'the per-profile table pools them; the split lives in fan-height-distribution.mjs and validate-fan-model.mjs' },
+  turnDecidability: { value: 'both', justification: 'stops at seat 0 first hints regardless of whether a play is available' },
+  orientation: { value: 'portrait' },
+  textScale: { value: '100%' },
+  browserChrome: { value: 'none (headless inner size)', justification: 'inner size set directly; chrome stated as an assumption' },
+  handSize: { value: '27 (first decision)' },
+};
+
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
 const DRIVER = `async (input) => {

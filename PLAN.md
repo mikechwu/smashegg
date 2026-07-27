@@ -371,15 +371,42 @@ Named empirical gate checks (promoted from the risk register per round-2 feedbac
   - **deskHeight ≤ 156.5px**, structural: the stage row saturates at the FIRST staged card (non-wrapping flex row, capped at `DESK_STAGE_MAX_FACES = 10`, verified 0..12). **156.5 is the TIMED value; untimed is 148.5** — see the timing axis below.
   - **fanHeight ≤ 465.1px**, structural (`scripts/derive-fan-bound.mjs`). `fanH = 13.9 + lineH(d₁) + 6 + lineH(d₂)` with `lineH(d) = 73.5 + 21.3(d−1)`, verified additive across 8 deals. Lines are **exactly 2**: a line holds `floor(326.8 / 35.5) = 9` columns and there are ≤15 value classes. Depth ≤8 (two decks × four suits). The maximiser is **10 columns with depth 8 on each line** (8+8+8 singletons = 24 ≤ 27 cards) — fewer columns is worse, because every extra column spends a card that could have gone into a pile.
 
-  **AND ITS FREQUENCY** (`scripts/fan-height-distribution.mjs`, 200k simulated deals — practice 14's corollary: never a margin without the case's rate). The structural 465.1px case is 63.9px above anything 200,000 deals produced, so it arrives less than 1 deal in 200,000. What the CURRENT layout actually fails on, **split by population** because a leading turn carries 132.5px more slack and can essentially never fail:
+  **AND ITS FREQUENCY — MEASURED, not modelled (2026-07-27, W1).** The model was tested against
+  **n=120 following deals in a real timed room** at inner 390×664, against thresholds pre-registered in
+  `docs/research/prereg-fan-model.md` before the instrument existed.
 
-  | inner | FOLLOWING (timed, the default) | FOLLOWING (untimed) | LEADING | structural worst slack |
-  |---|---|---|---|---|
-  | 390×664 | **13.14% — 1 deal in 8** | 2.50% (1 in 40) | 0% | −156.2px |
-  | 390×748 | <0.01% (1 in 33,333) | <0.01% | 0% | −72.2px |
-  | 1366×681 | 2.50% (1 in 40) | 2.50% | 0% | −139.2px |
+  | | rate |
+  |---|---|
+  | **MEASURED, timed, following, staged** | **11/120 = 9.17% [5.2%, 15.7%]** |
+  | H0 — the untimed 2.50% | **REJECTED** (pre-registered cut: ≥8 failures) |
+  | H1 — the modelled 13.14% | inside the interval, but **the distribution test rejects it** |
+  | leading, for contrast | **0/55 = 0%** |
 
-  **A pooled rate would describe no player's situation** and sits below the follow-state rate by the share of leading turns; report both.
+  **The 13.14% figure was wrong, and the distribution test is what found it.** The model scored every
+  deal at the *taller of the two sort orderings* — correct for a BOUND, since the player can toggle,
+  but wrong for a RATE, since the browser renders one ordering at a time. The empirical distribution
+  matched a single-ordering model bin for bin and rejected the max-over form: 252.1px was **30.8%
+  observed against 17.0% predicted**, 294.7px **20.0% against 30.5%**. Corrected, the model gives
+  **7.65%** at 390×664 — consistent with the measured 9.17%. The rate test alone could not have caught
+  this: 13.14% sits inside the measured interval.
+
+  **What survives:** the timing correction is real (H0 rejected), leading turns never fail, and the
+  span decomposition and structural bound are untouched — the error was in the *weights*, not the
+  geometry. **What does not:** any quotation of 13.14%.
+
+  **THE DESKTOP ROWS ARE WITHDRAWN.** `fan-height-distribution.mjs` hardcoded card height 73.5, step
+  21.3 and line capacity 9 — all measured at 390 width — and applied them to 1366×681. Measured
+  (`scripts/fan-geometry-sweep.mjs`): at 1366 the card is at its 68px ceiling, capacity is **18**, so
+  15 columns fit on **one** line and the structural fan maximum is **312.5px**, not 465.1px. The
+  desktop figures previously in this table were computed with phone geometry and are void until
+  re-measured with the desk and K terms at desktop width.
+
+  **WIDTH-DEPENDENCE (W3).** Capacity is `floor(contentWidth / pitch)`: **8 at 320**, 9 at 360–390, 14
+  at 768, 18 at 1366+. So "lines are exactly 2" **holds at every width ≥ 320** — the estimate that it
+  breaks near 320 is refuted, though the margin is thin: the card stops shrinking at its 2.75rem floor,
+  so capacity drops to 7 (and 15 columns need a THIRD line) below inner **~308px**. And **768 is worse
+  than the phone**: the card is at its 68px ceiling while the width still forces two lines, giving a
+  structural fan maximum of **617.0px**.
 
   **THE TIMING AXIS, never varied until now.** Every gate driver in this repo creates an UNTIMED room while the product's default is `TIMING_PRESETS.standard` (45s/90s). A timed room renders the desk's countdown bar: **+8.0px of desk**, which moves the 390×664 follow-state failure from 1 deal in 40 to **1 deal in 8**. Every desk figure recorded before 2026-07-27 describes a configuration most rooms are not in.
 - **G-FOLD** (standing, restated 2026-07-27; **VOID for the phone, live for desktop**): **a change must not raise the below-fold rate above the measured no-shelf BASELINE for that viewport** — it is not "Play is never below the fold", which the product has never satisfied and was never going to. The phone baseline of **8.3% [3.3%, 19.6%] (n=48, lacquer)** is **VOID**: it was measured at inner 390×844, a phone SCREEN size no browser presents, and at a real 390×664 or 390×748 the rate is 100% at every pile depth. The row survives in `measure-fold.mjs` with `void: true` for provenance, and the gate now **exits 4** rather than reporting a comparison against it. Desktop modes are 0/24 after rung 0 and keep this gate. Every decision previously taken against the phone baseline is OPEN, not resolved (METHODOLOGY practice 27).

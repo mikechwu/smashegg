@@ -98,19 +98,34 @@ function mulberry32(seed) {
 }
 const rand = mulberry32(Number(process.env.SEED ?? 20260727));
 
+// Which ordering the RATE is computed at. 'ascending' matched the n=120 in-browser
+// measurement most closely; both are within its interval and the difference between
+// them (7.7% vs 9.3%) is smaller than the interval's width.
+const ORDER = process.env.ORDER ?? 'ascending';
 const hist = new Map();
+const boundHist = new Map();
 let max = 0;
 let maxAt = null;
 let twoLines = 0;
 for (let i = 0; i < SAMPLES; i += 1) {
   const counts = dealCounts(rand);
-  // The player controls sort order, so the ADVERSARIAL case is the taller of the
-  // two orderings — a bound must hold for a state the player can reach.
+  // ORDERING: A BOUND AND A RATE NEED DIFFERENT ANSWERS, AND CONFLATING THEM WAS
+  // THIS MODEL'S ERROR. The player can toggle sort order, so a BOUND must hold at
+  // the taller of the two. But at any given moment the browser renders exactly ONE
+  // ordering, so a RATE that scores every deal at its taller ordering counts a
+  // height the player is not looking at. Measured n=120 in-browser (W1b): the
+  // empirical distribution matched the single-ordering model bin for bin and
+  // rejected the max-over-orderings one — 252.1px was 30.8% observed against 17.0%
+  // predicted, and 294.7px was 20.0% against 30.5%. The max-over form inflated the
+  // headline rate from ~9% to 13.14%.
   const a = lineDepths(counts, false);
   const b = lineDepths(counts, true);
   const ha = a.d2 === 0 ? fanHeight(a.d1, 1) - lineHeight(1) - GEOM.ROW_GAP : fanHeight(a.d1, a.d2);
   const hb = b.d2 === 0 ? fanHeight(b.d1, 1) - lineHeight(1) - GEOM.ROW_GAP : fanHeight(b.d1, b.d2);
-  const h = Math.round(Math.max(ha, hb) * 10) / 10;
+  // RATE uses one ordering; BOUND uses the taller. Both are tracked.
+  const h = Math.round((ORDER === 'descending' ? hb : ha) * 10) / 10;
+  const hBound = Math.round(Math.max(ha, hb) * 10) / 10;
+  boundHist.set(hBound, (boundHist.get(hBound) ?? 0) + 1);
   if (a.d2 > 0 || b.d2 > 0) twoLines += 1;
   hist.set(h, (hist.get(h) ?? 0) + 1);
   if (h > max) {
@@ -126,7 +141,11 @@ console.log(
   `    lineHeight(d) = ${GEOM.CARD_H} + ${GEOM.STEP}(d-1);  fanHeight = ` +
     `${GEOM.CHROME} + lineHeight(d1) + ${GEOM.ROW_GAP} + lineHeight(d2);  line cap ${GEOM.LINE_CAP} columns.`,
 );
-console.log(`    Sort order is the player's, so each deal is scored at its TALLER ordering.\n`);
+console.log(
+  `    RATE scored at the ${ORDER} ordering (one ordering renders at a time).\n` +
+    `    The BOUND separately uses the taller of the two, since the player can toggle.\n` +
+    `    VALIDATED against n=120 in-browser: see docs/research/prereg-fan-model.md.\n`,
+);
 
 const heights = [...hist.keys()].sort((a, b) => a - b);
 let cum = 0;

@@ -58,6 +58,23 @@ const VIEWPORTS = process.env.CONTAIN_VIEWPORTS
 
 const { chromium } = await import('playwright');
 
+export const AXES_PINNED = {
+  viewportWidth: { value: 'CONTAIN_VIEWPORTS (required)' },
+  viewportHeight: { value: 'CONTAIN_VIEWPORTS (required)' },
+  deckTheme: { value: 'lacquer', justification: 'containment is a box-model property; a theme changes paint, not the boxes' },
+  locale: { value: 'zh-Hant' },
+  roomTiming: { value: 'UNTIMED', justification: 'PREDATES the timing finding; containment is horizontal and the countdown bar is vertical, so it cannot reach the result' },
+  shelf: { value: 'none and one-shelf, both measured' },
+  handSort: { value: 'descending' },
+  manualAreas: { value: 'none' },
+  leadOrFollow: { value: 'both' },
+  turnDecidability: { value: 'both' },
+  orientation: { value: 'portrait' },
+  textScale: { value: '100%' },
+  browserChrome: { value: 'none (headless inner size)', justification: 'inner size set directly' },
+  handSize: { value: '27' },
+};
+
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
 const DRIVER = `async (input) => {

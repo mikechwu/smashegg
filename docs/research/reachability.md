@@ -13,8 +13,8 @@ The fold gate asked *"on what fraction of deals is Play/Pass below the fold at s
 ~8.3% (n=48). It was measured at inner **390×844**, which is a phone **screen** size — a browser with
 its toolbars presents ~664, ~748 minimized. At both real heights the rate is **100% at every pile
 depth**, because the fan alone needs more than the budget: at 664 the layout admits `fanH ≤ 127.8`
-against a smallest-possible fan of 252.1px, so deleting the fan's entire second line still leaves it
-2.3px short. `ScrollActionsIntoView` has absorbed that 100% all along. A metric that scores every
+against a structurally smallest-possible fan of **209.5px** (`d₁+d₂ = 4`; the 252.1px figure first
+recorded here was a sampled minimum, corrected 2026-07-27 — see §9 and W5c). `ScrollActionsIntoView` has absorbed that 100% all along. A metric that scores every
 candidate layout at 100% ranks nothing, so it cannot gate.
 
 **What it was protecting was never "no scrolling".** The auto-scroll guarantees the control is

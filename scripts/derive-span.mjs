@@ -69,6 +69,23 @@ const TIMING = process.env.SPAN_TIMING === 'timed'
   ? { perTurnMs: 45000, planningMs: 90000, autoPassNoPlay: true }
   : { perTurnMs: null, planningMs: null };
 
+export const AXES_PINNED = {
+  viewportWidth: { value: 'SPAN_W (required)' },
+  viewportHeight: { value: 'SPAN_H (required)' },
+  deckTheme: { value: 'SPAN_THEME, default lacquer' },
+  locale: { value: 'zh-Hant' },
+  roomTiming: { value: 'SPAN_TIMING, default UNTIMED', justification: 'the untimed case is the CONTROL for the +8.0px the timed desk adds; both are measured and reported' },
+  shelf: { value: 'none' },
+  handSort: { value: 'descending' },
+  manualAreas: { value: 'none' },
+  leadOrFollow: { value: 'both, split by well presence', justification: 'the split IS this script\'s finding — K differs by 132.5px between them' },
+  turnDecidability: { value: 'both' },
+  orientation: { value: 'portrait' },
+  textScale: { value: '100%' },
+  browserChrome: { value: 'none (headless inner size)', justification: 'inner size set directly' },
+  handSize: { value: '27 (first decision)' },
+};
+
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
 const DRIVER = `async (input) => {

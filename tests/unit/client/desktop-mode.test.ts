@@ -584,3 +584,82 @@ describe('gate scripts name their viewport', () => {
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// THE SCROLL TARGET AND THE METRIC MUST NAME THE SAME FACTS.
+//
+// GameTable's `DECISION_SELECTORS` is the client-side copy of the `panel`
+// must-see set that G-SIM is stated against. The gate scripts are not part of the
+// client bundle, so the list is duplicated rather than imported — which is exactly
+// the shape that drifts. This pins the two together in the only direction that
+// matters: if the metric's set changes and the scroll target's does not, the
+// product is optimising for facts the gate no longer measures, or vice versa.
+// ---------------------------------------------------------------------------
+describe('the scroll target optimises the same set the gate measures', () => {
+  // The geometry lives in its own module: hand-areas-ui.test.ts bans
+  // getBoundingClientRect from GameTable.tsx outright ("NO VIEWPORT MEASUREMENT
+  // GATES AN AFFORDANCE"), and that tripwire fired — correctly — when this
+  // computation was first written inline there. Nothing here gates an affordance,
+  // but the invariant is kept absolute rather than carved out.
+  const gameTable = stripComments(
+    readFileSync(new URL('../../../src/client/table/decision-scroll.ts', import.meta.url), 'utf8'),
+  );
+  const gameTableTsx = stripComments(
+    readFileSync(new URL('../../../src/client/GameTable.tsx', import.meta.url), 'utf8'),
+  );
+  const simultaneity = readFileSync(
+    new URL('../../../scripts/simultaneity.mjs', import.meta.url),
+    'utf8',
+  );
+
+  /** The `panel` profile's fact keys, read from the gate's own PROFILES literal. */
+  function panelFacts(): string[] {
+    const block = simultaneity.match(/panel:\s*\{\s*facts:\s*\[([^\]]*)\]/);
+    expect(block, 'the panel profile is findable in scripts/simultaneity.mjs').not.toBeNull();
+    return [...block![1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!);
+  }
+
+  /** Each fact key's selectors, from the MUST_SEE literal. */
+  function selectorsFor(key: string): string[] {
+    const entry = simultaneity.match(
+      new RegExp(`key:\\s*'${key}',[\\s\\S]{0,400}?selectors:\\s*\\[([^\\]]*)\\]`),
+    );
+    expect(entry, `MUST_SEE has an entry for "${key}"`).not.toBeNull();
+    return [...entry![1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!);
+  }
+
+  it('finds the things it is going to compare (not vacuous)', () => {
+    expect(panelFacts().length, 'the panel set is non-empty').toBeGreaterThanOrEqual(3);
+    expect(gameTable).toMatch(/const DECISION_SELECTORS = \[/);
+  });
+
+  it('every selector the metric requires is one the scroll target optimises for', () => {
+    const declared = gameTable.match(/const DECISION_SELECTORS = \[([^\]]*)\]/);
+    expect(declared, 'DECISION_SELECTORS is findable').not.toBeNull();
+    const client = [...declared![1]!.matchAll(/'([^']+)'/g)].map((m) => m[1]!);
+    for (const fact of panelFacts()) {
+      for (const selector of selectorsFor(fact)) {
+        expect(
+          client,
+          `G-SIM's panel set requires "${selector}" (fact "${fact}") but GameTable's ` +
+            `DECISION_SELECTORS does not list it. The scroll would then optimise for a ` +
+            `different set than the gate scores, and the two would drift silently.`,
+        ).toContain(selector);
+      }
+    }
+  });
+
+  it('the scroll keeps Play/Pass wholly visible as a hard constraint', () => {
+    // The optimisation may never cost the player the control it exists to reveal.
+    expect(gameTable, 'the bar bounds the scroll').toMatch(/const lowest = barBox\.bottom \+ scrollY - viewport/);
+    expect(gameTable, 'and clamps to it').toMatch(/Math\.max\(lowest, Math\.min\(highest,/);
+  });
+
+  it('the TRIGGER is unchanged — practice 20 is about when, not where', () => {
+    const effect = gameTableTsx.slice(gameTableTsx.indexOf('function ScrollActionsIntoView'));
+    expect(effect, 'same dependency list as before the change').toMatch(
+      /\}, \[loud, stagedCount, targetRef\]\);/,
+    );
+    expect(effect, 'still instant, never smooth').not.toMatch(/behavior: 'smooth'/);
+  });
+});
