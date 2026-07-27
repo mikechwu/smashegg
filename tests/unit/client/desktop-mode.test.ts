@@ -32,7 +32,12 @@ const read = (rel: string): string =>
 /** Pins must match CODE, not prose: the rung-0 comments deliberately quote the
  *  old values and the rejected alternatives so the next reader learns why they
  *  are gone, and a bare substring check would fire on the explanation. */
-const stripComments = (src: string): string => src.replace(/\/\*[\s\S]*?\*\//g, '');
+/** Strip `/* *\/` blocks AND `//` line comments. It stripped only the former,
+ *  and that made every `.toContain(...)` in this file satisfiable by PROSE —
+ *  the theme-coverage check below was green on a `//` line naming a theme that
+ *  had no baseline at all. `[^:]` guards `https://` so a URL is not eaten. */
+const stripComments = (src: string): string =>
+  src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 
 const TABLE = stripComments(read('table/table.css'));
 const APP = stripComments(read('app.css'));
@@ -436,22 +441,103 @@ describe('the fold gate covers every SELECTABLE deck theme', () => {
     expect(ids).toContain('lacquer');
   });
 
-  it('every registered theme is named in the fold gate, with a baseline or an explicit absence', () => {
+  it('every registered theme is a real KEY in the fold gate, not a mention in prose', () => {
+    // THIS ASSERTION USED TO BE `FOLD.includes('@' + id)` AND IT WAS VACUOUS.
+    // `stripComments` removed only block comments, so a `// '390x844@cinnabar-
+    // court' DELIBERATELY HAS NO BASELINE YET` line satisfied it — and that is
+    // exactly what was in the tree: cinnabar-court, the theme whose 95.8%
+    // below-fold rate motivated this whole check, passed the check on a
+    // sentence. A test written to replace "a list someone must remember to
+    // update" was itself satisfied by a list someone had to remember to update.
+    //
+    // The fix is to demand SYNTAX rather than a substring: an object key of the
+    // form '<W>x<H>@<theme>':, which prose cannot accidentally supply. An
+    // explicit "no baseline yet" is then recorded in code as a `null` value.
     for (const id of registeredThemeIds()) {
+      const key = new RegExp(`'\\d+x\\d+@${id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'\\s*:`);
       expect(
-        FOLD.includes(`@${id}`),
+        key.test(FOLD),
         `deck theme "${id}" is registered (so it is in the picker) but scripts/measure-fold.mjs ` +
-          `never mentions "@${id}". stackStripW is per-theme and drives pile height, so a fold ` +
-          `rate measured on another theme does not describe this one. Either record a baseline ` +
-          `for it or record, in the BASELINES map, that it deliberately has none yet.`,
+          `has no BASELINES key matching '<W>x<H>@${id}':. stackStripW is per-theme and drives ` +
+          `pile height, so a fold rate measured on another theme does not describe this one. ` +
+          `Record a baseline for it, or record 'WxH@${id}': null to state the absence IN CODE — ` +
+          `a comment does not count, and used to.`,
       ).toBe(true);
     }
   });
 
-  it('the canonical phone baseline is pooled, not a single n=24 sample', () => {
-    // Two n=24 samples gave 12.5% and 4.2% — three-fold apart. Since G-FOLD is
-    // stated against the baseline, the baseline's own precision is load-bearing.
-    expect(FOLD).toContain("'390x844@lacquer': { rate: 0.0833");
-    expect(FOLD).toMatch(/n: 48/);
+  it('the phone fold baseline is marked VOID in code, not only in prose', () => {
+    // It was pinned here as CANONICAL on the strength of a pooled n=48. The n
+    // was fine; the VIEWPORT was not — inner 390x844 is a height no browser
+    // presents, and at a real 390x664 the rate is 100%. The row stays for
+    // provenance, so what this test now pins is the VOID MARKER: a value in the
+    // data, not a sentence above it, because a sentence above a wrong value is
+    // precisely the failure practice 26 records.
+    expect(FOLD).toContain("'390x844@lacquer'");
+    expect(FOLD, 'the void must be machine-readable, not a comment').toMatch(/void:\s*true/);
+    expect(FOLD, 'and it must say why').toMatch(/voidReason:/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// EVERY GATE SCRIPT MUST TAKE ITS VIEWPORT FROM THE CALLER.
+//
+// This is practice 26 turned into a mechanism instead of a memory. The finding
+// ("844 is a height no phone presents") was WRITTEN DOWN on 2026-07-25 and the
+// defaults stayed: measure-fold.mjs kept `FOLD_H ?? 844` for weeks, and
+// measure-fan-tap-targets.mjs — the REQUIRED gate for any fan change — kept a
+// hardcoded 390x844 at two `newContext` call sites, under a comment explaining
+// that 844 was wrong. Removing those two defaults is not the fix; the fix is
+// that putting one back turns something red.
+// ---------------------------------------------------------------------------
+describe('gate scripts name their viewport', () => {
+  const GATES = [
+    'measure-fold.mjs',
+    'measure-simultaneity.mjs',
+    'measure-fan-tap-targets.mjs',
+    'measure-setaside.mjs',
+    'check-containment.mjs',
+  ];
+  const readGate = (name: string): string =>
+    readFileSync(new URL(`../../../scripts/${name}`, import.meta.url), 'utf8');
+
+  it('finds the gate scripts it is going to check (not vacuous)', () => {
+    for (const g of GATES) expect(readGate(g).length, `${g} is readable`).toBeGreaterThan(500);
+  });
+
+  it('no gate script hardcodes a viewport in a browser context', () => {
+    for (const g of GATES) {
+      const src = stripComments(readGate(g));
+      const literal = src.match(/viewport:\s*\{\s*width:\s*\d+\s*,\s*height:\s*\d+/);
+      expect(
+        literal,
+        `scripts/${g} passes a LITERAL viewport to newContext (${literal?.[0]}). A gate whose ` +
+          `viewport cannot move measures one height forever, and the height it was fixed at ` +
+          `here was 390x844 — a phone SCREEN size no browser presents. Take it from the caller.`,
+      ).toBeNull();
+    }
+  });
+
+  it('no gate script supplies a fallback height, so none can be inherited', () => {
+    // `?? 844` is the exact shape that survived its own correction comment.
+    for (const g of GATES) {
+      const src = stripComments(readGate(g));
+      const fallback = src.match(/process\.env\.\w*(?:_H|_W|HEIGHT|WIDTH)\w*\s*\?\?\s*\d+/);
+      expect(
+        fallback,
+        `scripts/${g} defaults a viewport dimension (${fallback?.[0]}). A known-wrong default ` +
+          `plus a warning is what already failed; there must be no value to inherit.`,
+      ).toBeNull();
+    }
+  });
+
+  it('every gate script states that its dimensions are INNER and exclude chrome', () => {
+    for (const g of GATES) {
+      expect(
+        /chrome EXCLUDED/i.test(readGate(g)),
+        `scripts/${g} must print that its numbers are INNER dimensions with browser chrome ` +
+          `excluded (practice 15), or a later reader will re-quote a threshold as a screen size.`,
+      ).toBe(true);
+    }
   });
 });

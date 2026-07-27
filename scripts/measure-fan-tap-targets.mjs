@@ -1,6 +1,7 @@
 // Fan tap-target sweep — the REQUIRED visual-gate check for ANY fan or
 // selection-rendering change (silent-no-op round F3; docs/research/
-// fan-tap-targets.md). Not a look: a MEASUREMENT at true 390x844.
+// fan-tap-targets.md). Not a look: a MEASUREMENT, at a viewport the caller
+// must name (TAP_W/TAP_H — see the refusal below for why there is no default).
 //
 // What it does: drives a fresh untimed dev room to a settled 27-card hand
 // (zh-Hant), then for EVERY card, selects it alone and grid-samples
@@ -15,7 +16,7 @@
 // this sweep is the end-to-end enforcement.
 //
 // Run: dev servers up (npm run cf:dev + npm run dev:client), then
-//   node scripts/measure-fan-tap-targets.mjs
+//   TAP_W=390 TAP_H=664 node scripts/measure-fan-tap-targets.mjs
 // Requires playwright + a chromium (npm i -D playwright && npx playwright
 // install chromium) — deliberately NOT a repo dependency; this is a
 // manual gate script. BASE overridable via FAN_SWEEP_BASE.
@@ -27,6 +28,29 @@
 import { chromium } from 'playwright';
 
 const BASE = process.env.FAN_SWEEP_BASE ?? 'http://localhost:5173';
+
+// NO DEFAULT VIEWPORT — and this file is WHY the rule exists rather than an
+// application of it. It hardcoded `{ width: 390, height: 844 }` at two call
+// sites, directly beneath its own comment saying "a phone whose SCREEN is
+// 390x844 presents ~664 of inner height, which is a different layout". The
+// record was made and the value was not changed: METHODOLOGY practice 26, live
+// in the tree, in the one gate that is REQUIRED for any fan change. Every
+// tap-target figure this project holds was therefore measured at a height no
+// phone presents — and scripts/measure-setaside.mjs separately documents that
+// below inner ~765 the set-aside control disappears entirely, so the phone's
+// real fan layout is not the one that was swept.
+if (process.env.TAP_W === undefined || process.env.TAP_H === undefined) {
+  console.log(
+    '\nTAP_W and TAP_H are REQUIRED — there is deliberately no default.\n\n' +
+      '  This gate hardcoded 390x844 for its whole life. 844 is a phone SCREEN\n' +
+      '  size; a browser presents ~664 inner with toolbars, ~748 minimized. A\n' +
+      '  tap-target sweep at 844 measures a fan the phone never renders.\n\n' +
+      '  e.g.  TAP_W=390 TAP_H=664 node scripts/measure-fan-tap-targets.mjs\n',
+  );
+  process.exit(2);
+}
+const VW = Number(process.env.TAP_W);
+const VH = Number(process.env.TAP_H);
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
 
 // POST /api/rooms is rate-limited to 15 creates / 60s per IP (CREATE_LIMITER).
@@ -97,7 +121,7 @@ const MEASURE = `() => {
 }`;
 
 const browser = await chromium.launch();
-const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: 2 });
 await ctx.addInitScript(() => localStorage.setItem('locale', 'zh-Hant'));
 const pageA = await ctx.newPage();
 await pageA.goto(BASE, { waitUntil: 'networkidle' });
@@ -105,11 +129,15 @@ const drive = await pageA.evaluate(`(${DRIVER})(${JSON.stringify({ config: CONFI
 console.log('room:', drive.code);
 // METHODOLOGY practice 15: state the viewport in INNER dimensions and name
 // the chrome assumption, so no threshold here can be re-quoted as a screen
-// size. 390x844 is what `window.innerHeight` reports; a phone whose SCREEN
-// is 390x844 presents ~664 of inner height, which is a different layout.
-console.log('inner viewport 390x844; browser chrome EXCLUDED (not a screen size).');
+// size. This prints what was actually used, not a literal that can drift away
+// from the `newContext` call above it — which is how the old line kept saying
+// "390x844" truthfully while describing a layout no phone renders.
+console.log(
+  `inner viewport ${VW}x${VH}; browser chrome EXCLUDED (not a screen size). ` +
+    `A device whose SCREEN is ${VW}x${VH} presents ~90-120px less inner height.`,
+);
 
-const ctxB = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+const ctxB = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: 2 });
 await ctxB.addInitScript((seed) => {
   localStorage.setItem('locale', 'zh-Hant');
   localStorage.setItem('room:' + seed.code, JSON.stringify({ tokens: [seed.tokens[0]], lastSeenSeq: seed.lastSeq }));

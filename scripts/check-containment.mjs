@@ -84,6 +84,15 @@ const DRIVER = `async (input) => {
   return { code, tokens, lastSeq };
 }`;
 
+// The DRIVER page's viewport, which is not a measurement and must not be read
+// as one. This page only runs fetch + a WebSocket to fast-forward a room to
+// seat 0's turn; nothing is measured in it and its size cannot reach any figure
+// this gate reports. Named rather than inlined so that the rule "no gate script
+// hardcodes a viewport" (tests/unit/client/desktop-mode.test.ts) stays absolute
+// for the pages that DO get measured — an exemption in the test would be a hole
+// someone later widens; a named constant is a hole with a label on it.
+const DRIVER_VIEWPORT = { width: 1280, height: 800 };
+
 const browser = await chromium.launch();
 const tally = newTally();
 console.log('=== CONTAINMENT CHECK ===');
@@ -94,7 +103,7 @@ console.log(
 console.log(`${DEALS} deal(s) per viewport, each measured with NO shelf and with ONE shelf open.\n`);
 
 for (let deal = 0; deal < DEALS; deal += 1) {
-  const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  const ctx = await browser.newContext({ viewport: DRIVER_VIEWPORT });
   const a = await ctx.newPage();
   await a.goto(BASE, { waitUntil: 'networkidle' });
   const drive = await a.evaluate(`(${DRIVER})(${JSON.stringify({ config: CONFIG })})`);

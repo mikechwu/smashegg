@@ -328,7 +328,24 @@ const BASELINES_NOSHELF = {
   // n=24 cannot pin it better than ~3x (practice 25). A baseline is measured
   // once and re-used every round, so it earns a larger n than any single
   // comparison does. Pooled: 4/48.
-  '390x844@lacquer': { rate: 0.0833, lo: 0.033, hi: 0.196, n: 48, note: 'CANONICAL, pooled 2026-07-25 + 07-27' },
+  //
+  // VOID, AND THE VOID IS RECORDED IN THE DATA RATHER THAN IN PROSE ABOVE IT —
+  // which is the whole lesson of practice 26. 844 is a phone SCREEN size; a
+  // browser presents ~664 with toolbars or ~748 minimized, and at BOTH of those
+  // the below-fold rate is 100% at every pile depth. So 8.3% never described any
+  // phone, and a candidate layout cannot be ranked against it. The row stays for
+  // provenance (rounds of decisions were taken against it and their records must
+  // remain readable) and `void: true` makes the run SAY SO rather than leaving a
+  // reader to notice the height.
+  '390x844@lacquer': {
+    rate: 0.0833, lo: 0.033, hi: 0.196, n: 48,
+    note: 'VOID from 2026-07-27 — measured at an inner height no browser presents',
+    void: true,
+    voidReason:
+      'inner 390x844 is unreachable on a phone; at 390x664 and 390x748 the rate is 100%. ' +
+      'Superseded by scripts/measure-simultaneity.mjs, which has a gradient where this is saturated.',
+  },
+  '390x844@cinnabar-court': null,
 };
 const scopeKey = `${VW}x${VH}@${THEME}`;
 const nsBase = BASELINES_NOSHELF[scopeKey] ?? null;
@@ -336,12 +353,22 @@ console.log(
   `WITHOUT a shelf, Play needs scrolling in ${needScroll}/${n} = ` +
     `${n ? ((needScroll / n) * 100).toFixed(1) : '0.0'}%   95% CI ${wilson95(needScroll, n)}` +
     (nsBase
-      ? `\n    vs ACCEPTED no-shelf baseline ${(nsBase.rate * 100).toFixed(1)}% ` +
+      ? `\n    vs no-shelf baseline ${(nsBase.rate * 100).toFixed(1)}% ` +
         `[${(nsBase.lo * 100).toFixed(1)}%, ${(nsBase.hi * 100).toFixed(1)}%] (n=${nsBase.n}, ${nsBase.note}). ` +
-        `THE TARGET IS THE BASELINE, NOT ZERO.` +
-        ''
+        (nsBase.void === true ? '' : 'THE TARGET IS THE BASELINE, NOT ZERO.')
       : `\n    NO ACCEPTED BASELINE for ${scopeKey}. This rate is compared to nothing — an accepted\n    rate for one theme does not describe another, because stackStripW drives pile height.`),
 );
+// A VOID BASELINE MUST NOT READ AS A PASS. Printing a comparison against a
+// number measured at an unreachable viewport is exactly the shape that let 8.3%
+// steer decisions for weeks; the run refuses rather than reporting.
+if (nsBase !== null && nsBase.void === true) {
+  console.log(
+    `\nVOID BASELINE at inner ${scopeKey}: ${nsBase.voidReason}\n` +
+      '  This run measured a real rate, but it has nothing legitimate to be compared\n' +
+      '  against, so it is NOT a pass and must not be quoted as one.',
+  );
+  process.exit(4);
+}
 console.log(
   `WITH one shelf:                          ${shelfScroll}/${n} = ` +
     `${n ? ((shelfScroll / n) * 100).toFixed(1) : '0.0'}%   95% CI ${wilson95(shelfScroll, n)}`,
@@ -371,14 +398,14 @@ const BASELINES = {
     buckets: [736.9, 758.1, 767.1, 788.4, 809.6, 830.9, 852.2],
     note: 'n=80 cumulative, 2026-07-25/26, phone reference',
   },
-  // '390x844@cinnabar-court' DELIBERATELY HAS NO BASELINE YET — recorded as an
-  // explicit absence rather than an omission, because desktop-mode.test.ts
-  // requires every registered theme to be named here one way or the other.
-  // A 6-deal bucket list was
-  // drafted here and removed: it immediately fired a false REGRESSION on a
-  // seventh deal, because 6 deals cannot enumerate a step function's buckets.
-  // "No baseline" is the honest state and the gate says so; asserting a wrong
-  // one would have turned this gate into a noise source for the next reader.
+  // AN EXPLICIT ABSENCE, IN CODE. This was a comment, and a comment satisfied
+  // desktop-mode.test.ts's theme-coverage check — so the theme whose 95.8%
+  // below-fold rate motivated that check passed it on a sentence. `null` is the
+  // absence stated in syntax, which is what the test now demands.
+  // A 6-deal bucket list was drafted here and removed: it immediately fired a
+  // false REGRESSION on a seventh deal, because 6 deals cannot enumerate a step
+  // function's buckets. "No baseline" is the honest state.
+  '390x844@cinnabar-court': null,
   '1280x800@lacquer': {
     buckets: [641.7, 646, 664.6, 674.6, 693.2, 703.1, 721.7, 731.7, 750.3],
     note: 'n=48 cumulative, 2026-07-27, AFTER rung 0 (before it, every bucket was 831.6-936.2)',
