@@ -58,6 +58,19 @@ const MIN_DEALS = Number(process.env.FOLD_MIN_DEALS ?? 24);
 // toolbars, so a 390x844 device reports ~664. Every geometry claim this repo
 // made was therefore measured at a size no user has, which is exactly how the
 // set-aside control could be missing on every phone while every gate ran green.
+// THE AXIS THIS GATE NEVER VARIED, AND THE DEFECT THAT COST.
+//
+// `stackStripW` is a per-THEME metric, and the pile's height is
+// (n-1) * min(stripW, 2.95/(n-1)) * cardWidth. Every fold number this project
+// produced before 2026-07-27 held the theme at the default (lacquer, 0.42).
+// `cinnabar-court` ships, is selectable from the header picker at any time, and
+// declares 0.841 — and measured, it puts Play below the fold on 95.8% of deals
+// on a phone WITH NO SHELF, against lacquer's 4.2%.
+//
+// So the theme is now a knob with a stated default, and the run prints which
+// theme it measured. A fold conclusion that does not name its theme is scoped to
+// one theme whether or not it says so.
+const THEME = process.env.FOLD_THEME ?? 'lacquer';
 const VW = Number(process.env.FOLD_W ?? 390);
 const VH = Number(process.env.FOLD_H ?? 844);
 const CONFIG = {"turnDirection":"counterclockwise","firstLeadMethod":"random","ceremonyCardCount":2,"levelTrack":"perTeam","overshootWinsGame":false,"aWinPartnerNotLast":true,"aMaxAttempts":3,"aFailConsequence":"suspendPlayOpponentLevel","aFailDemoteTo":"level2","aAttemptCounterReset":"fresh","aceFinishDemotes":false,"aAttemptOnlyAsDeclarer":true,"returnTributeMaxRank":10,"returnNoLowCardPolicy":"lowestByLevelValue","tributeLevelBasis":"upcomingLevel","equalTributeAssignment":"seatOrder","antiTributeMode":"auto","tributeVisibility":"public","cardCountVisibility":"always","jokerBombSupreme":true,"wildStraightFlushIsBomb":true,"allowUnderDeclareStraightFlush":false,"fiveOfKindAsFullHouse":false,"fullHouseJokerPair":true,"allowWildUnderDeclare":false,"jiefengRecipient":"partner"};
@@ -137,13 +150,21 @@ for (let deal = 0; deal < DEALS; deal += 1) {
   const ctxB = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: 2 });
   await ctxB.addInitScript((seed) => {
     localStorage.setItem('locale', 'zh-Hant');
+    localStorage.setItem('pref:deckTheme', seed.theme);
     localStorage.setItem('room:' + seed.code, JSON.stringify({ tokens: [seed.tokens[0]], lastSeenSeq: seed.lastSeq }));
-  }, drive);
+  }, { ...drive, theme: THEME });
   const page = await ctxB.newPage();
   await page.goto(`${BASE}/#/room/${drive.code}`, { waitUntil: 'networkidle' });
   await page.waitForFunction(() => document.querySelectorAll('.gd-fan__card').length >= 20, null, { timeout: 60000 });
   await page.waitForTimeout(900);
 
+  // Verify the theme actually took. A knob that silently does nothing would
+  // make every per-theme run a re-measurement of the default (practice 13:
+  // execute the claim, do not cite it).
+  const gotTheme = await page.evaluate(() => localStorage.getItem('pref:deckTheme'));
+  if (gotTheme !== THEME) {
+    throw new Error(`deck theme did not take: wanted ${THEME}, page reports ${gotTheme}`);
+  }
   const plain = await page.evaluate(`(${FOLD})()`);
   checkContainment(
     await page.evaluate(`(${CONTAINMENT_PROBE})({})`),
@@ -208,6 +229,13 @@ console.log(
   `    inner viewport ${VW}x${VH}; browser chrome EXCLUDED. A device with a ` +
     `${VW}x${VH} SCREEN presents ~90-120px less inner height than this.`,
 );
+// PRINT WHAT WAS VARIED AND WHAT WAS HELD (practice 24: a result's scope belongs
+// in its own output). Theme is the axis whose omission hid a 95.8% defect.
+console.log(
+  `    deck theme: ${THEME}  |  locale: zh-Hant  |  varied: deal only. ` +
+    `Re-run with FOLD_THEME=<id> for another theme — stackStripW differs per ` +
+    `theme and drives pile height, so this rate is scoped to "${THEME}".`,
+);
 let needScroll = 0;
 for (const row of rows) {
   console.log(`deal ${row.deal}`);
@@ -270,17 +298,19 @@ console.log(`\n--- RATE (n=${n}) ---`);
 // too small to mean anything. So the BASELINE is printed beside the rate, and
 // the verdict below is expressed against it.
 const BASELINES_NOSHELF = {
-  '390x844': { rate: 0.125, lo: 0.043, hi: 0.310, n: 24, note: 'accepted 2026-07-25' },
+  '390x844@lacquer': { rate: 0.125, lo: 0.043, hi: 0.310, n: 24, note: 'accepted 2026-07-25' },
 };
-const nsBase = BASELINES_NOSHELF[key] ?? null;
+const scopeKey = `${VW}x${VH}@${THEME}`;
+const nsBase = BASELINES_NOSHELF[scopeKey] ?? null;
 console.log(
   `WITHOUT a shelf, Play needs scrolling in ${needScroll}/${n} = ` +
     `${n ? ((needScroll / n) * 100).toFixed(1) : '0.0'}%   95% CI ${wilson95(needScroll, n)}` +
     (nsBase
       ? `\n    vs ACCEPTED no-shelf baseline ${(nsBase.rate * 100).toFixed(1)}% ` +
         `[${(nsBase.lo * 100).toFixed(1)}%, ${(nsBase.hi * 100).toFixed(1)}%] (n=${nsBase.n}, ${nsBase.note}). ` +
-        `THE TARGET IS THE BASELINE, NOT ZERO.`
-      : `\n    no accepted baseline recorded for inner ${key} — this rate is not compared to anything.`),
+        `THE TARGET IS THE BASELINE, NOT ZERO.` +
+        ''
+      : `\n    NO ACCEPTED BASELINE for ${scopeKey}. This rate is compared to nothing — an accepted\n    rate for one theme does not describe another, because stackStripW drives pile height.`),
 );
 console.log(
   `WITH one shelf:                          ${shelfScroll}/${n} = ` +
@@ -307,20 +337,25 @@ const buckets = [...new Set(rows.map((r) => r.plain?.docBottom).filter((x) => x 
 const BASELINES = {
   // inner WxH -> { buckets, note }. Only the TOP matters for the one-sided
   // check; a lower bucket is a better deal, not a regression.
-  '390x844': {
+  '390x844@lacquer': {
     buckets: [736.9, 758.1, 767.1, 788.4, 809.6, 830.9, 852.2],
     note: 'n=80 cumulative, 2026-07-25/26, phone reference',
   },
-  '1280x800': {
+  // cinnabar-court DELIBERATELY HAS NO BASELINE YET. A 6-deal bucket list was
+  // drafted here and removed: it immediately fired a false REGRESSION on a
+  // seventh deal, because 6 deals cannot enumerate a step function's buckets.
+  // "No baseline" is the honest state and the gate says so; asserting a wrong
+  // one would have turned this gate into a noise source for the next reader.
+  '1280x800@lacquer': {
     buckets: [641.7, 646, 664.6, 674.6, 693.2, 703.1, 721.7, 731.7, 750.3],
     note: 'n=48 cumulative, 2026-07-27, AFTER rung 0 (before it, every bucket was 831.6-936.2)',
   },
-  '1024x768': {
+  '1024x768@lacquer': {
     buckets: [613.1, 646, 674.6, 693.2, 703.1, 721.7],
     note: 'n=24, 2026-07-27, AFTER rung 0 (before it: 100% below fold, 831.6-936.2)',
   },
 };
-const key = `${VW}x${VH}`;
+const key = scopeKey;
 const baseline = BASELINES[key] ?? null;
 console.log(`base-layout document positions observed: ${buckets.join(' / ')}`);
 if (baseline === null) {
