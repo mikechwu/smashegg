@@ -2517,11 +2517,11 @@ button.gd-plate {
      56rem (896px) is derived, not chosen. The structural maximum is 15 value
      columns — 12 non-level natural ranks + the level class + both jokers,
      provable and already written down at hand-fan.test.tsx:415 — which at
-     today's 0.70 pitch is (1 + 14 * 0.7) * 68 = 734px of ink. The old 44rem
+     today's 0.70 pitch is (1 + 14 * 0.7) * 68 = 734.4px of ink. The old 44rem
      (704px) is BELOW that, so a 15-column hand wrapped to two lines even at
      2478px. It occurs on 3.4% of deals, so an 8-deal sample misses it 76% of
      the time (METHODOLOGY practice 14: construct the bound, do not wait for
-     it). 896px clears 734 with 162px of slack. */
+     it). 896px clears 734.4 with 161.6px of slack. */
   .gd-handzone {
     max-width: min(94vw, 56rem);
     margin: 0 auto;

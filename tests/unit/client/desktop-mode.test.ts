@@ -176,6 +176,58 @@ describe('RUNG 0 is present and is what it claims to be', () => {
     expect(hand, 'the hand must not adopt the ring cap').not.toContain('100rem');
   });
 
+  it('the hand cap clears the 15-column worst case, DERIVED from the stylesheet', () => {
+    // A literal pin on "56rem" says the value did not change. This says the
+    // value is still CORRECT, by re-deriving the quantity it was chosen to
+    // clear from the same stylesheet the layout uses. It therefore also breaks
+    // if the clamp ceiling or the column pitch moves — which is the point, since
+    // those are the two inputs that decide whether a hand wraps.
+    //
+    // The bound is STRUCTURAL, not sampled (METHODOLOGY practice 14): 15 value
+    // columns = 12 non-level natural ranks + the level class + both jokers. It
+    // is written down independently at hand-fan.test.tsx:415, and it occurs on
+    // 3.4% of deals — which an 8-deal sample misses 76% of the time, so it must
+    // be constructed and never waited for.
+    //
+    // This is a REGRESSION the round found in passing: the previous 44rem
+    // (704px) cap was BELOW the 734.4px a 15-column hand needs, so such a hand
+    // wrapped to two lines at EVERY width, 2478px included, for the project's
+    // whole life.
+    const REM = 16;
+    const handBlock = TABLE.match(/\.gd-card--hand\s*\{[^}]*\}/)?.[0] ?? '';
+    const ceilingRem = Number(
+      handBlock.match(/clamp\([\d.]+rem,\s*[\d.]+vw,\s*([\d.]+)rem\)/)?.[1] ?? NaN,
+    );
+    expect(ceilingRem, 'card clamp ceiling is parseable').toBeGreaterThan(0);
+
+    const pitchBlock = TABLE.match(/\.gd-fan__stack\s*\{[^}]*\}/)?.[0] ?? '';
+    const pitchFactor = Number(
+      pitchBlock.match(/margin-left:\s*calc\([^)]*\)\s*\*\s*-([\d.]+)\)/)?.[1] ?? NaN,
+    );
+    expect(pitchFactor, 'stack pitch factor is parseable').toBeGreaterThan(0);
+
+    const desktop = TABLE_DESKTOP.map((b) => b.body).join('\n');
+    const capRem = Number(
+      desktop.match(/\.gd-handzone\s*\{[^}]*max-width:\s*min\([\d.]+vw,\s*([\d.]+)rem\)/)?.[1] ?? NaN,
+    );
+    expect(capRem, 'desktop hand cap is parseable').toBeGreaterThan(0);
+
+    const cardPx = ceilingRem * REM;
+    const visible = 1 - pitchFactor;
+    const WORST_CASE_COLUMNS = 15;
+    const inkPx = (1 + (WORST_CASE_COLUMNS - 1) * visible) * cardPx;
+    const capPx = capRem * REM;
+
+    expect(cardPx).toBe(68);
+    expect(visible).toBeCloseTo(0.7, 10);
+    expect(Math.round(inkPx * 10) / 10).toBe(734.4);
+    expect(
+      capPx,
+      `the desktop hand cap (${capPx}px) must clear a ${WORST_CASE_COLUMNS}-column hand ` +
+        `(${inkPx}px of ink) or such a hand wraps at every width`,
+    ).toBeGreaterThan(inkPx);
+  });
+
   it('rung 0 changes NO card metric — it is a container change only', () => {
     // The round's finding was that the hand's clarity constraint is VERTICAL
     // (the 28.56px pile strip), not horizontal, so rung 0 deliberately touches

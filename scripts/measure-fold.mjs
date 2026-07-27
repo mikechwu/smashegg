@@ -27,6 +27,12 @@
 // a manual gate script, same policy as the tap-target sweep).
 
 import { chromium } from 'playwright';
+import {
+  CONTAINMENT_PROBE,
+  checkContainment,
+  newTally,
+  reportContainment,
+} from './containment.mjs';
 
 const BASE = process.env.FAN_SWEEP_BASE ?? 'http://localhost:5173';
 
@@ -117,6 +123,10 @@ const FOLD = `() => {
 
 const browser = await chromium.launch();
 const rows = [];
+// Containment rides along with the fold sweep rather than being its own script:
+// it needs exactly the same expensive setup (a driven room, a real dealt hand,
+// a chosen viewport), and a check nobody runs is not a gate.
+const containment = newTally();
 for (let deal = 0; deal < DEALS; deal += 1) {
   const ctx = await browser.newContext({ viewport: { width: VW, height: VH }, deviceScaleFactor: 2 });
   await ctx.addInitScript(() => localStorage.setItem('locale', 'zh-Hant'));
@@ -135,6 +145,11 @@ for (let deal = 0; deal < DEALS; deal += 1) {
   await page.waitForTimeout(900);
 
   const plain = await page.evaluate(`(${FOLD})()`);
+  checkContainment(
+    await page.evaluate(`(${CONTAINMENT_PROBE})({})`),
+    `deal ${deal} @${VW}x${VH} no shelf`,
+    containment,
+  );
 
   // The worst realistic case: a set-aside shelf open as well.
   await page.evaluate(() => {
@@ -163,6 +178,12 @@ for (let deal = 0; deal < DEALS; deal += 1) {
   }
   await page.waitForTimeout(500);
   const shelved = await page.evaluate(`(${FOLD})()`);
+  // A shelf changes the fan's shape, so it is a second layout worth containing.
+  checkContainment(
+    await page.evaluate(`(${CONTAINMENT_PROBE})({})`),
+    `deal ${deal} @${VW}x${VH} one shelf`,
+    containment,
+  );
 
   rows.push({ deal, plain, shelved });
   await ctx.close();
@@ -317,6 +338,19 @@ if (novel.length > 0) {
 // position falls in a known bucket" unconditionally — including on runs that had
 // just listed eight positions that were in no known bucket, and on viewports
 // with no baseline at all.
+// Containment is a HARD failure, unlike the below-fold rate (which is an
+// accepted property of the product). A player rendering outside the table is
+// never acceptable, and the one time it happened every other signal was green.
+const contained = reportContainment(containment);
+if (!contained) {
+  console.log(
+    '\nFAIL: containment. This is the check that catches a clipped seat — the ' +
+      'class of bug that produces no scrollbar, no red test and a clean fold rate.',
+  );
+  await browser.close();
+  process.exit(1);
+}
+
 if (baseline === null) {
   console.log(
     `\nNO BASELINE CHECKED at inner ${key}. The rate above is this run's measurement; ` +
