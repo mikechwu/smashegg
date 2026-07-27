@@ -2533,11 +2533,29 @@ button.gd-plate {
      56rem comment above); `:has()` pays that cost only when a shelf is open.
      Verified by execution, not cited: `CSS.supports('selector(:has(*))')` is
      true and a `:has()` cap really does widen only the matching container.
-     74rem = 1184px is DERIVED from the split bound below, which is 1.56x the
-     single-area one — the 15-class bound does NOT survive splitting, because a
-     value can be a column in MAIN and also sit on the shelf. */
+     78rem = 1248px is DERIVED from the split bound, which is PROVED rather than
+     sampled — see the derivation in desktop-mode.test.ts. Two corrections got
+     it here, both worth knowing before touching this number:
+       1. The 15-class bound does NOT survive splitting: a value can be a column
+          in MAIN and also sit on the shelf, so the areas are not partitioned by
+          value.
+       2. A first attempt modelled the shelf as ONE run and got 1143.6px. The
+          shelf is g separate RUNS, each starting at a full card width with 6px
+          between — so RUN COUNT drives the width, and that model was a plausible
+          configuration, not a maximum. What bounds run count is a STRUCTURAL
+          fact: a recorded group comes only from the straight-flush finder
+          (GameTable.tsx applyMoveAsGroup; the desk's set-aside records nothing),
+          and a straight flush is at least 5 cards. So groups >= 5 cards, runs <=
+          floor(k/5) + 1, and the maximum is 1207.2px — a 12-card shelf in 3 runs
+          beside a 15-column MAIN.
+     `:has()` support baseline, stated the way min()'s was: Chrome 105, Safari
+     15.4, Firefox 121 — all 2022-23, so no fallback cliff in 2026. Verified in
+     this browser by `CSS.supports('selector(:has(*))')`.
+     Where the viewport is narrower than 78rem the vw term binds and a worst-case
+     split wraps instead — which is correct, and is why flex-wrap below is not
+     optional. */
   .gd-handzone:has(.gd-fan--split) {
-    max-width: min(94vw, 74rem);
+    max-width: min(94vw, 78rem);
   }
   /* SIDE BY SIDE, not stacked. A shelf as a BAND costs 162.6px of fan height,
      which put Play below the fold on 12/12 deals at inner 1280x800; side by

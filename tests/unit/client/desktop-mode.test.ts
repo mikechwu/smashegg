@@ -95,7 +95,7 @@ describe('PHONE IDENTITY — rung 0 cannot reach a viewport below 720px', () => 
     // min-width block it applies at 390px, where `min(94vw, …)` and `96vw` are
     // NARROWER than the viewport — so the leak would not merely be a style
     // difference, it would shrink the phone's content column.
-    const widened = ['min(94vw, 100rem)', 'min(94vw, 56rem)', '96vw'];
+    const widened = ['min(94vw, 100rem)', 'min(94vw, 56rem)', 'min(94vw, 78rem)', '96vw'];
     const phoneTable = outsideMinWidth(TABLE);
     const phoneApp = outsideMinWidth(APP);
     for (const value of widened) {
@@ -176,15 +176,32 @@ describe('PHONE IDENTITY — rung 0 cannot reach a viewport below 720px', () => 
     const CLASSES = 15;
     const HAND = 27;
     const BAND_GAP = 12; // --space-lg between the two areas
-    const RUN_GAP = 6; //  --space-xs between recorded groups
-    const mainInk = (c: number): number => (1 + (c - 1) * (1 - pitchFactor)) * cardPx;
-    const shelfInk = (k: number): number =>
-      (1 + (k - 1) * (1 - runFactor)) * cardPx + Math.max(0, Math.floor(k / 2) - 1) * RUN_GAP;
+    const RUN_GAP = 6; //  --space-xs between runs
+    // A recorded GROUP comes only from the straight-flush finder
+    // (GameTable.tsx's applyMoveAsGroup); the desk's set-aside uses applyMove
+    // and records nothing. A straight flush is at least 5 cards. THAT is the
+    // structural fact that bounds run count — without it the shelf could be all
+    // 2-card runs and the maximum would be 1389.6px instead.
+    const MIN_GROUP = 5;
+    const mainInk = (c: number): number => (c === 0 ? 0 : (1 + (c - 1) * (1 - pitchFactor)) * cardPx);
+    // g runs holding k cards: each run starts at a full card and adds
+    // (1 - runFactor) per extra card, plus the gaps between runs.
+    const shelfInk = (k: number, runs: number): number =>
+      ((1 - (1 - runFactor)) * runs + (1 - runFactor) * k) * cardPx + Math.max(0, runs - 1) * RUN_GAP;
     let bound = 0;
-    for (let k = 1; k < HAND; k += 1) {
-      bound = Math.max(bound, mainInk(Math.min(CLASSES, HAND - k)) + BAND_GAP + shelfInk(k));
+    for (let k = 1; k <= HAND; k += 1) {
+      const c = Math.min(CLASSES, HAND - k);
+      for (let g = 0; g <= Math.floor(k / MIN_GROUP); g += 1) {
+        const runs = g + (k - g * MIN_GROUP > 0 ? 1 : 0);
+        if (runs === 0) continue;
+        bound = Math.max(bound, mainInk(c) + (c > 0 ? BAND_GAP : 0) + shelfInk(k, runs));
+      }
     }
-    expect(Math.round(bound * 10) / 10).toBe(1143.6);
+    // 1207.2px: a 12-card shelf in 3 runs (2 flushes + 2 loose) beside a
+    // 15-column MAIN. PROVED over the whole space, not a sampled scenario —
+    // the previous figure (1143.6) modelled the shelf as one run and was
+    // therefore a configuration, not a maximum.
+    expect(Math.round(bound * 10) / 10).toBe(1207.2);
 
     const desktop = TABLE_DESKTOP.map((b) => b.body).join('\n');
     const capRem = Number(
@@ -313,5 +330,40 @@ describe('RUNG 0 is present and is what it claims to be', () => {
     expect(desktop, 'no desktop index-ratio override').not.toContain('.gd-card__rank');
     const clampCopies = (TABLE.match(/clamp\(2\.75rem, 13vw, 4\.25rem\)/g) ?? []).length;
     expect(clampCopies, 'the nine clamp sites are untouched by this round').toBe(9);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The nine clamp sites must AGREE. Not consolidated — that was withdrawn, and
+// correctly: five of them are deliberate ancestor definitions serving inline
+// `calc(var(--gd-cardw) * F)` styles, and a missing one makes the calc invalid
+// at computed-value time so the margin silently becomes 0 (table.css:805-813
+// records this observed live as 27 full-height cards at zero overlap).
+//
+// So the risk here is not that the value is hardcoded — someone has to choose
+// it — but that nine copies DRIFT. That is checkable without touching any of
+// them, which is most of the benefit at none of the silent-breakage risk.
+// ---------------------------------------------------------------------------
+describe('the card clamp is duplicated on purpose — but the copies must agree', () => {
+  it('every clamp() spelling of the hand card is character-identical', () => {
+    const clamps = [...TABLE.matchAll(/clamp\(\s*[\d.]+rem\s*,\s*[\d.]+vw\s*,\s*[\d.]+rem\s*\)/g)].map(
+      (m) => m[0].replace(/\s+/g, ' '),
+    );
+    // Non-vacuity: if the spelling changes so this finds nothing, the test must
+    // fail rather than pass on an empty set.
+    expect(clamps.length, 'the clamp copies are findable').toBeGreaterThanOrEqual(9);
+    const distinct = [...new Set(clamps)];
+    expect(
+      distinct,
+      `the hand card's clamp is written ${clamps.length} times and they must all ` +
+        `be the same string; found ${distinct.length} distinct: ${distinct.join(' | ')}`,
+    ).toHaveLength(1);
+  });
+
+  it('the count is pinned, so ADDING a tenth copy is a deliberate act', () => {
+    // Not a style rule — a change-detector on purpose. A new copy is a new place
+    // to drift, and the person adding it should have to say so here.
+    const clamps = TABLE.match(/clamp\(\s*[\d.]+rem\s*,\s*[\d.]+vw\s*,\s*[\d.]+rem\s*\)/g) ?? [];
+    expect(clamps).toHaveLength(9);
   });
 });

@@ -70,6 +70,14 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 
     **Corollary for design panels:** an external lineage's rejected proposal is worth re-reading whenever the constraints move. Codex's side-by-side layout was disqualified by measurement in one round and is the adopted answer in another, unchanged.
 
+18. **When a layout decision depends on per-deal CONTENT, a media query alone cannot be correct.** The desktop arc assumed throughout that the variable was viewport width. It is not always: whether two hand areas fit side by side depends on the DEAL — MAIN's column count and the shelf's run count — so no breakpoint can be chosen that is right for every hand at that width. The proof was a 6.7px overflow at inner 720×900 that the containment gate caught, invisible because the container's own `overflow-x: hidden` ate the scrollbar.
+
+    **Operational rule: for a content-dependent layout, either size for a PROVED worst case or provide a CONTENT-responsive fallback — and prefer both.** `flex-wrap: wrap` is the right shape because it reacts to the content rather than to the viewport: a pair that does not fit stacks, paying the vertical only when the horizontal genuinely is not there. A media query cannot express that, at any breakpoint.
+
+    **This is the same axis as practices 12 and 14, and it explains the gate split.** A property that is deterministic per viewport (containment: a box that escapes escapes on every deal) needs a small sample and can run in CI on every push. A property that is a function of the deal (the fold rate) needs n≥24 and stays manual. Ask which kind a check is before deciding how often to run it.
+
+    **Diagnostic question to ask of any breakpoint:** *what is the variable this threshold is standing in for?* If the honest answer is "how much content there happens to be", the breakpoint is a proxy and needs a fallback behind it.
+
 ## Tool & model ladders (current)
 
 Web research runs on the built-in WebSearch/WebFetch tools, `curl` via shell for direct page/PDF fetches, and `gh api` for GitHub content. **Firecrawl is disabled as of 2026-07-13 (credit limit reached — owner instruction); state this in every research-agent prompt.** Escalate to costlier tooling only on demonstrated failure of a cheaper rung, and log the failure.
