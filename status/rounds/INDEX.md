@@ -4,12 +4,13 @@
 
 Round files are **verbatim** sections of the former root `STATUS.md`, moved unedited. They are history: they record what was believed at the time, including claims later withdrawn. Check `../WITHDRAWN.md` before quoting any figure from one.
 
-**Immutability pin.** The concatenation of every round file's body — each file below its two-line pointer block, trailing blank lines trimmed, joined with a newline — hashes to `c2046a4b3500e64140c763a5717d3e32069113b39c84e173c4f7ea0773a85b44`. `tests/unit/client/status-structure.test.ts` asserts it, so an edit to history is a red test rather than a convention. Appending a round is a normal act and changes the hash; update it in the same commit, so the change is reviewable in the diff.
+**Immutability pin.** The concatenation of every round file's body — each file below its two-line pointer block, trailing blank lines trimmed, joined with a newline — hashes to `ef31ff210522696257909ed3743fb103776a03602bc876bd2276d0bfff1d194a`. `tests/unit/client/status-structure.test.ts` asserts it, so an edit to history is a red test rather than a convention. Appending a round is a normal act and changes the hash; update it in the same commit, so the change is reviewable in the diff.
 
 **Migration losslessness, checked separately at the split.** The original root `STATUS.md` from its first `## ` heading to the end, and the concatenation of the 118 sections written out of it, both hashed to `218bcd0517cfa68cdbcc4b562cf359e2f02493fba22c9522552568db67407128`. That is the evidence that nothing was rewritten in the move. It differs from the pin above only because the pin canonicalises trailing whitespace; the two answer different questions and neither is the other's check.
 
 | # | round | date |
 |---|---|---|
+| 125 | [P0-P2: a stale crossover, a wider sweep than expected, and the uncovered axis](125-p0-p2-a-stale-crossover-a-wider-sweep-and-the-uncovered-axis.md) | 2026-07-28 |
 | 124 | [N0-N3: the gate was never in doubt, and there is a second strip threshold](124-n0-n3-the-gate-was-never-in-doubt-and-there-is-a-second-strip-threshold.md) | 2026-07-28 |
 | 123 | [M0-M2: the point-prediction test found a model defect, and the second theme is withdrawn](123-m0-m2-the-point-prediction-found-a-model-defect-and-the-theme-is-withdrawn.md) | 2026-07-28 |
 | 122 | [L0-L2: the card closes at 46.51, and the arc's excluded axis is the open defect](122-l0-l2-the-card-closes-and-the-second-theme-is-the-open-defect.md) | 2026-07-28 |

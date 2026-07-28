@@ -4,7 +4,18 @@
   "reference": {
     "innerH": 664,
     "innerW": 390,
-    "note": "The cell every span figure in this model is stated at: inner 390x664, lacquer, zh-Hant, timed room (the product default), one card staged, no shelf, ascending sort. A figure quoted without this cell is a figure quoted without its configuration."
+    "note": "The cell every span figure in this model is stated at. A figure quoted without this cell is a figure quoted without its configuration. Each pinned dimension below names a `coverage` phrase that must appear in status/VALIDATED.md — either as a row with a validity range or as an entry in the not-validated list. tests/unit/client/strip-ceiling.test.ts asserts it, because a dimension can only be pinned honestly if somewhere says what pinning it costs.",
+    "dimensions": [
+      { "axis": "viewportWidth", "value": "inner 390", "coverage": "inner 360" },
+      { "axis": "viewportHeight", "value": "inner 664", "coverage": "inner 390x664" },
+      { "axis": "deckTheme", "value": "lacquer", "coverage": "`lacquer` only" },
+      { "axis": "locale", "value": "zh-Hant", "coverage": "zh-Hant, en, zh-Hans" },
+      { "axis": "roomTiming", "value": "timed (the product default)", "coverage": "timed-only" },
+      { "axis": "handSort", "value": "ascending", "coverage": "descending" },
+      { "axis": "stagedCards", "value": "one card staged", "coverage": "one card staged" },
+      { "axis": "shelf", "value": "none", "coverage": "no shelf" },
+      { "axis": "rootFontSize", "value": "16px", "coverage": "root font-size" }
+    ]
   },
   "constants": [
     {
@@ -147,7 +158,9 @@
       "id": "floorBelowWidth",
       "value": 332,
       "unit": "px",
-      "what": "Viewport width at and below which the narrow floor applies. The last integer below the 332.1px crossover.",
+      "kind": "policy",
+      "what": "Viewport width at and below which the narrow floor applies. SHIPPED AT 332 AND CONSERVATIVE BY CHOICE: the derived boundary at the shipped card is ceil(322.4) - 1 = 322, so widths 323-332 get the 44px floor although 46.51 would still clear 8 columns there. The effect is harmless — a smaller card has more vertical margin, not less — but it is a choice and not a derivation, and the reason it stands is that moving it edits CSS to buy a slightly larger card on a ten-pixel band almost nobody is at. 332 was derived from the 48.15px card and was correct when written.",
+      "derivedBoundary": 322,
       "source": { "file": "src/client/app.css", "literal": "@media (max-width: 332px)" },
       "validated": "floorBelowWidth"
     },
@@ -185,7 +198,7 @@
       "id": "crossover",
       "expression": "minWidth(w) = rowChrome + 5.9*w",
       "source": { "file": "scripts/cardw-gate.mjs", "literal": "ROW_CHROME + 5.9 * CONSTANT" },
-      "what": "Smallest viewport width at which card width w still clears the capacity floor. At the shipped 48.15px this is 332.1 CSS px."
+      "what": "Smallest viewport width at which card width w still clears the capacity floor. At the shipped 46.51px card this is 322.4 CSS px; at the 44px narrow floor it is 307.6. THIS FIGURE WENT STALE ONCE ALREADY: it was recorded as 332.1, correct for the 48.15px card round J0 shipped and wrong from round L0 onward. It is a function of the card width, and the card width has moved twice in five rounds, which is the same argument that made stripCeiling derived rather than stored."
     },
     {
       "id": "lineHeight",
@@ -240,6 +253,6 @@
     "cardWidthRule": "--gd-handcardw: 44px at and below 332px; 46.51px to 719px; clamp(2.75rem, 13vw, 4.25rem) at and above 720px",
     "glyphRule": "--gd-handglyphw: min(2.75rem, 53px) at and below 332px; min(2.906875rem, 56px) to 719px; the card width at and above 720px",
     "supportedWidths": [360, 375, 390, 430],
-    "unsupportedBelow": 320
+    "unsupportedBelowIsPolicy": "320. NOT a derived figure — the 44px narrow floor clears 8 columns down to 307.6px. 320 is the narrowest width anyone chose to claim support for (an iPhone SE and iOS Display Zoom), stated as a policy the way depthFloor is, so a later reader does not take it for a computed result."
   }
 }

@@ -5,7 +5,7 @@
 > configuration:** `VALIDATED.md`. **What was retracted:** `WITHDRAWN.md`. **Why a past
 > decision went the way it did:** `rounds/INDEX.md`, then the round it names.
 
-Last updated: 2026-07-28, round N0-N3. **Every rate on this page is a `lacquer` figure
+Last updated: 2026-07-28, round P0-P2 (deployed). **Every rate on this page is a `lacquer` figure
 unless it says otherwise** — see the second-theme section, which is why that sentence is
 now written down.
 
@@ -29,7 +29,7 @@ they cost.
 
 | viewport | card | why |
 |---|---|---|
-| <= 332px | 44px | below the crossover a larger card fits 7 columns a line, and 15 value classes then need three lines |
+| <= 332px | 44px | at some point below here a larger card fits only 7 columns a line, and 15 value classes then need three lines. The exact crossover for the shipped card is 322.4, so this boundary is 10px conservative by choice — see `MODEL.md`, `floorBelowWidth`. |
 | 333-719px | **46.51px** | the depth floor admits up to 47.60; this keeps the tolerance the old gate bought |
 | >= 720px | `clamp(2.75rem, 13vw, 4.25rem)` | the desktop layout, untouched |
 

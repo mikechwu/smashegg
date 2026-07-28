@@ -8,7 +8,7 @@ This file is a projection of `model.json` and is regenerated, never edited. A fi
 
 ## Reference cell
 
-Inner **390 x 664**. The cell every span figure in this model is stated at: inner 390x664, lacquer, zh-Hant, timed room (the product default), one card staged, no shelf, ascending sort. A figure quoted without this cell is a figure quoted without its configuration.
+Inner **390 x 664**. The cell every span figure in this model is stated at. A figure quoted without this cell is a figure quoted without its configuration. Each pinned dimension below names a `coverage` phrase that must appear in status/VALIDATED.md — either as a row with a validity range or as an entry in the not-validated list. tests/unit/client/strip-ceiling.test.ts asserts it, because a dimension can only be pinned honestly if somewhere says what pinning it costs.
 
 ## Constants
 
@@ -30,7 +30,7 @@ Inner **390 x 664**. The cell every span figure in this model is stated at: inne
 | `capacityFloor` | 8 columns | Per-line capacity needed to fit 15 value classes in TWO lines. | `scripts/containment.mjs` — `capacity < 8` |
 | `layoutBreakpoint` | 720 px | The phone/desktop layout seam. The card constant governs below it; above it the card is in rem again. | `src/client/table/table.css` — `@media (min-width: 720px)` |
 | `floorCardW` | 44 px | The hand card box below the crossover, where the constant cannot fit 8 columns a line. Exactly what today's clamp yields at 320 through its rem floor. | `src/client/app.css` — `--gd-handcardw: 44px` |
-| `floorBelowWidth` | 332 px | Viewport width at and below which the narrow floor applies. The last integer below the 332.1px crossover. | `src/client/app.css` — `@media (max-width: 332px)` |
+| `floorBelowWidth` | 332 px | Viewport width at and below which the narrow floor applies. SHIPPED AT 332 AND CONSERVATIVE BY CHOICE: the derived boundary at the shipped card is ceil(322.4) - 1 = 322, so widths 323-332 get the 44px floor although 46.51 would still clear 8 columns there. The effect is harmless — a smaller card has more vertical margin, not less — but it is a choice and not a derivation, and the reason it stands is that moving it edits CSS to buy a slightly larger card on a ten-pixel band almost nobody is at. 332 was derived from the 48.15px card and was correct when written. | `src/client/app.css` — `@media (max-width: 332px)` |
 | `depthFloor` | 10 bin index | The minimum fan depth that must remain feasible. A PRODUCT POLICY, not a validation result: the held-out test earns 9, and requiring 10 is a stricter claim the owner makes about which depths are in scope. | `scripts/cardw-gate.mjs` — `DEPTH_FLOOR ?? 10` |
 | `minGuaranteedWidth` | 360 px | Smallest viewport width the card constant is guaranteed at. Below the crossover the layout has no supported card size. | `scripts/cardw-gate.mjs` — `MIN_GUARANTEED_W ?? 360` |
 
@@ -68,7 +68,7 @@ Largest card width that still clears the two-line capacity floor at width W.
 minWidth(w) = rowChrome + 5.9*w
 ```
 
-Smallest viewport width at which card width w still clears the capacity floor. At the shipped 48.15px this is 332.1 CSS px.
+Smallest viewport width at which card width w still clears the capacity floor. At the shipped 46.51px card this is 322.4 CSS px; at the 44px narrow floor it is 307.6. THIS FIGURE WENT STALE ONCE ALREADY: it was recorded as 332.1, correct for the 48.15px card round J0 shipped and wrong from round L0 onward. It is a function of the card width, and the card width has moved twice in five rounds, which is the same argument that made stripCeiling derived rather than stored.
 
 ### `lineHeight`
 
@@ -143,4 +143,4 @@ Card width at which depth-s hands stop fitting. These roots make the qualifying 
 - **cardWidthRule**: --gd-handcardw: 44px at and below 332px; 46.51px to 719px; clamp(2.75rem, 13vw, 4.25rem) at and above 720px
 - **glyphRule**: --gd-handglyphw: min(2.75rem, 53px) at and below 332px; min(2.906875rem, 56px) to 719px; the card width at and above 720px
 - **supportedWidths**: 360, 375, 390, 430
-- **unsupportedBelow**: 320
+- **unsupportedBelowIsPolicy**: 320. NOT a derived figure — the 44px narrow floor clears 8 columns down to 307.6px. 320 is the narrowest width anyone chose to claim support for (an iPhone SE and iOS Display Zoom), stated as a policy the way depthFloor is, so a later reader does not take it for a computed result.

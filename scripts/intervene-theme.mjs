@@ -38,7 +38,22 @@ const DEALS = Number(process.env.IC_DEALS ?? 12);
 const LOCALE = process.env.IC_LOCALE ?? 'zh-Hant';
 // The two arms: theme ids, switched through the header picker.
 const FROM = process.env.IC_FROM ?? 'lacquer';
-const TO = process.env.IC_TO ?? 'cinnabar-court';
+// NO DEFAULT FOR THE TARGET THEME. It defaulted to 'cinnabar-court', which round M2
+// unregistered — so the default names a deck the app cannot render. This script switches
+// through the PICKER and asserts the select actually took the value, so it fails loudly
+// rather than silently measuring lacquer twice (setting `select.value` to a nonexistent
+// option leaves it empty). Loud is the right behaviour and it is still the wrong default:
+// a script whose out-of-the-box invocation cannot work is a trap for the next reader.
+if (process.env.IC_TO === undefined) {
+  console.log(
+    '\nIC_TO is REQUIRED — there is deliberately no default.\n' +
+      '  The theme to switch TO. It must be a REGISTERED deck theme; an unregistered id\n' +
+      '  cannot render and this script will refuse rather than measure the fallback.\n' +
+      '  e.g.  IC_W=390 IC_H=664 IC_FROM=lacquer IC_TO=<theme> node scripts/intervene-theme.mjs\n',
+  );
+  process.exit(2);
+}
+const TO = process.env.IC_TO;
 
 const { chromium } = await import('playwright');
 

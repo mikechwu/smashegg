@@ -90,6 +90,13 @@ pitch of 35 where 0.7 x 48.15 = 33.7, and a plausible number in a green run was 
 straight past. The rows above are from the re-run after the nine sites were collapsed to one
 declaration. See METHODOLOGY practice 34.
 
+## The reference cell's pinned dimensions
+
+`MODEL.md` pins nine dimensions. Each is either measured across (a row above) or declared
+unmeasured (below). The **one card staged** pin is the desk's saturating state: the desk
+height stops growing after the first staged card, verified over 0 to 12 staged, so pinning
+it to one is pinning it at its maximum rather than at a convenient point.
+
 ## What is NOT validated, stated so it is not quoted as if it were
 
 - **The elder-legibility question.** No session has been run. Nothing in this file says the
@@ -108,3 +115,10 @@ declaration. See METHODOLOGY practice 34.
   gate uses the bin INDEX for exactly this reason, rather than a probability from the tail.
 - **`R` at any width in a browser.** Every `R` in this file is simulated. What is measured
   is the SPAN, by intervention.
+- **Any span figure with a shelf open.** The set-aside shelf is a shipped, user-facing
+  feature — `game.areas.shelfLabel`, reachable from the hand — and the reference cell pins
+  it to **no shelf**. Containment is measured in both states, no shelf and one shelf, at
+  every covered viewport; the SPAN model is not. A shelf adds a row of cards above the fan,
+  and no rate in this file accounts for it. The one historical measurement that varied it
+  is at a viewport height since declared void and is directional only. **This is the pinned
+  dimension of the reference cell with the least behind it.**

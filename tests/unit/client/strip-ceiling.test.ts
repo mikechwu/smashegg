@@ -18,7 +18,7 @@
 // theme is added.
 
 import { describe, expect, it } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
   collapsedExactCeilingFor,
@@ -128,6 +128,119 @@ describe('the covered-card reveal is a framework budget, not art freedom', () =>
         needsCapped.map((t) => `  ${t.id}: ${t.requested} > ${t.ceiling.toFixed(4)}`).join('\n') +
         `\nThat is legal. It is not legal to then quote a rate computed the cheap way.`,
     ).toEqual([]);
+  });
+
+  // P0a: THE FLOOR BOUNDARY IS A CHOICE, AND THE CHOICE MUST MATCH THE CSS.
+  //
+  // The crossover is `rowChrome + 5.9*cardW`, a function of the card — and the card has
+  // moved twice in five rounds. It was recorded as 332.1 (correct for the 48.15px card) and
+  // stayed there after the card became 46.51, where it is 322.4. A figure derived from a
+  // moving input and then stored will go stale; the fix is to derive it and pin the shipped
+  // boundary against it, so "conservative by choice" stays a choice rather than becoming a
+  // forgotten mistake.
+  it('the shipped floor boundary matches the CSS, and is at least the derived crossover', () => {
+    const model = JSON.parse(read('status/model.json'));
+    const floor = model.constants.find((c: { id: string }) => c.id === 'floorBelowWidth');
+    const rowChrome = model.constants.find((c: { id: string }) => c.id === 'rowChrome').value;
+    const floorCardW = model.constants.find((c: { id: string }) => c.id === 'floorCardW').value;
+
+    // 1. The recorded boundary is what the CSS actually says.
+    const css = read('src/client/app.css');
+    expect(
+      css,
+      `model.json records the narrow floor at ${floor.value}px; the CSS must agree`,
+    ).toContain(`@media (max-width: ${floor.value}px)`);
+
+    // 2. It is at or above the derived crossover for the SHIPPED card — below that, the
+    //    constant would not clear 8 columns and the floor would be arriving too late.
+    const crossover = rowChrome + 5.9 * cardW;
+    expect(floor.value, 'the floor boundary must not sit below the crossover it protects').toBeGreaterThanOrEqual(
+      Math.ceil(crossover) - 1,
+    );
+    expect(floor.derivedBoundary, 'the derived boundary is recorded beside the shipped one').toBe(
+      Math.ceil(crossover) - 1,
+    );
+
+    // 3. And the floor card itself must clear 8 columns at the narrowest supported width,
+    //    or the floor is decorative.
+    const capacity = (W: number, w: number): number => Math.floor((W - rowChrome - 0.3 * w) / (0.7 * w));
+    expect(capacity(320, floorCardW), 'the 44px floor clears 8 columns at 320').toBeGreaterThanOrEqual(8);
+  });
+
+  // P0b: NO GATE SCRIPT MAY DEFAULT TO A DECK THEME THE APP CANNOT RENDER.
+  //
+  // The failure this closes needs two things to line up: a script requests a theme id, and
+  // that id is not registered. The app maps an unregistered id to the default, so the script
+  // renders lacquer and labels it something else. Six scripts "verified" their theme by
+  // reading back the value they had just written to localStorage, which confirms only that
+  // storage works; five more wrote it and checked nothing.
+  //
+  // Rather than add a rendered check to eleven scripts, this removes the other half of the
+  // conjunction: if no script can NAME an unregistered theme, the silent fallback cannot be
+  // reached. Enumerated from the filesystem, per the lesson of N3a — a list of scripts is a
+  // thing someone must remember to update.
+  it('no script defaults to an unregistered deck theme', () => {
+    const dir = fileURLToPath(new URL('../../../scripts/', import.meta.url));
+    const registered = new Set(deckThemes().map((t) => t.id));
+    expect(registered.size, 'at least one theme is registered').toBeGreaterThanOrEqual(1);
+    const offenders: string[] = [];
+    let defaultsSeen = 0;
+    for (const f of readdirSync(dir).filter((n) => n.endsWith('.mjs'))) {
+      const src = readFileSync(dir + f, 'utf8');
+      // `process.env.X ?? 'a'` and `?? 'a,b'` — the shape a theme default takes here.
+      for (const m of src.matchAll(/process\.env\.[A-Z_]*THEMES?[A-Z_]*\s*\?\?\s*'([^']+)'/g)) {
+        defaultsSeen += 1;
+        for (const id of m[1]!.split(',').map((x) => x.trim())) {
+          if (!registered.has(id)) offenders.push(`${f}: defaults to '${id}'`);
+        }
+      }
+    }
+    expect(defaultsSeen, 'the scan found theme defaults to check (not vacuous)').toBeGreaterThanOrEqual(3);
+    expect(
+      offenders,
+      `these scripts default to a deck theme that is not registered:\n  ${offenders.join('\n  ')}\n` +
+        'An unregistered id falls back to the default deck, so the script would render one ' +
+        'theme and label it another. Name a registered theme, or require the knob.',
+    ).toEqual([]);
+  });
+
+  // P0c: A PINNED DIMENSION MUST SAY WHAT PINNING IT COSTS.
+  //
+  // The reference cell fixes nine dimensions, and a figure stated at that cell says nothing
+  // about any other value of any of them. Eight had somewhere to land — a row with a
+  // validity range, or an entry in the not-validated list. The ninth, `no shelf`, had
+  // neither: the set-aside shelf is a shipped feature, containment measures both states,
+  // and the SPAN model measures only one, which nothing recorded.
+  //
+  // The rule is the file's own stated purpose, applied to the cell rather than to the rows:
+  // every pinned dimension is covered, and "covered" includes "declared unmeasured".
+  const coverageOf = (): { axis: string; value: string; coverage: string }[] =>
+    JSON.parse(read('status/model.json')).reference.dimensions;
+
+  it('every dimension the reference cell pins is covered in VALIDATED', () => {
+    const dims = coverageOf();
+    const validated = read('status/VALIDATED.md');
+    expect(dims.length, 'the reference cell pins dimensions (not vacuous)').toBeGreaterThanOrEqual(7);
+    const uncovered = dims.filter((d) => !validated.includes(d.coverage));
+    expect(
+      uncovered,
+      `these pinned dimensions have no row and no not-validated entry:\n` +
+        uncovered.map((d) => `  ${d.axis} = ${d.value} (looked for "${d.coverage}")`).join('\n') +
+        `\nA figure stated at the reference cell says nothing about any other value of them. ` +
+        'Measure it, or say in VALIDATED.md that it is not measured.',
+    ).toEqual([]);
+  });
+
+  it('that check would catch a newly pinned dimension with nothing behind it', () => {
+    // MUTANT: a fictitious pin whose coverage phrase appears nowhere.
+    const validated = read('status/VALIDATED.md');
+    const fictitious = { axis: 'handedness', value: 'right', coverage: 'left-handed layout' };
+    expect(
+      validated.includes(fictitious.coverage),
+      'the mutant phrase must be absent, or this proves nothing',
+    ).toBe(false);
+    const uncovered = [...coverageOf(), fictitious].filter((d) => !validated.includes(d.coverage));
+    expect(uncovered.map((d) => d.axis), 'the check flags the unbacked pin').toEqual(['handedness']);
   });
 
   it('every theme the picker offers is registered, and the withdrawn one is not', () => {

@@ -37,7 +37,7 @@ export const AXES = {
   },
   deckTheme: {
     productDefault: 'lacquer',
-    note: 'cinnabar-court ships and is one tap from the header picker. Its stackStripW is 0.841 against lacquer\'s 0.42, so its piles are far taller at the COMMON depths 3-4 (though the 2.95w spread budget caps both to ~0.42 at depth 8, so the structural maximum barely differs).',
+    note: 'WITHDRAWN in round M2 — cinnabar-court no longer registers, so lacquer is the only selectable deck and this axis has one value until a theme is added. While it shipped: Its stackStripW is 0.841 against lacquer\'s 0.42, so its piles are far taller at the COMMON depths 3-4 (though the 2.95w spread budget caps both to ~0.42 at depth 8, so the structural maximum barely differs).',
   },
   locale: {
     productDefault: 'zh-Hant',
