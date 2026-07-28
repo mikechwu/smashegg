@@ -21,6 +21,38 @@ const DOCS = fileURLToPath(new URL('../../../docs/', import.meta.url));
 /** Withdrawn figure -> why, and what replaced it. Extend this when a number is
  *  retracted; the entry IS the record. */
 const WITHDRAWN: { pattern: RegExp; label: string; replacement: string }[] = [
+  // ------------------------------------------------------------------------
+  // WITHDRAWN PROSE CONCLUSIONS.
+  //
+  // This mechanism was built to stop a retracted FIGURE surviving in the docs. But a
+  // retracted CLAIM often has no number in it — "the 20.3px cannot be found in
+  // spacing" is a sentence, and a scan for digits cannot see it. So the mechanism
+  // was blind to exactly the class it was built for, one level up: a correction that
+  // lands where it was noticed and stops there. Prose conclusions are therefore
+  // listed here on the same footing as figures, matched on a distinctive phrase.
+  // ------------------------------------------------------------------------
+  {
+    pattern: /cannot be found in spacing/i,
+    label: 'the claim that the deficit cannot be recovered from spacing',
+    replacement:
+      'it priced the remedy against the WORST OBSERVED hand at n=24 (20.3px), not against ' +
+      'the marginal bin (7.1px), which ~8px of seat-plate band does reach.',
+  },
+  {
+    pattern: /extra pixels buy nothing/i,
+    label: 'the claim that intermediate recovery buys nothing',
+    replacement:
+      'it contradicted its own margin column: extra pixels buy no RATE improvement between ' +
+      'lattice steps, but they do buy MARGIN (0.9px -> 17.9px at the same 1.35%).',
+  },
+  {
+    pattern: /sort choice \*?decides\*? feasibility.{0,40}5\.5/i,
+    label: 'attributing the sort-choice-decides share to 5.5%',
+    replacement:
+      'the symmetric difference is 9.27%. 5.42% is the narrower "descending has COST the ' +
+      'player feasibility", and 3.85% is "the default failed and toggling would rescue".',
+  },
+
   {
     pattern: /13\.14\s*%/,
     label: 'the modelled 13.14% infeasible rate at inner 390x664',
@@ -91,9 +123,18 @@ describe('withdrawn numbers do not survive as live claims', () => {
     // …and the scanner really can see a withdrawn figure where one is known to be.
     const reach = files.find((f) => f.endsWith('reachability.md'));
     expect(reach, 'reachability.md is in scope').toBeTruthy();
+    const reachText = readFileSync(reach!, 'utf8');
     expect(
-      WITHDRAWN.some((w) => w.pattern.test(readFileSync(reach!, 'utf8'))),
-      'the scanner can detect a withdrawn figure at all — otherwise a clean pass is vacuous',
+      WITHDRAWN.some((w) => w.pattern.test(reachText)),
+      'the scanner can detect a withdrawn item at all — otherwise a clean pass is vacuous',
+    ).toBe(true);
+    // …and specifically that it can see a PROSE entry, not only a numeric one. A
+    // number-only scanner passing on a doc full of withdrawn sentences is the exact
+    // blind spot this list was extended to close.
+    expect(
+      /cannot be found in spacing|extra pixels buy nothing/i.test(reachText),
+      'a withdrawn PROSE conclusion is present to be detected, so a pass is not vacuous ' +
+        'merely because prose entries never match anything',
     ).toBe(true);
   });
 

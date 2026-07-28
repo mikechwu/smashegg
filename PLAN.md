@@ -378,7 +378,7 @@ Named empirical gate checks (promoted from the risk register per round-2 feedbac
   | | rate |
   |---|---|
   | **MEASURED, timed, following, staged** | **11/120 = 9.17% [5.2%, 15.7%]** |
-  | H0 — the untimed 2.50% | **REJECTED** (pre-registered cut: ≥8 failures) |
+  | H0 — the untimed 2.50% (itself withdrawn, see below) | **REJECTED** (pre-registered cut: ≥8 failures) |
   | H1 — the modelled 13.14% | inside the interval, but **the distribution test rejects it** |
   | leading, for contrast | **0/55 = 0%** |
 
@@ -393,6 +393,25 @@ Named empirical gate checks (promoted from the risk register per round-2 feedbac
   **What survives:** the timing correction is real (H0 rejected), leading turns never fail, and the
   span decomposition and structural bound are untouched — the error was in the *weights*, not the
   geometry. **What does not:** any quotation of 13.14%.
+
+  **BOTH ENDS OF THE TIMING ARGUMENT ARE NOW RESTATED (2026-07-27).** The 2.50% H0 came from the
+  *same* max-over-orderings model, so withdrawing 13.14% and not 2.50% left the effect SIZE quoted
+  from a model corrected at one end only. Under the corrected single-ordering model the untimed
+  threshold is `664 − 148.5 − 198.6 = 316.9`, giving **1.32%**, so:
+  **untimed ascending 1.32% → timed ascending 7.67% modelled / 9.17% measured — the countdown bar
+  multiplies the failure rate by ~5.8×.** 316.9 is *exactly* the threshold that ~8px of seat-plate
+  recovery reaches, because the timed/untimed desk difference is exactly the bar's 8.0px: **the
+  amount being hunted is the countdown bar's cost**, and that is why 8px leaves only 0.9px of
+  margin — it restores a pre-timer state that was already marginal.
+
+  **SORT ORDER IS NET NEGATIVE, AND THE PANEL QUESTION CHANGED.** Over 400k simulated deals: both
+  orderings fail 3.81%, only-ascending 3.85%, only-descending **5.42%**, neither 86.92%. So
+  **descending costs feasibility more often than it recovers it (~1.6pp)**, the symmetric
+  difference — where the choice *decides* — is **9.27%**, and the question is no longer whether the
+  toggle is an affordance but whether the asymmetry should be removed. It arises from greedy wrap
+  putting the lowest 9 value classes on line 1 ascending and the highest 9 descending, which is a
+  layout decision, not a preference. **All of these inherit the single-ordering model's unvalidated
+  status**; descending is the natural held-out configuration.
 
   **THE DESKTOP ROWS ARE WITHDRAWN.** `fan-height-distribution.mjs` hardcoded card height 73.5, step
   21.3 and line capacity 9 — all measured at 390 width — and applied them to 1366×681. Measured

@@ -394,7 +394,12 @@ a lattice step.
 | 390×748 | <0.01% (1 in 33,333) | <0.01% | 0% |
 | 1366×681 | withdrawn (390-width geometry) | withdrawn | 0% |
 
-### 9.4 There is no cheap 20px
+### 9.4 There is no cheap 20px — WITHDRAWN, see §10.2
+
+> **This section's conclusion is refuted.** It priced the remedy against the WORST
+> OBSERVED hand at n=24 (a 20.3px deficit, a 1-in-120 event) rather than against the
+> bin that carries the failure mass (7.1px). The measurements of the individual gaps
+> below are still good; the conclusion drawn from them is not.
 
 K's 66.0px residual decomposes as **10px** (fan→desk) + **15px** (desk→actions) + **41px** (the action
 bar itself, which is content). And the 132.5px well difference is **73.5px** of well plus a **59px**
@@ -433,6 +438,11 @@ candidate chips still grow the desk by **0px**. The assumption is now a measurem
 | the **desktop rows** of §9.3 | computed with 390-width geometry (card 73.5, step 21.3, capacity 9) applied to 1366×681, where capacity is actually **18** | withdrawn pending re-measurement |
 | the **`structural worst slack`** column | anchored remedy sizing twice; the 465.1px case needs two value classes at all 8 copies in one 27-card hand — **1 in 5.0 billion** (2.0×10⁻¹⁰), not the "<1 in 200,000" the simulation could bound | deleted; use the marginal bin |
 | **"the 20.3px cannot be found in spacing"** (§9.4) | 20.3px was the deficit of the WORST OBSERVED hand at n=24 — a rare event. The deficit that carries the failure mass is **7.1px** | §10.2 |
+| **2.50%** — the untimed end of the timing argument | it came from the *same* max-over-orderings model as the 13.14% that was rejected. Withdrawing one end and not the other left the effect size unrestated | **1.35%** untimed ascending (§10.6) |
+
+**Both ends of the timing argument now have replacements.** H0's rejection was never in
+doubt — a measured 9.17% excludes anything near 2.5% — but the effect SIZE was quoted
+from a model that has since been corrected at one end only.
 
 ### 10.2 The failure is one lattice bin, and it is 7.1px deep
 
@@ -452,9 +462,12 @@ made, applied to the remedy side.
 
 ### 10.3 The remedy, priced against the marginal bin
 
-**The lattice makes intermediate recovery worthless.** Between step boundaries extra
-pixels buy nothing: 25px of spacing scores exactly what 8px scores, because the next
-bin is not reached until 337.3.
+**The lattice makes intermediate recovery worthless FOR THE RATE — but not for the
+margin, and the first version of this sentence contradicted its own table.** 25px of
+spacing scores exactly the same RATE as 8px (both 1.35%), because the next bin is not
+reached until 337.3. What the extra 17px buys is MARGIN: 0.9px of clearance becomes
+17.9px. Those are different goods and the distinction is the whole point — a remedy
+sized to the rate alone lands on a knife edge.
 
 | recovery | threshold | infeasible (model) | margin to the nearest bin |
 |---|---|---|---|
@@ -467,10 +480,29 @@ bin is not reached until 337.3.
 **Card scale is the only lever with margin that does not remove anything.** `fanH` is
 linear in `cardW` with coefficient `2·aspect + 0.42·(d₁+d₂−2)` — 4.58 px/px at the
 252.1 bin, 5.84 at 316.0 — so the 6.7px of travel to the floor saves **30.7px** and
-**39.1px** respectively. It also shrinks the desk's staged card row (threshold
-+9.7px) and raises per-line capacity from 9 to **10**, which changes the distribution
-rather than just shifting it. **cardW 47 — a 7.3% reduction — already reaches 0.16%**,
-beating the full 33px of spacing recovery.
+**39.1px** respectively. It also shrinks the desk's staged card row (threshold +9.7px)
+and raises per-line capacity from 9 to **10**, which changes the distribution rather
+than just shifting it.
+
+**And the card-scale rows need the same margin column, because one of them is a trap.**
+The rate is a SAWTOOTH in `cardW`: as the threshold rises it crosses bins, and just
+above a crossing the margin is nearly zero.
+
+| cardW | capacity | threshold | infeasible | margin | share riding on that margin |
+|---|---|---|---|---|---|
+| 50.7 (today) | 9 | 308.9 | 7.74% | 14.20px | 21.3% |
+| 48 | 9 | 312.8 | 1.35% | 12.61px | 6.4% |
+| **47** | 9 | 314.3 | **0.16%** | **0.16px** | 1.2% ← **knife edge** |
+| 46 | 10 | 315.7 | 0.08% | 7.91px | 0.7% |
+| **44.6** | 10 | 317.7 | **0.08%** | **18.64px** | 0.7% ← best margin |
+| 44 (the 2.75rem floor) | 10 | 318.6 | 0.01% | 4.81px | 0.1% |
+
+An earlier version of this section recommended **cardW 47** on its rate alone — the only
+row quoted without a margin, one row after warning that the 8px band's 0.9px was too
+thin. Its margin is **0.16px**, with 1.2% of deals sitting on it: the same error, in the
+same section. **cardW ≈ 44.6 is the defensible target** — an 12% reduction, essentially
+the same rate, and 18.6px of clearance. Note the floor itself (44) is *not* the best
+choice; the sawtooth puts it back down to 4.8px.
 
 **The 8px band alone is not enough**, despite removing 91% of failures: 0.9px of
 margin is less than ordinary text-metric variation, and an en-locale title that wraps
@@ -484,11 +516,46 @@ axis registry recorded `descending`, and **every driver copied the error**, so e
 one matched the wrong default and the justification rule never fired. A registry with
 a wrong default silently excuses every driver that shares it.
 
-Modelled: ascending **7.65%**, descending **9.28%**. The withdrawn 13.14% is not
-meaningless once corrected — it is P(at least one ordering fails), i.e. the share of
-deals where the player's sort choice *decides* feasibility. That is **~5.5% of deals**, and whether the toggle is a
-discoverable recovery affordance or an accident is a design question, not a
-measurement.
+Modelled: ascending **7.65%**, descending **9.28%**; the rejected 13.14% is P(at least
+one ordering fails). Those three inputs determine the whole joint distribution, and the
+sentence that stood here got it wrong twice — it called 13.14% the union and then gave
+**~5.5%** as "the share of deals where the sort choice decides feasibility", which is
+neither of those things. The four-way split, computed directly over 400,000 simulated
+deals rather than from the three rounded inputs:
+
+| | share | (algebra from the three inputs) |
+|---|---|---|
+| both orderings fail | **3.81%** | 3.79% |
+| **only ascending fails** — the default fails and toggling would rescue | **3.85%** | 3.86% |
+| **only descending fails** — toggling has COST the player feasibility | **5.42%** | 5.49% |
+| neither fails | 86.92% | 86.86% |
+
+Three distinct numbers answer three distinct questions, and 5.49% answers none of the
+ones this section was asking:
+
+- a player on the **default** fails, and toggling would rescue them → **3.85%**
+- a player who **has** toggled is worse off than the default → **5.42%**
+- the sort choice **decides** feasibility either way (the symmetric difference) → **9.27%**
+
+**And the sign flips the design conclusion.** 5.42% > 3.85%: **descending costs
+feasibility more often than it recovers it, by ~1.6 percentage points.** So the question
+is not "is the toggle a discoverable affordance or an accident" — it is:
+
+> Descending is strictly worse for feasibility. Keep it, warn on it, or remove the
+> asymmetry?
+
+Only the third is structural. The difference comes from *which columns wrap to the
+second line*: the fan wraps greedily, so ascending puts the lowest 9 value classes on
+line 1 and descending puts the highest 9 there, giving different `(d₁, d₂)` and
+therefore different heights. That is a layout decision, not a user preference. Whether a
+wrap policy exists that makes both orderings produce the same `(d₁, d₂)` is with the
+panel (Grok leading).
+
+**CAVEAT INHERITED BY EVERY FIGURE IN THIS SECTION.** Both 7.65% and 9.28% come from the
+single-ordering model, which has been *fitted* to the discovery sample and never
+validated on held-out data. **Descending is the natural held-out configuration**, so the
+W20 held-out test validates the model and measures this population in one experiment.
+**Do not treat 9.28% as measured until it does.**
 
 ### 10.5 Corrections to the round-3 wording
 
@@ -500,3 +567,27 @@ the single-ordering model is treated as confirmed.
 
 The residual after any remedy must be reported as a bound: at n=120, 1 failure has a
 95% upper bound near **4.6%**, so "0.83%" is not a resolved number.
+
+### 10.6 The countdown bar's real effect size — and what that says about the remedy
+
+The untimed threshold needs no new run: `deskH` untimed is 148.5, so
+
+    T_untimed = 664 − 148.5 − 198.6 = 316.9
+
+and 316.9 is **exactly** the threshold of §10.3's "seat-plate band, ~8px" row, because
+the timed/untimed desk difference is exactly the bar's **8.0px**. Verified, not assumed.
+So under the corrected single-ordering model:
+
+> **untimed ascending 1.32% → timed ascending 7.67% (modelled), 9.17% measured.
+> The countdown bar multiplies the failure rate by ~5.8×.**
+
+**The clearest available sentence about the remedy's size:** recovering the ~8px
+seat-plate band puts the layout back on exactly the threshold it has when the timer is
+off. The *amount* being hunted is the countdown bar's cost.
+
+**One nuance, stated so the framing is not over-read.** The band and the bar are
+different pixels — the band is a separately measured gap between the seat plates and the
+fan, and it is only *approximately* 8px. The equivalence is exact in effect and
+coincidental in origin. It does explain the thin margin: 8px restores the pre-timer
+state, and the pre-timer state was already only 0.9px clear of the 316.0 bin. **The
+layout was marginal before the timer existed; the timer moved it across the boundary.**
