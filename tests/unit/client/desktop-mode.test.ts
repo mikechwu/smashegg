@@ -558,6 +558,11 @@ describe('the fold gate covers every SELECTABLE deck theme', () => {
 // that putting one back turns something red.
 // ---------------------------------------------------------------------------
 describe('gate scripts name their viewport', () => {
+  // EVERY BROWSER GATE, and keeping this list complete is itself the guard. Three scripts
+  // added during the card arc — the two interventions and the glyph ramp — were not on it
+  // for several rounds, so the rule "no gate hardcodes a viewport" was enforced over six of
+  // nine gates while reading as absolute. They all did refuse correctly; that was luck, not
+  // coverage. A gate that takes a viewport belongs here the round it is written.
   const GATES = [
     'measure-fold.mjs',
     'measure-simultaneity.mjs',
@@ -565,6 +570,9 @@ describe('gate scripts name their viewport', () => {
     'measure-setaside.mjs',
     'check-containment.mjs',
     'derive-span.mjs',
+    'intervene-cardw.mjs',
+    'intervene-theme.mjs',
+    'measure-glyph-scale.mjs',
   ];
   const readGate = (name: string): string =>
     readFileSync(new URL(`../../../scripts/${name}`, import.meta.url), 'utf8');
@@ -615,7 +623,9 @@ describe('gate scripts name their viewport', () => {
       ).toMatch(/REQUIRED/);
       expect(out, `scripts/${g}'s refusal must name a real phone inner height`).toMatch(/664|748/);
     }
-  });
+    // Nine process spawns at roughly 0.7s each; the 5s default was already marginal at six
+    // and a timeout here reads as a gate that failed to refuse.
+  }, 60_000);
 
   it('the refusal is the guard, not a missing dependency', () => {
     // A gate that dies on `Cannot find package 'playwright'` also exits non-zero,
@@ -637,7 +647,7 @@ describe('gate scripts name their viewport', () => {
           `import below the guard and make it dynamic.`,
       ).not.toMatch(/ERR_MODULE_NOT_FOUND|Cannot find package/);
     }
-  });
+  }, 60_000);
 
   it('every gate script states that its dimensions are INNER and exclude chrome', () => {
     for (const g of GATES) {

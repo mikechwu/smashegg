@@ -86,6 +86,55 @@ function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
+// THE REVEAL BUDGET (M0). stackOffsetW(n, strip) = min(strip, 2.95/(n-1)), so a column of n
+// reveals min(strip*(n-1), 2.95) card widths in total — a fixed budget spread over the
+// reveals once the strip would exceed it. It binds at n >= 5 for a 0.841 strip and NEVER for
+// 0.42, because a value class holds at most 8 copies and 0.42 * 7 = 2.94 against 2.95.
+//
+// So the model's `stripW*(s-2)` term is EXACT for lacquer and overstates any theme whose
+// strip reaches the budget. Found by a per-deal point-prediction test against 16 measured
+// span deltas: the linear form was off by a full lattice step on every deal holding a
+// depth-5 column, the capped form fits all 16 within 0.10px.
+//
+// It also breaks a property the rest of this model leans on: with the budget binding,
+// feasibility is NOT a function of s = d1 + d2 alone. (5,1) and (4,2) are both s = 6 and can
+// land on opposite sides. The "marginal bin" framing is a LACQUER property.
+const BUDGET = 2.95;
+const reveal = (n, strip) => (n <= 1 ? 0 : Math.min(strip * (n - 1), BUDGET));
+
+/** The per-line depth PAIRS, which the capped model needs and s alone cannot supply. */
+function pairDistribution(lineCap, samples, seed) {
+  const rand = mulberry32(seed);
+  const out = [];
+  for (let i = 0; i < samples; i += 1) {
+    const shoe = [];
+    for (let cl = 0; cl < CLASS_SIZES.length; cl += 1) {
+      for (let k = 0; k < CLASS_SIZES[cl]; k += 1) shoe.push(cl);
+    }
+    const per = new Array(CLASS_SIZES.length).fill(0);
+    for (let d = 0; d < 27; d += 1) {
+      const j = d + Math.floor(rand() * (shoe.length - d));
+      const t = shoe[d];
+      shoe[d] = shoe[j];
+      shoe[j] = t;
+      per[shoe[d]] += 1;
+    }
+    const cols = per.filter((n) => n > 0);
+    const l1 = cols.slice(0, lineCap);
+    const l2 = cols.slice(lineCap);
+    out.push([l1.length === 0 ? 0 : Math.max(...l1), l2.length === 0 ? 0 : Math.max(...l2)]);
+  }
+  return out;
+}
+
+/** Share of deals whose fan does NOT fit, under the CAPPED model. */
+function rateFor(pairs, w, strip) {
+  const room = SPAN_BUDGET / w - 4 * ASPECT;
+  let bad = 0;
+  for (const [d1, d2] of pairs) if (reveal(d1, strip) + reveal(d2, strip) > room) bad += 1;
+  return (100 * bad) / pairs.length;
+}
+
 function depthDistribution(lineCap, samples, seed) {
   const rand = mulberry32(seed);
   const counts = new Map();
@@ -177,27 +226,34 @@ for (const s of [6, 7, 9, 10]) {
   console.log(`  ${String(s).padStart(2)}   ` + THEMES.map((t) => c(s, t.strip).toFixed(3).padStart(16)).join(''));
 }
 
-// R IS EVALUATED AT THE CARD'S OWN PER-LINE CAPACITY, not at a fixed one. The horizontal
-// pitch is theme-independent (the column margin is a fraction of the shared card token), so
-// capacity is a function of the card and the viewport only — but it still changes the split
-// of columns across lines and therefore the depth distribution, and at the shallow bins
-// cinnabar lands in, that difference is large. A fixed capacity here understated cinnabar's
-// rate by more than ten points in the first draft of this file.
+// EVALUATED AT THE CARD'S OWN PER-LINE CAPACITY, not at a fixed one. The horizontal pitch is
+// theme-independent (the column margin is a fraction of the shared card token), so capacity
+// is a function of the card and the viewport only — but it still changes how columns split
+// across lines and therefore the depth distribution, and at the shallow depths cinnabar
+// lands in that difference is large. A fixed capacity understated cinnabar by ten points in
+// the first draft of this file.
 const REF_WIDTH = Number(process.env.REF_WIDTH ?? 390);
 const ROW_CHROME = 48.0;
 const capacityAt = (w) => Math.floor((REF_WIDTH - ROW_CHROME - 0.3 * w) / (0.7 * w));
-console.log(`\n  R(0) at each theme, inner ${REF_WIDTH} wide, at the card's OWN per-line capacity`);
-console.log('  cardW   cap   ' + THEMES.map((t) => `${t.id} bin / R(0)`.padStart(30)).join(''));
+const pairs = {};
+console.log(`\n  Share of deals that do NOT fit, inner ${REF_WIDTH} wide, at the card's own capacity`);
+console.log('  The LINEAR column is the model as it stood; the CAPPED column is it corrected.');
+console.log('  cardW   cap   ' + THEMES.map((t) => `${t.id}: linear / capped`.padStart(34)).join(''));
 for (const w of [50.7, 48.15, 46.51, 44.0]) {
   const cap = capacityAt(w);
+  if (pairs[cap] === undefined) pairs[cap] = pairDistribution(cap, SAMPLES, 20260727);
   if (dists[cap] === undefined) dists[cap] = depthDistribution(cap, SAMPLES, 20260727);
   const cells = THEMES.map((t) => {
-    const b = binAt(w, t.strip);
-    const r = 100 * (1 - atMost(dists[cap], b));
-    return `${b} / ${r.toFixed(1)}%`.padStart(30);
+    const lin = 100 * (1 - atMost(dists[cap], binAt(w, t.strip)));
+    const cp = rateFor(pairs[cap], w, t.strip);
+    return `${lin.toFixed(1)}% / ${cp.toFixed(1)}%`.padStart(34);
   });
   console.log(`  ${w.toFixed(2)}   ${String(cap).padStart(3)}   ` + cells.join(''));
 }
+console.log(
+  '\n  The two columns are identical for lacquer, because the budget never binds there.\n' +
+    '  Where they differ, the CAPPED column is the one to quote.',
+);
 
 console.log('\n  What card each theme would need to reach a given depth floor:');
 console.log('  K    ' + THEMES.map((t) => t.id.padStart(16)).join(''));

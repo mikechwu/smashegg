@@ -101,6 +101,36 @@ const DRIVER = `async (input) => {
   return { code, tokens, lastSeq };
 }`;
 
+
+// M0 — THE HAND'S DEPTH, COUNTED, NOT INFERRED.
+//
+// The model makes a per-deal POINT prediction of this intervention's effect:
+//
+//     dSpan(s) = (stripW_after - stripW_before) * cardW * (s - 2)
+//
+// Testing it needs `s` for each deal, and `s` must come from somewhere INDEPENDENT of the
+// pixel measurement, or the regression is circular: s recovered from a fan height and then
+// regressed against a difference of fan heights would be fitting a quantity to itself.
+//
+// So s is COUNTED. d1 and d2 are the number of cards in the deepest column on each of the
+// two visual fan lines, read as DOM element counts; lines are separated by their bottom
+// coordinate, the same way containment.mjs finds them. A count of cards cannot be a
+// restatement of a measurement in pixels.
+const DEPTH_PROBE = `() => {
+  const row = document.querySelector('.gd-fan__stackRow');
+  if (row === null) return null;
+  const stacks = [...row.querySelectorAll('.gd-fan__stack')];
+  if (stacks.length === 0) return null;
+  const bottoms = stacks.map((el) => Math.round(el.getBoundingClientRect().bottom));
+  const lines = [...new Set(bottoms)].sort((a, b) => a - b);
+  const depthOn = (bottom) =>
+    Math.max(...stacks.filter((el, i) => bottoms[i] === bottom)
+      .map((el) => el.querySelectorAll('.gd-fan__card').length));
+  const d1 = depthOn(lines[0]);
+  const d2 = lines.length > 1 ? depthOn(lines[1]) : 0;
+  return { d1, d2, s: d2 === 0 ? d1 : d1 + d2, lines: lines.length, columns: stacks.length };
+}`;
+
 const browser = await chromium.launch();
 console.log(`=== L1 DECK-THEME INTERVENTION @ INNER ${VW}x${VH} (${LOCALE}, timed) ===`);
 console.log(
@@ -175,6 +205,8 @@ for (let deal = 0; deal < DEALS; deal += 1) {
   // hysteresis — a layout that does not fully settle, an animation, a scroll the probe
   // itself provoked — the two BEFORE readings will differ, and a delta smaller than that
   // drift is not a measurement of anything.
+  // Depth is read in the BEFORE arm and is a property of the hand, not of the theme.
+  const depth = await p.evaluate(`(${DEPTH_PROBE})()`);
   const before = await arm(FROM);
   const after = await arm(TO);
   const beforeAgain = await arm(FROM);
@@ -182,6 +214,10 @@ for (let deal = 0; deal < DEALS; deal += 1) {
   const drift = Math.abs(beforeAgain.panel - before.panel);
   rows.push({
     deal,
+    s: depth === null ? null : depth.s,
+    d1: depth === null ? null : depth.d1,
+    d2: depth === null ? null : depth.d2,
+    columns: depth === null ? null : depth.columns,
     staged,
     beforePanel: before.panel,
     afterPanel: after.panel,
@@ -203,12 +239,13 @@ if (rows.length === 0) {
   process.exit(1);
 }
 
-console.log('  deal   staged     span BEFORE   span AFTER   delta (panel)   delta (in-house)   control drift');
+console.log('  deal   staged      d1+d2 = s   span BEFORE   span AFTER   delta (panel)   control drift');
 for (const r of rows) {
   console.log(
-    `  ${String(r.deal).padStart(4)}   ${r.staged.padEnd(9)}  ${r.beforePanel.toFixed(1).padStart(11)}   ` +
-      `${r.afterPanel.toFixed(1).padStart(10)}   ${String(r.deltaPanel).padStart(13)}   ` +
-      `${String(r.deltaInhouse).padStart(16)}   ${String(r.drift).padStart(13)}`,
+    `  ${String(r.deal).padStart(4)}   ${r.staged.padEnd(9)}  ` +
+      `${String(r.d1).padStart(3)}+${String(r.d2).padEnd(3)} = ${String(r.s).padEnd(3)}  ` +
+      `${r.beforePanel.toFixed(1).padStart(11)}   ${r.afterPanel.toFixed(1).padStart(10)}   ` +
+      `${String(r.deltaPanel).padStart(13)}   ${String(r.drift).padStart(13)}`,
   );
 }
 
@@ -244,6 +281,65 @@ console.log(
     `AFTER ${Math.max(...rows.map((r) => r.afterDeficit))}px`,
 );
 console.log(`  worst control drift (BEFORE re-measured): ${worstDrift}px`);
+
+// ---------------------------------------------------------------- M0: the point prediction
+// TWELVE PAIRED CONTINUOUS MEASUREMENTS PIN THE EXTENSION FAR TIGHTER THAN TWELVE BINARY
+// FLIPS. A 6-of-12 flip rate carries a 95% interval of roughly [21%, 79%] and is consistent
+// with 25% and 75% as readily as with the 51.3% modelled — which is the low-power agreement
+// claim this project spent an arc learning to reject. The slope below is the strong test.
+{
+  const usable = rows.filter((r) => r.s !== null && r.d1 !== null);
+  const STRIP_FROM = Number(process.env.IC_STRIP_FROM ?? 0.42);
+  const STRIP_TO = Number(process.env.IC_STRIP_TO ?? 0.841);
+  const CARDW = Number(process.env.IC_CARDW ?? 46.51);
+  const BUDGET = 2.95; // stackOffsetW's fixed spread budget, HandFan.tsx
+
+  // THE PREDICTION IS NOT LINEAR IN s, AND FINDING THAT IS WHAT THIS TEST WAS FOR.
+  //
+  // `stackOffsetW(n, strip) = min(strip, 2.95 / (n - 1))`, so a column's total reveal is
+  // `min(strip * (n - 1), 2.95)` card widths — a fixed budget spread over the reveals once
+  // the strip would exceed it. The budget binds at n >= 5 for a 0.841 strip and NEVER for a
+  // 0.42 one, because a value class holds at most 8 copies and 0.42 * 7 = 2.94.
+  //
+  // So `dSpan(s) = (stripTo - stripFrom) * w * (s - 2)` is exact for lacquer and WRONG for
+  // any theme whose strip is large enough to hit the budget. Both forms are fitted below and
+  // the comparison is the finding.
+  const reveal = (n, strip) => (n <= 1 ? 0 : Math.min(strip * (n - 1), BUDGET));
+  const capped = (r) =>
+    CARDW * (reveal(r.d1, STRIP_TO) + reveal(r.d2, STRIP_TO) - reveal(r.d1, STRIP_FROM) - reveal(r.d2, STRIP_FROM));
+  const linear = (r) => (STRIP_TO - STRIP_FROM) * CARDW * (r.s - 2);
+
+  console.log(`\n  --- M0: PER-DEAL POINT PREDICTION, at cardW ${CARDW}, strip ${STRIP_FROM} -> ${STRIP_TO} ---`);
+  if (usable.length < 4) {
+    console.log('  TOO FEW DEALS WITH A COUNTED DEPTH — no test. This proves nothing.');
+    process.exitCode = 1;
+  } else {
+    const worstOf = (f) => Math.max(...usable.map((r) => Math.abs(f(r) - r.deltaPanel)));
+    const wLin = worstOf(linear);
+    const wCap = worstOf(capped);
+    const xs = usable.map((r) => r.s - 2);
+    const ys = usable.map((r) => r.deltaPanel);
+    const slope0 = xs.reduce((a, x, i) => a + x * ys[i], 0) / xs.reduce((a, x) => a + x * x, 0);
+    console.log(`  n = ${usable.length}   distinct s: ${[...new Set(usable.map((r) => r.s))].sort((a, b) => a - b).join(', ')}`);
+    console.log(`  LINEAR in (s-2): predicted slope ${((STRIP_TO - STRIP_FROM) * CARDW).toFixed(2)}, fitted ${slope0.toFixed(2)}, worst residual ${wLin.toFixed(2)}px`);
+    console.log(`  CAPPED (the 2.95w budget):                                worst residual ${wCap.toFixed(2)}px`);
+    const deep = usable.filter((r) => Math.max(r.d1, r.d2) >= 5).length;
+    console.log(`  deals with a column of 5 or more (where the budget binds): ${deep} of ${usable.length}`);
+    if (deep === 0) {
+      console.log('  NO DEAL EXERCISED THE BUDGET — this run cannot tell the two forms apart.');
+      process.exitCode = 1;
+    } else if (wCap < wLin) {
+      console.log(
+        `  => the CAPPED form fits ${(wLin / Math.max(wCap, 0.01)).toFixed(0)}x tighter. The linear\n` +
+          '     extension overstates any theme whose strip reaches the budget.',
+      );
+    }
+    if (new Set(usable.map((r) => r.s)).size < 2) {
+      console.log('  ONLY ONE DISTINCT DEPTH — a slope through one x value is not a slope.');
+      process.exitCode = 1;
+    }
+  }
+}
 // A VIEWPORT WHERE NO INTERVENTION IS POSSIBLE IS A CONTROL, NOT A NULL RESULT. Above the
 // layout breakpoint the shipped rule IS the old expression, so the two arms are the same
 // CSS and the honest expectation is exactly 0.00px. Reporting that through the

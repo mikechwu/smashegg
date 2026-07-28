@@ -24,6 +24,7 @@ Inner **390 x 664**. The cell every span figure in this model is stated at: inne
 | `deskMinusCard` | 83 px | Desk height less the one card height it contains: deskH = deskMinusCard + aspect*cardW. | `scripts/cardw-gate.mjs` — `DESK_MINUS_CARD = 83.0` |
 | `kMinusCard` | 125.1 px | Everything in the span that is neither fan nor desk, less the one card height inside the trick well: K_well = kMinusCard + aspect*cardW. | `scripts/cardw-gate.mjs` — `K_MINUS_CARD = 125.1` |
 | `kLead` | 66 px | K when the viewer LEADS and the trick well is empty. Carries no card term — the card in K_well is inside the well. | `scripts/fan-height-distribution.mjs` — `K_LEAD = 66.0` |
+| `revealBudget` | 2.95 card widths | Total reveal a stacked column may spend: stackOffsetW(n, strip) = min(strip, 2.95/(n-1)), so a column of n reveals min(strip*(n-1), 2.95). It binds at n >= 5 for a 0.841 strip and NEVER for 0.42, since a value class holds at most 8 copies and 0.42*7 = 2.94. | `src/client/table/HandFan.tsx` — `Math.min(stripW, 2.95 / Math.max(n - 1, 1))` |
 | `maxValueClasses` | 15 count | 12 non-level natural ranks + the level class + small joker + big joker. A class present in the hand is exactly one fan column. | `scripts/cardw-gate.mjs` — `MAX_CLASSES = 15` |
 | `capacityFloor` | 8 columns | Per-line capacity needed to fit 15 value classes in TWO lines. | `scripts/containment.mjs` — `capacity < 8` |
 | `layoutBreakpoint` | 720 px | The phone/desktop layout seam. The card constant governs below it; above it the card is in rem again. | `src/client/table/table.css` — `@media (min-width: 720px)` |
@@ -79,10 +80,10 @@ Height of one fan line whose deepest column holds d cards.
 ### `fanHeight`
 
 ```
-fanH(s, w) = fanChrome + fanRowGap + 2*aspect*w + stripW*w*(s - 2)
+fanH(d1, d2, w) = fanChrome + fanRowGap + 2*aspect*w + w*(reveal(d1) + reveal(d2)),  reveal(n) = min(stripW*(n - 1), revealBudget)
 ```
 
-Two-line fan height, where s = d1 + d2 is the total depth over both lines. Depends on the hand only through s.
+Two-line fan height. It collapses to the simpler `fanChrome + fanRowGap + 2*aspect*w + stripW*w*(s-2)` — a function of s = d1 + d2 alone — EXACTLY WHEN THE REVEAL BUDGET DOES NOT BIND, which for stripW 0.42 is always, since the deepest possible column is 8 copies and 0.42*7 = 2.94 < 2.95. That is why the gate script carries the collapsed form and why every lacquer figure in this project is unaffected. For a theme whose strip reaches the budget the collapsed form OVERSTATES the height, and feasibility stops being a function of s alone: (5,1) and (4,2) are both s=6 and can land on opposite sides of the threshold. Found by a per-deal point-prediction test against 16 measured span deltas — the collapsed form was off by a full lattice step on every deal holding a depth-5 column, the full form fits all 16 within 0.10px.
 
 ### `threshold`
 
@@ -107,6 +108,14 @@ marginal bin >= K  <=>  margin(K, w) >= 0  <=>  w <= 436.0 / (4*aspect + stripW*
 ```
 
 The marginal bin is a step function of the CARD ALONE — the viewport width does not appear. Bands at the reference height: bin 11 for w <= 45.52, bin 10 for w <= 47.60, bin 9 for w <= 49.89, bin 8 for w <= 52.41. This is the gate's vertical term, and it replaced a floor on the marginal bin's own slack, which was anti-correlated with the failure rate across a band edge.
+
+### `stripCeiling`
+
+```
+stripW_max(w, K) = (spanBudget/w - 4*aspect) / (K - 2)
+```
+
+The largest covered-card reveal a theme may request and still fit hands of depth K at card width w. At w = 46.51 and K = 10 this is 0.447. A theme REQUESTS a strip; the framework OWNS this ceiling. It is derived rather than stored so it cannot go stale when the card size or the depth floor moves.
 
 ### `toothBoundary`
 

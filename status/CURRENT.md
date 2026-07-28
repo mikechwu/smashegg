@@ -5,7 +5,7 @@
 > configuration:** `VALIDATED.md`. **What was retracted:** `WITHDRAWN.md`. **Why a past
 > decision went the way it did:** `rounds/INDEX.md`, then the round it names.
 
-Last updated: 2026-07-28, round L0-L2. **Every rate on this page is a `lacquer` figure
+Last updated: 2026-07-28, round M0-M2. **Every rate on this page is a `lacquer` figure
 unless it says otherwise** — see the second-theme section, which is why that sentence is
 now written down.
 
@@ -18,6 +18,8 @@ now written down.
 | A **floor** below the crossover | `@media (max-width: 332px) { --gd-handcardw: 44px }` — exactly what shipped at 320 before this arc | K2 |
 | The gate's vertical term is a **fixed depth floor**, not the marginal bin's own slack | `margin(K=10, w) >= 0`, a directional tooth setback, and `capacity >= 8` | K0 |
 | **The card is 46.51px** | option D — the only option that makes no width worse than before the arc | L0 |
+| **`cinnabar-court` is withdrawn from the picker** | the registration import in `CardFace.tsx`, commented with the bar for putting it back. A stored preference for it falls back to lacquer. | M2 |
+| **The covered-card reveal is a framework budget** | `stripCeilingFor(cardW, depthFloor)` in `theme.ts`, derived not stored, pinned by `strip-ceiling.test.ts` over the registry | M2 |
 
 Provenance for every figure below — measured or modelled, n, configuration, validity
 range — is one row per quantity in `VALIDATED.md`. This page carries decisions and what
@@ -69,49 +71,65 @@ So 10px of tolerance is about one UI feature. **And a setback is only half a ris
 span and lands in the worst place when it runs out. The shipped card's degraded state is
 48.15's current state.
 
-## Open — the second deck theme, which every figure in this arc excluded
+## Decided — the second deck theme is withdrawn
 
 `stackStripW` is a per-theme metric: `lacquer` leaves 0.42 of each covered card visible in a
-stacked column and `cinnabar-court` leaves 0.841. It multiplies into the lattice step, so
-cinnabar's fan grows about twice as fast with depth. The theme is reachable from a `<select>`
-in the app header, on every screen, one tap.
+stacked column and `cinnabar-court` left 0.841. It multiplies into the fan's height, so
+cinnabar's fan grew about twice as fast with depth.
 
-| at the shipped 46.51px card | lacquer | cinnabar-court |
+At the shipped card, modelled:
+
+| | lacquer | cinnabar-court |
 |---|---|---|
-| deepest hand that fits | 10 | **6** |
-| share of hands that do not fit, modelled | 0.1% | **51.3%** |
-| card width it would need to fit depth 10 | 47.60px | **34.81px** |
-| strip it would need to fit depth 10 at this card | 0.42 | **<= 0.447** |
+| card width these rows are stated at | 46.51px | 46.51px |
+| deals whose fan does not fit, inner 390 wide | 0.1% | **50.3%** |
+| the same, inner 360 wide | 0.1% | **66.6%** |
+| card it would need to fit depth 10 | 47.60px | **34.81px** |
+| reveal it would need at this card | 0.42 | **<= 0.447** |
 
-**Measured, same hand, only the theme toggled through the picker** — control drift 0px on
-every deal:
+The width row is there because the rate moves with it: capacity is 10 at inner 390 and 9 at
+inner 360, which changes how columns split across the two lines. The deepest fitting depth
+does not move; the mass above it does.
 
-| | lacquer -> cinnabar-court |
+**Measured, same hand, only the theme toggled through the picker**, inner 390x664, at the
+shipped card — and this is where the strong evidence is:
+
+| | |
 |---|---|
-| panel span growth | 59px to 118px |
-| deals going feasible -> infeasible | **6 of 12** |
-| the same rate, modelled | 51.3% |
+| per-deal point prediction, worst error over 16 deals | **0.10px** |
+| the same under the model as it stood before this round | 19.20px |
+| deals going feasible -> infeasible | 5 of 16 |
 
-Two methods at one configuration, agreeing. See `VALIDATED.md`.
+The flip count is *consistent with* the modelled rate at this n and settles nothing on its
+own — 5 of 16 admits anything from roughly a fifth to a half. **The extension rests on the
+point predictions**, which match every deal to a tenth of a pixel. See `VALIDATED.md`.
 
-**This is structural, not tuning.** The strip cinnabar would need to fit the depth floor is
-essentially lacquer's, and the tall strip is what its vertical rank-over-suit index requires.
+**Why withdrawn rather than fixed.** Reversible, client-local, no protocol or room state, no
+design work. Giving it the far smaller card it would need (the table above) was rejected —
+one root constant drives the fan pitch, staged card, seat stacks and cut geometry, and theme
+switching would become a layout reflow rather than a repaint. Setting its reveal to lacquer's
+is not a fix as specified either — the strip that buys, against the height its vertical index
+needs, is:
 
-The options, with the external design review's ranking (`docs/research/proposals/second-theme-grok.md`):
+| at the shipped card | |
+|---|---|
+| strip a 0.42 reveal gives | 19.5px |
+| height cinnabar's vertical rank-over-suit index needs | 30px or more |
 
-| option | call | why |
-|---|---|---|
-| **withdraw from the picker** | **recommended, and reversible** | Broken since it shipped with no report. Silence licenses removal, not neglect. |
-| its own ~35px card | **reject** | Card width is one root constant the whole table hangs off; two theme-local widths are two products to gate, and one player's staged king would be physically larger than another's at the same table. |
-| set its strip to ~0.42 | **not a fix as stated** | A 0.42 strip at this card is 19.5px against a vertical index that wants 30px, so the suit hides under the next card on every stack. Trades a fold failure for unreadable stacks. Only viable WITH a redesigned covered mark. |
-| its own fan layout | too expensive | The right investment in a validated theme, not the way to clear an unreported ship defect. |
+so the suit hides under the next card on every stack. Its own fan layout is the right
+investment in a validated theme and the wrong way to clear an unreported defect.
 
-**And the review names a repair the four options skip:** `stackStripW` is declared as art
-freedom over `[0.3, 1.0]` while it spends a shared vertical budget. The theme should
-*request* a strip and the framework should *own* the cap. That is the durable fix whatever
-happens to this theme.
+**What "broken" means here, precisely.** The metric is `span > innerH`: on roughly half of
+deals a cinnabar player could not see the must-see set at any one scroll position. **They
+could still act** — `ScrollActionsIntoView` reaches the action row. That is a real defect and
+a smaller one than "unusable", and the distinction matters because the inference from
+silence is weak either way: nobody reporting it is equally consistent with nobody choosing
+it and with people choosing it, disliking it, and switching back. The ruling rests on the
+measured defect and the cheapness of reversal, not on a usage claim the evidence cannot
+support.
 
-**Nothing was built this round.** The decision is the owner's.
+The bar for putting it back is in `docs/research/proposals/second-theme-revival.md`, which
+also records an assumption all four costed options shared and which may be false.
 
 ## Open — work, not decisions
 

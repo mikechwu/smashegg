@@ -24,7 +24,22 @@ import { ACTIVE_WILD_MARK } from './art-pool/wild-marks';
 import type { CardFaceSize } from './theme';
 import { useDeckTheme } from './useDeckTheme';
 import './themes/lacquer'; // registers the default theme (owner decision)
-import './themes/cinnabar-court'; // registers the alternate theme (still selectable)
+// cinnabar-court is NOT registered (round M2 — withdrawn from the picker).
+//
+// It is not deleted: the face, the back, the art module and its design record all stay in
+// tree, and re-registering is this one import. What it cannot be is SELECTABLE, because its
+// covered-card reveal (stackStripW 0.841 against lacquer's 0.42) spends more of the shared
+// vertical budget than the layout has. Measured at inner 390x664: switching to it on the
+// same hand grows the must-see span by 59-118px and takes roughly half of deals to a state
+// where no single scroll position shows the whole set. It has been in that state since it
+// shipped.
+//
+// The bar for putting this line back is a covered mark designed for the framework's strip
+// ceiling — see `stripCeilingFor` in theme.ts and the revival note in
+// docs/research/proposals/second-theme-revival.md — not a smaller card and not a silent
+// clamp of the strip it asks for.
+//
+// import './themes/cinnabar-court';
 import { t } from '../i18n';
 
 export type { CardFaceSize } from './theme';

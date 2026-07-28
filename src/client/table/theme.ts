@@ -84,6 +84,43 @@ export function registerDeckTheme(theme: DeckTheme): void {
   registry.set(theme.id, theme);
 }
 
+// ---------------------------------------------------------------------------
+// THE COVERED-CARD REVEAL IS A SHARED BUDGET, NOT ART FREEDOM (round M2).
+//
+// `stackStripW` is declared per theme as the height its covered-card identity mark needs.
+// It is also the single largest multiplier on the hand fan's HEIGHT: a stacked column of n
+// cards is `aspect + reveal*(n-1)` card widths tall, so the strip spends the same vertical
+// budget the trick well, the desk and the action row spend. The type has always allowed
+// [0.3, 1.0], which presents a layout-unsafe value as conforming — and one shipped: a 0.841
+// strip puts the must-see set out of reach at one scroll position on roughly half of deals.
+//
+// So the contract is now: A THEME REQUESTS A STRIP; THE FRAMEWORK OWNS THE CEILING. The
+// ceiling is DERIVED, not stored, so it cannot go stale when the card size or the depth
+// floor moves — both have moved twice in the last four rounds.
+//
+// This is deliberately NOT a silent clamp. A theme rendered at a strip its designer did not
+// choose is a different design, and quietly substituting one is the failure mode the whole
+// arc has been unpicking. `stripCeilingFor` states the number; callers decide.
+// ---------------------------------------------------------------------------
+
+/** The largest covered-card reveal that still fits hands of total depth `K` at card width
+ *  `w`, in card-width units. See status/MODEL.md `stripCeiling`.
+ *
+ *  `spanBudget` is the vertical room the fan has once the desk, the trick well and the fan's
+ *  own chrome are paid for, at the reference inner height. */
+export function stripCeilingFor(cardW: number, depthFloor: number, spanBudget = 436.0, aspect = 1.45): number {
+  return (spanBudget / cardW - 4 * aspect) / (depthFloor - 2);
+}
+
+/** Themes whose requested strip exceeds the ceiling at the shipped card. Empty is the
+ *  healthy state; a non-empty result is a layout defect with a name attached. */
+export function themesOverStripCeiling(cardW: number, depthFloor: number): { id: string; requested: number; ceiling: number }[] {
+  const ceiling = stripCeilingFor(cardW, depthFloor);
+  return deckThemes()
+    .filter((t) => t.metrics.stackStripW > ceiling)
+    .map((t) => ({ id: t.id, requested: t.metrics.stackStripW, ceiling }));
+}
+
 export function deckThemes(): DeckTheme[] {
   return [...registry.values()];
 }

@@ -166,20 +166,32 @@ describe('a figure in prose is backed by a table in the same section', () => {
   //
   // Card WIDTHS are theme-independent and are not required to carry one; RATES are not. So
   // the rule is scoped to percentages, which is where the omission actually misleads.
-  it('every section quoting a rate names the theme it is a rate for', () => {
+  it('every section quoting a rate names the theme AND the width it is a rate for', () => {
+    // THEME was added in round L1 and WIDTH in M1, one round apart, because the very table
+    // the theme fix produced then omitted the width. Both are configuration, both move the
+    // number, and neither is recoverable from the figure itself:
+    //   theme — stripW 0.42 against 0.841 changes the lattice step outright;
+    //   width — capacity is floor((W - 48.0 - 0.3w) / (0.7w)), which changes how columns
+    //           split across the two lines and therefore the depth distribution. Measured:
+    //           cinnabar-court is 50.3% at inner 390 and 66.6% at inner 360, same card.
     const missing: string[] = [];
     for (const sec of all) {
-      // A percentage that is part of a CSS value or a viewport-zoom level is not a rate.
       const rates = [...sec.text.matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map((m) => m[0]);
       if (rates.length === 0) continue;
-      if (/lacquer|cinnabar|theme/i.test(sec.text)) continue;
-      missing.push(`${sec.label} (${rates.slice(0, 4).join(', ')})`);
+      const hasTheme = /lacquer|cinnabar|theme/i.test(sec.text);
+      // A width is an inner dimension: "390", "inner 360", "390x664", or a stated range.
+      const hasWidth = /\b(3[0-9]{2}|4[0-9]{2}|inner|width)\b/i.test(sec.text);
+      if (hasTheme && hasWidth) continue;
+      missing.push(
+        `${sec.label} (${rates.slice(0, 3).join(', ')})` +
+          `${hasTheme ? '' : ' — no theme'}${hasWidth ? '' : ' — no width'}`,
+      );
     }
     expect(
       missing,
-      `these sections quote rates with no theme named:\n  ${missing.join('\n  ')}\n` +
-        'Every rate in this model is a per-theme figure. Name the theme, or say that the ' +
-        'quantity is theme-independent and why.',
+      `these sections quote rates without their configuration:\n  ${missing.join('\n  ')}\n` +
+        'Every rate here is per-theme and per-width. Name both, or say which the quantity ' +
+        'is independent of and why.',
     ).toEqual([]);
   });
 
