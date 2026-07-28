@@ -6,10 +6,13 @@
 // mechanism, and a check that the mechanism is wired.
 //
 // WHAT THIS CAN AND CANNOT ASSERT. It cannot run `git commit` — that would need a
-// dirty tree and a subprocess with side effects. What it CAN assert is that the hook
-// exists, is executable, actually invokes the suite, and that `core.hooksPath` points
+// dirty tree and a subprocess with side effects. What it CAN assert everywhere is that
+// the hook exists, is executable on disk AND in the index, and actually invokes the
+// suite. What it can assert only on a developer clone is that `core.hooksPath` points
 // at the tracked directory rather than at the untracked `.git/hooks` nobody else
-// receives. The hook's BLOCKING behaviour was verified by mutation at the time it was
+// receives — that is local config a CI checkout never has, and the reasoning for
+// splitting the two is at the conditional below. The BLOCKING behaviour was verified
+// by mutation at the time the hook was
 // added: a deliberately failing test made `git commit` exit non-zero and write no
 // commit. That verification is recorded here rather than re-run, because re-running it
 // on every suite execution would mean committing a broken test to prove commits break.
@@ -42,10 +45,44 @@ describe('the commit gate is wired, not just written', () => {
     ).toMatch(/set -e/);
   });
 
-  it('core.hooksPath points at the TRACKED hooks directory', () => {
+  it('the hook is executable in the INDEX, so every clone receives it armable', () => {
+    // The executable bit checked above is THIS machine's filesystem. What a fresh
+    // clone receives is the index mode, and a hook checked out 100644 cannot run no
+    // matter how correctly core.hooksPath points at it. This is the portable half of
+    // "the gate works for everyone", and unlike the arming below it holds in every
+    // environment — which is what makes it the assertion CI gets to keep.
+    const entry = execFileSync('git', ['ls-files', '-s', '--', '.githooks/pre-commit'], {
+      cwd: ROOT,
+      encoding: 'utf8',
+    }).trim();
+    expect(entry, 'the hook is tracked at all').not.toBe('');
+    expect(
+      entry.split(/\s/)[0],
+      'the hook is tracked mode 100755; a 100644 checkout cannot execute. Run `git update-index --chmod=+x .githooks/pre-commit`.',
+    ).toBe('100755');
+  });
+
+  // WHY THIS ONE IS CONDITIONAL, AND WHAT THE CONDITION COSTS.
+  //
+  // core.hooksPath is per-clone LOCAL config, not tracked content. A runner does a
+  // fresh checkout and never runs `npm run hooks`, so this assertion could not hold
+  // there and never could — it was red on CI from the moment it was written, and only
+  // went unnoticed because nothing was pushed for the two days it existed. It is a
+  // developer-environment assertion wearing a unit test's clothes.
+  //
+  // Skipping it on CI costs nothing real: a runner cannot commit, so it has no commit
+  // to gate, and ci.yml/deploy.yml each run the suite and the typecheck as their own
+  // steps regardless — the gate's PURPOSE is served there by the workflow, not by the
+  // hook. What CI still asserts is the test above: that every clone receives a hook it
+  // is able to arm. What no environment asserts is that a given developer HAS armed it;
+  // that is unprovable from inside CI by construction, and stating so is the honest
+  // form of a check that was previously just wrong on half the machines that ran it.
+  const onCI = process.env.CI === 'true' || process.env.CI === '1';
+
+  it.runIf(!onCI)('core.hooksPath points at the TRACKED hooks directory', () => {
     // .git/hooks is not version-controlled, so a hook installed there is a gate for
-    // exactly one machine. If this is unset the gate is off, and a clone must find
-    // that out from a red test rather than from a bad commit.
+    // exactly one machine. If this is unset the gate is off, and a developer clone must
+    // find that out from a red test rather than from a bad commit.
     let configured = '';
     try {
       configured = execFileSync('git', ['config', 'core.hooksPath'], {
