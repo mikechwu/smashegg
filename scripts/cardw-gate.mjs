@@ -108,6 +108,22 @@ console.log(`    inner ${INNER_H}, width 390, lacquer, timed+staged, root ${ROOT
 console.log('    Gate below is GEOMETRIC ONLY (H1); R is context, printed but not gating.\n');
 
 const MIN_MARGIN = Number(process.env.MIN_MARGIN ?? 10);
+// I0 — THE VALIDATED-BIN TERM, which H1 deleted along with the unvalidated tail.
+//
+// H1 removed R from the gate because discriminating 0.08% from 0.74% grants precision two
+// orders below any bin the held-out test checked. That is right for choosing AMONG
+// candidates and WRONG for separating today from them: today's 7.65% is the modelled
+// counterpart of a MEASURED 9.17%/9.09%, squarely inside the validated region. Deleting R
+// entirely removed the only term that could see the reason for the work — and under the
+// purely geometric gate TODAY PASSES, with a better discontinuity setback than the
+// recommended pick.
+//
+// The fix is to state it as a BIN INDEX rather than a probability, which needs no
+// threshold and no tail extrapolation: prereg-descending-holdout.md criterion 1 validated
+// bins with expected count >= 5, up to 316.0 px, which is s=9. So EVERY VALIDATED BIN MUST
+// BE FEASIBLE, i.e. margin(s=9, w) >= 0.
+const LAST_VALIDATED_BIN = Number(process.env.LAST_VALIDATED_BIN ?? 9);
+const validatedBinFeasible = (w) => marginFor(LAST_VALIDATED_BIN, w) >= 0;
 const MIN_SETBACK = Number(process.env.MIN_SETBACK ?? 0.5);
 const STEP = 0.01;
 
@@ -116,7 +132,7 @@ function segmentsAt(W, minMargin) {
   let cur = null;
   for (let w = FLOOR; w <= Math.min(CEIL, 52); w = Math.round((w + STEP) * 100) / 100) {
     const mb = marginalBin(W, w);
-    const pass = mb.margin >= minMargin;
+    const pass = mb.margin >= minMargin && validatedBinFeasible(w);
     if (pass && cur === null) cur = { lo: w, hi: w, loBin: mb.s };
     else if (pass) { cur.hi = w; cur.hiBin = mb.s; }
     else if (cur !== null) { segs.push(cur); cur = null; }
@@ -172,6 +188,7 @@ for (let X = 9.0; X <= 14.01; X = Math.round((X + 0.1) * 10) / 10) {
   // 15 value classes; equality was never the property, only a proxy for it.
   const ok =
     cells.every((c) => c.margin >= MIN_MARGIN) &&
+    cells.every((c) => validatedBinFeasible(c.w)) &&
     cells.every((c) => c.setback >= MIN_SETBACK) &&
     cells.every((c) => c.capacity >= 8);
   candidates.push({ X, cells, caps: [...caps], ok });
@@ -229,4 +246,61 @@ for (const W of WIDTHS) {
     `  ${String(W).padStart(5)}   ${w.toFixed(2).padStart(21)}   ${String(cap).padStart(8)}   ` +
       `${cap >= 8 ? 'ok' : 'THREE LINES'}${cap === 8 ? '   <-- at the floor, one step from three' : ''}`,
   );
+}
+
+
+// ---------------------------------------------------------------- I3
+// AN INDEPENDENT EXHAUSTIVE RECONSTRUCTION OF THE SEGMENT BOUNDARIES.
+//
+// The routing note for H0/H2/H3 said no external audit was needed because each is
+// closed-form and brute-force verifiable. H0a was then a SIGN ERROR in a closed-form scan
+// over a closed-form domain, and it survived until an outside reader found it.
+//
+// The principle holds — an exhaustive check does beat a second opinion — but "verifiable
+// by brute force" is not "verified by brute force", and a check that is merely available
+// is worth exactly what F2's pin was worth before it deliberately staged a joker. So the
+// substitute for an external lineage is a SECOND DERIVATION OF THE SAME OBJECT that shares
+// no algebra with the first: walk w in 0.01px steps, emit the boundaries from where the
+// pass/fail flag actually changes, and assert they agree with the closed-form ones.
+//
+// A sign error dies on the first comparison. This runs in seconds.
+console.log('\n=== I3: EXHAUSTIVE RECONSTRUCTION vs THE CLOSED FORM ===');
+{
+  const W = 390;
+  // Closed form: a segment boundary is a tooth root, a capacity crossing, or a margin-floor
+  // crossing for the bin that is marginal there.
+  const closed = new Set();
+  for (const d of discontinuities(W)) closed.add(Math.round(d.w * 100) / 100);
+  for (let s = 3; s <= 16; s += 1) {
+    const w = (436.0 - MIN_MARGIN) / (4 * ASPECT + 0.42 * (s - 2));
+    if (w > FLOOR && w < 52) closed.add(Math.round(w * 100) / 100);
+  }
+  closed.add(Math.round((436.0 / (4 * ASPECT + 0.42 * (LAST_VALIDATED_BIN - 2))) * 100) / 100);
+
+  // Numerical: where does the pass flag actually flip?
+  const flips = [];
+  let prev = null;
+  for (let w = FLOOR; w <= 52; w = Math.round((w + 0.01) * 100) / 100) {
+    const mb = marginalBin(W, w);
+    const pass = mb.margin >= MIN_MARGIN && validatedBinFeasible(w);
+    if (prev !== null && pass !== prev) flips.push(Math.round(w * 100) / 100);
+    prev = pass;
+  }
+  console.log(`  numerical pass/fail flips: ${flips.join(', ')}`);
+  const unexplained = flips.filter((f) => ![...closed].some((c) => Math.abs(c - f) <= 0.02));
+  if (unexplained.length === 0) {
+    console.log(
+      `  every flip is within 0.02px of a closed-form boundary (${closed.size} candidates). AGREE.`,
+    );
+  } else {
+    console.log(`  UNEXPLAINED FLIPS: ${unexplained.join(', ')} — the closed form is missing a term.`);
+    process.exitCode = 1;
+  }
+  // NON-VACUITY: the reconstruction must be capable of disagreeing.
+  const bogus = flips.filter((f) => Math.abs(f - 99.99) <= 0.02);
+  if (flips.length === 0) {
+    console.log('  NO FLIPS FOUND — the reconstruction examined nothing and proves nothing.');
+    process.exitCode = 1;
+  }
+  console.log(`  (non-vacuity: ${flips.length} flips examined, ${bogus.length} matched a deliberately absent boundary)`);
 }

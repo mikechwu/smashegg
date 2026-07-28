@@ -193,6 +193,12 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 
     **Operational note: when a stylistic rule fires, read what it caught before suppressing it.** The cost of these rules is visible and their benefit is not, which biases every conversation about them toward removal; a recorded instance of one catching something real is the only counterweight.
 
+33. **"No external audit needed — it is closed-form" is only valid when accompanied by an INDEPENDENT EXHAUSTIVE RECONSTRUCTION.** The rationale is sound and it has already failed once, in the round that stated it.
+    - **The instance.** Three items were routed without an external lineage on the grounds that each was closed-form and brute-force verifiable over its whole domain. One of them, a scan for discontinuities in a one-dimensional closed-form function, had a **sign error**: it looked for the margin jumping UP as the card shrank, when a tooth boundary is the margin COLLAPSING as the card shrinks. It therefore found no tooth boundaries at all, and reported a one-sided setback measured to a grid midpoint. It survived until an outside reader checked the arithmetic by hand.
+    - **The gap is one word.** *Verifiable* by brute force is not *verified* by brute force. An exhaustive check that nobody ran is worth what a rendered pin is worth before it is made to render the case it exists for.
+
+    **Operational rule: when the routing rationale is "closed-form", the substitute for the second lineage is a SECOND DERIVATION OF THE SAME OBJECT that shares no algebra with the first** — typically a numerical sweep that emits the object's boundaries from where the behaviour actually changes, asserted against the closed-form ones. Two derivations, one comparison; a sign error dies immediately. And it needs the same non-vacuity guard as any other check: assert that it examined something, because a reconstruction that finds nothing agrees with everything.
+
 ## Tool & model ladders (current)
 
 Web research runs on the built-in WebSearch/WebFetch tools, `curl` via shell for direct page/PDF fetches, and `gh api` for GitHub content. **Firecrawl is disabled as of 2026-07-13 (credit limit reached — owner instruction); state this in every research-agent prompt.** Escalate to costlier tooling only on demonstrated failure of a cheaper rung, and log the failure.
