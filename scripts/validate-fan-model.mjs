@@ -317,11 +317,24 @@ const MODEL_BY_SORT = {
   },
 };
 const MODEL = MODEL_BY_SORT[SORT];
+// CRITERION 3 IS ABOUT THE LATTICE, NOT ABOUT THIS TABLE.
+//
+// The pre-registration says "no observed fanHeight falls OFF THE 21.3px LATTICE by
+// more than 1.0px". The first version checked distance to the nearest MODEL BIN, and
+// the model tables list only bins carrying non-trivial share — so a perfectly
+// on-lattice 358.6 (predicted share 0.03%) had no entry and was reported as
+// off-lattice. That would have announced "the height formula is wrong" on the
+// strength of a truncated lookup table. The lattice is generated instead.
+const LATTICE = Array.from({ length: 12 }, (_, j) => Math.round((209.5 + 21.3 * j) * 10) / 10);
 const obs = new Map();
-let offLattice = [];
+const offLattice = [];
 for (const r of follow) {
-  const nearest = Object.keys(MODEL).map(Number).reduce((a, b) => (Math.abs(b - r.fanH) < Math.abs(a - r.fanH) ? b : a));
-  if (Math.abs(nearest - r.fanH) > 1.0) offLattice.push(r.fanH);
+  const onLattice = LATTICE.reduce((a, b) => (Math.abs(b - r.fanH) < Math.abs(a - r.fanH) ? b : a));
+  if (Math.abs(onLattice - r.fanH) > 1.0) offLattice.push(r.fanH);
+  // Binning for criteria 1 and 2 still uses the model's own bins.
+  const nearest = Object.keys(MODEL)
+    .map(Number)
+    .reduce((a, b) => (Math.abs(b - r.fanH) < Math.abs(a - r.fanH) ? b : a));
   obs.set(nearest, (obs.get(nearest) ?? 0) + 1);
 }
 console.log('  bin       model share   expected   observed   95% interval on expected   verdict');

@@ -1,5 +1,39 @@
 # Pre-registration — the HELD-OUT test of the single-ordering fan model (C1)
 
+> **OUTCOME, appended 2026-07-27 — the text below is UNCHANGED and must stay so.**
+>
+> **ALL THREE AGREEMENT CRITERIA PASS. The single-ordering model is CONFIRMED on
+> held-out data.** n=110 following deals, descending, timed, lacquer, 390×664.
+>
+> | bin | expected | observed | 95% interval | |
+> |---|---|---|---|---|
+> | 252.1 | 26.0 | 21 | [17, 35] | ok |
+> | 273.4 | 43.9 | 45 | [34, 54] | ok |
+> | 294.7 | 26.8 | 30 | [18, 36] | ok |
+> | 316.0 | 8.4 | 9 | [3, 14] | ok |
+>
+> Criterion 2: no bin with predicted ≥5% observed zero — pass. Criterion 3: worst
+> off-lattice distance **0.1px** against a 1.0px tolerance — pass.
+>
+> **Rate: 10/110 = 9.09% [5.0%, 15.9%]** against the predicted 9.23%, inside the
+> pre-registered [4, 16] band. Stated as *consistent with*, never as agreement — the
+> interval is far too wide to discriminate 9.23% from 7.65%, exactly as this document
+> said in advance. **The distribution criteria are what confirm the model.**
+>
+> **INSTRUMENT DEFECT FOUND WHILE EVALUATING, recorded because it nearly produced a
+> false headline.** The script first reported criterion 3 VIOLATED on an observed
+> 358.5px, and printed "the HEIGHT FORMULA is wrong". It was checking distance to the
+> nearest entry in the model's BIN TABLE, which lists only bins carrying non-trivial
+> share and stopped at 337.3. 358.6 is a perfectly ordinary lattice point (209.5 +
+> 21.3×7) and the observation sits **0.1px** from it. The criterion as written in this
+> file is about the LATTICE; the code has been changed to generate the lattice rather
+> than consult a truncated table.
+>
+> **Also observed, unplanned:** `deskH` is not the constant 156.5 the threshold model
+> assumes — it read **161.5 on 16 deals and 156.5 on 7**. The measured rate is computed
+> from each deal's actual span, so it is unaffected; but any THRESHOLD quoted as 308.9
+> is quoting one of two values.
+
 **Written 2026-07-27, BEFORE the measuring script existed.** Committed before
 `scripts/validate-fan-model.mjs` gained a sort knob. A threshold chosen after seeing
 the data is not a gate — and, this time specifically, **a diagnosis is not covered by

@@ -28,14 +28,37 @@ script gained a sort knob. Predicted descending shares per bin with 95% interval
 n=110, the same three agreement criteria, and an explicit statement that **the rate
 test cannot discriminate 9.23% from 7.65% so the distribution criteria decide**.
 
-**At the time of writing the run stands at 81/110 following deals. It is not complete
-and no verdict is claimed.** Every figure in items 3-5 remains MODELLED and gated on it.
+**COMPLETE. ALL THREE CRITERIA PASS — the single-ordering model is CONFIRMED on
+held-out data**, so items 3-5's figures are no longer gated:
 
-**One thing the run has already shown, unplanned:** `deskH` reads **161.5px** in this
-configuration, not the 156.5 the threshold model uses. That is a 5px discrepancy in a
-term the pre-registration pinned. The distribution criteria depend only on `fanH` and
-are unaffected; the *rate* prediction is. Diagnosis pending — it is the first candidate
-for a fourth entry in the deskH-varies-by-state list.
+| bin | expected | observed | 95% interval | |
+|---|---|---|---|---|
+| 252.1 | 26.0 | 21 | [17, 35] | ok |
+| 273.4 | 43.9 | 45 | [34, 54] | ok |
+| 294.7 | 26.8 | 30 | [18, 36] | ok |
+| 316.0 | 8.4 | 9 | [3, 14] | ok |
+
+Criterion 2 pass; criterion 3 worst off-lattice distance **0.1px** against 1.0px.
+**Rate 10/110 = 9.09% [5.0%, 15.9%]** against a predicted 9.23% — stated as
+*consistent with*, never as agreement, since the interval cannot discriminate 9.23%
+from 7.65%. **The distribution criteria are what confirm it.** Leading 0/32 = 0%.
+
+**So descending is now MEASURED at 9.09%, and ascending's measured 9.17% and modelled
+7.65% both stand.** The C1 gate is discharged.
+
+**A third instrument defect, which nearly produced a false headline.** The script first
+reported criterion 3 VIOLATED on an observed 358.5px and printed "the HEIGHT FORMULA is
+wrong". It was measuring distance to the nearest entry in a BIN TABLE truncated at
+337.3; 358.6 is an ordinary lattice point and the observation sits **0.1px** from it.
+The criterion as pre-registered is about the LATTICE, so the code now generates the
+lattice instead of consulting a table. Three of this round's findings have been my own
+instrument bugs — comparator, index-vs-identity, and this — and all three were caught
+by a self-check rather than by review.
+
+**Unplanned finding: `deskH` is not a constant.** It read **161.5 on 16 deals and
+156.5 on 7**. The measured rate is computed from each deal's actual span so it is
+unaffected, but any threshold quoted as "308.9" is quoting one of two values, and the
+5px difference is a third of the 316.0 bin's 7.1px deficit. Diagnosis not done.
 
 ### 3. [C2] The wrap policy — two of my own bugs, and a conclusion neither lineage had
 
@@ -128,7 +151,7 @@ is built: it cannot share the title row in en.
 
 ### 6. Open
 
-- **C1's verdict.** Everything above is modelled and gated on it.
+- **The deskH 156.5/161.5 split** — undiagnosed, and it perturbs every threshold.
 - **C5a** (does the trick well scale with the card; is the aspect ratio fixed in source)
   and **C5b** (the device session plan) — not reached.
 - The deskH 161.5 discrepancy from item 2.
