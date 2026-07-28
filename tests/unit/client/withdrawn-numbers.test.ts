@@ -92,6 +92,13 @@ const EXEMPT: { file: string; reason: string }[] = [
     file: 'research/prereg-fan-model.md',
     reason: 'a pre-registration is immutable; its outcome is appended in a banner, never edited in',
   },
+  {
+    file: 'research/proposals/',
+    reason:
+      'panel artifacts are RECEIVED verbatim from an external lineage. Editing one to reflect a ' +
+      'later correction would misrepresent what that lineage actually said, and the panel is only ' +
+      'evidence because it is unedited. Corrections belong in the doc that CITES the proposal.',
+  },
 ];
 
 function markdownFiles(dir: string): string[] {
@@ -111,7 +118,10 @@ describe('withdrawn numbers do not survive as live claims', () => {
     // An exemption list that drifts off real files is a hole nobody can see.
     for (const e of EXEMPT) {
       expect(
-        files.some((f) => f.slice(DOCS.length).endsWith(e.file)),
+        files.some((f) => {
+          const rel = f.slice(DOCS.length);
+          return e.file.endsWith('/') ? rel.startsWith(e.file) : rel.endsWith(e.file);
+        }),
         `the exemption for "${e.file}" points at no file under docs/`,
       ).toBe(true);
       expect(e.reason.length, `"${e.file}" needs a stated reason`).toBeGreaterThan(30);
@@ -141,7 +151,13 @@ describe('withdrawn numbers do not survive as live claims', () => {
   it('every occurrence of a withdrawn figure sits on a line that marks it withdrawn', () => {
     for (const file of files) {
       const rel = file.slice(DOCS.length);
-      if (EXEMPT.some((e) => rel === e.file || rel.endsWith(e.file))) continue;
+      // A trailing '/' marks a DIRECTORY exemption; anything else is one file.
+      if (
+        EXEMPT.some((e) =>
+          e.file.endsWith('/') ? rel.startsWith(e.file) : rel === e.file || rel.endsWith(e.file),
+        )
+      )
+        continue;
       const lines = readFileSync(file, 'utf8').split('\n');
       for (const w of WITHDRAWN) {
         lines.forEach((line, i) => {
