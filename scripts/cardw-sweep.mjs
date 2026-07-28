@@ -210,3 +210,37 @@ console.log(
     '  reduction reaching a target rate sits wherever the sawtooth happens to dip, and\n' +
     '  the sawtooth is an artifact of the lattice rather than a property of the design.',
 );
+
+// THE SELECTION RULE IS "LARGEST CARD THAT CLEARS THE BAR", NOT "BEST POINT".
+//
+// Every tooth peaks at the LOW end of its interval, so "pick the point with the best
+// margin" walks downhill and systematically selects a SMALLER card — and card size is
+// the only quantity the one remaining human constraint (legibility) cares about. The
+// output is therefore a short candidate table for the elder session, not one number.
+console.log('\n--- CANDIDATES: the LARGEST cardW meeting each stated bar ---');
+console.log('  R(10) ceiling   min margin   largest cardW   cap   R(0)    R(10)   R(21.3)  margin');
+for (const ceiling of [1.0, 0.5, 0.1]) {
+  for (const minMargin of [5, 10, 15]) {
+    const ok = rows.filter((r) => r.R[2] <= ceiling && r.marginPx >= minMargin);
+    if (ok.length === 0) {
+      console.log(
+        `  ${String(ceiling).padStart(13)}%  ${String(minMargin).padStart(10)}px   ` +
+          `none in the swept range`,
+      );
+      continue;
+    }
+    const best = ok.reduce((a, b) => (b.cardW > a.cardW ? b : a));
+    console.log(
+      `  ${String(ceiling).padStart(13)}%  ${String(minMargin).padStart(10)}px   ` +
+        `${best.cardW.toFixed(2).padStart(13)}  ${String(best.capacity).padStart(3)}  ` +
+        `${best.R[0].toFixed(2).padStart(5)}%  ${best.R[2].toFixed(2).padStart(5)}%  ` +
+        `${best.R[3].toFixed(2).padStart(6)}%  ${best.marginPx.toFixed(2).padStart(6)}px`,
+    );
+  }
+}
+console.log(
+  '\n  THE TIEBREAK BETWEEN THE TOP CANDIDATES IS R(21.3), and it only matters if a\n' +
+    '  ~21px drift source is real. The largest UNMEASURED one is the LINE / WeChat\n' +
+    '  in-app browser inner height — so that measurement decides the card size, and it\n' +
+    '  is the reason it moved up the device-session list.',
+);

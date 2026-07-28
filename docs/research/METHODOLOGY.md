@@ -180,6 +180,13 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 
     **Corollary — a decomposition also tells you when to STOP believing an attribution.** "Jokers are 5px taller" and "the card obeys a 1.45 aspect" cannot both be true on one render path, and the contradiction was visible the moment both were written down. Two facts that cannot both hold are a finding, not a coincidence to be filed under "unplanned".
 
+31. **A causal claim stays a HYPOTHESIS until an intervention on the cause is shown to change the effect.** Practice 30 says decompose before correlating. This is the step after: a decomposition tells you *which term* differs, and it is still only a correlation until you act on the term and watch the difference move.
+    - **The instance, and it is exactly the gap between two consecutive rounds.** D1 decomposed `deskH` to the stage row (73.5 vs 78.5), observed that the tall state coincided perfectly with a staged joker, and recorded **"a joker card face is 5px taller, aspect 1.548"** as fact. The correlation was perfect — 32 deals, no exceptions, and a frequency (69.0%) matching P(hand contains a joker) to a tenth of a point. It was still wrong. The card is 73.5 in both states; the 5px was on the BUTTON, and the cause was inline baseline descender space.
+    - **What settled it cost one render.** Setting `vertical-align: top` on the frame took the button from 78.5 to 73.5. An intervention on the *claimed* cause (the card's aspect) would have changed nothing, and that null is what would have killed 1.548 the day it was written.
+    - Practice 30's corollary — two facts that cannot both hold are a finding — detects this class only *afterwards*, and only if someone notices the pair. An intervention test is the gate that runs *before* the claim is recorded.
+
+    **Operational rule: before writing "X causes Y", change X and show Y moves.** If X cannot be changed in the harness, the claim is recorded as a CORRELATION with that stated limitation — never as a mechanism. And prefer the intervention that would FALSIFY: acting on the claimed cause and seeing no change is worth more than acting on a suspected fix and seeing an improvement, because an improvement has many possible causes.
+
 ## Tool & model ladders (current)
 
 Web research runs on the built-in WebSearch/WebFetch tools, `curl` via shell for direct page/PDF fetches, and `gh api` for GitHub content. **Firecrawl is disabled as of 2026-07-13 (credit limit reached — owner instruction); state this in every research-agent prompt.** Escalate to costlier tooling only on demonstrated failure of a cheaper rung, and log the failure.

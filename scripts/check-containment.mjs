@@ -126,6 +126,9 @@ const DRIVER_VIEWPORT = { width: 1280, height: 800 };
 
 const browser = await chromium.launch();
 const tally = newTally();
+// How many probes actually had a joker staged — the card-frame assertion is vacuous
+// without one, so a clean run must say whether the case was present at all.
+let jokerRuns = 0;
 console.log('=== CONTAINMENT CHECK ===');
 console.log(
   `INNER viewports (browser chrome EXCLUDED — these are not screen sizes): ` +
@@ -153,6 +156,40 @@ for (let deal = 0; deal < DEALS; deal += 1) {
 
     const label = `deal ${deal} @${vp.w}x${vp.h}`;
     const clean = checkContainment(await p.evaluate(`(${CONTAINMENT_PROBE})({})`), `${label} no shelf`, tally);
+
+    // STAGE A JOKER IF THE HAND HAS ONE, so the card-frame assertion has the case it
+    // exists for. The frame-inflation defect needs a card with NO IN-FLOW TEXT — a
+    // joker, whose art is position:absolute — inside a wrapper that baseline-aligns it.
+    // Without one staged, the probe examines only cards whose rank text supplies a
+    // baseline above the bottom, where no descender is reserved and nothing is wrong.
+    // A first version of this gate ran the assertion without staging anything and
+    // passed a deliberately reverted fix; that is a vacuous check, not a green one.
+    const jokerStaged = await p.evaluate(() => {
+      const cards = [...document.querySelectorAll('.gd-fan__card')];
+      // By CLASS, not by the localised aria-label. A label match would have been a CJK
+      // literal in a script file (the english-only sweep catches that, and did) and it
+      // would silently stop matching in another locale — the joker is what matters, not
+      // its name.
+      const joker = cards.find((c) => c.querySelector('.gd-card--joker') !== null);
+      if (joker === undefined) return false;
+      joker.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      return true;
+    });
+    if (jokerStaged) {
+      await p.waitForTimeout(250);
+      checkContainment(
+        await p.evaluate(`(${CONTAINMENT_PROBE})({})`),
+        `${label} joker staged`,
+        tally,
+      );
+      await p.evaluate(() => {
+        for (const c of document.querySelectorAll('.gd-fan__card[aria-pressed="true"]')) {
+          c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+        }
+      });
+      await p.waitForTimeout(120);
+    }
+    jokerRuns += jokerStaged ? 1 : 0;
 
     // A SHELF is a different layout — side by side on desktop, banded on the
     // phone — so it gets its own probe. This is the state the widened
@@ -194,6 +231,12 @@ if (!ok) {
   );
   process.exit(1);
 }
+console.log(
+  `\nCARD-FRAME ASSERTION: a joker was staged on ${jokerRuns} probe(s). ` +
+    (jokerRuns === 0
+      ? 'ZERO — that assertion examined no card without in-flow text and proves nothing this run.'
+      : 'The frame-inflation case was present and clean.'),
+);
 console.log(
   `\nPASS. NOTE THE LIMIT: ${DEALS} deal(s) per viewport catches STRUCTURAL ` +
     'violations, not ones that need a rare hand (a 15-column fan is ~3.4% of ' +

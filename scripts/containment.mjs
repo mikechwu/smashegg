@@ -103,6 +103,50 @@ export const CONTAINMENT_PROBE = `(opt) => {
     }
   }
 
+  // A CARD FRAME MUST NOT INFLATE ITS PARENT (practice 29 rung 4, and F2).
+  //
+  // NOTE FOR EDITORS: this whole probe is a template literal, so NO BACKTICKS may
+  // appear anywhere in it, comments included. Adding them here terminated the literal
+  // and produced a SyntaxError pointing at an unrelated identifier — the same trap this
+  // project has hit once before.
+  //
+  // A .gd-cardframe is inline-flex; on the default vertical-align (baseline) its
+  // parent's line box reserves the font's descender BELOW it, and a card with no
+  // in-flow text (a joker, whose art is position:absolute) has its baseline at its
+  // bottom margin edge — so the descender lands entirely below the card. Measured at
+  // 5px on the staged-card button, on the 69% of hands that hold a joker, and it fed
+  // straight into deskH and therefore into the G-SIM span.
+  //
+  // The CSS pin for the fix is a text match on the vertical-align declaration, which
+  // survives only the exact line being deleted — not a changed display value, a new
+  // wrapper, or a font change that alters the descender. This asserts the same property
+  // where it actually lives: in the rendered boxes, at every card render site, at every
+  // viewport this gate runs.
+  for (const frame of document.querySelectorAll('.gd-cardframe')) {
+    const parent = frame.parentElement;
+    if (parent === null) continue;
+    // Only meaningful where the frame is the sole element child; otherwise the parent
+    // is legitimately sized by something else.
+    if (parent.children.length !== 1) continue;
+    const fq = frame.getBoundingClientRect();
+    const pq = parent.getBoundingClientRect();
+    if (fq.height === 0) continue;
+    checked += 1;
+    const excess = r(pq.height - fq.height);
+    if (excess > tol) {
+      violations.push({
+        kind: 'card frame inflates its parent',
+        selector: '.gd-cardframe',
+        excessPx: excess,
+        parent: String(parent.className || parent.tagName).slice(0, 60),
+        frameH: r(fq.height),
+        parentH: r(pq.height),
+        verticalAlign: getComputedStyle(frame).verticalAlign,
+        display: getComputedStyle(frame).display,
+      });
+    }
+  }
+
   return {
     checked,
     violations,
@@ -154,6 +198,14 @@ export function reportContainment(tally) {
           `${v.overflowRightPx ? v.overflowRightPx + 'px RIGHT' : ''} ` +
           `(box ${v.box.left}..${v.box.right}, container ${v.container.left}..${v.container.right}) ` +
           `— container overflow-x is "${v.containerOverflowX}", which is what HIDES this.`,
+      );
+    } else if (v.kind === 'card frame inflates its parent') {
+      console.log(
+        `  ${v.at}: a .gd-cardframe makes its parent ${v.excessPx}px taller than itself ` +
+          `(frame ${v.frameH}, parent ${v.parentH}, parent "${v.parent}"). ` +
+          `The frame is ${v.display} on vertical-align: ${v.verticalAlign} — a baseline-` +
+          `aligned inline box reserves the font's descender below a card that has no ` +
+          `in-flow text, which is every joker.`,
       );
     } else {
       console.log(
