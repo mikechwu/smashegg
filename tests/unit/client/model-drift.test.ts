@@ -43,7 +43,7 @@ interface Constant {
 interface Model {
   reference: { innerW: number; innerH: number; note: string };
   constants: Constant[];
-  formulas: { id: string; expression: string; what: string }[];
+  formulas: { id: string; expression: string; what: string; source?: Source }[];
   shipped: Record<string, unknown>;
 }
 
@@ -117,6 +117,48 @@ describe('the model file does not drift from the code', () => {
         ).toMatch(/residual/i);
       }
     }
+  });
+
+  // AUDIT FINDING (Codex, round J0-J3): the first version of this checked only CONSTANTS.
+  // Changing `capacityFor` in cardw-gate.mjs from `0.7 * w` to `0.8 * w` leaves every
+  // constant literal exactly where model.json says it is, and makes MODEL.md's capacity
+  // formula silently wrong. A formula is as much a claim about the code as a number is, so
+  // each one now names the fragment that implements it.
+  it('every formula names the code that implements it, and that code still says so', () => {
+    const missing: string[] = [];
+    const unbound: string[] = [];
+    for (const f of model.formulas) {
+      if (f.source === undefined) {
+        unbound.push(f.id);
+        continue;
+      }
+      if (!read(f.source.file).includes(f.source.literal)) {
+        missing.push(`${f.id}: "${f.source.literal}" not in ${f.source.file}`);
+      }
+    }
+    expect(
+      unbound,
+      `these formulas claim to describe the code but name none of it: ${unbound.join(', ')}. ` +
+        'An unbound formula is a sentence in a generated document with nothing behind it.',
+    ).toEqual([]);
+    expect(
+      missing,
+      `a formula's implementation changed without model.json changing:\n  ${missing.join('\n  ')}`,
+    ).toEqual([]);
+  });
+
+  it('a perturbed formula fragment is NOT found, so those searches discriminate too', () => {
+    const blind: string[] = [];
+    let checked = 0;
+    for (const f of model.formulas) {
+      if (f.source === undefined) continue;
+      const p = perturb(f.source.literal);
+      if (p === null) continue;
+      checked += 1;
+      if (read(f.source.file).includes(p)) blind.push(`${f.id}: perturbed "${p}" also matches`);
+    }
+    expect(checked, 'the formula perturbation check examined something').toBeGreaterThanOrEqual(5);
+    expect(blind, `formula binding is not specific:\n  ${blind.join('\n  ')}`).toEqual([]);
   });
 
   it('MODEL.md is what the generator produces from model.json', () => {

@@ -32,11 +32,35 @@ import { describe, expect, it } from 'vitest';
 const read = (rel: string): string =>
   readFileSync(new URL(`../../../${rel}`, import.meta.url), 'utf8');
 
-/** The mutable live surfaces, concatenated. Both are allowed to change when a claim is
- *  wrong, which is exactly the property that makes table-backing enforceable on them. */
+/** The mutable live surfaces. Both are allowed to change when a claim is wrong, which is
+ *  exactly the property that makes table-backing enforceable on them. */
 const SCANNED = ['status/CURRENT.md', 'status/VALIDATED.md'];
-function liveSurfaces(): string {
-  return SCANNED.map((f) => read(f)).join('\n');
+
+/** Each file split into SECTIONS at its `## ` headings.
+ *
+ *  AUDIT FINDING (Codex, round J0-J3): the first version of this after the status/ split
+ *  concatenated both files and asked whether a prose figure appeared in a table ANYWHERE in
+ *  the combined text. The test's own name says "in the same section", and the failure it
+ *  exists for is a sentence contradicting the table BESIDE it — so a stale figure in
+ *  CURRENT.md could be "backed" by an unrelated row in VALIDATED.md and the check would pass
+ *  while the defect it was built for sat in the file. Sectioning restores the claim. */
+function sections(): { label: string; text: string }[] {
+  const out: { label: string; text: string }[] = [];
+  for (const f of SCANNED) {
+    const src = read(f);
+    const idx: number[] = [];
+    src.split('\n').forEach((line, i) => {
+      if (line.startsWith('## ')) idx.push(i);
+    });
+    const lines = src.split('\n');
+    // Everything before the first `## ` is the file's own preamble and is a section too.
+    const bounds = [0, ...idx, lines.length];
+    for (let k = 0; k < bounds.length - 1; k += 1) {
+      const text = lines.slice(bounds[k]!, bounds[k + 1]!).join('\n');
+      if (text.trim().length > 0) out.push({ label: `${f} :: ${(lines[bounds[k]!] ?? '').replace(/^#+\s*/, '') || 'preamble'}`, text });
+    }
+  }
+  return out;
 }
 
 /** Lines that are table rows (markdown pipe rows) versus prose. */
@@ -84,8 +108,9 @@ const ALLOWED: Record<string, string> = {
 // FORM was narrative. The ceiling is now 3.
 
 describe('a figure in prose is backed by a table in the same section', () => {
-  const section = liveSurfaces();
-  const { prose, tables } = split(section);
+  const all = sections();
+  const section = all.map((s) => s.text).join('\n');
+  const { tables } = split(section);
 
   // G4a: A RATCHET, because a justification string is what the axis registry's
   // exemption started as before it became the escape hatch. The count may fall and may
@@ -127,24 +152,31 @@ describe('a figure in prose is backed by a table in the same section', () => {
     expect(tables.length, 'it contains at least one table to check against').toBeGreaterThan(40);
   });
 
-  it('every px/% figure in prose also appears in a table here', () => {
-    const orphans: { line: string; figure: string }[] = [];
-    for (const line of prose) {
-      // Skip headings, blockquotes and code — they are commentary, not claims.
-      const t = line.trim();
-      if (t.startsWith('#') || t.startsWith('>') || t.startsWith('```')) continue;
-      for (const m of line.matchAll(FIGURE)) {
-        const figure = `${m[1]}${m[2]}`;
-        if (Object.prototype.hasOwnProperty.call(ALLOWED, figure)) continue;
-        // A bare number in the table is enough; the unit may be in the header.
-        if (tables.includes(m[1]!)) continue;
-        orphans.push({ line: t.slice(0, 110), figure });
+  it('finds more than one section, so the sectioning is real', () => {
+    expect(all.length, 'the live surfaces split into sections').toBeGreaterThanOrEqual(6);
+  });
+
+  it('every px/% figure in prose also appears in a table IN THE SAME SECTION', () => {
+    const orphans: { line: string; figure: string; where: string }[] = [];
+    for (const sec of all) {
+      const { prose, tables: secTables } = split(sec.text);
+      for (const line of prose) {
+        // Skip headings, blockquotes and code — they are commentary, not claims.
+        const t = line.trim();
+        if (t.startsWith('#') || t.startsWith('>') || t.startsWith('```')) continue;
+        for (const m of line.matchAll(FIGURE)) {
+          const figure = `${m[1]}${m[2]}`;
+          if (Object.prototype.hasOwnProperty.call(ALLOWED, figure)) continue;
+          // A bare number in the table is enough; the unit may be in the header.
+          if (secTables.includes(m[1]!)) continue;
+          orphans.push({ line: t.slice(0, 110), figure, where: sec.label });
+        }
       }
     }
     expect(
       orphans,
       `these figures appear in prose with no table in the same section carrying them:\n` +
-        orphans.map((o) => `  ${o.figure}  in: ${o.line}`).join('\n') +
+        orphans.map((o) => `  ${o.figure}  in ${o.where}\n    ${o.line}`).join('\n') +
         `\nEither put the figure in the section's table, or add it to ALLOWED with a reason. ` +
         `A prose figure with no table behind it is how "9.20px of margin" survived a ` +
         `correction that fixed the rate in the same sentence.`,

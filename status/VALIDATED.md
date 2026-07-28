@@ -77,11 +77,16 @@ declaration. See METHODOLOGY practice 34.
 
 ## What is NOT validated, stated so it is not quoted as if it were
 
-- **The elder-legibility question.** No session has been run. Nothing in this file says a
-  48.15px card is legible to anyone; it says what it costs in pixels. See `CURRENT.md`.
+- **The elder-legibility question.** No session has been run. Nothing in this file says the
+  shipped card is legible to anyone; it says what it costs in pixels. See `CURRENT.md`.
 - **Any figure at a deck theme other than lacquer.** `stripW` differs by a factor of two.
-- **Any figure at a root font-size other than 16px**, except `glyphCap`, which is the one
-  row measured across 12-24px.
+- **Any figure at a root font-size other than the default**, except `glyphCap`, which is
+  the one row measured across a ramp:
+
+  | quantity | root font-sizes it was measured at |
+  |---|---|
+  | `glyphCap` and the card ink | 12px, 14px, 16px, 18px, 20px, 24px |
+  | everything else in this file | 16px only |
 - **The model above s=9.** The held-out test validated bins with expected count >= 5. The
   gate uses the bin INDEX for exactly this reason, rather than a probability from the tail.
 - **`R` at any width in a browser.** Every `R` in this file is simulated. What is measured

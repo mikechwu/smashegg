@@ -586,10 +586,12 @@ button.gd-plate {
  * FITS. The glyphs below stay proportional to the root font-size, capped, so text scaling
  * still does what accessibility intends — that decoupling is the whole point.
  *
- * WHY 48.15px. It is the optimum of the highest qualifying segment: marginal bin s=9 with
- * 15.23px of margin (5.23px above the 10px floor), the last held-out-validated bin s=9
- * feasible, and 0.55px of setback to the nearest feasibility cliff (the s=10 tooth at
- * 47.60px).
+ * WHY 48.15px. It is the optimum of the highest qualifying segment: marginal bin s=9, the
+ * last bin the held-out test validated, still feasible with about 15.2px of margin — 5px
+ * above the 10px floor — and 0.55px of setback to the nearest feasibility cliff (the s=10
+ * tooth at 47.60px). The margin is 15.17px computed at the CSS aspect 1.45 and 15.23px at
+ * the 1.44970 the gate scripts carry; status/MODEL.md records why those two differ and why
+ * neither is being changed to match the other. Nothing here turns on the difference.
  *
  * AND THE SIZE CHANGE IS NOT ONE NUMBER. "-5.0%" is the change at width 390 and nowhere
  * else, because today's clamp is a function of the viewport: the constant is +2.9% at 360,

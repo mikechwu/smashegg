@@ -13,8 +13,20 @@
 //
 // ADDING A ROUND deliberately requires updating the expected hash in status/rounds/INDEX.md
 // in the same commit. That is the point: appending is a normal act that leaves a record,
-// and editing history is indistinguishable from it at the hash level, so the DIFF is what a
-// reviewer reads. A test that allowed appends silently would not be pinning much.
+// and the DIFF is what a reviewer reads. A test that allowed appends silently would not be
+// pinning much.
+//
+// AUDIT FINDING (Codex, round J0-J3): that alone enforces "matches the current manifest",
+// not immutability — because INDEX.md is mutable, editing a historical round and updating
+// the hash in the same commit passes. So there is a SECOND, stronger pin: the MIGRATION
+// BASELINE, the hash of rounds 001-118 as they were written out of the original STATUS.md,
+// hardcoded HERE in the test rather than in a document. Appending rounds 119+ cannot change
+// it, and editing any round in 001-118 does — including in the same commit that updates
+// INDEX.md, because the baseline is not in INDEX.md to update.
+//
+// The two pins answer different questions and both are needed: the baseline says the moved
+// history is untouched, and the manifest says the round list as a whole is what it was at
+// the last review.
 
 import { createHash } from 'node:crypto';
 import { readFileSync, readdirSync } from 'node:fs';
@@ -75,6 +87,26 @@ describe('the round record is append-only', () => {
         '  status/rounds/INDEX.md in the same commit, so the change is reviewable.\n' +
         `  expected ${m?.[1]}\n  actual   ${actual}`,
     ).toBe(m![1]);
+  });
+
+  it('the migrated history is byte-identical to what the split produced', () => {
+    // Hardcoded, and deliberately not read from any document: a pin a commit can update in
+    // passing is a manifest, not a baseline. Rounds 001-118 are the sections moved out of
+    // the original STATUS.md; nothing appended later is included, so this hash is fixed
+    // forever and any edit inside the migrated history fails here.
+    const MIGRATION_BASELINE = 'e01f45806670c414f288de9100771da151740f643ca0c8918bd21faf92b71326';
+    const MIGRATED = 118;
+    const migrated = files.filter((f) => Number(f.slice(0, 3)) <= MIGRATED);
+    expect(migrated.length, 'the 118 migrated rounds are all present').toBe(MIGRATED);
+    const concat = migrated.map(body).map((b) => b.replace(/\n+$/, '')).join('\n');
+    expect(
+      createHash('sha256').update(concat, 'utf8').digest('hex'),
+      'A ROUND FROM THE MIGRATED HISTORY (001-118) CHANGED.\n' +
+        '  These files were moved verbatim out of the original STATUS.md and are never\n' +
+        '  edited. Corrections go in status/CURRENT.md or status/WITHDRAWN.md.\n' +
+        '  This baseline is hardcoded in the test precisely so that updating a manifest\n' +
+        '  cannot launder an edit past it.',
+    ).toBe(MIGRATION_BASELINE);
   });
 
   it('the live status files each open with a pointer line', () => {

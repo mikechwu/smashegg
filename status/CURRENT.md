@@ -5,14 +5,14 @@
 > **What was retracted:** `WITHDRAWN.md`. **Why a past decision went the way it did:**
 > `rounds/INDEX.md`, then the round it names.
 
-Last updated: 2026-07-28, round J0-J3.
+Last updated: 2026-07-28, rounds J0-J3 and its audit response.
 
 ## Decided, and shipped
 
 | decision | what shipped | round |
 |---|---|---|
-| The hand card box is a **constant**, not a clamp | `--gd-cardw: 48.15px` below the 720px layout breakpoint; today's expression unchanged at and above it | J0 |
-| The card **box** and the card **ink** are separate quantities | `--gd-glyphw: min(3.009375rem, 58px)` — the box cannot be scaled by the user, the ink still can, up to a measured cap | J0b |
+| The hand card box is a **constant**, not a clamp | `--gd-handcardw: 48.15px` below the 720px layout breakpoint; today's expression unchanged at and above it | J0 |
+| The card **box** and the card **ink** are separate quantities | `--gd-handglyphw: min(3.009375rem, 58px)` — the box cannot be scaled by the user, the ink still can, up to a measured cap | J0b |
 | Minimum **guaranteed** viewport width is **360** | Below 332.1 CSS px the layout has no supported card size | J0 |
 | The gate is **purely geometric**, plus a validated-bin term | `margin >= 10px` and `margin(s=9) >= 0` and `capacity >= 8` | H1, I0 |
 
@@ -29,6 +29,7 @@ today's clamp, and at 430 it is far smaller.
 | 375 | 48.75 | 48.15 | -1.2% | 9 -> 9 | 1.31% | 1.31% |
 | 390 | 50.70 | 48.15 | -5.0% | 9 -> 9 | **7.65%** | **1.31%** |
 | 430 | 55.90 | 48.15 | -13.9% | 9 -> 10 | **66.93%** | **0.74%** |
+| 370.4 (the crossing) | 48.15 | 48.15 | 0% | — | — | — |
 
 **430 was the worst cell in this whole arc and had never been swept.** Two independent
 methods agree on it: the model says a 66.93% following-state failure rate at today's card,
@@ -62,13 +63,23 @@ nine copies are now one `--gd-handcardw` declaration. METHODOLOGY practice 34.
 ## Open — for the owner
 
 1. **320 is a withdrawal, not a gap, and there is a one-line alternative.** Today's clamp
-   serves 320 through its 2.75rem floor: the card is 44px there, capacity is 8, and it
-   works at the default root font-size. The constant takes capacity to 7 and 15 value
-   classes then need three lines. A second constant below the crossover —
-   `@media (max-width: 332px) { --gd-cardw: 44px; }`, exactly what ships at 320 today —
-   would preserve it at the cost of the "no cardW breakpoint" property. The J0 brief ruled
-   for the single constant; this note records what that ruling gives up, because the ruling
-   was made on the belief that 320 was merely unserved.
+   serves 320 through its rem floor, and it works at the default root font-size. The
+   constant takes capacity below the two-line floor, and 15 value classes then need three
+   lines.
+
+   | at inner width 320 | card | capacity | works at root 16? | applies below |
+   |---|---|---|---|---|
+   | today's clamp (its rem floor binds) | 44px | 8 | yes | — |
+   | the shipped constant | 48.15px | 7 | **no — three lines** | — |
+   | the alternative below | 44px | 8 | yes | 332px |
+
+   The alternative is one media query, restoring exactly what ships at 320 today:
+   `@media (max-width: 332px) { :root { --gd-handcardw: 44px; } }`. It must name
+   `--gd-handcardw` and not `--gd-cardw`: nine sites read the shared token, and a
+   root-level `--gd-cardw` would drive none of them (Codex caught this note naming the
+   wrong one). The cost is the "no cardW breakpoint" property. The J0 brief ruled for the
+   single constant; this records what that ruling gives up, because it was made on the
+   belief that 320 was merely unserved.
 2. **The compact-mode feedback loop described in the brief does not exist.** The capacity
    detector is `scripts/containment.mjs`, a build-time gate. It fires at 320 — verified,
    3 violations at n=2 — but it observes *our* gate runs, not users. There is no telemetry
@@ -87,6 +98,7 @@ nine copies are now one `--gd-handcardw` declaration. METHODOLOGY practice 34.
 | D7, distribution power in the prereg template | done this round | |
 | `aspect` disagreement | recorded, not resolved | CSS says 1.45, the gate scripts carry 1.44970. 0.03px of span at the shipped card. Changing the scripts would move every recorded figure for no gain. |
 | `kMinusCard` residual | recorded, not resolved | Parts sum to 125.0 against 125.1. 0.1px. The claim of "0px residual" is withdrawn; the constant stands. |
+| Cross-lineage audit of this round | done, 6 findings, all adopted | Codex. `docs/research/proposals/j0-audit-codex.md`; the response is round 120. The one that mattered: the prose-figure scanner had silently widened "the same section" to two whole documents, and fixing it found seven orphans. |
 
 ## Blocking
 

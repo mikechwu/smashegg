@@ -4,12 +4,13 @@
 
 Round files are **verbatim** sections of the former root `STATUS.md`, moved unedited. They are history: they record what was believed at the time, including claims later withdrawn. Check `../WITHDRAWN.md` before quoting any figure from one.
 
-**Immutability pin.** The concatenation of every round file's body — each file below its two-line pointer block, trailing blank lines trimmed, joined with a newline — hashes to `6fc2f8005ebc70544237a0fdd2f3eefc1766925047bb30a295e5f57bf62a60e0`. `tests/unit/client/status-structure.test.ts` asserts it, so an edit to history is a red test rather than a convention. Appending a round is a normal act and changes the hash; update it in the same commit, so the change is reviewable in the diff.
+**Immutability pin.** The concatenation of every round file's body — each file below its two-line pointer block, trailing blank lines trimmed, joined with a newline — hashes to `d4706ac8decb135a9a3cbe4a2d05d3c6e971580331e9e56920b5190453b7f495`. `tests/unit/client/status-structure.test.ts` asserts it, so an edit to history is a red test rather than a convention. Appending a round is a normal act and changes the hash; update it in the same commit, so the change is reviewable in the diff.
 
 **Migration losslessness, checked separately at the split.** The original root `STATUS.md` from its first `## ` heading to the end, and the concatenation of the 118 sections written out of it, both hashed to `218bcd0517cfa68cdbcc4b562cf359e2f02493fba22c9522552568db67407128`. That is the evidence that nothing was rewritten in the move. It differs from the pin above only because the pin canonicalises trailing whitespace; the two answer different questions and neither is the other's check.
 
 | # | round | date |
 |---|---|---|
+| 120 | [J0-J3 audit response: six findings, all adopted](120-j0-j3-audit-response-six-findings-all-adopted.md) | 2026-07-28 |
 | 119 | [J0-J3: the card constant ships, and 430 turns out to be the cell that mattered](119-j0-j3-the-card-constant-ships-and-status-becomes-a-folder.md) | 2026-07-28 |
 | 118 | [I0-I4: today PASSES the geometric gate — the previous brief deleted an earned term](118-i0-i4-today-passes-the-geometric-gate-the-previous-brief-d.md) | — |
 | 117 | [H0-H3: the qualifying set was disjoint, the gate is now geometric, and no clamp passes](117-h0-h3-the-qualifying-set-was-disjoint-the-gate-is-now-geom.md) | — |

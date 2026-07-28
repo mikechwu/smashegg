@@ -132,41 +132,49 @@
     {
       "id": "capacity",
       "expression": "capacity(W, w) = floor((W - rowChrome - 0.3*w) / (0.7*w))",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "Math.floor(contentFor(W, w) / (0.7 * w))" },
       "what": "Columns that fit on one fan line at viewport width W and card width w. Monotonically non-decreasing in W at fixed w."
     },
     {
       "id": "capacityCeiling",
       "expression": "maxCardW(W) = (W - rowChrome) / (0.7*capacityFloor + 0.3) = (W - 48.0) / 5.9",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "(W - ROW_CHROME) / (0.7 * 8 + 0.3)" },
       "what": "Largest card width that still clears the two-line capacity floor at width W."
     },
     {
       "id": "crossover",
       "expression": "minWidth(w) = rowChrome + 5.9*w",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "ROW_CHROME + 5.9 * CONSTANT" },
       "what": "Smallest viewport width at which card width w still clears the capacity floor. At the shipped 48.15px this is 332.1 CSS px."
     },
     {
       "id": "lineHeight",
       "expression": "lineH(d, w) = aspect*w + stripW*w*(d - 1)",
+      "source": { "file": "scripts/fan-height-distribution.mjs", "literal": "GEOM.CARD_H + GEOM.STEP * (d - 1)" },
       "what": "Height of one fan line whose deepest column holds d cards."
     },
     {
       "id": "fanHeight",
       "expression": "fanH(s, w) = fanChrome + fanRowGap + 2*aspect*w + stripW*w*(s - 2)",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "CHROME + GAP + 2 * ASPECT * w + STRIP * w * (s - 2)" },
       "what": "Two-line fan height, where s = d1 + d2 is the total depth over both lines. Depends on the hand only through s."
     },
     {
       "id": "threshold",
       "expression": "T(w) = innerH - (deskMinusCard + aspect*w) - (kMinusCard + aspect*w) = 455.9 - 2.90*w",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "INNER_H - (DESK_MINUS_CARD + ASPECT * w) - (K_MINUS_CARD + ASPECT * w)" },
       "what": "The tallest fan that still fits at the reference inner height, following state. Both the desk and K carry one card height each, which is why the coefficient is twice the aspect."
     },
     {
       "id": "margin",
       "expression": "margin(s, w) = T(w) - fanH(s, w) = 436.0 - (4*aspect + stripW*(s - 2))*w",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "thresholdFor(w) - fanFor(s, w)" },
       "what": "Slack for a hand of total depth s at card width w. Width-independent: the viewport's width enters the gate only through capacity."
     },
     {
       "id": "toothBoundary",
       "expression": "w_s = 436.0 / (4*aspect + stripW*(s - 2))",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "4 * ASPECT + STRIP * (s - 2)" },
       "what": "Card width at which depth-s hands stop fitting. These roots make the qualifying set of card widths DISJOINT, which is why no clamp coefficient passes at every supported width."
     }
   ],

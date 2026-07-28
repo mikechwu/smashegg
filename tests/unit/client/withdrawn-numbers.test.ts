@@ -43,12 +43,30 @@ function loadRegistry(): Entry[] {
   expect(start, 'status/WITHDRAWN.md has a "## Registry" section').toBeGreaterThan(-1);
   const section = src.slice(start, src.indexOf('\n## ', start + 1) === -1 ? undefined : src.indexOf('\n## ', start + 1));
   const out: Entry[] = [];
+  const unparsed: string[] = [];
   for (const line of section.split('\n')) {
-    const m = line.match(/^\|\s*`(.+?)`\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*$/);
-    if (m === null) continue;
-    if (m[1] === 'pattern') continue; // the header row
+    const t = line.trim();
+    if (!t.startsWith('|')) continue;
+    if (/^\|[\s|:-]+\|$/.test(t)) continue; // the separator row
+    const m = t.match(/^\|\s*`(.+?)`\s*\|\s*(.+?)\s*\|\s*(.+?)\s*\|\s*$/);
+    if (m !== null && m[1] === 'pattern') continue; // the header row
+    if (m === null) {
+      // AUDIT FINDING (Codex, round J0-J3): the first version simply skipped any row it
+      // could not parse. A registry row that stops parsing stops protecting anything, and
+      // it does so invisibly — which is the precise shape of the failure this whole
+      // mechanism exists to prevent, one level up. An unparseable row is now an error.
+      if (t.startsWith('| pattern')) continue;
+      unparsed.push(t.slice(0, 120));
+      continue;
+    }
     out.push({ pattern: new RegExp(m[1]!, 'i'), label: m[2]!, replacement: m[3]! });
   }
+  expect(
+    unparsed,
+    'these rows of status/WITHDRAWN.md\'s registry do not parse and therefore protect ' +
+      `nothing:\n  ${unparsed.join('\n  ')}\n` +
+      'A row is `| \`pattern\` | what it was | replaced by |`.',
+  ).toEqual([]);
   return out;
 }
 
