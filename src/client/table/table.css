@@ -1112,6 +1112,20 @@ button.gd-plate {
   font-size: var(--fs-2xl);
   font-weight: 700;
   color: var(--ivory);
+  /* THE TITLE MAY NEVER WRAP, IN ANY LOCALE.
+     A second title line costs ~27px of desk outright, and the desk is a term in the
+     simultaneity span — so a wrapped title eats more budget than the entire ~33px of
+     recoverable spacing in the layout. No remedy survives that drift, so it is made
+     impossible rather than absorbed: every candidate remedy (the seat-plate band, the
+     card-scale plateau) is sized against a desk height that a longer string could
+     otherwise invalidate without anything failing.
+     `min-width: 0` is required: this is a flex child, and a flex item's automatic
+     minimum size is its content, so without it the item refuses to shrink and the
+     ellipsis never engages — the row overflows instead. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .gd-desk__clock {
   font-family: var(--font-mono);

@@ -38,6 +38,11 @@ const SHELF = process.env.VFM_SHELF === '1';
 // THE AXIS THAT WAS PINNED WRONG. Default here is the PRODUCT default, not the
 // convenient one: every other gate in this repo creates an untimed room while
 // TIMING_PRESETS.standard is what a room actually gets.
+// SORT ORDER — the HELD-OUT axis for C1. The product default is ascending
+// (readHandSortDescending is true only for a stored 'desc'); descending is the
+// configuration the single-ordering model was never fitted to, so it validates the
+// model and measures an unmeasured population in one experiment.
+const SORT = process.env.VFM_SORT === 'descending' ? 'descending' : 'ascending';
 const TIMED = process.env.VFM_TIMING !== 'untimed';
 const TIMING = TIMED
   ? { perTurnMs: 45000, planningMs: 90000, autoPassNoPlay: true }
@@ -56,7 +61,7 @@ export const AXES_PINNED = {
   locale: { value: 'zh-Hant' },
   roomTiming: { value: 'standard 45s/90s' },
   shelf: { value: 'none unless VFM_SHELF=1' },
-  handSort: { value: 'ascending' },
+  handSort: { value: 'VFM_SORT, default ascending (the product default)' },
   manualAreas: { value: 'none' },
   leadOrFollow: { value: 'following only', justification: 'the leading population carries 132.5px more slack and essentially cannot fail; pooling would understate the rate a following player meets' },
   turnDecidability: { value: 'decidable turns only', justification: 'a forced-pass turn has no decision AND renders no countdown bar, so it would record the untimed desk under the timed label' },
@@ -141,7 +146,7 @@ const rows = [];
 console.log(`=== W1 MODEL VALIDATION @ INNER ${VW}x${VH} ===`);
 console.log(
   `    INNER dimensions, browser chrome EXCLUDED. theme ${THEME} | locale zh-Hant | ` +
-    `${SHELF ? 'ONE SHELF' : 'no shelf'} | one card staged | ` +
+    `${SHELF ? 'ONE SHELF' : 'no shelf'} | one card staged | sort ${SORT} | ` +
     `timing ${TIMED ? '45s/90s STANDARD (the product default)' : 'UNTIMED (not the default)'}`,
 );
 console.log(`    Thresholds pre-registered in docs/research/prereg-fan-model.md.`);
@@ -166,8 +171,9 @@ for (let deal = 0; deal < DEALS && following < NEED_FOLLOWING; deal += 1) {
   await ctxB.addInitScript((seed) => {
     localStorage.setItem('locale', 'zh-Hant');
     localStorage.setItem('pref:deckTheme', seed.theme);
+    if (seed.sort === 'descending') localStorage.setItem('pref:handSort', 'desc');
     localStorage.setItem('room:' + seed.code, JSON.stringify({ tokens: [seed.tokens[0]], lastSeenSeq: seed.lastSeq }));
-  }, { ...drive, theme: THEME });
+  }, { ...drive, theme: THEME, sort: SORT });
   const p = await ctxB.newPage();
   await p.goto(`${BASE}/#/room/${drive.code}`, { waitUntil: 'networkidle' });
   await p.waitForFunction(() => document.querySelectorAll('.gd-fan__card').length >= 20, null, { timeout: 60000 });
@@ -175,6 +181,13 @@ for (let deal = 0; deal < DEALS && following < NEED_FOLLOWING; deal += 1) {
 
   const got = await p.evaluate(() => localStorage.getItem('pref:deckTheme'));
   if (got !== THEME) throw new Error(`deck theme did not take: wanted ${THEME}, got ${got}`);
+  // A knob that silently does nothing would make every "descending" run a second
+  // measurement of ascending — the mislabelling class this round exists to close.
+  const gotSort = await p.evaluate(() => localStorage.getItem('pref:handSort'));
+  const wantSort = SORT === 'descending' ? 'desc' : null;
+  if (gotSort !== wantSort) {
+    throw new Error(`hand sort did not take: wanted ${wantSort}, page reports ${gotSort}`);
+  }
 
   // Stage one card — the decision moment, and the desk's saturating worst case.
   const staged = await p.evaluate(() => {
@@ -290,11 +303,20 @@ if (n < MIN_N) {
 console.log(`\n############ W1b — THE DISTRIBUTION (the load-bearing test) ############`);
 // The model's shares, copied from fan-height-distribution.mjs's 200k run. Stated
 // here as data so the comparison is auditable.
-const MODEL = {
-  209.5: 0.000015, 215.2: 0.00005, 230.8: 0.005640, 236.5: 0.00001,
-  252.1: 0.169690, 273.4: 0.386795, 294.7: 0.304805, 316.0: 0.106465,
-  337.3: 0.022080, 358.6: 0.002655, 379.9: 0.000210, 401.2: 0.000030,
+// Shares depend on the ORDERING, which is the whole point of the held-out test.
+// The descending column is the one pre-registered in
+// docs/research/prereg-descending-holdout.md, fixed before this knob existed.
+const MODEL_BY_SORT = {
+  ascending: {
+    230.8: 0.00500, 252.1: 0.28000, 273.4: 0.37800, 294.7: 0.21300,
+    316.0: 0.06400, 337.3: 0.01200,
+  },
+  descending: {
+    230.8: 0.02680, 252.1: 0.23660, 273.4: 0.39910, 294.7: 0.24360,
+    316.0: 0.07600, 337.3: 0.01430,
+  },
 };
+const MODEL = MODEL_BY_SORT[SORT];
 const obs = new Map();
 let offLattice = [];
 for (const r of follow) {

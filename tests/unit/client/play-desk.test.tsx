@@ -619,3 +619,41 @@ describe('one-tap clear', () => {
     expect(rule).toContain('min-height: 2.75rem');
   });
 });
+
+// ---------------------------------------------------------------------------
+// THE DESK TITLE MAY NEVER WRAP.
+//
+// A wrapped title costs ~27px of desk outright. The desk is a term in the G-SIM span,
+// and the whole layout has only ~33px of recoverable spacing — so a single wrapped
+// title would invalidate every remedy sized against the current desk height, silently,
+// in a locale nobody measured. The constraint is not "keep strings short" (a rule
+// someone must remember) but a CSS property that makes the second line impossible.
+// ---------------------------------------------------------------------------
+describe('the desk title is single-line in every locale', () => {
+  const css = readFileSync(
+    new URL('../../../src/client/table/table.css', import.meta.url),
+    'utf8',
+  ).replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = css.match(/\.gd-desk__title \{[^}]*\}/)?.[0] ?? '';
+
+  it('the rule is findable (not vacuous)', () => {
+    expect(rule, '.gd-desk__title has a rule').not.toBe('');
+  });
+
+  it('it cannot wrap, and it degrades by ellipsis rather than by overflow', () => {
+    expect(rule, 'no second line is possible').toMatch(/white-space:\s*nowrap/);
+    expect(rule, 'a too-long string is truncated, not spilled').toMatch(
+      /text-overflow:\s*ellipsis/,
+    );
+    expect(rule, 'ellipsis needs a clipping box').toMatch(/overflow:\s*hidden/);
+  });
+
+  it('it can actually shrink — the flex minimum is overridden', () => {
+    // Without min-width:0 a flex item's automatic minimum is its CONTENT size, so the
+    // item never shrinks, the ellipsis never engages, and the row overflows instead.
+    // The declaration above would be present and doing nothing.
+    expect(rule, 'min-width: 0 is what makes the ellipsis reachable').toMatch(
+      /min-width:\s*0/,
+    );
+  });
+});
