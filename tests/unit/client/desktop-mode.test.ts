@@ -445,7 +445,7 @@ describe('the hand card size is declared once and read everywhere', () => {
       decls.map((d) => d.replace(/\s+/g, ' ')),
       'the base phone constant, the narrow floor, and the desktop expression — nothing else',
     ).toEqual([
-      '--gd-handcardw: 48.15px;',
+      '--gd-handcardw: 46.51px;',
       '--gd-handcardw: 44px;',
       '--gd-handcardw: clamp(2.75rem, 13vw, 4.25rem);',
     ]);

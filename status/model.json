@@ -9,18 +9,18 @@
   "constants": [
     {
       "id": "cardW",
-      "value": 48.15,
+      "value": 46.51,
       "unit": "px",
       "what": "The hand card box width below the 720px layout breakpoint. A constant, in a unit the user cannot scale.",
-      "source": { "file": "src/client/app.css", "literal": "--gd-handcardw: 48.15px" },
+      "source": { "file": "src/client/app.css", "literal": "--gd-handcardw: 46.51px" },
       "validated": "cardW"
     },
     {
       "id": "glyphCap",
-      "value": 58,
+      "value": 56,
       "unit": "px",
-      "what": "Ceiling on the card ink basis --gd-glyphw. Above it the corner index and the body pip collide.",
-      "source": { "file": "src/client/app.css", "literal": "min(3.009375rem, 58px)" },
+      "what": "Ceiling on the card ink basis --gd-glyphw. Above it the corner index and the body pip collide. Measured at the 48.15px box as a first escape at 62px and carried to this box at the same ratio, then re-measured.",
+      "source": { "file": "src/client/app.css", "literal": "min(2.906875rem, 56px)" },
       "validated": "glyphCap"
     },
     {
@@ -209,9 +209,9 @@
     }
   ],
   "shipped": {
-    "cardWidthRule": "--gd-cardw: 48.15px below 720px; clamp(2.75rem, 13vw, 4.25rem) at and above it",
-    "glyphRule": "--gd-glyphw: min(3.009375rem, 58px) below 720px; var(--gd-cardw) at and above it",
+    "cardWidthRule": "--gd-handcardw: 44px at and below 332px; 46.51px to 719px; clamp(2.75rem, 13vw, 4.25rem) at and above 720px",
+    "glyphRule": "--gd-handglyphw: min(2.75rem, 53px) at and below 332px; min(2.906875rem, 56px) to 719px; the card width at and above 720px",
     "supportedWidths": [360, 375, 390, 430],
-    "unsupportedBelow": 332.1
+    "unsupportedBelow": 320
   }
 }

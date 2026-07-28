@@ -11,7 +11,7 @@ field, not three different mistakes:
 | the error | the instance | the field that was missing |
 |---|---|---|
 | a **sampled** bound worded as **structural** | `fanHeight <= 465.1px, structural` — it was the maximum of a simulation, and the case it names arrives about 1 deal in 5 billion | status, and the n behind it |
-| a **model tail** used as a **gate** | discriminating 0.08% from 0.74%, two orders of magnitude below the smallest bin any measurement validated | validated-over range |
+| a **model tail** used as a **gate** | discriminating 0.08% from 0.74% at `lacquer`, two orders of magnitude below the smallest bin any measurement validated | validated-over range |
 | a constant measured in **one pinned configuration**, quoted as general | every desk figure before 2026-07-27 was measured in an UNTIMED room while the product default is timed, a difference of 8.0px no gate had varied | configuration |
 
 Each row below therefore carries the field whose absence produced the error. **A row with
@@ -33,8 +33,13 @@ no range is not a validated quantity**; it is a reading.
 
 | id | status | n | configuration | validated over | notes |
 |---|---|---|---|---|---|
-| `cardW` | `definitional` | — | — | widths 360-719 | The shipped constant. Its *consequences* are the rows below. |
-| `glyphCap` | `measured` | 7,668 card renders, 13 of 15 value classes | inner 390x664, lacquer, zh-Hant, root 12-24px | the ink basis 40-110px at cardW 48.15 | First escape at 62px (index/pip collision); 58 ships, 4px of setback. Not re-measured at another card width — the cap is stated for the shipped box only. |
+| `cardW` | `definitional` | — | `lacquer`; theme-independent as a BOX | widths 333-719 | 46.51px. Its *consequences* are the rows below, and they are lacquer's. |
+| the depth floor as a percentile | `modelled` | 200,000 deals | inner 664, `lacquer`, following | per-line capacities 8-10 | K=9 covers 98.2-99.3% of hands, K=10 covers 99.8-99.9%. The spread is over capacity. |
+| span growth tolerated | `modelled` | — | `lacquer`, the reference cell | derived from the band edges | 10.0px at the shipped card. Algebraically `margin(s*, w)`; a robustness measure, never a rate. |
+| cinnabar-court band and rate | `modelled` | 200,000 deals | inner 390x664, **`cinnabar-court`**, following | the model extended by substituting stripW 0.841 | Deepest hand that fits is 6; **51.3% of hands do not fit**. The extension is the same formula with one metric changed, and it is corroborated below. |
+| the theme's own effect | `measured` | 12 deals, same-hand intervention through the picker | inner 390x664, timed, one card staged, sort ascending | that cell | Panel span +59 to +118px; **6 of 12 deals feasible -> infeasible**; control drift 0px on 12/12. Against 51.3% modelled — two methods at one configuration. |
+| the 95.8% cinnabar fold figure | `measured`, **not comparable** | 24 deals | inner 390x**844** — a height this project later declared VOID — and the fold metric, not the span metric | nothing current | It corroborates the DIRECTION and no number. It is not withdrawn (it was true of what it measured); it is scoped, and this row is the scope. |
+| `glyphCap` | `measured` | 3,834 card renders at the shipped box, 7,668 at the previous one | inner 390x664, `lacquer`, zh-Hant, root 12-24px | the ink basis 40-110px | First escape 60px at the 46.51 box and 62px at 48.15 — the clip point scales with the box as assumed (ratio 0.968 against 0.966). 56px ships, 4px of setback, the same margin as before. |
 | `aspect` | `definitional` | — | all themes | all | CSS declares 1.45. The scripts carry 1.44970; see MODEL's disagreement note. |
 | `stripW` | `definitional` | — | **lacquer only** | lacquer | cinnabar-court is 0.841. Every span figure in this model is a lacquer figure. |
 | `fanChrome`, `fanRowGap` | `measured` | — | inner 390 wide, lacquer | not re-measured at another width | Not card-scaled (F5a). |
@@ -85,7 +90,9 @@ declaration. See METHODOLOGY practice 34.
 
 - **The elder-legibility question.** No session has been run. Nothing in this file says the
   shipped card is legible to anyone; it says what it costs in pixels. See `CURRENT.md`.
-- **Any figure at a deck theme other than lacquer.** `stripW` differs by a factor of two.
+- **Any figure at a deck theme other than `lacquer`**, except the two cinnabar-court rows
+  above. `stripW` differs by a factor of two and it multiplies into the lattice step, so
+  nothing else in this file transfers.
 - **Any figure at a root font-size other than the default**, except `glyphCap`, which is
   the one row measured across a ramp:
 

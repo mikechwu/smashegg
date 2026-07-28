@@ -109,12 +109,13 @@
      --gd-handcardw  the BOX. A constant below the layout breakpoint, in a unit the
                      user cannot scale, so text scaling cannot change whether the
                      hand FITS. See src/client/table/table.css for why a clamp
-                     cannot express the answer.
+                     cannot express the answer, and why 46.51 rather than the
+                     48.15 round J0 first shipped.
      --gd-handglyphw the INK basis, which does still track the root font-size, up to
                      a measured cap. Above the breakpoint both revert to the
                      rem-based expression this project has always shipped. */
-  --gd-handcardw: 48.15px;
-  --gd-handglyphw: min(3.009375rem, 58px);
+  --gd-handcardw: 46.51px;
+  --gd-handglyphw: min(2.906875rem, 56px);
 }
 
 /* THE NARROW FLOOR (round K2). Below the crossover a 48.15px card fits only 7 columns a

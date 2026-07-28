@@ -14,8 +14,8 @@ Inner **390 x 664**. The cell every span figure in this model is stated at: inne
 
 | id | value | what | source |
 |---|---|---|---|
-| `cardW` | 48.15 px | The hand card box width below the 720px layout breakpoint. A constant, in a unit the user cannot scale. | `src/client/app.css` — `--gd-handcardw: 48.15px` |
-| `glyphCap` | 58 px | Ceiling on the card ink basis --gd-glyphw. Above it the corner index and the body pip collide. | `src/client/app.css` — `min(3.009375rem, 58px)` |
+| `cardW` | 46.51 px | The hand card box width below the 720px layout breakpoint. A constant, in a unit the user cannot scale. | `src/client/app.css` — `--gd-handcardw: 46.51px` |
+| `glyphCap` | 56 px | Ceiling on the card ink basis --gd-glyphw. Above it the corner index and the body pip collide. Measured at the 48.15px box as a first escape at 62px and carried to this box at the same ratio, then re-measured. | `src/client/app.css` — `min(2.906875rem, 56px)` |
 | `aspect` | 1.45 ratio | Card height as a multiple of card width. | `src/client/table/table.css` — `calc(var(--gd-cardw) * 1.45)` |
 | `stripW` | 0.42 fraction of cardW | Visible top-edge fraction of each non-base card in a stack — the lattice step is stripW x cardW. | `src/client/table/themes/lacquer.tsx` — `stackStripW: 0.42` |
 | `fanChrome` | 13.9 px | The fan's own padding. Not card-scaled. | `scripts/cardw-gate.mjs` — `CHROME = 13.9` |
@@ -122,7 +122,7 @@ Card width at which depth-s hands stop fitting. These roots make the qualifying 
 
 ## What ships
 
-- **cardWidthRule**: --gd-cardw: 48.15px below 720px; clamp(2.75rem, 13vw, 4.25rem) at and above it
-- **glyphRule**: --gd-glyphw: min(3.009375rem, 58px) below 720px; var(--gd-cardw) at and above it
+- **cardWidthRule**: --gd-handcardw: 44px at and below 332px; 46.51px to 719px; clamp(2.75rem, 13vw, 4.25rem) at and above 720px
+- **glyphRule**: --gd-handglyphw: min(2.75rem, 53px) at and below 332px; min(2.906875rem, 56px) to 719px; the card width at and above 720px
 - **supportedWidths**: 360, 375, 390, 430
-- **unsupportedBelow**: 332.1
+- **unsupportedBelow**: 320

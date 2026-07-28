@@ -391,7 +391,7 @@ describe('390 worst-case fit pin (CSS-token)', () => {
     const visibleFraction = 1 - pitchFactor;
 
     const viewport = 390;
-    expect(operativeWidth).toBe(48.15);
+    expect(operativeWidth).toBe(46.51);
     expect(visibleFraction).toBeCloseTo(0.7, 10);
 
     // The real available content width at the table screen is NOT just

@@ -1,23 +1,25 @@
-// J0c — THE CARD CONSTANT'S OWN EFFECT ON SIMULTANEITY, BY INTERVENTION.
+// L1 — THE SECOND DECK THEME'S OWN EFFECT ON SIMULTANEITY, BY INTERVENTION.
 //
-// WHY NOT A BEFORE/AFTER SWEEP. Because that is exactly how the previous round produced a
-// withdrawn headline. F5b compared a recorded before-sample against a fresh after-sample
-// and attributed the difference to a 5px fix; the difference was 21.3px, one lattice step,
-// and the whole of it was the new sample's worst hand landing one bin shallower. The fix's
-// own effect on the same hand was 0px on 12 of 12. Practice 31 is the rule that came out of
-// it: a causal claim stays a hypothesis until the CAUSE is intervened on.
+// WHY AN INTERVENTION AND NOT TWO SWEEPS. A theme-vs-theme comparison across two separate
+// runs is confounded by the state each run happened to land in: K is 198.6px when the trick
+// well renders and 66.0px when the viewer leads, so a 132.5px difference in the mix of
+// lead and follow turns swamps the effect being measured. A first attempt at this comparison
+// did exactly that — two 14-deal runs, cinnabar's spans 60-100px larger as predicted, and
+// the panel profile fitting in BOTH arms because the deals were a mix of states. That run
+// tests nothing about the model's following-state rate.
 //
-// So this measures the same page, the same deal, the same scroll state, with only
-// `--gd-cardw` toggled between the value today's clamp produces at this width and the
-// shipped constant. Everything a fresh sample would vary is held: the hand, the trick, the
-// staged card, the shelf, the timing, the seat.
+// So: same page, same deal, same scroll state, same turn. Only the deck theme is toggled,
+// and it is toggled THROUGH THE PICKER the player uses, so the arms differ by exactly the
+// action a player takes.
 //
-// THE SPAN IS THE SAME QUANTITY THE G-SIM GATE REPORTS — the union document extent of a
-// profile's must-see facts, from simultaneity.mjs, so this is not a second definition of
-// the thing being improved.
+// WHAT THIS MEASURES. `stackStripW` is a per-theme metric: lacquer leaves 0.42 of each
+// covered card visible in a stacked column, cinnabar-court 0.841. It multiplies into the
+// lattice step, so the model predicts cinnabar's fan grows about twice as fast with depth
+// and that its band edges sit at a far smaller card. This is the check on whether the model
+// extends to the second theme at all.
 //
 // Run: dev server up, then
-//   IC_W=390 IC_H=664 node scripts/intervene-cardw.mjs
+//   IC_W=390 IC_H=664 node scripts/intervene-theme.mjs
 
 import { PROFILES, SIMULTANEITY_PROBE, spanFor } from './simultaneity.mjs';
 
@@ -33,19 +35,17 @@ if (process.env.IC_W === undefined || process.env.IC_H === undefined) {
 const VW = Number(process.env.IC_W);
 const VH = Number(process.env.IC_H);
 const DEALS = Number(process.env.IC_DEALS ?? 12);
-const THEME = process.env.IC_THEME ?? 'lacquer';
 const LOCALE = process.env.IC_LOCALE ?? 'zh-Hant';
-// The counterfactual: what today's clamp `clamp(2.75rem, 13vw, 4.25rem)` yields at this
-// width and root 16px. Computed rather than passed, so the comparison cannot be pointed at
-// a card size the old rule never produced here.
-const BEFORE = Math.min(68, Math.max(44, 0.13 * VW));
+// The two arms: theme ids, switched through the header picker.
+const FROM = process.env.IC_FROM ?? 'lacquer';
+const TO = process.env.IC_TO ?? 'cinnabar-court';
 
 const { chromium } = await import('playwright');
 
 export const AXES_PINNED = {
   viewportWidth: { value: 'IC_W (required)' },
   viewportHeight: { value: 'IC_H (required)' },
-  deckTheme: { value: 'IC_THEME, default lacquer' },
+  deckTheme: { value: 'INTERVENED — this is the axis under measurement' },
   locale: { value: 'IC_LOCALE, default zh-Hant' },
   roomTiming: { value: 'standard 45s/90s (the product default)' },
   shelf: { value: 'none' },
@@ -102,11 +102,10 @@ const DRIVER = `async (input) => {
 }`;
 
 const browser = await chromium.launch();
-console.log(`=== J0c CARD-CONSTANT INTERVENTION @ INNER ${VW}x${VH} (${THEME}, ${LOCALE}, timed) ===`);
+console.log(`=== L1 DECK-THEME INTERVENTION @ INNER ${VW}x${VH} (${LOCALE}, timed) ===`);
 console.log(
-  `    BEFORE: --gd-cardw ${BEFORE.toFixed(2)}px, what clamp(2.75rem, 13vw, 4.25rem) yields here.\n` +
-    `    AFTER:  the shipped rule, unmodified.\n` +
-    `    Same page, same deal, same scroll state; only the card width is intervened on.\n`,
+  `    BEFORE: deck theme ${FROM}.\n    AFTER:  deck theme ${TO}, selected through the header picker.\n` +
+    `    Same page, same deal, same scroll state, same turn; only the theme is intervened on.\n`,
 );
 
 const rows = [];
@@ -129,7 +128,7 @@ for (let deal = 0; deal < DEALS; deal += 1) {
     localStorage.setItem('locale', seed.locale);
     localStorage.setItem('pref:deckTheme', seed.theme);
     localStorage.setItem('room:' + seed.code, JSON.stringify({ tokens: [seed.tokens[0]], lastSeenSeq: seed.lastSeq }));
-  }, { ...drive, theme: THEME, locale: LOCALE });
+  }, { ...drive, theme: FROM, locale: LOCALE });
   const p = await ctxB.newPage();
   await p.goto(`${BASE}/#/room/${drive.code}`, { waitUntil: 'networkidle' });
   await p.waitForFunction(() => document.querySelectorAll('.gd-fan__card').length >= 20, null, { timeout: 60000 });
@@ -150,25 +149,18 @@ for (let deal = 0; deal < DEALS; deal += 1) {
   if (staged === 'joker') jokerStagedRuns += 1;
   await p.waitForTimeout(220);
 
-  const arm = async (cardw) => {
-    await p.evaluate((w) => {
-      let style = document.getElementById('ic-arm');
-      if (style === null) {
-        style = document.createElement('style');
-        style.id = 'ic-arm';
-        document.head.appendChild(style);
-      }
-      // DRIVE THE SHARED TOKEN, NOT THE CARD RULE. The card's width reaches NINE sites —
-      // the box, the seat stack, the cut ribbon, the fan overlap, the column pitch, the
-      // shelf — and they read one --gd-handcardw declaration. Overriding --gd-cardw on
-      // .gd-card--hand alone would resize the BOXES while leaving every overlap computed
-      // from the other value, which is a layout that ships nowhere and a delta that
-      // measures nothing. (This is not hypothetical: an earlier version of this script did
-      // exactly that, and its numbers were discarded.)
-      // The BOX only: the ink basis is left alone, since it is a separate capped quantity.
-      style.textContent = w === null ? '' : `:root { --gd-handcardw: ${w}px !important; }`;
-    }, cardw);
-    await p.waitForTimeout(260);
+  const arm = async (themeId) => {
+    // Switch through the PICKER, not by writing localStorage and reloading: a reload loses
+    // the hand, and the hand is the thing being held fixed.
+    const ok = await p.evaluate((id) => {
+      const sel = document.querySelector('select.app-themeSelect');
+      if (sel === null) return 'no picker';
+      sel.value = id;
+      sel.dispatchEvent(new Event('change', { bubbles: true }));
+      return sel.value === id ? 'ok' : 'value did not take';
+    }, themeId);
+    if (ok !== 'ok') throw new Error(`theme switch failed: ${ok}`);
+    await p.waitForTimeout(320);
     const s = await p.evaluate(`(${SIMULTANEITY_PROBE})({})`);
     // spanFor returns a RECORD, not a number. Take .span (the union document extent) and
     // .deficit (span minus innerH — negative is slack) explicitly, so the arithmetic below
@@ -183,13 +175,9 @@ for (let deal = 0; deal < DEALS; deal += 1) {
   // hysteresis — a layout that does not fully settle, an animation, a scroll the probe
   // itself provoked — the two BEFORE readings will differ, and a delta smaller than that
   // drift is not a measurement of anything.
-  const before = await arm(BEFORE);
-  const after = await arm(null);
-  const beforeAgain = await arm(BEFORE);
-  await p.evaluate(() => {
-    const s = document.getElementById('ic-arm');
-    if (s !== null) s.remove();
-  });
+  const before = await arm(FROM);
+  const after = await arm(TO);
+  const beforeAgain = await arm(FROM);
 
   const drift = Math.abs(beforeAgain.panel - before.panel);
   rows.push({
@@ -262,7 +250,7 @@ console.log(`  worst control drift (BEFORE re-measured): ${worstDrift}px`);
 // effect-versus-drift test would print "the page does not settle tightly enough", which is
 // a diagnosis of the wrong thing: the delta is zero because nothing was changed, and a
 // nonzero delta here would mean the media query is not doing what it claims.
-const noIntervention = VW >= 720;
+const noIntervention = false;
 if (noIntervention) {
   const nonzero = rows.filter((r) => r.deltaPanel !== 0);
   console.log(

@@ -88,7 +88,6 @@ const FIGURE = /(\d+(?:\.\d+)?)\s*(px|%)/g;
  *  absorbed. Five on the first entry is the expected friction. */
 const ALLOWED: Record<string, string> = {
   '0.1px': "the kMinusCard decomposition residual — a property OF the table, not a row in it",
-  '0%': 'a rate of 0, used rhetorically',
   '0.04px': "rowChrome's calibration residual across four widths, reported in prose only",
 };
 
@@ -101,11 +100,12 @@ const ALLOWED: Record<string, string> = {
 // Re-aiming the scanner at status/CURRENT.md and status/VALIDATED.md dropped fourteen of
 // the seventeen, because those two files are structurally tabular: CURRENT states decisions
 // with their numbers in tables, and VALIDATED is one row per quantity by construction. The
-// three that remain are all the same shape — a property OF a table rather than a row IN one.
+// three that remain are all the same shape — a property OF a table rather than a row IN one,
+// and round L0-L2 shed one more as the documents got more tabular still.
 //
 // That is worth recording as evidence about the rule, not just about the list. The friction
 // was never the rule being too broad; it was the rule being pointed at a document whose
-// FORM was narrative. The ceiling is now 3.
+// FORM was narrative. The ceiling is now 2.
 
 describe('a figure in prose is backed by a table in the same section', () => {
   const all = sections();
@@ -117,7 +117,7 @@ describe('a figure in prose is backed by a table in the same section', () => {
   // not rise: a new exemption has to displace an old one, or the ceiling has to be moved
   // deliberately in a commit that says why.
   it('the allowlist does not grow', () => {
-    const CEILING = 3;
+    const CEILING = 2;
     expect(
       Object.keys(ALLOWED).length,
       `the prose-figure allowlist has ${Object.keys(ALLOWED).length} entries against a ` +
@@ -154,6 +154,33 @@ describe('a figure in prose is backed by a table in the same section', () => {
 
   it('finds more than one section, so the sectioning is real', () => {
     expect(all.length, 'the live surfaces split into sections').toBeGreaterThanOrEqual(6);
+  });
+
+  // L1: A RATE WITHOUT A THEME IS A RATE WITHOUT ITS CONFIGURATION.
+  //
+  // Every span, threshold, margin and rate figure in this arc is a LACQUER figure, because
+  // `stackStripW` is a per-theme metric and the second shipping theme's is 0.841 against
+  // lacquer's 0.42 — which roughly doubles the lattice step and moves every band edge. The
+  // arc reported "zero regressions at any width" with a width qualifier and no theme
+  // qualifier for eleven rounds, while the other theme sat one tap away in the header.
+  //
+  // Card WIDTHS are theme-independent and are not required to carry one; RATES are not. So
+  // the rule is scoped to percentages, which is where the omission actually misleads.
+  it('every section quoting a rate names the theme it is a rate for', () => {
+    const missing: string[] = [];
+    for (const sec of all) {
+      // A percentage that is part of a CSS value or a viewport-zoom level is not a rate.
+      const rates = [...sec.text.matchAll(/(\d+(?:\.\d+)?)\s*%/g)].map((m) => m[0]);
+      if (rates.length === 0) continue;
+      if (/lacquer|cinnabar|theme/i.test(sec.text)) continue;
+      missing.push(`${sec.label} (${rates.slice(0, 4).join(', ')})`);
+    }
+    expect(
+      missing,
+      `these sections quote rates with no theme named:\n  ${missing.join('\n  ')}\n` +
+        'Every rate in this model is a per-theme figure. Name the theme, or say that the ' +
+        'quantity is theme-independent and why.',
+    ).toEqual([]);
   });
 
   it('every px/% figure in prose also appears in a table IN THE SAME SECTION', () => {
