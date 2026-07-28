@@ -47,12 +47,33 @@ const K_FOLLOW = 198.6;
 const INNER_H = 664;
 const BASE_CARDW = 50.7;
 const BASE_CARDH = 73.5;
-const BASE_DESK = 156.5; // timed + staged
+// D1: deskH IS NOT CONSTANT, AND `<= 156.5 structural` WAS WRONG.
+// The staged card row is 78.5px when the staged card is a JOKER and 73.5px otherwise —
+// a joker face is 5px taller than a normal one, i.e. its own aspect is 1.548 against
+// the 1.45 every other card uses. The player chooses what to stage, so this is
+// CONTENT-dependent (practice 18) and the term needs a proved worst case, not a mean.
+// P(a 27-card hand contains at least one joker) = 69.0%, which is exactly the 16/23
+// split the held-out run saw; that run staged cards[0], which under descending is the
+// highest class and therefore a joker whenever the hand has one.
+const JOKER_ASPECT = 78.5 / 50.7; // 1.548
+const CARD_ASPECT = 73.5 / 50.7; // 1.4497
+const DESK_MINUS_STAGE = 156.5 - 73.5; // 83.0, the desk without its staged card row
+const deskFor = (cardW, staged) =>
+  DESK_MINUS_STAGE + (staged === 'joker' ? JOKER_ASPECT : CARD_ASPECT) * cardW;
+// D2: the trick well renders `<CardFace size="hand">` (TrickWell.tsx:60,67), so it uses
+// the SAME clamp as the fan and SCALES with the card — measured: well card 50.7x73.5,
+// fan card 50.7x73.5. K therefore has a card-sized term the threshold model never
+// varied: K = (K at 50.7) - cardH(50.7) + cardH(cardW).
+const kFor = (cardW) => 198.6 - 73.5 + CARD_ASPECT * cardW;
+const BASE_DESK = 156.5; // retained for the legacy single-threshold path
 // The stack row's own padding-left is `calc(cardw * 0.3)`, so the CONTENT width grows
 // as the card shrinks. Ignoring that moves the capacity crossover; it is small but it
 // is exactly the term the crossover is sensitive to.
 const BASE_CONTENT = 326.8;
 const contentFor = (cardW) => BASE_CONTENT + (BASE_CARDW - cardW) * 0.3;
+// D3: the recommendation is implemented as a `vw` coefficient, so cardW tracks WIDTH.
+// A plateau computed at 390 alone cannot be implemented as a width-proportional rule.
+const WIDTHS = (process.env.WIDTHS ?? '390').split(',').map(Number);
 
 const CLASS_SIZES = [...Array(12).fill(8), 8, 2, 2];
 
@@ -87,14 +108,16 @@ for (let i = 0; i < SAMPLES; i += 1) {
 
 const DELTAS = [0, 5, 10, 21.3];
 
+// WORST CASE unless told otherwise: a joker staged. The mixture is reported beside it.
+const STAGED = process.env.STAGED ?? 'joker';
 function evaluate(cardW, order = 'ascending') {
   const cardH = ASPECT * cardW;
   const step = STRIP * cardW;
   const pitch = 0.7 * cardW;
   const capacity = Math.floor(contentFor(cardW) / pitch);
   // The desk's staged card row scales with the card too, so the threshold moves.
-  const desk = BASE_DESK - (BASE_CARDH - cardH);
-  const T = INNER_H - desk - K_FOLLOW;
+  const desk = deskFor(cardW, STAGED);
+  const T = INNER_H - desk - kFor(cardW);
   const lineH = (d) => cardH + step * (d - 1);
 
   const hist = new Map();
