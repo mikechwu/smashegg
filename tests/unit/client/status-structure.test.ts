@@ -119,6 +119,67 @@ describe('the round record is append-only', () => {
     }
   });
 
+  // K3: CURRENT.md BROKE ITS OWN CONTRACT ON DAY ONE, which is the drift the folder was
+  // built to prevent, appearing before the first round closed. README's rule was too blunt
+  // ("CURRENT contains no measurement tables") rather than wrong: a decision page that
+  // cannot show what it is choosing between forces a two-file read for the commonest
+  // question. The line now falls between DECISION tables (options against consequences,
+  // which belong here) and MEASUREMENT tables (quantity, n, configuration, validity range,
+  // which belong in VALIDATED). This is the check, because a contract nothing enforces is
+  // how the first one lasted less than a day.
+  const PROVENANCE_COLUMNS = /^(n|configuration|config|validated over|validated|status|sample|deals)$/i;
+
+  it('CURRENT.md carries decision tables, never provenance columns', () => {
+    const lines = readFileSync(`${ROOT}status/CURRENT.md`, 'utf8').split('\n');
+    const offenders: string[] = [];
+    let headers = 0;
+    lines.forEach((line, i) => {
+      const t = line.trim();
+      if (!t.startsWith('|')) return;
+      // A header row is one whose NEXT line is the markdown separator.
+      const next = (lines[i + 1] ?? '').trim();
+      if (!/^\|[\s|:-]+\|$/.test(next)) return;
+      headers += 1;
+      for (const cell of t.split('|').map((c) => c.replace(/\*/g, '').trim())) {
+        if (cell !== '' && PROVENANCE_COLUMNS.test(cell)) {
+          offenders.push(`status/CURRENT.md:${i + 1} column "${cell}"`);
+        }
+      }
+    });
+    expect(headers, 'CURRENT.md has tables to check (not vacuous)').toBeGreaterThanOrEqual(3);
+    expect(
+      offenders,
+      `these look like MEASUREMENT tables and belong in VALIDATED.md:\n  ${offenders.join('\n  ')}\n` +
+        'CURRENT may quote a measured figure; it may not carry how well the figure is known, ' +
+        'because then two files record that and they will disagree.',
+    ).toEqual([]);
+  });
+
+  it('every section of CURRENT.md that carries a table links to the provenance', () => {
+    const src = readFileSync(`${ROOT}status/CURRENT.md`, 'utf8');
+    const lines = src.split('\n');
+    const heads: number[] = [];
+    lines.forEach((l, i) => {
+      if (l.startsWith('## ')) heads.push(i);
+    });
+    const bounds = [0, ...heads, lines.length];
+    const orphans: string[] = [];
+    for (let k = 0; k < bounds.length - 1; k += 1) {
+      const text = lines.slice(bounds[k]!, bounds[k + 1]!).join('\n');
+      if (!/^\|/m.test(text)) continue;
+      if (/VALIDATED\.md|MODEL\.md/.test(text)) continue;
+      // The preamble carries the pointer line for the whole file.
+      if (k === 0) continue;
+      orphans.push((lines[bounds[k]!] ?? 'preamble').slice(0, 70));
+    }
+    expect(
+      orphans,
+      `these sections of CURRENT.md carry a table with no route to its provenance:\n  ` +
+        `${orphans.join('\n  ')}\nLink VALIDATED.md or MODEL.md so the n and the ` +
+        'configuration are one hop away.',
+    ).toEqual([]);
+  });
+
   it('the root STATUS.md is a stub that points into the folder', () => {
     const stub = readFileSync(`${ROOT}STATUS.md`, 'utf8');
     expect(stub.length, 'the stub is short').toBeLessThan(1500);

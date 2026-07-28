@@ -441,3 +441,287 @@ console.log('\n=== J0: EXHAUSTIVE RECONSTRUCTION OF THE CEILING CURVE ===');
   );
   if (!rejected) process.exitCode = 1;
 }
+
+// ---------------------------------------------------------------- K0
+// THE GATE REWARDED THE WORSE OPTION, AND THE MECHANISM IS STRUCTURAL.
+//
+// `margin(s, w) = 436.0 - c(s)*w` is linear in w with a per-s coefficient, so the MARGINAL
+// BIN is a step function of the CARD ALONE — the viewport width does not appear. Growing
+// the card past a band edge pushes the marginal bin down one index, and that does two
+// things at once:
+//
+//   it INCREASES the marginal bin's own slack   (the new marginal bin is shallower)
+//   it INCREASES the mass sitting ABOVE it      (more hands are now too deep)
+//
+// `margin` measures the first. `R` measures the second. So over a band boundary they are
+// not merely loosely coupled, they are ANTI-CORRELATED, and a gate built on `margin >= 10`
+// prefers the larger card precisely because it made things worse. At width 360 the previous
+// card (46.80) FAILS the floor at 7.37px with R(0) 0.15% modelled, while the card that
+// shipped (48.15) PASSES at 15.23px with R(0) 1.78% modelled — twelve times the rate.
+//
+// `margin(s = LAST_VALIDATED_BIN) >= 0` does not catch this: it bounds the EXTREME and says
+// nothing about the gradient, which is why I0 could adopt it and still leave this open.
+//
+// THE FIX IS AN ORDINAL TERM ON THE BIN INDEX, not a probability. `marginal bin >= 10` is
+// pure geometry, width-independent, needs no threshold on a model tail, and refers only to
+// bins the held-out test validated (expected count >= 5, up to s = 9). It is the same move
+// I0 made for the validated-bin term: state it as an index rather than as a rate.
+const MIN_MARGINAL_BIN = Number(process.env.MIN_MARGINAL_BIN ?? 10);
+const bandCeiling = (bin) => 436.0 / (4 * ASPECT + STRIP * (bin - 2));
+
+console.log('\n=== K0: THE MARGINAL BIN IS A STEP FUNCTION OF THE CARD ALONE ===');
+console.log('  marginal bin   card-width band          R(0) at that bin, modelled');
+for (let bin = 12; bin >= 7; bin -= 1) {
+  const hi = bandCeiling(bin);
+  const lo = bandCeiling(bin + 1);
+  console.log(
+    `  ${String(bin).padStart(12)}   ${lo.toFixed(2)} < w <= ${hi.toFixed(2)}` +
+      `${bin >= MIN_MARGINAL_BIN ? '   <- admitted by the bin term' : ''}`,
+  );
+}
+console.log(
+  `\n  gate term: marginal bin >= ${MIN_MARGINAL_BIN}, i.e. w <= ${bandCeiling(MIN_MARGINAL_BIN).toFixed(2)}px.`,
+);
+
+console.log('\n=== K0: THE INVERSION, AT WIDTH 360 ===');
+console.log('  cardW   marginal bin   margin   margin >= 10?   R(0) modelled (recorded)');
+for (const [w, r] of [[46.8, '0.15%'], [48.15, '1.78%']]) {
+  const mb = marginalBin(360, w);
+  console.log(
+    `  ${w.toFixed(2)}   ${String(mb.s).padStart(12)}   ${mb.margin.toFixed(2).padStart(6)}   ` +
+      `${(mb.margin >= 10 ? 'PASSES' : 'FAILS').padStart(13)}   ${r}`,
+  );
+}
+console.log(
+  '  The gate passes the card with 12x the failure rate and fails the other. That is the\n' +
+    '  defect, and it is not a tuning problem: no threshold on the marginal bin\'s own slack\n' +
+    '  can order these two correctly, because the quantity moves the wrong way.',
+);
+
+// ---------------------------------------------------------------- K1
+// THE CANDIDATE BAND, ONCE A FLOOR SERVES THE NARROW WIDTHS.
+//
+// K2 puts a 44px floor below 332px, which is exactly what ships at 320 today. That removes
+// `capacity >= 8 at 320` from the constant's constraints — the constant no longer has to
+// serve 320 — and the smallest width it must serve becomes 333. So the binding term inside
+// band 10 changes, and it is worth recomputing rather than carrying 46.10 forward: 46.10
+// was chosen as the 320 capacity ceiling, and that is no longer what binds.
+const FLOOR_BELOW = Number(process.env.FLOOR_BELOW ?? 332);
+const CONSTANT_WIDTHS = WIDTHS.filter((W) => W > FLOOR_BELOW);
+const SMALLEST_CONSTANT_WIDTH = FLOOR_BELOW + 1;
+
+console.log('\n=== K1: THE ADMITTED SET, WITH A FLOOR BELOW ' + FLOOR_BELOW + 'px ===');
+{
+  const bandLo = bandCeiling(MIN_MARGINAL_BIN + 1);
+  const bandHi = bandCeiling(MIN_MARGINAL_BIN);
+  const capHi = (SMALLEST_CONSTANT_WIDTH - ROW_CHROME) / 5.9;
+  console.log(
+    `  band ${MIN_MARGINAL_BIN}:            ${bandLo.toFixed(2)} < w <= ${bandHi.toFixed(2)}\n` +
+      `  capacity >= 8 at ${SMALLEST_CONSTANT_WIDTH}:  w <= ${capHi.toFixed(2)}\n` +
+      `  => the BAND binds${capHi > bandHi ? '' : ' — NO, capacity binds; re-read this'}, so the admitted set is ` +
+      `(${bandLo.toFixed(2)}, ${bandHi.toFixed(2)}]`,
+  );
+
+  // TWO SETBACKS, KEPT APART (I1). A tooth boundary is a FEASIBILITY cliff: a bin stops
+  // fitting and the failure rate steps. A capacity crossing at cap >= 8 only changes the
+  // line SPLIT, which moves the distribution without ever changing pass/fail. Minimising
+  // over both together would let a benign split change veto the feasibility-optimal point.
+  const teeth = [];
+  for (let s = 3; s <= 16; s += 1) {
+    const w = bandCeiling(s);
+    if (w > FLOOR - 6 && w < CEIL + 6) teeth.push({ w, s });
+  }
+  const splits = [];
+  for (const W of CONSTANT_WIDTHS.concat([SMALLEST_CONSTANT_WIDTH])) {
+    for (let k = 6; k <= 20; k += 1) {
+      const w = (W - ROW_CHROME) / (0.7 * k + 0.3);
+      if (w > FLOOR - 6 && w < CEIL + 6) splits.push({ w, W, k });
+    }
+  }
+  const nearest = (list, w) => list.reduce((a, b) => (Math.abs(b.w - w) < Math.abs(a.w - w) ? b : a));
+
+  console.log('\n  cardW   feasibility setback   split setback   nearest split   vs today at 390');
+  let best = null;
+  for (let w = Math.ceil(bandLo * 100) / 100; w <= bandHi; w = Math.round((w + 0.01) * 100) / 100) {
+    const f = Math.min(Math.abs(w - bandLo), Math.abs(w - bandHi));
+    const sp = Math.abs(nearest(splits, w).w - w);
+    if (best === null || f > best.f || (Math.abs(f - best.f) < 0.005 && sp > best.sp)) best = { w, f, sp };
+  }
+  for (const w of [46.1, 46.3, best.w, 46.8, 47.0, 47.6]) {
+    const f = Math.min(Math.abs(w - bandLo), Math.abs(w - bandHi));
+    const n = nearest(splits, w);
+    console.log(
+      `  ${w.toFixed(2)}   ${f.toFixed(2).padStart(19)}   ${Math.abs(n.w - w).toFixed(2).padStart(13)}   ` +
+        `${n.w.toFixed(2)} (cap ${n.k} at ${n.W})   ${(((w - 50.7) / 50.7) * 100).toFixed(1)}%` +
+        `${Math.abs(w - best.w) < 0.005 ? '   <- feasibility-optimal' : ''}`,
+    );
+  }
+  console.log(
+    `\n  The feasibility-optimal point in the band is the MIDPOINT ${best.w.toFixed(2)}px, ` +
+      `${best.f.toFixed(2)}px from either cliff.\n` +
+      `  46.10 sits ${(46.1 - bandLo).toFixed(2)}px from the lower cliff because it was chosen as the ` +
+      `320 capacity ceiling,\n  which under a floor is no longer a constraint on it.`,
+  );
+}
+
+// PRACTICE 33: the band edges are closed-form, so they get an independent reconstruction
+// that shares no algebra — walk w and read the marginal bin off the same marginalBin()
+// the gate uses, emitting the edges from where the INDEX actually changes.
+console.log('\n=== K1: EXHAUSTIVE RECONSTRUCTION OF THE BAND EDGES ===');
+{
+  let prev = null;
+  const observed = [];
+  for (let w = FLOOR; w <= 56; w = Math.round((w + 0.01) * 100) / 100) {
+    const s = marginalBin(390, w).s;
+    if (prev !== null && s !== prev) observed.push({ w: Math.round(w * 100) / 100, from: prev, to: s });
+    prev = s;
+  }
+  let bad = 0;
+  for (const o of observed) {
+    const closed = bandCeiling(o.from);
+    const agree = Math.abs(closed - o.w) <= 0.011;
+    if (!agree) bad += 1;
+    console.log(
+      `  bin ${o.from} -> ${o.to} at w = ${o.w.toFixed(2)}   closed form ${closed.toFixed(4)}   ` +
+        `${agree ? 'AGREE' : 'DISAGREE'}`,
+    );
+  }
+  if (observed.length === 0) {
+    console.log('  NO BAND EDGE OBSERVED — the reconstruction examined nothing.');
+    process.exitCode = 1;
+  }
+  if (bad > 0) process.exitCode = 1;
+  const bogus = 436.0 / (4 * ASPECT + 0.43 * (10 - 2));
+  const rejected = !observed.some((o) => Math.abs(o.w - bogus) <= 0.011);
+  console.log(
+    `  (non-vacuity: ${observed.length} edges observed; a deliberately wrong strip 0.43 predicts ` +
+      `${bogus.toFixed(2)} and is ${rejected ? 'REJECTED' : 'ACCEPTED — THE CHECK IS BLIND'})`,
+  );
+  if (!rejected) process.exitCode = 1;
+}
+
+// ---------------------------------------------------------------- K0, REFORMULATED
+// THE VERTICAL TERM IS REPLACED, NOT SUPPLEMENTED.
+//
+// The first draft of this round added `marginal bin >= 10` alongside the existing
+// `margin(marginal bin) >= 10px`. Grok's review (docs/research/proposals/gate-monotonicity-
+// grok.md) rejected the composition, and it is right on two counts:
+//
+//   1. STACKING MASKS THE BUG FOR ONE PAIR AND LEAVES THE REWARD STRUCTURE INTACT. Inside
+//      every band the bin floor still admits, the floating term still prefers early position
+//      in a band (just dropped a bin, ~20px of fresh slack) over late position in a better
+//      one. The composition fixes the 46.80/48.15 comparison and nothing general.
+//
+//   2. COMPARING THE TWO MARGINS IS A UNIT ERROR. 15.23px and 7.37px are the slacks of
+//      DIFFERENT HANDS — an s=9 hand and an s=10 hand. Reading one as "safer" than the other
+//      is comparing a surplus on one part against a surplus on a different part.
+//
+// AND A THIRD, WHICH IS THIS PROJECT'S OWN ERROR CLASS. `margin(s*, w) >= 10` is a ONE-SIDED
+// setback: within a band it constrains only the distance to the tooth ABOVE (as w grows the
+// margin falls to zero at the tooth), and says nothing about the tooth below. H0a diagnosed
+// exactly this shape in the discontinuity scan and fixed it there; the same defect sat in
+// the gate's own vertical term and survived because a one-sided constraint still reads as a
+// number that gets larger when things get better.
+//
+// THE REPLACEMENT, in three terms that measure three different things:
+//
+//   DEPTH FLOOR      margin(K, w) >= 0 for a FIXED K — "depth-K hands must fit".
+//   SETBACK          distance IN CARD WIDTH to the tooth ABOVE >= eps.
+//   CAPACITY FLOOR   capacity(W, w) >= 8 at every supported width.
+//
+// AND THE SETBACK IS DIRECTIONAL, WHICH IS A CORRECTION TO H0a RATHER THAN A RETREAT FROM
+// IT. H0a made setback two-sided because a one-sided figure hides the cliff you are standing
+// next to. That is right when both neighbours are hazards. Here they are not: teeth are
+// ordered in w, and the bin index DECREASES as w grows, so crossing the tooth ABOVE loses a
+// depth bin (worse) while crossing the one BELOW gains one (better). A two-sided minimum
+// therefore fails a card for being close to an improvement — it rejected the 44.00px floor
+// value, which ships today, for sitting 0.39px above a tooth it would be harmless to cross.
+// Both distances are reported; only the degrading one gates.
+//
+// K IS A PRODUCT POLICY AND MUST BE WRITTEN AS ONE. The held-out test validated bins with
+// expected count >= 5, i.e. s <= 9; that earns K = 9 (I0's term) and does NOT earn K = 10.
+// Requiring depth-10 hands to fit is a stricter product claim — "this depth is in scope" —
+// and the honest sentence is that the owner chose it, not that validation forced it. Writing
+// it the other way would be the precision claim H1 removed, respelled.
+const DEPTH_FLOOR = Number(process.env.DEPTH_FLOOR ?? 10);
+const MIN_TOOTH_SETBACK = Number(process.env.MIN_TOOTH_SETBACK ?? 0.5);
+
+console.log('\n=== K0 REFORMULATED: THE GATE, WITH THE FLOATING TERM REMOVED ===');
+console.log(
+  `  1. depth floor    margin(K=${DEPTH_FLOOR}, w) >= 0        (product policy; the holdout earns K=${LAST_VALIDATED_BIN})\n` +
+    `  2. tooth setback  in cardW, to the DEGRADING side only, >= ${MIN_TOOTH_SETBACK}px\n` +
+    `  3. capacity       >= 8 at every supported width\n` +
+    `  R is CONTEXT, reported stratified by capacity, and gates nothing.\n`,
+);
+{
+  const toothAt = (s) => 436.0 / (4 * ASPECT + STRIP * (s - 2));
+  const teeth = [];
+  for (let s = 3; s <= 16; s += 1) {
+    const w = toothAt(s);
+    if (w > FLOOR - 6 && w < CEIL + 6) teeth.push({ w, s });
+  }
+  const above = (w) => teeth.filter((t) => t.w > w).reduce((a, b) => (b.w < a.w ? b : a), { w: Infinity });
+  const below = (w) => teeth.filter((t) => t.w <= w).reduce((a, b) => (b.w > a.w ? b : a), { w: -Infinity });
+  const degradeSetback = (w) => above(w).w - w;
+  const improveSetback = (w) => w - below(w).w;
+  const capOk = (w) =>
+    CONSTANT_WIDTHS.concat([SMALLEST_CONSTANT_WIDTH]).every((W) => capacityFor(W, w) >= 8);
+  const passes = (w) =>
+    marginFor(DEPTH_FLOOR, w) >= 0 && degradeSetback(w) >= MIN_TOOTH_SETBACK && capOk(w);
+
+  console.log('  cardW   depth floor   setback UP (gates)   setback down   capacity   VERDICT');
+  for (const w of [44.0, 46.1, 46.51, 46.56, 46.8, 47.1, 47.6, 48.15, 50.7]) {
+    const d = marginFor(DEPTH_FLOOR, w) >= 0;
+    const up = degradeSetback(w);
+    console.log(
+      `  ${w.toFixed(2)}   ${(d ? 'pass' : 'FAIL').padStart(11)}   ${up.toFixed(2).padStart(18)}` +
+        `${up >= MIN_TOOTH_SETBACK ? ' ' : '!'}   ${improveSetback(w).toFixed(2).padStart(12)}   ` +
+        `${(capOk(w) ? 'pass' : 'FAIL').padStart(8)}   ${passes(w) ? 'PASS' : 'FAIL'}`,
+    );
+  }
+
+  let lo = null;
+  let hi = null;
+  for (let w = FLOOR; w <= 56; w = Math.round((w + 0.01) * 100) / 100) {
+    if (!passes(w)) continue;
+    if (lo === null) lo = w;
+    hi = w;
+  }
+  console.log(
+    `\n  admitted: [${lo === null ? '-' : lo.toFixed(2)}, ${hi === null ? '-' : hi.toFixed(2)}]` +
+      ` (scanned from the old rem floor ${FLOOR}px up).\n` +
+      `  R IS NOT FLAT ACROSS THIS SET — it spans marginal bins ${marginalBin(390, hi).s} to ` +
+      `${marginalBin(390, lo).s}, and a smaller card is strictly better on R. The depth floor\n` +
+      `  guarantees only that depth ${DEPTH_FLOOR} fits. Within ONE band R is flat, so the trade at the\n` +
+      `  top of the set is CARD SIZE against SETBACK to the degrading cliff at ${above(46).w.toFixed(2)}px:`,
+  );
+  console.log('\n  cardW   setback up   vs today at 390   note');
+  for (const w of [46.1, 46.51, 46.56, 47.0, 47.1]) {
+    const note =
+      Math.abs(w - 46.1) < 0.005
+        ? "the J0 pick — chosen as 320's capacity ceiling, which a floor removes"
+        : Math.abs(w - 46.51) < 0.005
+          ? 'keeps exactly the tolerance the old 10px vertical floor bought'
+          : Math.abs(w - 47.1) < 0.005
+            ? `largest card meeting the ${MIN_TOOTH_SETBACK}px term`
+            : '';
+    console.log(
+      `  ${w.toFixed(2)}   ${degradeSetback(w).toFixed(2).padStart(10)}   ` +
+        `${(((w - 50.7) / 50.7) * 100).toFixed(1).padStart(15)}%   ${note}`,
+    );
+  }
+  console.log(
+    `\n  The old floating floor of ${MIN_MARGIN}px on margin(s*) is, in card width, a setback of ` +
+      `${(above(46).w - (436.0 - MIN_MARGIN) / (4 * ASPECT + STRIP * (DEPTH_FLOOR - 2))).toFixed(2)}px\n` +
+      `  below the tooth — the same tolerance, stated in the units the choice is made in.`,
+  );
+  console.log(
+    `  the shipped constant 48.15 is ${passes(48.15) ? 'INSIDE' : 'OUTSIDE'} the admitted set — ` +
+      `its depth floor is margin(${DEPTH_FLOOR}, 48.15) = ${marginFor(DEPTH_FLOOR, 48.15).toFixed(2)}px.`,
+  );
+  console.log(
+    '\n  NOTE, so this is not read as a discovery: the term was chosen knowing it excludes the\n' +
+      '  shipped value. That is the point of it — a gate carved to admit whatever shipped last\n' +
+      '  is not a gate. What it is NOT is a validation result; see the K comment above.',
+  );
+}

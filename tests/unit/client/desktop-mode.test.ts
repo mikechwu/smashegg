@@ -434,13 +434,32 @@ describe('the hand card size is declared once and read everywhere', () => {
     expect(uses, 'the nine lockstep sites read the shared token').toHaveLength(9);
   });
 
-  it('the card size is decided in exactly two places: phone and desktop', () => {
+  it('the card size is decided in exactly three places: narrow floor, phone, desktop', () => {
+    // K2 added the narrow floor. The count is pinned deliberately: each declaration is a
+    // REGIME, and a fourth would mean someone had introduced a band without saying so.
+    // Order matters here too — the base declaration must come first or the media queries
+    // cannot override it.
     const app = readFileSync(new URL('../../../src/client/app.css', import.meta.url), 'utf8');
     const decls = app.match(/--gd-handcardw:\s*[^;]+;/g) ?? [];
     expect(
       decls.map((d) => d.replace(/\s+/g, ' ')),
-      'one phone declaration and one desktop declaration, and nothing else',
-    ).toEqual(['--gd-handcardw: 48.15px;', '--gd-handcardw: clamp(2.75rem, 13vw, 4.25rem);']);
+      'the base phone constant, the narrow floor, and the desktop expression — nothing else',
+    ).toEqual([
+      '--gd-handcardw: 48.15px;',
+      '--gd-handcardw: 44px;',
+      '--gd-handcardw: clamp(2.75rem, 13vw, 4.25rem);',
+    ]);
+  });
+
+  it('the narrow floor and the phone constant each carry their own glyph basis', () => {
+    // The cap is sized for the box it sits over. A regime that changes the box and not the
+    // ink renders glyphs at the wrong ratio to their own card — 9.4% oversized at the 44px
+    // floor — on the narrowest screen the game supports, which is the least forgiving place
+    // for it. Pinned so a future regime cannot be added with only half of the pair.
+    const app = readFileSync(new URL('../../../src/client/app.css', import.meta.url), 'utf8');
+    const boxes = app.match(/--gd-handcardw:\s*[^;]+;/g) ?? [];
+    const inks = app.match(/--gd-handglyphw:\s*[^;]+;/g) ?? [];
+    expect(inks.length, 'every card-width regime declares an ink basis too').toBe(boxes.length);
   });
 });
 

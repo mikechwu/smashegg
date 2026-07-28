@@ -1,5 +1,10 @@
 # PLAN — Online Card-Table Platform (first game: Guandan)
 
+> **This is the ARCHITECTURE plan, not a status document.** It records what was signed off
+> and why, and it is still accurate about architecture. It does **not** track what has been
+> built, decided or measured since — its own status line below is from the M0 era and has
+> not moved. For the state of the project read [`status/CURRENT.md`](status/CURRENT.md).
+
 **Status:** SIGNED OFF — rev 2 approved by owner 2026-07-13 (round 3), subject to the rule-default decisions now applied in docs/rules/guandan.md v1.3 (five confirmations + `aFailConsequence=suspendPlayOpponentLevel`). Implementation authorized; M0 in progress. The `aFailConsequence` level-selection module is a tracked pre-M3 item (lands with M1 engine work), not an M0 blocker.
 **Date:** 2026-07-13
 **Supporting research (verified against official docs / actual files on 2026-07-13):**

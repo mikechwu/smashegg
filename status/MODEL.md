@@ -27,6 +27,9 @@ Inner **390 x 664**. The cell every span figure in this model is stated at: inne
 | `maxValueClasses` | 15 count | 12 non-level natural ranks + the level class + small joker + big joker. A class present in the hand is exactly one fan column. | `scripts/cardw-gate.mjs` — `MAX_CLASSES = 15` |
 | `capacityFloor` | 8 columns | Per-line capacity needed to fit 15 value classes in TWO lines. | `scripts/containment.mjs` — `capacity < 8` |
 | `layoutBreakpoint` | 720 px | The phone/desktop layout seam. The card constant governs below it; above it the card is in rem again. | `src/client/table/table.css` — `@media (min-width: 720px)` |
+| `floorCardW` | 44 px | The hand card box below the crossover, where the constant cannot fit 8 columns a line. Exactly what today's clamp yields at 320 through its rem floor. | `src/client/app.css` — `--gd-handcardw: 44px` |
+| `floorBelowWidth` | 332 px | Viewport width at and below which the narrow floor applies. The last integer below the 332.1px crossover. | `src/client/app.css` — `@media (max-width: 332px)` |
+| `depthFloor` | 10 bin index | The minimum fan depth that must remain feasible. A PRODUCT POLICY, not a validation result: the held-out test earns 9, and requiring 10 is a stricter claim the owner makes about which depths are in scope. | `scripts/cardw-gate.mjs` — `DEPTH_FLOOR ?? 10` |
 | `minGuaranteedWidth` | 360 px | Smallest viewport width the card constant is guaranteed at. Below the crossover the layout has no supported card size. | `scripts/cardw-gate.mjs` — `MIN_GUARANTEED_W ?? 360` |
 
 ## Decompositions
@@ -96,6 +99,14 @@ margin(s, w) = T(w) - fanH(s, w) = 436.0 - (4*aspect + stripW*(s - 2))*w
 ```
 
 Slack for a hand of total depth s at card width w. Width-independent: the viewport's width enters the gate only through capacity.
+
+### `marginalBinBand`
+
+```
+marginal bin >= K  <=>  margin(K, w) >= 0  <=>  w <= 436.0 / (4*aspect + stripW*(K - 2))
+```
+
+The marginal bin is a step function of the CARD ALONE — the viewport width does not appear. Bands at the reference height: bin 11 for w <= 45.52, bin 10 for w <= 47.60, bin 9 for w <= 49.89, bin 8 for w <= 52.41. This is the gate's vertical term, and it replaced a floor on the marginal bin's own slack, which was anti-correlated with the failure rate across a band edge.
 
 ### `toothBoundary`
 

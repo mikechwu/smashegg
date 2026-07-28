@@ -117,6 +117,32 @@
   --gd-handglyphw: min(3.009375rem, 58px);
 }
 
+/* THE NARROW FLOOR (round K2). Below the crossover a 48.15px card fits only 7 columns a
+   line, and 15 value classes then need THREE lines — which voids every derivation in this
+   arc, all of which assume two. Today's clamp serves 320 through its 2.75rem rem floor, so
+   the constant as shipped in J0 WITHDREW support from a width that works. This restores
+   exactly what ships there today, and costs nothing to any width above 332.
+
+   Crossover: a card w needs W >= 48.0 + 5.9w for 8 columns; at 48.15 that is 332.1 CSS px.
+   The query is stated at 332 and not at the crossover itself because CSS media queries
+   compare against a viewport that is an integer in every browser that matters, and 332 is
+   the last integer below it.
+
+   44px is the right value here rather than something larger, because 320 has under half a
+   column of headroom at any usable card size: 44.00 gives capacity 8 with 0.40 columns to
+   spare, 46.10 gives exactly 8.00 with none, and 48.15 gives 7.
+
+   THE GLYPH BASIS MUST FOLLOW THE BOX DOWN. The cap above is sized for a 48.15px card; left
+   in place over a 44px one it would render ink 9.4% oversized relative to its own card, on
+   the narrowest screen the game supports. 2.75rem is exactly 44px at the default root, and
+   53px holds the same ratio to the box that 58px holds at 48.15. */
+@media (max-width: 332px) {
+  :root {
+    --gd-handcardw: 44px;
+    --gd-handglyphw: min(2.75rem, 53px);
+  }
+}
+
 @media (min-width: 720px) {
   :root {
     /* Desktop keeps today's expression verbatim, ceiling included. The card there is

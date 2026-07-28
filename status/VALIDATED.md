@@ -26,6 +26,7 @@ no range is not a validated quantity**; it is a reading.
 | `held-out` | modelled, then confirmed against data the model never saw | the strongest thing here |
 | `definitional` | a value the code declares; nothing to validate | fact |
 | `structural` | true by construction over the whole domain, not by sampling | a bound |
+| `product policy` | a scope decision someone made; there is nothing to validate | a decision, never as evidence |
 | `sampled-bound` | the extreme of a finite sample | never as a bound without its n and its frequency |
 
 ## Rows
@@ -55,7 +56,12 @@ no range is not a validated quantity**; it is a reading.
 | desktop unchanged | `measured` | 6 deals, same-hand intervention | inner 1366x681 | that cell | **0.00px on 6/6.** Above the breakpoint the two arms are the same CSS, so this cell is a CONTROL on the media query rather than a measurement of an effect. |
 | containment | `measured` | 30 probes, 5,260 element boxes, joker staged on 10 | 360/375/390/430x664 and 720x900, lacquer, zh-Hant, untimed | those cells | Clean. |
 | desk title not truncated | `measured` | 3 viewports x 3 locales, titles counted per run | 360/390/430x664, lacquer, untimed | zh-Hant, en, zh-Hans | Clean at every locale. A RENDERED assertion (scrollWidth vs clientWidth), not a CSS pin: nowrap turns a wrap into a silent ellipsis, which moves no layout figure at all. |
-| capacity at 320 | `measured` | 5 probes | inner 320x664 | that cell | **7, below the floor.** The detector fires. This is the width the constant withdraws. |
+| capacity at 320, before K2 | `measured` | 5 probes | inner 320x664, cardW 48.15 | that cell | **7, below the floor** — the detector fired. This is the width the J0 constant withdrew, and it is why K2 exists. |
+| capacity at 320, after K2 | `measured` | 6 probes | inner 320x664, cardW 44 via the narrow floor | that cell | **PASS.** Containment clean, desk title clean, joker staged on 2. The detector no longer fires anywhere in the supported set. |
+| `floorCardW` | `definitional` | — | viewports <= 332px | 320-332 | 44px, which is exactly what today's clamp yields at 320 through its rem floor, so nothing at any width is worse than before this arc. |
+| glyph cap at the narrow floor | `measured` | 1 deal, root 12-24px | inner 320x664, cardW 44 | that box | Box constant at 44px across the ramp; rank ink grows 11.88px -> 19.08px and caps. No escape at any root size. Ratio to the box identical to the 48.15 regime. |
+| the 360 rate inversion, decomposed | `modelled` | 200,000 deals per arm | inner 360x664, capacity PINNED per arm | the four arms below | Crossing the tooth alone (46.80 -> 48.15 at capacity 9) takes R from 0.15% to 1.31%, a factor of 8.7. Dropping capacity alone (9 -> 8 at 46.80) takes it to 0.21%, a factor of 1.4. The band edge dominates; the split is a minor second term. |
+| `depthFloor` | `product policy` | — | — | — | K=10. **Not a validation result** — the held-out test earns K=9. Requiring depth-10 hands to fit is a stricter claim the owner makes about scope, and it is recorded as one so a later round does not cite it as evidence. |
 
 ## A measurement that was taken and discarded
 

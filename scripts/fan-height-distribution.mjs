@@ -65,7 +65,14 @@ const GEOM =
         STEP: Math.round(0.42 * CARD_W * 100) / 100,
         CHROME: MEASURED.CHROME, // the fan's own padding: not card-scaled (F5a)
         ROW_GAP: MEASURED.ROW_GAP,
-        LINE_CAP: Math.floor((SIM_WIDTH - ROW_CHROME - 0.3 * CARD_W) / (0.7 * CARD_W)),
+        // LINE_CAP is derived from the width, but can be PINNED. Pinning it is what makes
+        // a decomposition possible: the card and the per-line capacity both move when the
+        // viewport changes, and a rate difference measured across both cannot say which
+        // one produced it (practice 30 — decompose before attributing).
+        LINE_CAP:
+          process.env.LINE_CAP === undefined
+            ? Math.floor((SIM_WIDTH - ROW_CHROME - 0.3 * CARD_W) / (0.7 * CARD_W))
+            : Number(process.env.LINE_CAP),
       };
 const SAMPLES = Number(process.env.SAMPLES ?? 200_000);
 const HAND = Number(process.env.HAND_SIZE ?? 27);
