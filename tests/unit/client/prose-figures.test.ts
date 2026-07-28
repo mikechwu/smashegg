@@ -83,6 +83,20 @@ describe('a figure in prose is backed by a table in the same section', () => {
   const section = topStatusEntry();
   const { prose, tables } = split(section);
 
+  // G4a: A RATCHET, because a justification string is what the axis registry's
+  // exemption started as before it became the escape hatch. The count may fall and may
+  // not rise: a new exemption has to displace an old one, or the ceiling has to be moved
+  // deliberately in a commit that says why.
+  it('the allowlist does not grow', () => {
+    const CEILING = 17;
+    expect(
+      Object.keys(ALLOWED).length,
+      `the prose-figure allowlist has ${Object.keys(ALLOWED).length} entries against a ` +
+        `ceiling of ${CEILING}. Raising the ceiling is a deliberate act — say why in the ` +
+        `commit. Otherwise put the figure in a table, which is what the rule is for.`,
+    ).toBeLessThanOrEqual(CEILING);
+  });
+
   it('every allowlist entry states a reason', () => {
     for (const [figure, reason] of Object.entries(ALLOWED)) {
       expect(reason.length, `"${figure}" needs a stated reason, not a bare exemption`).toBeGreaterThan(25);

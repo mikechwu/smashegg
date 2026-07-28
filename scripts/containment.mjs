@@ -147,6 +147,36 @@ export const CONTAINMENT_PROBE = `(opt) => {
     }
   }
 
+  // THE FAN MUST NOT RENDER MORE THAN TWO LINES (G3).
+  //
+  // Every derivation in this arc assumes exactly two: the span decomposition, the
+  // fanHeight bound, the lattice, the cardW sweep. Below roughly 310 CSS px of width a
+  // 44px card cannot hold 15 value classes in two lines, and 200% page zoom on a 390px
+  // phone produces a 195px CSS viewport — so the degradation is reachable, and today it
+  // is SILENT. Nothing else in the gate set notices it.
+  //
+  // Counted by distinct stack BOTTOMS, because align-items: flex-end bottom-aligns a
+  // line; distinct TOPS would count pile depths instead. The settled fan is ONE
+  // .gd-fan__stackRow element that wraps internally, so counting elements reads 1 always
+  // — that mistake stood in this project for several rounds.
+  const stackRow = document.querySelector('.gd-fan__stackRow');
+  if (stackRow !== null) {
+    const stacks = [...stackRow.querySelectorAll('.gd-fan__stack')];
+    if (stacks.length > 0) {
+      const lines = new Set(stacks.map((el) => Math.round(el.getBoundingClientRect().bottom)));
+      checked += 1;
+      if (lines.size > 2) {
+        violations.push({
+          kind: 'fan renders more than two lines',
+          selector: '.gd-fan__stackRow',
+          lines: lines.size,
+          columns: stacks.length,
+          innerWidth: window.innerWidth,
+        });
+      }
+    }
+  }
+
   return {
     checked,
     violations,
@@ -198,6 +228,13 @@ export function reportContainment(tally) {
           `${v.overflowRightPx ? v.overflowRightPx + 'px RIGHT' : ''} ` +
           `(box ${v.box.left}..${v.box.right}, container ${v.container.left}..${v.container.right}) ` +
           `— container overflow-x is "${v.containerOverflowX}", which is what HIDES this.`,
+      );
+    } else if (v.kind === 'fan renders more than two lines') {
+      console.log(
+        `  ${v.at}: the fan rendered ${v.lines} LINES (${v.columns} columns at innerWidth ` +
+          `${v.innerWidth}). Every derivation in this arc assumes exactly two — the span ` +
+          `decomposition, the fanHeight bound, the lattice and the cardW sweep are all void ` +
+          `here. Two lines need capacity >= 8, i.e. roughly 310 CSS px at a 44px card.`,
       );
     } else if (v.kind === 'card frame inflates its parent') {
       console.log(

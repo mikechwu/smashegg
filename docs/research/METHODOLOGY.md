@@ -187,6 +187,12 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 
     **Operational rule: before writing "X causes Y", change X and show Y moves.** If X cannot be changed in the harness, the claim is recorded as a CORRELATION with that stated limitation — never as a mechanism. And prefer the intervention that would FALSIFY: acting on the claimed cause and seeing no change is worth more than acting on a suspected fix and seeing an improvement, because an improvement has many possible causes.
 
+32. **A cheap convention can earn its keep outside the reason it was adopted — which is an argument for keeping the ones that look merely stylistic.** The English-only source rule exists for code consistency: one language in identifiers, comments and commits so a reader never has to context-switch. It has now caught a **correctness** bug it was never aimed at.
+    - **The instance.** A containment gate needed to find a joker card, and the quickest way was to match its `aria-label` — which in the default locale is a CJK string. The english-only sweep failed the commit. The rewrite matches `.gd-card--joker` instead, which is not only English but **locale-proof**: the label match would have silently stopped finding jokers the moment anyone ran the gate in another locale, and the gate would have gone quietly vacuous rather than red.
+    - The convention had no opinion about locale coupling. It caught it because reaching for a localised string is *also* how you end up with non-English source, so the two failure modes share a symptom.
+
+    **Operational note: when a stylistic rule fires, read what it caught before suppressing it.** The cost of these rules is visible and their benefit is not, which biases every conversation about them toward removal; a recorded instance of one catching something real is the only counterweight.
+
 ## Tool & model ladders (current)
 
 Web research runs on the built-in WebSearch/WebFetch tools, `curl` via shell for direct page/PDF fetches, and `gh api` for GitHub content. **Firecrawl is disabled as of 2026-07-13 (credit limit reached — owner instruction); state this in every research-agent prompt.** Escalate to costlier tooling only on demonstrated failure of a cheaper rung, and log the failure.

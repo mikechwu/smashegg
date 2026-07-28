@@ -211,36 +211,83 @@ console.log(
     '  the sawtooth is an artifact of the lattice rather than a property of the design.',
 );
 
-// THE SELECTION RULE IS "LARGEST CARD THAT CLEARS THE BAR", NOT "BEST POINT".
+// THE SELECTION RULE, THIRD VERSION — AND THE FIRST TWO WERE BOTH BOUNDARY-SEEKING.
 //
-// Every tooth peaks at the LOW end of its interval, so "pick the point with the best
-// margin" walks downhill and systematically selects a SMALLER card — and card size is
-// the only quantity the one remaining human constraint (legibility) cares about. The
-// output is therefore a short candidate table for the elder session, not one number.
-console.log('\n--- CANDIDATES: the LARGEST cardW meeting each stated bar ---');
-console.log('  R(10) ceiling   min margin   largest cardW   cap   R(0)    R(10)   R(21.3)  margin');
-for (const ceiling of [1.0, 0.5, 0.1]) {
-  for (const minMargin of [5, 10, 15]) {
-    const ok = rows.filter((r) => r.R[2] <= ceiling && r.marginPx >= minMargin);
-    if (ok.length === 0) {
-      console.log(
-        `  ${String(ceiling).padStart(13)}%  ${String(minMargin).padStart(10)}px   ` +
-          `none in the swept range`,
-      );
-      continue;
-    }
-    const best = ok.reduce((a, b) => (b.cardW > a.cardW ? b : a));
+//   "best point"        walked downhill to the low end of a tooth (44.00, 44.95).
+//   "largest qualifying" lands ON the constraint (46.45, 0.24px from a capacity crossing).
+//
+// Both fail the same way: THE GATE MEASURES MARGIN IN fanH-SPACE AND NOTHING MEASURES
+// SETBACK IN cardW-SPACE. Capacity crossings and tooth boundaries are discontinuities in
+// w, and a margin in px of height cannot see them — 46.45 has 10.6px of fanH margin and
+// is a quarter of a pixel of cardW away from the distribution changing entirely.
+//
+// So the output is an INTERVAL with its endpoints attributed, the distance from each to
+// the nearest discontinuity in w, and a setback-respecting choice. And when the interval
+// is narrower than the setback it cannot honour, it says NO ROBUST CHOICE rather than
+// returning an endpoint — a 1px-wide qualifying interval is a signal about the gate, not
+// an answer to it.
+const SETBACK = Number(process.env.SETBACK ?? 0.75);
+
+// Every discontinuity in w: capacity crossings, and the tooth boundaries where the
+// marginal bin changes.
+const discontinuities = [];
+for (let i = 1; i < rows.length; i += 1) {
+  if (rows[i].capacity !== rows[i - 1].capacity) {
+    discontinuities.push({ w: (rows[i].cardW + rows[i - 1].cardW) / 2, kind: `capacity ${rows[i - 1].capacity}->${rows[i].capacity}` });
+  }
+  // a tooth boundary shows as the margin JUMPING up as w decreases
+  if (rows[i].marginPx > rows[i - 1].marginPx + 5) {
+    discontinuities.push({ w: (rows[i].cardW + rows[i - 1].cardW) / 2, kind: 'tooth boundary' });
+  }
+}
+const nearestDisc = (w) => {
+  if (discontinuities.length === 0) return { d: Infinity, kind: 'none found' };
+  let best = discontinuities[0];
+  for (const d of discontinuities) if (Math.abs(d.w - w) < Math.abs(best.w - w)) best = d;
+  return { d: Math.round(Math.abs(best.w - w) * 100) / 100, kind: best.kind, at: best.w };
+};
+
+console.log('\n--- DISCONTINUITIES IN cardW (what a margin in px of HEIGHT cannot see) ---');
+for (const d of discontinuities) console.log(`  w ~ ${d.w.toFixed(2)}  ${d.kind}`);
+
+console.log(`\n--- QUALIFYING INTERVALS (setback ${SETBACK}px from any discontinuity) ---`);
+for (const [ceiling, minMargin] of [[1.0, 5], [0.5, 10], [0.1, 10], [0.1, 15]]) {
+  const ok = rows.filter((r) => r.R[2] <= ceiling && r.marginPx >= minMargin).sort((a, b) => a.cardW - b.cardW);
+  if (ok.length === 0) {
+    console.log(`  R(10)<=${ceiling}% margin>=${minMargin}px : EMPTY`);
+    continue;
+  }
+  const lo = ok[0], hi = ok[ok.length - 1];
+  const width = Math.round((hi.cardW - lo.cardW) * 100) / 100;
+  const safe = ok.filter((r) => nearestDisc(r.cardW).d >= SETBACK);
+  const pick = safe.length > 0 ? safe.reduce((a, b) => (b.cardW > a.cardW ? b : a)) : null;
+  console.log(
+    `  R(10)<=${String(ceiling).padStart(4)}% margin>=${String(minMargin).padStart(2)}px : ` +
+      `interval [${lo.cardW.toFixed(2)}, ${hi.cardW.toFixed(2)}] width ${width.toFixed(2)}px  ` +
+      `(low end set by the R ceiling, high end by the margin floor)`,
+  );
+  const hiD = nearestDisc(hi.cardW);
+  console.log(
+    `      high endpoint sits ${hiD.d}px from ${hiD.kind}` +
+      (hiD.d < SETBACK ? '   <-- INSIDE the setback' : ''),
+  );
+  if (width < SETBACK * 2) {
     console.log(
-      `  ${String(ceiling).padStart(13)}%  ${String(minMargin).padStart(10)}px   ` +
-        `${best.cardW.toFixed(2).padStart(13)}  ${String(best.capacity).padStart(3)}  ` +
-        `${best.R[0].toFixed(2).padStart(5)}%  ${best.R[2].toFixed(2).padStart(5)}%  ` +
-        `${best.R[3].toFixed(2).padStart(6)}%  ${best.marginPx.toFixed(2).padStart(6)}px`,
+      `      NO ROBUST CHOICE: the interval (${width.toFixed(2)}px) is narrower than twice the` +
+        ` setback. That is a statement about the gate, not an answer to it.`,
+    );
+  } else if (pick === null) {
+    console.log(`      NO ROBUST CHOICE: every qualifying cardW is within ${SETBACK}px of a discontinuity.`);
+  } else {
+    const pd = nearestDisc(pick.cardW);
+    console.log(
+      `      ROBUST PICK ${pick.cardW.toFixed(2)}  margin ${pick.marginPx.toFixed(2)}px  ` +
+        `R(0) ${pick.R[0].toFixed(2)}%  R(21.3) ${pick.R[3].toFixed(2)}%  setback ${pd.d}px from ${pd.kind}`,
     );
   }
 }
 console.log(
-  '\n  THE TIEBREAK BETWEEN THE TOP CANDIDATES IS R(21.3), and it only matters if a\n' +
-    '  ~21px drift source is real. The largest UNMEASURED one is the LINE / WeChat\n' +
-    '  in-app browser inner height — so that measurement decides the card size, and it\n' +
-    '  is the reason it moved up the device-session list.',
+  '\n  THE TIEBREAK AMONG ROBUST PICKS IS R(21.3), and it only matters if a ~21px drift\n' +
+    '  source is real. The largest UNMEASURED one is the LINE / WeChat in-app browser\n' +
+    '  inner height, so that measurement decides the card size.',
 );
