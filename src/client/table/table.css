@@ -268,7 +268,7 @@ button.gd-plate {
    clamp (cut-panel test). */
 .gd-cut__ribbon {
   --slivers: 24;
-  --sliver-w: clamp(2.75rem, 13vw, 4.25rem);
+  --sliver-w: var(--gd-handcardw);
   --gap: 1.4rem;
   position: relative;
   align-self: center;
@@ -515,6 +515,42 @@ button.gd-plate {
 }
 .gd-card {
   --gd-cardw: 2.5rem;
+  /* THE GLYPH BASIS, decoupled from the BOX basis (E4a).
+   *
+   * Everything on this card used to be a fraction of --gd-cardw, which made the ink and
+   * the box one quantity. That is fine while the box is in rem — user text scaling grows
+   * both — and it stops being fine the moment the box becomes a constant px, because then
+   * raising the root font-size does nothing at all and accessibility text scaling is
+   * silently dead on the card faces. The remedy is two bases, not one:
+   *
+   *   --gd-cardw   the BOX: width, height, and every POSITION and CLEARANCE inside it.
+   *                Fixed, so whether the hand FITS is not user-controlled.
+   *   --gd-glyphw  the INK: font sizes and the body pip's size. Scalable and capped.
+   *
+   * The cut is size-versus-position, and it is load-bearing in both directions. The wild
+   * seal keeps the BOX basis although it is a mark rather than text, because its whole
+   * argument is a clearance — 0.07w + 0.26w = 0.33w stays inside the 0.40w fan-visible
+   * sliver — and a seal that grew with the root font-size would walk out of that sliver.
+   * By the same rule .gd-card__pip keeps its percentage POSITION and takes the glyph basis
+   * only for its SIZE.
+   *
+   * Default is `var(--gd-cardw)`, so every card that does not override it (trick, mini,
+   * ghost, chooser, the tribute panel) renders byte-identically to before. */
+  --gd-glyphw: var(--gd-cardw);
+  /* The body pip takes its own basis off the glyph one, and DEFAULTS to it so today there
+   * is one knob, not two. The split exists because the hypothesis was that the pip — 0.6
+   * of its basis where the rank glyph is 0.36-0.42 of its own — would set a ceiling the
+   * corner index did not earn, and the index is the part actually READ.
+   * MEASURED, AND THE HYPOTHESIS WAS WRONG (scripts/measure-glyph-scale.mjs, n=7,668 card
+   * renders over 13 ranks at inner 390x664): the pip escapes the card box at a basis of
+   * 62px, and the index is clean only to 62px as well — because what binds is neither part
+   * alone but the COLLISION between the top-left index and the bottom-right pip, which
+   * either one growing will cause. Splitting the basis therefore buys 1px, so both are
+   * capped together. The knob is kept because it is what made that measurable, and because
+   * pinning the pip WOULD raise the index ceiling to roughly 75px if headroom is ever
+   * wanted — an option that is stated and not taken, since a suit mark that stops growing
+   * while the rank keeps growing is a design choice nobody has asked for. */
+  --gd-pipw: var(--gd-glyphw);
   display: inline-flex;
   flex-direction: column;
   width: var(--gd-cardw);
@@ -533,8 +569,66 @@ button.gd-plate {
   flex: none;
   box-sizing: border-box;
 }
+/* THE HAND CARD BOX IS A CONSTANT, IN A UNIT THE USER CANNOT SCALE (J0).
+ *
+ * WHY NOT A CLAMP. Every term of the vertical budget is width-independent — the
+ * threshold `T(w) = 455.9 - 2.90w` and the fan height both depend only on the CARD, and
+ * the viewport width enters solely through per-line capacity. So the set of card widths
+ * that fit is a DISJOINT set of thin segments in w (a tooth boundary every time one more
+ * stacking step stops fitting), and `clamp(a, Xvw, b)` sweeps w continuously as the
+ * viewport changes. A continuous sweep through a discrete qualifying set eventually lands
+ * in a gap: no coefficient passes at every supported width, and the ones that come close
+ * do it only by pinning w to the rem FLOOR on every phone — which is the configuration
+ * that collapses under a user-raised root font-size (at root 20px the 2.75rem floor
+ * becomes 55px, capacity falls to 8 and the modelled failure rate goes to 35%).
+ *
+ * So the box is a constant px: user text scaling can no longer change whether the hand
+ * FITS. The glyphs below stay proportional to the root font-size, capped, so text scaling
+ * still does what accessibility intends — that decoupling is the whole point.
+ *
+ * WHY 48.15px. It is the optimum of the highest qualifying segment: marginal bin s=9 with
+ * 15.23px of margin (5.23px above the 10px floor), the last held-out-validated bin s=9
+ * feasible, and 0.55px of setback to the nearest feasibility cliff (the s=10 tooth at
+ * 47.60px).
+ *
+ * AND THE SIZE CHANGE IS NOT ONE NUMBER. "-5.0%" is the change at width 390 and nowhere
+ * else, because today's clamp is a function of the viewport: the constant is +2.9% at 360,
+ * -1.2% at 375, -5.0% at 390 and -13.9% at 430. The modelled following-state failure rate
+ * at inner 664 moves with it — 0.15% -> 1.78% at 360, 7.65% -> 1.31% at 390, and
+ * 66.93% -> 0.74% at 430. The large phones, not the small ones, are where the old rule
+ * actually failed, and no round had swept 430 until this one.
+ *
+ * WHY THE SEAM IS 720px. That is the layout's own phone/desktop breakpoint (.gd-table
+ * padding, .gd-ring), so this adds no new regime. Below it the phone layout's vertical
+ * budget applies and the constant governs; above it the desktop layout has a different
+ * vertical structure and today's expression is kept verbatim, ceiling included.
+ *
+ * WHAT THIS COSTS AT 320px, STATED BECAUSE IT IS A WITHDRAWAL AND NOT A GAP. A constant
+ * 48.15 needs `W >= 48.0 + 5.9 * 48.15 = 332.1` CSS px to fit 8 columns a line; at 320 the
+ * capacity is 7 and 15 value classes need three lines. Today's clamp DOES serve 320,
+ * because its 2.75rem floor puts the card at 44px there, where capacity is 8. So this is
+ * support being withdrawn from a width that works today, not support being declined. See
+ * scripts/containment.mjs — its capacity detector fires at 320 after this change. */
 .gd-card--hand {
-  --gd-cardw: clamp(2.75rem, 13vw, 4.25rem);
+  /* Both bases come from ONE declaration each, in src/client/app.css :root, so the nine
+   * sites that must agree on the card's width cannot diverge. See that file for why they
+   * were nine literals until this round, and what broke when one of them changed. */
+  --gd-cardw: var(--gd-handcardw);
+  /* THE INK, WHICH DOES STILL SCALE WITH THE USER'S TEXT SIZE, UP TO A MEASURED CAP.
+   *
+   * 48.15 / 16 = 3.009375rem, so at the default root font-size the nominal basis is
+   * EXACTLY the box and no card face changes at all. Above it the ink grows with the root
+   * font-size — which is the accessibility behaviour that a constant box would otherwise
+   * have removed silently — and stops at 58px.
+   *
+   * WHERE 58 COMES FROM. Measured, not derived: ramping the basis against rendered ink
+   * boxes, the first escape is at 62px, where the top-left corner index and the
+   * bottom-right body pip begin to overlap. 58 leaves 4px of setback, which is 6.5% of the
+   * basis — enough to absorb a different font fallback on another platform, where the
+   * fractions are the same but the rendered ink is not. In user terms the cap binds from
+   * about root 19.3px, and up to there the card ink grows by up to 20%. Above the layout
+   * breakpoint the box is in rem again and the basis reverts to it, uncapped. */
+  --gd-glyphw: var(--gd-handglyphw);
 }
 .gd-card--trick {
   --gd-cardw: 2.25rem;
@@ -610,11 +704,11 @@ button.gd-plate {
   position: relative;
 }
 .gd-card__rank {
-  font-size: calc(var(--gd-cardw) * 0.42);
+  font-size: calc(var(--gd-glyphw) * 0.42);
   font-weight: 600;
 }
 .gd-card__suit {
-  font-size: calc(var(--gd-cardw) * 0.36);
+  font-size: calc(var(--gd-glyphw) * 0.36);
 }
 /* Lacquer's horizontal index (owner reference): rank then suit glyph read
  * LEFT TO RIGHT, adjacent, baseline-aligned — a MODIFIER on the same
@@ -631,20 +725,20 @@ button.gd-plate {
   gap: calc(var(--gd-cardw) * 0.02);
 }
 .gd-card__index--row .gd-card__rank {
-  font-size: calc(var(--gd-cardw) * 0.36);
+  font-size: calc(var(--gd-glyphw) * 0.36);
 }
 /* Owner: the suit beside the rank reads at ROUGHLY THE RANK'S OWN SIZE —
    clarity beats compactness here; the pile pitch below grants the row the
    width this costs. */
 .gd-card__index--row .gd-card__suit {
-  font-size: calc(var(--gd-cardw) * 0.34);
+  font-size: calc(var(--gd-glyphw) * 0.34);
 }
 /* rankText('T') is '10' — two glyphs where every other rank is one. At the
  * row's shared 0.36w rank size the extra glyph pushes the row past its
  * 0.70w fit budget (measured, not assumed), so only this rank's glyph
  * shrinks. */
 .gd-card__rank--row10 {
-  font-size: calc(var(--gd-cardw) * 0.28);
+  font-size: calc(var(--gd-glyphw) * 0.28);
 }
 /* Lacquer's body pip (owner reference, mainstream Guandan look): one large
  * suit mark — the shared SuitMark part (suit round; the old font glyph is
@@ -667,8 +761,8 @@ button.gd-plate {
   left: 64%;
   top: 66%;
   transform: translate(-50%, -50%);
-  width: calc(var(--gd-cardw) * 0.6);
-  height: calc(var(--gd-cardw) * 0.6);
+  width: calc(var(--gd-pipw) * 0.6);
+  height: calc(var(--gd-pipw) * 0.6);
   pointer-events: none;
 }
 /* The joker face (jokers.tsx, JokerFace — the owner's composed parts,
@@ -827,7 +921,7 @@ button.gd-plate {
      invalid at computed-value time and the margin silently becomes 0
      (verified live: stacked cards rendered full-height, no overlap).
      Lockstep-pinned with the other clamp literals. */
-  --gd-cardw: clamp(2.75rem, 13vw, 4.25rem);
+  --gd-cardw: var(--gd-handcardw);
 }
 /* DEALING flat mode only (Obs 3 — the deal overlay measures these slot
    rects). Scoped with the > child combinator so this rule can never reach a
@@ -872,7 +966,7 @@ button.gd-plate {
   transition: transform 120ms ease-out;
 }
 .gd-fan__row > .gd-fan__card + .gd-fan__card {
-  margin-left: calc(clamp(2.75rem, 13vw, 4.25rem) * -0.6);
+  margin-left: calc(var(--gd-handcardw) * -0.6);
 }
 /* SETTLED mode (owner reference): same-value columns in one bottom-aligned
    row. Each column's internal stacking offset is inline (per-column n), so
@@ -890,7 +984,7 @@ button.gd-plate {
   /* Cancels the FIRST stack's own overlap margin (.gd-fan__stack below) —
      see that rule's comment for why the margin has to sit on every stack,
      including the first, once flex-wrap: wrap is in play. */
-  padding-left: calc(clamp(2.75rem, 13vw, 4.25rem) * 0.3);
+  padding-left: calc(var(--gd-handcardw) * 0.3);
   min-width: 0;
   max-width: 100%;
 }
@@ -1038,7 +1132,7 @@ button.gd-plate {
      keeps every line's free-space arithmetic — and therefore its
      justify-content: center point — identical to a lone single-line row of
      the same column count, regardless of which line a stack lands on. */
-  margin-left: calc(clamp(2.75rem, 13vw, 4.25rem) * -0.3);
+  margin-left: calc(var(--gd-handcardw) * -0.3);
 }
 /* Owner refinement: a picked (or hovered) card STAYS IN ITS PILE — no
    z-index promotion, so later siblings keep painting over it and the pile's
@@ -1199,7 +1293,7 @@ button.gd-plate {
    card-width var must exist on THIS ancestor for the margin calc (same
    ancestor-definition rule as the fan's stack — see that comment). */
 .gd-desk__stage {
-  --gd-cardw: clamp(2.75rem, 13vw, 4.25rem);
+  --gd-cardw: var(--gd-handcardw);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2236,7 +2330,7 @@ button.gd-plate {
      single-line block; it is correct ONLY while the row cap is 2
      (SEAT_STACK_MAX_ROWS — three rows would need a per-row term). */
   --gd-stack-clip: calc((var(--gd-stack-rows) - 1) * (1 - var(--gd-stack-peek)));
-  --gd-cardw: clamp(2.75rem, 13vw, 4.25rem);
+  --gd-cardw: var(--gd-handcardw);
   position: relative;
   display: block;
   flex: none;
@@ -3105,7 +3199,7 @@ button.gd-plate {
      shipped basis for the hand itself, so reusing it means one overlap
      convention on screen, not two). 10 cards then span
      (1 + 9*0.4) * 50.7 = 233px at 390px, inside the sheet's content box. */
-  --gd-cardw: clamp(2.75rem, 13vw, 4.25rem);
+  --gd-cardw: var(--gd-handcardw);
 }
 .gd-sf__faces > * + * {
   margin-left: calc(var(--gd-cardw) * -0.6);

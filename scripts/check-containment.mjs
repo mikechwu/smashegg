@@ -31,6 +31,10 @@ import { CONTAINMENT_PROBE, checkContainment, newTally, reportContainment } from
 
 const BASE = process.env.BASE ?? 'http://localhost:5173';
 const DEALS = Number(process.env.CONTAIN_DEALS ?? 2);
+// D5: the desk-title assertion is only meaningful per LOCALE, since what it measures is a
+// rendered string against a fixed row. Default is the product default; run it at every
+// shipped locale to cover the string sets.
+const LOCALE = process.env.CONTAIN_LOCALE ?? 'zh-Hant';
 // Every mode boundary this project has, plus one either side of each, because a
 // layout bug lives at a breakpoint far more often than in the middle of a band.
 // NO DEFAULT VIEWPORT LIST — and this file is why the rule had to be widened.
@@ -62,7 +66,7 @@ export const AXES_PINNED = {
   viewportWidth: { value: 'CONTAIN_VIEWPORTS (required)' },
   viewportHeight: { value: 'CONTAIN_VIEWPORTS (required)' },
   deckTheme: { value: 'lacquer', justification: 'containment is a box-model property; a theme changes paint, not the boxes' },
-  locale: { value: 'zh-Hant' },
+  locale: { value: 'CONTAIN_LOCALE, default zh-Hant' },
   roomTiming: { value: 'UNTIMED', justification: 'PREDATES the timing finding; containment is horizontal and the countdown bar is vertical, so it cannot reach the result' },
   shelf: { value: 'none and one-shelf, both measured' },
   handSort: { value: 'ascending' },
@@ -134,7 +138,7 @@ console.log(
   `INNER viewports (browser chrome EXCLUDED — these are not screen sizes): ` +
     VIEWPORTS.map((v) => `${v.w}x${v.h}`).join(', '),
 );
-console.log(`${DEALS} deal(s) per viewport, each measured with NO shelf and with ONE shelf open.\n`);
+console.log(`${DEALS} deal(s) per viewport, each measured with NO shelf and with ONE shelf open. Locale: ${LOCALE}.\n`);
 
 for (let deal = 0; deal < DEALS; deal += 1) {
   const ctx = await browser.newContext({ viewport: DRIVER_VIEWPORT });
@@ -146,9 +150,9 @@ for (let deal = 0; deal < DEALS; deal += 1) {
   for (const vp of VIEWPORTS) {
     const c = await browser.newContext({ viewport: { width: vp.w, height: vp.h }, deviceScaleFactor: 1 });
     await c.addInitScript((s) => {
-      localStorage.setItem('locale', 'zh-Hant');
+      localStorage.setItem('locale', s.locale);
       localStorage.setItem('room:' + s.code, JSON.stringify({ tokens: [s.tokens[0]], lastSeenSeq: s.lastSeq }));
-    }, drive);
+    }, { ...drive, locale: LOCALE });
     const p = await c.newPage();
     await p.goto(`${BASE}/#/room/${drive.code}`, { waitUntil: 'networkidle' });
     await p.waitForFunction(() => document.querySelectorAll('.gd-fan__card').length >= 20, null, { timeout: 60000 });
@@ -231,6 +235,14 @@ if (!ok) {
   );
   process.exit(1);
 }
+console.log(
+  `\nDESK-TITLE ASSERTION: ${tally.deskTitles} title(s) examined across ${VIEWPORTS.length} ` +
+    `viewport(s) at locale ${LOCALE}. ` +
+    (tally.deskTitles === 0
+      ? 'ZERO — the assertion had no case to check and this run says NOTHING about title ' +
+        'truncation. A desk title renders only on a decidable own turn; drive one.'
+      : 'The case was present and clean.'),
+);
 console.log(
   `\nCARD-FRAME ASSERTION: a joker was staged on ${jokerRuns} probe(s). ` +
     (jokerRuns === 0

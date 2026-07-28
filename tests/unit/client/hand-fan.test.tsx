@@ -235,10 +235,15 @@ describe('engine-derived class-count pin (worst-case column count)', () => {
 // ---------------------------------------------------------------------------
 
 describe('hand-card clamp lockstep (CSS-token pin)', () => {
-  function clampToken(block: string, what: string): string {
-    const m = block.match(/clamp\(([^)]+)\)/);
-    expect(m, `clamp(...) not found: ${what}`).not.toBeNull();
-    return m![1]!.replace(/\s+/g, ' ').trim();
+  // J0: the nine copies of `clamp(2.75rem, 13vw, 4.25rem)` became one --gd-handcardw
+  // declaration in app.css, with a phone constant and a desktop expression. What these
+  // pins protect — that the card box, the flat dealing-fan overlap and the column pitch
+  // all move together — is now a property of there being ONE declaration, so the token is
+  // what they read. A rule that reached for a literal again would fail here.
+  function widthToken(block: string, what: string): string {
+    const m = block.match(/var\(--gd-handcardw\)/);
+    expect(m, `--gd-handcardw not referenced: ${what}`).not.toBeNull();
+    return m![0]!;
   }
 
   it('the hand card, the flat dealing-fan overlap and the column pitch all share ONE clamp literal', () => {
@@ -260,11 +265,11 @@ describe('hand-card clamp lockstep (CSS-token pin)', () => {
     // constraint, untouched), while the settled-mode column pitch widened to
     // -0.30 (0.70w visible — the full single-glyph horizontal index row a
     // covered column now shows needs more of its own width exposed).
-    const handClamp = clampToken(handBlock, '.gd-card--hand');
-    const fanClamp = clampToken(fanOverlapBlock, 'fan overlap rule');
-    const stackClamp = clampToken(stackPitchBlock, 'stack pitch rule');
-    expect(fanClamp, 'fan overlap clamp must be IDENTICAL to the hand card clamp').toBe(handClamp);
-    expect(stackClamp, 'stack pitch clamp must be IDENTICAL to the hand card clamp').toBe(handClamp);
+    const handClamp = widthToken(handBlock, '.gd-card--hand');
+    const fanClamp = widthToken(fanOverlapBlock, 'fan overlap rule');
+    const stackClamp = widthToken(stackPitchBlock, 'stack pitch rule');
+    expect(fanClamp, 'fan overlap must read the SAME token as the hand card').toBe(handClamp);
+    expect(stackClamp, 'stack pitch must read the SAME token as the hand card').toBe(handClamp);
 
     // The stack-overlap margin is an INLINE style on the card button of the
     // form calc(var(--gd-cardw) * F). Custom properties resolve against
@@ -281,9 +286,9 @@ describe('hand-card clamp lockstep (CSS-token pin)', () => {
     expect(
       fanBlock,
       '.gd-fan must define --gd-cardw for the inline stack margins to resolve',
-    ).toMatch(/--gd-cardw:\s*clamp\(/);
-    const fanVarClamp = clampToken(fanBlock, '.gd-fan --gd-cardw');
-    expect(fanVarClamp, '.gd-fan --gd-cardw clamp must be IDENTICAL to the hand card clamp').toBe(
+    ).toMatch(/--gd-cardw:\s*var\(--gd-handcardw\)/);
+    const fanVarClamp = widthToken(fanBlock, '.gd-fan --gd-cardw');
+    expect(fanVarClamp, '.gd-fan --gd-cardw must read the SAME token as the hand card').toBe(
       handClamp,
     );
 
@@ -321,12 +326,12 @@ describe('hand-card clamp lockstep (CSS-token pin)', () => {
     expect(stackRowBlock.length, 'rule not found: .gd-fan__stackRow').toBeGreaterThan(0);
     expect(stackBlock.length, 'rule not found: .gd-fan__stack').toBeGreaterThan(0);
 
-    const paddingMatch = stackRowBlock.match(/padding-left:\s*calc\((clamp\([^)]*\))\s*\*\s*([\d.]+)\)/);
-    const marginMatch = stackBlock.match(/margin-left:\s*calc\((clamp\([^)]*\))\s*\*\s*-([\d.]+)\)/);
+    const paddingMatch = stackRowBlock.match(/padding-left:\s*calc\((var\(--gd-handcardw\))\s*\*\s*([\d.]+)\)/);
+    const marginMatch = stackBlock.match(/margin-left:\s*calc\((var\(--gd-handcardw\))\s*\*\s*-([\d.]+)\)/);
     expect(paddingMatch, 'padding-left: calc(... * F) not found on .gd-fan__stackRow').not.toBeNull();
     expect(marginMatch, 'margin-left: calc(... * -F) not found on .gd-fan__stack').not.toBeNull();
 
-    expect(paddingMatch![1]!.trim(), 'padding-left must share the hand-card clamp literal').toBe(
+    expect(paddingMatch![1]!.trim(), 'padding-left must read the same card token as the margin').toBe(
       marginMatch![1]!.trim(),
     );
     expect(Number(paddingMatch![2]), 'padding-left factor must exactly cancel the margin-left factor').toBe(
@@ -367,22 +372,26 @@ describe('390 worst-case fit pin (CSS-token)', () => {
   // (re-pinned here by a comment-stripped match, independent of the dedicated
   // pin above, so this test alone still catches a regression).
   it('at least 8 columns at the -0.30 pitch fit one line inside the REAL mobile content width at 390px (15 classes never exceed 2 lines)', () => {
-    const handBlock = tableCss.match(/\.gd-card--hand\s*\{[^}]*\}/)?.[0] ?? '';
-    const clampMatch = handBlock.match(/clamp\(([\d.]+)rem,\s*([\d.]+)vw,\s*([\d.]+)rem\)/);
-    expect(clampMatch, 'hand clamp tokens not found').not.toBeNull();
-    const minPx = Number(clampMatch![1]) * REM;
-    const vw = Number(clampMatch![2]);
-    const maxPx = Number(clampMatch![3]) * REM;
+    // J0: BELOW THE LAYOUT BREAKPOINT THE CARD IS A CONSTANT, so the operative width is
+    // no longer a function of the viewport and is not derived from a clamp. It is read
+    // from the single --gd-handcardw declaration in app.css :root — the phone value, since
+    // 390 is below the 720px seam. Everything downstream is unchanged: the pitch factor
+    // still comes from the stylesheet and the fit arithmetic still decides the pin.
+    const appCssTokens = readFileSync(join(__dirname, '../../../src/client/app.css'), 'utf8');
+    const rootBlock = appCssTokens.match(/^:root\s*\{[\s\S]*?^\}/m)?.[0] ?? '';
+    expect(rootBlock.length, 'rule not found: :root in app.css').toBeGreaterThan(0);
+    const cardMatch = rootBlock.match(/--gd-handcardw:\s*([\d.]+)px;/);
+    expect(cardMatch, 'the phone card constant --gd-handcardw is not a px literal').not.toBeNull();
+    const operativeWidth = Number(cardMatch![1]);
 
     const stackPitchBlock = tableCss.match(/\.gd-fan__stack\s*\{[^}]*\}/)?.[0] ?? '';
-    const pitchMatch = stackPitchBlock.match(/margin-left:\s*calc\(clamp\([^)]*\)\s*\*\s*-([\d.]+)\)/);
+    const pitchMatch = stackPitchBlock.match(/margin-left:\s*calc\(var\(--gd-handcardw\)\s*\*\s*-([\d.]+)\)/);
     expect(pitchMatch, 'stack pitch factor not found').not.toBeNull();
     const pitchFactor = Number(pitchMatch![1]);
     const visibleFraction = 1 - pitchFactor;
 
     const viewport = 390;
-    const operativeWidth = Math.min(Math.max((vw / 100) * viewport, minPx), maxPx);
-    expect(operativeWidth).toBe(50.7);
+    expect(operativeWidth).toBe(48.15);
     expect(visibleFraction).toBeCloseTo(0.7, 10);
 
     // The real available content width at the table screen is NOT just

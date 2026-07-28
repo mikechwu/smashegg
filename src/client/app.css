@@ -88,6 +88,44 @@
   --weight-body: 400;
   --weight-medium: 600;
   --weight-bold: 700;
+
+  /* ---- The hand card's size, as ONE declaration (round J0) -------------------
+     THIS WAS NINE COPIES OF A LITERAL, AND THE LOCKSTEP WAS ENFORCED BY TESTS.
+     `clamp(2.75rem, 13vw, 4.25rem)` appeared verbatim at nine sites — the card, the
+     seat stack, the cut ribbon's sliver, the fan overlap, the column pitch, the
+     shelf — and four separate tests asserted string equality between pairs of them,
+     because a divergent copy silently yields a wrong overlap: the pitch is computed
+     from one value while the box renders at another, and you get 27 cards whose
+     margins do not match their widths.
+     Changing the card size in round J0 changed one of the nine, and the pins caught
+     it. That is the pins working, and it is also the argument for not needing them:
+     a value that must be identical in nine places should exist in one. The tokens
+     below make the lockstep STRUCTURAL — there is no second copy to diverge — and
+     the tests re-aim at the token rather than at a string match between literals.
+     The note above says these were deliberately NOT tokenized because tokenizing
+     "would break a literal-parsing pin". That reason had it backwards: the pin
+     existed to protect a property the token simply has.
+
+     --gd-handcardw  the BOX. A constant below the layout breakpoint, in a unit the
+                     user cannot scale, so text scaling cannot change whether the
+                     hand FITS. See src/client/table/table.css for why a clamp
+                     cannot express the answer.
+     --gd-handglyphw the INK basis, which does still track the root font-size, up to
+                     a measured cap. Above the breakpoint both revert to the
+                     rem-based expression this project has always shipped. */
+  --gd-handcardw: 48.15px;
+  --gd-handglyphw: min(3.009375rem, 58px);
+}
+
+@media (min-width: 720px) {
+  :root {
+    /* Desktop keeps today's expression verbatim, ceiling included. The card there is
+       governed by a different layout with a different vertical structure, and this
+       round does not touch it — measured: 0.00px of span change at 1366x681 on 16
+       deals of a same-hand intervention. */
+    --gd-handcardw: clamp(2.75rem, 13vw, 4.25rem);
+    --gd-handglyphw: var(--gd-handcardw);
+  }
 }
 
 html {

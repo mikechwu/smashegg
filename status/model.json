@@ -1,0 +1,179 @@
+{
+  "$schema-note": "The MACHINE SOURCE OF TRUTH for the layout model. status/MODEL.md is generated from this file by scripts/gen-model.mjs and must never be hand-edited. Every entry's `source` names where the value physically lives; tests/unit/client/model-drift.test.ts asserts that those sources still contain it, so this file cannot quietly drift from the code. Provenance longer than one line belongs in status/VALIDATED.md, not here — see that file's row with the same id.",
+  "version": 1,
+  "reference": {
+    "innerH": 664,
+    "innerW": 390,
+    "note": "The cell every span figure in this model is stated at: inner 390x664, lacquer, zh-Hant, timed room (the product default), one card staged, no shelf, ascending sort. A figure quoted without this cell is a figure quoted without its configuration."
+  },
+  "constants": [
+    {
+      "id": "cardW",
+      "value": 48.15,
+      "unit": "px",
+      "what": "The hand card box width below the 720px layout breakpoint. A constant, in a unit the user cannot scale.",
+      "source": { "file": "src/client/app.css", "literal": "--gd-handcardw: 48.15px" },
+      "validated": "cardW"
+    },
+    {
+      "id": "glyphCap",
+      "value": 58,
+      "unit": "px",
+      "what": "Ceiling on the card ink basis --gd-glyphw. Above it the corner index and the body pip collide.",
+      "source": { "file": "src/client/app.css", "literal": "min(3.009375rem, 58px)" },
+      "validated": "glyphCap"
+    },
+    {
+      "id": "aspect",
+      "value": 1.45,
+      "unit": "ratio",
+      "what": "Card height as a multiple of card width.",
+      "source": { "file": "src/client/table/table.css", "literal": "calc(var(--gd-cardw) * 1.45)" },
+      "scriptValue": 1.4497041420118344,
+      "scriptNote": "The gate scripts use 73.5/50.7 = 1.44970, which is the MEASURED height at the old card divided by that card. The two differ by 0.0003, i.e. 0.03px of span at a 48.15px card, because 73.5 is itself a rounded reading of 50.7 x 1.45 = 73.515. The CSS value is authoritative; the scripts have not been changed to it this round because doing so would move every recorded gate figure by a fraction of a pixel for no gain.",
+      "validated": "aspect"
+    },
+    {
+      "id": "stripW",
+      "value": 0.42,
+      "unit": "fraction of cardW",
+      "what": "Visible top-edge fraction of each non-base card in a stack — the lattice step is stripW x cardW.",
+      "source": { "file": "src/client/table/themes/lacquer.tsx", "literal": "stackStripW: 0.42" },
+      "variants": { "lacquer": 0.42, "cinnabar-court": 0.841 },
+      "variantNote": "THIS IS A LACQUER CONSTANT AND THE MODEL IS A LACQUER MODEL. The second deck theme sets stackStripW: 0.841, almost exactly twice, so its lattice step and therefore its fan height are roughly double at the same card width. Every span, threshold, margin and rate in this file is stated at lacquer and does not transfer. The pointer here was originally written as `theme.ts`, where only the TYPE lives; the drift test rejected it, which is how the second value was found at all.",
+      "validated": "stripW"
+    },
+    {
+      "id": "fanChrome",
+      "value": 13.9,
+      "unit": "px",
+      "what": "The fan's own padding. Not card-scaled.",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "CHROME = 13.9" },
+      "validated": "fanChrome"
+    },
+    {
+      "id": "fanRowGap",
+      "value": 6.0,
+      "unit": "px",
+      "what": "Row gap between the fan's two visual lines.",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "GAP = 6.0" },
+      "validated": "fanRowGap"
+    },
+    {
+      "id": "rowChrome",
+      "value": 48.0,
+      "unit": "px",
+      "what": "Horizontal chrome around a fan line: contentW = W - rowChrome - 0.3*cardW.",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "ROW_CHROME = 48.0" },
+      "validated": "rowChrome"
+    },
+    {
+      "id": "deskMinusCard",
+      "value": 83.0,
+      "unit": "px",
+      "what": "Desk height less the one card height it contains: deskH = deskMinusCard + aspect*cardW.",
+      "parts": { "titleRow": 27, "bar": 4, "status": 24, "gaps": 12, "padding": 14, "border": 2 },
+      "partsNote": "bar = 4 is TIMED-ONLY; removing it and its gap gives the untimed 148.5px desk at the old card.",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "DESK_MINUS_CARD = 83.0" },
+      "validated": "deskMinusCard"
+    },
+    {
+      "id": "kMinusCard",
+      "value": 125.1,
+      "unit": "px",
+      "what": "Everything in the span that is neither fan nor desk, less the one card height inside the trick well: K_well = kMinusCard + aspect*cardW.",
+      "parts": { "wellToFanBand": 59, "fanToDesk": 10, "deskToBar": 15, "barHeight": 41 },
+      "partsNote": "The parts sum to 125.0 against a total of 125.1, a residual of 0.1px. The round that recorded this decomposition called it exact; it is not, and the discrepancy was found by putting the parts and the total in one machine-checked place. 0.1px does not move any decision in this model — it is 0.02% of the span — but 'residual 0px' is a stronger claim than the numbers support.",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "K_MINUS_CARD = 125.1" },
+      "validated": "kMinusCard"
+    },
+    {
+      "id": "kLead",
+      "value": 66.0,
+      "unit": "px",
+      "what": "K when the viewer LEADS and the trick well is empty. Carries no card term — the card in K_well is inside the well.",
+      "source": { "file": "scripts/fan-height-distribution.mjs", "literal": "K_LEAD = 66.0" },
+      "validated": "kLead"
+    },
+    {
+      "id": "maxValueClasses",
+      "value": 15,
+      "unit": "count",
+      "what": "12 non-level natural ranks + the level class + small joker + big joker. A class present in the hand is exactly one fan column.",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "MAX_CLASSES = 15" },
+      "validated": "maxValueClasses"
+    },
+    {
+      "id": "capacityFloor",
+      "value": 8,
+      "unit": "columns",
+      "what": "Per-line capacity needed to fit 15 value classes in TWO lines.",
+      "source": { "file": "scripts/containment.mjs", "literal": "capacity < 8" },
+      "validated": "capacityFloor"
+    },
+    {
+      "id": "layoutBreakpoint",
+      "value": 720,
+      "unit": "px",
+      "what": "The phone/desktop layout seam. The card constant governs below it; above it the card is in rem again.",
+      "source": { "file": "src/client/table/table.css", "literal": "@media (min-width: 720px)" },
+      "validated": "layoutBreakpoint"
+    },
+    {
+      "id": "minGuaranteedWidth",
+      "value": 360,
+      "unit": "px",
+      "what": "Smallest viewport width the card constant is guaranteed at. Below the crossover the layout has no supported card size.",
+      "source": { "file": "scripts/cardw-gate.mjs", "literal": "MIN_GUARANTEED_W ?? 360" },
+      "validated": "minGuaranteedWidth"
+    }
+  ],
+  "formulas": [
+    {
+      "id": "capacity",
+      "expression": "capacity(W, w) = floor((W - rowChrome - 0.3*w) / (0.7*w))",
+      "what": "Columns that fit on one fan line at viewport width W and card width w. Monotonically non-decreasing in W at fixed w."
+    },
+    {
+      "id": "capacityCeiling",
+      "expression": "maxCardW(W) = (W - rowChrome) / (0.7*capacityFloor + 0.3) = (W - 48.0) / 5.9",
+      "what": "Largest card width that still clears the two-line capacity floor at width W."
+    },
+    {
+      "id": "crossover",
+      "expression": "minWidth(w) = rowChrome + 5.9*w",
+      "what": "Smallest viewport width at which card width w still clears the capacity floor. At the shipped 48.15px this is 332.1 CSS px."
+    },
+    {
+      "id": "lineHeight",
+      "expression": "lineH(d, w) = aspect*w + stripW*w*(d - 1)",
+      "what": "Height of one fan line whose deepest column holds d cards."
+    },
+    {
+      "id": "fanHeight",
+      "expression": "fanH(s, w) = fanChrome + fanRowGap + 2*aspect*w + stripW*w*(s - 2)",
+      "what": "Two-line fan height, where s = d1 + d2 is the total depth over both lines. Depends on the hand only through s."
+    },
+    {
+      "id": "threshold",
+      "expression": "T(w) = innerH - (deskMinusCard + aspect*w) - (kMinusCard + aspect*w) = 455.9 - 2.90*w",
+      "what": "The tallest fan that still fits at the reference inner height, following state. Both the desk and K carry one card height each, which is why the coefficient is twice the aspect."
+    },
+    {
+      "id": "margin",
+      "expression": "margin(s, w) = T(w) - fanH(s, w) = 436.0 - (4*aspect + stripW*(s - 2))*w",
+      "what": "Slack for a hand of total depth s at card width w. Width-independent: the viewport's width enters the gate only through capacity."
+    },
+    {
+      "id": "toothBoundary",
+      "expression": "w_s = 436.0 / (4*aspect + stripW*(s - 2))",
+      "what": "Card width at which depth-s hands stop fitting. These roots make the qualifying set of card widths DISJOINT, which is why no clamp coefficient passes at every supported width."
+    }
+  ],
+  "shipped": {
+    "cardWidthRule": "--gd-cardw: 48.15px below 720px; clamp(2.75rem, 13vw, 4.25rem) at and above it",
+    "glyphRule": "--gd-glyphw: min(3.009375rem, 58px) below 720px; var(--gd-cardw) at and above it",
+    "supportedWidths": [360, 375, 390, 430],
+    "unsupportedBelow": 332.1
+  }
+}

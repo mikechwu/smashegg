@@ -304,3 +304,140 @@ console.log('\n=== I3: EXHAUSTIVE RECONSTRUCTION vs THE CLOSED FORM ===');
   }
   console.log(`  (non-vacuity: ${flips.length} flips examined, ${bogus.length} matched a deliberately absent boundary)`);
 }
+
+// ---------------------------------------------------------------- J0
+// THE DECISION, AND WHY IT REDUCES TO ONE WIDTH.
+//
+// I2 established that a SINGLE constant is capped at 46.10px by width 320, which costs
+// -9.1% of card. The owner's ruling: the entire cost of that option is paid to support one
+// width, so raise the minimum GUARANTEED width to 360 and send everything below it to a
+// compact mode. Then segment three's optimum, 48.15px, is available, at -5.0%.
+//
+// TWO STRUCTURAL FACTS make "the gate at every supported width" reduce to a single check,
+// and they are worth stating because they are what a per-width sweep would otherwise
+// obscure:
+//
+//   1. `margin(s, w)` DOES NOT DEPEND ON W AT ALL. threshold and fanHeight are both
+//      vertical; W enters only through `capacity`, and capacity enters the marginal bin
+//      only via maxS = 27 - (min(15, 2*cap) - 2), which is 14 for EVERY cap >= 8 (2*8=16
+//      already saturates the 15 value classes). So for a constant cardW, every geometric
+//      term of the gate is identical at every width that clears capacity >= 8.
+//   2. `capacity` is MONOTONICALLY NON-DECREASING IN W at fixed w. So the binding width
+//      is the SMALLEST supported one, and checking 360 checks 375, 390, 430 and every
+//      width in between.
+//
+// That is why this section reports a ceiling CURVE rather than a pass/fail per width: the
+// curve is the whole content of "at every supported width", and the ruling is a choice of
+// where to start reading it.
+console.log('\n=== J0: THE CAPACITY CEILING BY WIDTH, AND WHERE A CONSTANT CAN SIT ===');
+const CONSTANT = Number(process.env.CARDW ?? 48.15);
+const MIN_GUARANTEED = Number(process.env.MIN_GUARANTEED_W ?? 360);
+// capacity >= 8  <=>  (W - ROW_CHROME - 0.3w) / (0.7w) >= 8  <=>  W - ROW_CHROME >= 5.9w
+const ceilingFor = (W) => (W - ROW_CHROME) / (0.7 * 8 + 0.3);
+console.log('  width   max cardW at capacity >= 8   ratio at the constant   capacity   slack (columns)');
+for (const W of [320, ...WIDTHS.filter((x) => x !== 320)]) {
+  const ceil = ceilingFor(W);
+  const ratio = contentFor(W, CONSTANT) / (0.7 * CONSTANT);
+  const cap = capacityFor(W, CONSTANT);
+  console.log(
+    `  ${String(W).padStart(5)}   ${ceil.toFixed(2).padStart(26)}   ${ratio.toFixed(2).padStart(21)}   ` +
+      `${String(cap).padStart(8)}   ${(ratio - 8).toFixed(2).padStart(15)}` +
+      (cap < 8 ? '   <-- COMPACT MODE' : ''),
+  );
+}
+// The crossover: the width at which the constant stops clearing capacity >= 8.
+const CROSSOVER = ROW_CHROME + 5.9 * CONSTANT;
+console.log(
+  `\n  compact-mode crossover: W < ${ROW_CHROME} + 5.9 * ${CONSTANT} = ${CROSSOVER.toFixed(1)} CSS px.\n` +
+    `  Below it capacity falls to 7 and 15 value classes need three lines.`,
+);
+
+console.log(`\n=== J0: THE CONSTANT ${CONSTANT}px AGAINST THE GEOMETRIC GATE ===`);
+console.log(`  gate: margin >= ${MIN_MARGIN}px AND margin(s=${LAST_VALIDATED_BIN}) >= 0 AND capacity >= 8`);
+{
+  const mb = marginalBin(MIN_GUARANTEED, CONSTANT);
+  // Setback, BROKEN OUT BY KIND rather than minimised into one number. A tooth boundary is
+  // a FEASIBILITY cliff (a bin stops fitting); a capacity crossing at cap >= 8 only changes
+  // the line SPLIT, which moves the distribution but never the pass/fail. Reporting the min
+  // of the two would let a benign 11->10 crossing at width 430 read as a near miss.
+  const teeth = [];
+  for (let s = 3; s <= 16; s += 1) {
+    const w = (INNER_H - DESK_MINUS_CARD - K_MINUS_CARD - CHROME - GAP) / (4 * ASPECT + STRIP * (s - 2));
+    if (w > FLOOR - 6 && w < CEIL + 6) teeth.push({ w, s });
+  }
+  const nearestTooth = teeth.reduce((a, b) =>
+    Math.abs(b.w - CONSTANT) < Math.abs(a.w - CONSTANT) ? b : a,
+  );
+  console.log(
+    `  marginal bin s=${mb.s}   margin ${mb.margin.toFixed(2)}px   ` +
+      `above the ${MIN_MARGIN}px floor by ${(mb.margin - MIN_MARGIN).toFixed(2)}px`,
+  );
+  console.log(
+    `  validated bin s=${LAST_VALIDATED_BIN} feasible: ${validatedBinFeasible(CONSTANT) ? 'yes' : 'NO'}   ` +
+      `(margin ${marginFor(LAST_VALIDATED_BIN, CONSTANT).toFixed(2)}px)`,
+  );
+  console.log(
+    `  nearest FEASIBILITY cliff: tooth s=${nearestTooth.s} at ${nearestTooth.w.toFixed(2)}px, ` +
+      `setback ${Math.abs(nearestTooth.w - CONSTANT).toFixed(2)}px`,
+  );
+  console.log('\n  width   capacity   nearest capacity crossing   distance   consequence of crossing it');
+  for (const W of WIDTHS.filter((x) => x >= MIN_GUARANTEED)) {
+    let near = null;
+    for (let k = 6; k <= 20; k += 1) {
+      const w = (W - ROW_CHROME) / (0.7 * k + 0.3);
+      if (near === null || Math.abs(w - CONSTANT) < Math.abs(near.w - CONSTANT)) near = { w, k };
+    }
+    const cap = capacityFor(W, CONSTANT);
+    console.log(
+      `  ${String(W).padStart(5)}   ${String(cap).padStart(8)}   ${near.w.toFixed(2).padStart(25)}   ` +
+        `${Math.abs(near.w - CONSTANT).toFixed(2).padStart(8)}   ` +
+        `${near.k - 1 >= 8 ? `split ${near.k} -> ${near.k - 1} columns, still two lines` : 'THREE LINES'}`,
+    );
+  }
+  const pass =
+    mb.margin >= MIN_MARGIN &&
+    validatedBinFeasible(CONSTANT) &&
+    WIDTHS.filter((x) => x >= MIN_GUARANTEED).every((W) => capacityFor(W, CONSTANT) >= 8);
+  console.log(`\n  GATE at every width >= ${MIN_GUARANTEED}: ${pass ? 'PASS' : 'FAIL'}`);
+  if (!pass) process.exitCode = 1;
+}
+
+// PRACTICE 33: an independent exhaustive reconstruction of the ceiling curve, sharing no
+// algebra with it. The closed form divides; this one counts columns with the SAME floor()
+// the layout uses, stepping w until capacity drops below 8. A sign or rearrangement error
+// in `(W - ROW_CHROME) / 5.9` dies on the first comparison.
+console.log('\n=== J0: EXHAUSTIVE RECONSTRUCTION OF THE CEILING CURVE ===');
+{
+  let checked = 0;
+  let disagreements = 0;
+  for (const W of [320, 360, 375, 390, 430]) {
+    let last = null;
+    for (let w = 30; w <= 80; w = Math.round((w + 0.01) * 100) / 100) {
+      if (capacityFor(W, w) >= 8) last = w;
+    }
+    const closed = ceilingFor(W);
+    const agree = Math.abs(last - closed) <= 0.011;
+    checked += 1;
+    if (!agree) disagreements += 1;
+    console.log(
+      `  ${String(W).padStart(4)}   closed form ${closed.toFixed(4)}   numerical ${last.toFixed(2)}   ` +
+        `${agree ? 'AGREE' : 'DISAGREE'}`,
+    );
+  }
+  if (checked === 0) {
+    console.log('  NOTHING CHECKED — the reconstruction proves nothing.');
+    process.exitCode = 1;
+  }
+  if (disagreements > 0) process.exitCode = 1;
+  // NON-VACUITY: the comparison must be capable of failing. Feed it a deliberately wrong
+  // closed form and require that it is rejected.
+  const bogus = (320 - ROW_CHROME) / 5.8;
+  let lastTrue = null;
+  for (let w = 30; w <= 80; w = Math.round((w + 0.01) * 100) / 100) if (capacityFor(320, w) >= 8) lastTrue = w;
+  const rejected = Math.abs(lastTrue - bogus) > 0.011;
+  console.log(
+    `  (non-vacuity: ${checked} widths compared; a deliberately wrong divisor 5.8 gives ` +
+      `${bogus.toFixed(2)} and is ${rejected ? 'REJECTED' : 'ACCEPTED — THE CHECK IS BLIND'})`,
+  );
+  if (!rejected) process.exitCode = 1;
+}

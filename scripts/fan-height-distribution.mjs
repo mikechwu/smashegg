@@ -31,7 +31,7 @@
 // Stated as data with their provenance rather than inlined into the arithmetic,
 // because they are viewport- and theme-scoped and a reader must be able to see
 // that (practice 15).
-const GEOM = {
+const MEASURED = {
   viewport: 'inner 390 wide, lacquer, zh-Hant',
   CARD_H: 73.5,
   STEP: 21.3, // stackOffsetW(n, 0.42) * cardW = 0.42 * 50.7
@@ -39,6 +39,34 @@ const GEOM = {
   ROW_GAP: 6,
   LINE_CAP: 9, // floor(rowContentWidth / pitch) = floor(326.8 / 35.5), measured
 };
+
+// J0a — A COUNTERFACTUAL CARD SIZE, WITHOUT DISTURBING THE VALIDATED RUN.
+//
+// The card-scale decision needs this distribution at a card the product does not ship yet,
+// at a viewport width whose CAPACITY differs (8 columns per line at 360px, against the 9
+// this was validated at). An 8/7 split is more balanced than 9/6, and a balanced split
+// raises d1 + d2, so the rate cannot be assumed to carry across.
+//
+// The counterfactual is a SEPARATE BRANCH rather than a rewrite of the constants. With
+// CARD_W unset this file executes exactly the arithmetic prereg-fan-model.md and
+// prereg-descending-holdout.md validated — same literals, same histogram bin edges, same
+// numbers. Deriving 21.3 as 0.42 * 50.7 = 21.294 would have moved a bin edge by 0.08px
+// over 14 steps and quietly desynchronised the run from its own held-out test.
+const ASPECT = 73.5 / 50.7; // .gd-card is calc(var(--gd-cardw) * 1.45); measured 73.5 at 50.7
+const CARD_W = process.env.CARD_W === undefined ? null : Number(process.env.CARD_W);
+const SIM_WIDTH = Number(process.env.SIM_WIDTH ?? 390);
+const ROW_CHROME = 48.0; // contentW = W - 48.0 - 0.3*cardW (cardw-gate.mjs, calibrated)
+const GEOM =
+  CARD_W === null
+    ? MEASURED
+    : {
+        viewport: `DERIVED for cardW ${CARD_W}px at inner ${SIM_WIDTH} wide, lacquer`,
+        CARD_H: Math.round(ASPECT * CARD_W * 100) / 100,
+        STEP: Math.round(0.42 * CARD_W * 100) / 100,
+        CHROME: MEASURED.CHROME, // the fan's own padding: not card-scaled (F5a)
+        ROW_GAP: MEASURED.ROW_GAP,
+        LINE_CAP: Math.floor((SIM_WIDTH - ROW_CHROME - 0.3 * CARD_W) / (0.7 * CARD_W)),
+      };
 const SAMPLES = Number(process.env.SAMPLES ?? 200_000);
 const HAND = Number(process.env.HAND_SIZE ?? 27);
 
@@ -173,13 +201,22 @@ if (max < STRUCTURAL_MAX) {
 
 // WHAT THE SPAN AND SLACK ARE, per height — the figure the decision actually
 // needs. K uses the well-present (larger) value; desk uses its saturated max.
-const K_WELL = 198.6;
+// Both terms carry ONE card height each (F5a decomposed both to 0px residual):
+// deskH = 83.0 + aspect*w and K_well = 125.1 + aspect*w. K_LEAD carries none — the
+// card in K_well lives inside the 132.5px well, which is exactly what is absent
+// when the viewer leads. So a counterfactual card size scales the first two and
+// leaves the third alone.
+const cardTerm = CARD_W === null ? 73.5 : Math.round(ASPECT * CARD_W * 100) / 100;
+const K_WELL = Math.round((125.1 + cardTerm) * 10) / 10;
 // DESK MAXIMUM, BY ROOM TIMING — an axis no gate had ever varied. Every driver in
 // this repo creates an UNTIMED room, while the product's DEFAULT is
 // TIMING_PRESETS.standard (45s/90s). A timed room renders the desk's countdown
 // bar, worth +8.0px, so every desk figure recorded before 2026-07-27 describes a
 // configuration most rooms are not in. Both are measured (derive-span.mjs).
-const DESK = { untimed: 148.5, timed: 156.5 };
+const DESK = {
+  untimed: Math.round((83.0 + cardTerm - 8.0) * 10) / 10,
+  timed: Math.round((83.0 + cardTerm) * 10) / 10,
+};
 const DESK_MAX = DESK.timed;
 // THE POPULATION SPLIT. K is 198.6px when the trick well renders and 66.0px when
 // the viewer LEADS and it is empty, and that 132.5px IS the well. So a leading
@@ -205,9 +242,13 @@ console.log(`    FOLLOWING: K = ${K_WELL}px (the trick well renders).  LEADING: 
 console.log(`\n  viewport                        FOLLOWING            LEADING          structural worst slack (follow)`);
 for (const [tlabel, desk] of [['TIMED (the product default, 45s/90s)', DESK.timed], ['untimed (what every gate measured)', DESK.untimed]]) {
   console.log(`\n  --- ${tlabel}: desk max ${desk}px ---`);
+  // THE WIDTH IN THESE LABELS IS THE SIMULATED ONE, NOT A LITERAL 390. Under a
+  // counterfactual card size the run's LINE_CAP comes from SIM_WIDTH, so a hardcoded
+  // "390x664" would name a viewport the row does not describe — the same mislabel class
+  // as a desk figure recorded in a configuration nobody is in.
   for (const [label, innerH] of [
-    ['390x664 (toolbars)', 664],
-    ['390x748 (minimized)', 748],
+    [`${SIM_WIDTH}x664 (toolbars)`, 664],
+    [`${SIM_WIDTH}x748 (minimized)`, 748],
     ['1366x681 (maximized laptop)', 681],
   ]) {
     const bf = rateFor(innerH, K_WELL, desk);
@@ -225,6 +266,18 @@ for (const [tlabel, desk] of [['TIMED (the product default, 45s/90s)', DESK.time
 console.log(
   `\n  A pooled rate over both populations would sit BELOW the following-state rate by the\n` +
     `  share of leading turns, and would describe no player's actual situation. Report both.`,
+);
+// CAVEAT ON THE 1366 ROW, found while making the labels honest and recorded rather than
+// propagated. The histogram is built ONCE, with the line cap of the simulated width, so
+// the 1366x681 row applies a ${GEOM.LINE_CAP}-column line cap to a viewport whose own cap
+// is far larger (a 1366-wide desktop clamps the card to 68px and fits every value class on
+// ONE line). That row therefore describes a NARROW WINDOW at 681px tall, not a maximized
+// 1366-wide desktop. Fixing it needs a second simulation, not a relabel, so it is stated
+// here instead of being quietly carried.
+console.log(
+  `\n  CAVEAT: the 1366 row uses this run's ${GEOM.LINE_CAP}-column line cap. A 1366-wide\n` +
+    `  desktop has a far larger cap and fits one line, so read that row as a NARROW window\n` +
+    `  at 681px tall. The label names the height honestly and the width only by convention.`,
 );
 console.log(
   `\n  NOTE THE TWO DIFFERENT CLAIMS. The percentage is how often the CURRENT layout fails;\n` +

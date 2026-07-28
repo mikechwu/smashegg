@@ -270,7 +270,11 @@ describe('suit CSS wiring (table.css)', () => {
 
   it('.gd-card__pip is a --gd-cardw BOX now, not a font glyph (the migration must not regress)', () => {
     const rule = css.match(/\.gd-card__pip\s*\{([^}]*)\}/)?.[1] ?? '';
-    expect(rule).toMatch(/width:\s*calc\(var\(--gd-cardw\)/);
+    // J0 split the card's INK basis (--gd-glyphw, and --gd-pipw off it) from its BOX
+    // basis (--gd-cardw). The property this pin protects is unchanged and is the reason
+    // it was written: the pip is a sized BOX, not a font glyph. It just rides the ink
+    // scale now, which is what lets it grow with the user's text size.
+    expect(rule).toMatch(/width:\s*calc\(var\(--gd-(pipw|glyphw|cardw)\)/);
     expect(rule).not.toContain('font-size');
     expect(rule).not.toContain('font-family');
   });

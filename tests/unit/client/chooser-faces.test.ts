@@ -409,8 +409,10 @@ describe('chooser 390px fit — CSS-token arithmetic (render verified by visual 
     // arithmetic is superseded): the result row rides the trick well's own
     // -0.6 overlap — it IS the play as it will hit the table — and the chip
     // row (wild → target) stays flat.
-    const handVw = token(tableCss, /\.gd-card--hand\s*\{[^}]*--gd-cardw:\s*clamp\([\d.]+rem,\s*([\d.]+)vw/, 'hand vw');
-    const handFloor = token(tableCss, /\.gd-card--hand\s*\{[^}]*--gd-cardw:\s*clamp\(([\d.]+)rem/, 'hand floor') * REM;
+    // J0: BELOW THE 720px LAYOUT BREAKPOINT THE HAND CARD IS A CONSTANT. Both viewports
+    // this test checks (390, 375) are below it, so there is no vw term and no rem floor to
+    // read — the card is one number, declared once in app.css :root.
+    const handPx = token(appCss, /--gd-handcardw:\s*([\d.]+)px;/, 'phone hand card constant');
     const chooserBlock = tableCss.match(/\.gd-chooser\s*\{([^}]*)\}/)![1]!;
     const chooserPad = token(chooserBlock, /padding:\s*([\d.]+)rem/, 'chooser padding') * REM;
     const chooserBorder = token(chooserBlock, /border:\s*([\d.]+)px/, 'chooser border');
@@ -443,7 +445,7 @@ describe('chooser 390px fit — CSS-token arithmetic (render verified by visual 
 
     const chrome = 2 * (chooserPad + chooserBorder);
     for (const viewport of [390, 375]) {
-      const cardw = Math.max(handFloor, (handVw / 100) * viewport);
+      const cardw = handPx;
       // Worst result row: 6 hand faces under the well overlap (7–10-card
       // selections are single-reading bombs; the chooser needs ≥2 readings).
       const worstRow = cardw * (1 + 5 * (1 + overlap));
@@ -467,11 +469,13 @@ describe('chooser 390px fit — CSS-token arithmetic (render verified by visual 
     expect(actionBarSrc).toContain('size="hand"');
   });
 
-  // The wild seal must read as a stamp (not a smear) at the smallest size
-  // the game UI now ships: the HAND clamp floor (2.75rem) — the chooser,
-  // well, fan, piles, cut, ceremony and deal all render hand faces.
-  it('pins the wild-seal diameter at the hand floor (reads as a stamp, not a smear)', () => {
-    const handFloor = token(tableCss, /\.gd-card--hand\s*\{[^}]*--gd-cardw:\s*clamp\(([\d.]+)rem/, 'hand floor') * REM;
+  // The wild seal must read as a stamp (not a smear) at the smallest size the game UI
+  // ships. That used to be the hand clamp's 2.75rem floor (44px); since J0 it is the phone
+  // CONSTANT, 48.15px, because the desktop branch above the breakpoint is larger and the
+  // constant is the same at every phone width. The chooser, well, fan, piles, cut, ceremony
+  // and deal all render hand faces, so this is the whole game UI's smallest card.
+  it('pins the wild-seal diameter at the smallest shipped hand size (reads as a stamp, not a smear)', () => {
+    const handFloor = token(appCss, /--gd-handcardw:\s*([\d.]+)px;/, 'phone hand card constant');
     const ratio = token(
       tableCss,
       /\.gd-card__wild\s*\{[^}]*width:\s*calc\(var\(--gd-cardw\)\s*\*\s*([\d.]+)\)/,

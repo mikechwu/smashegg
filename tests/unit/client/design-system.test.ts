@@ -78,9 +78,15 @@ describe('design-system guard — palette colours live only in token definitions
 describe('design-system guard — every font-size rides the type scale', () => {
   // Allowed forms: a scale token, a card-metric calc, a parent-relative em, or a
   // keyword. A bare rem/px literal is an off-scale one-off (the pickers' sin).
+  //
+  // --gd-glyphw JOINS --gd-cardw AS A CARD METRIC (round J0). The card used to have one
+  // basis for its box and its ink; it now has two, because the box became a constant px
+  // so that user text scaling cannot decide whether the hand FITS, and the ink had to keep
+  // scaling or accessibility text sizing would be silently dead on every card face. Both
+  // are scales in this rule's sense — what it forbids is a raw literal, and neither is one.
   const okValue = (v: string) =>
     /^var\(--fs-/.test(v) ||
-    /^calc\(\s*var\(--gd-cardw/.test(v) ||
+    /^calc\(\s*var\(--gd-(cardw|glyphw)/.test(v) ||
     /^clamp\(/.test(v) || // responsive display sizing (the room-code numeral)
     /^[\d.]+em$/.test(v) ||
     /^(inherit|initial|unset)$/.test(v);

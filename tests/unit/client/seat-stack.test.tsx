@@ -924,12 +924,15 @@ describe('exposure constant + card-width lockstep (T5)', () => {
     const clampOf = (selector: RegExp, what: string): string => {
       const block = tableCss.match(selector)?.[0] ?? '';
       expect(block, `rule not found: ${what}`).not.toBe('');
-      const m = block.match(/--gd-cardw:\s*(clamp\([^)]+\))/);
-      expect(m, `--gd-cardw clamp not found: ${what}`).not.toBeNull();
+      // J0: one shared token replaced nine clamp literals, so what is pinned is that
+      // both sites reference it rather than that two literals happen to match.
+      const m = block.match(/--gd-cardw:\s*([^;]+);/);
+      expect(m, `--gd-cardw declaration not found: ${what}`).not.toBeNull();
       return m![1]!.replace(/\s+/g, ' ').trim();
     };
     const handClamp = clampOf(/\.gd-card--hand\s*\{[^}]*\}/, '.gd-card--hand');
     const stackClamp = clampOf(/^\.gd-seatstack\s*\{[^}]*\}/m, '.gd-seatstack');
+    expect(handClamp).toBe('var(--gd-handcardw)');
     expect(stackClamp).toBe(handClamp);
     // Review hardening: the pinned clamp must be the ONLY --gd-cardw
     // declaration across ALL .gd-seatstack rules — a divergent re-clamp

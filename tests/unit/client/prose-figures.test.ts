@@ -8,11 +8,23 @@
 //     pre-fix inside a sentence whose rate figure had been corrected.
 // The rule has been stated four times and broken four times, so it goes in the tooling.
 //
-// SCOPE, chosen deliberately. Only the CURRENT (top) entry of STATUS.md and the latest
-// numbered section of reachability.md are checked. History is immutable by convention
-// here — old entries record what was believed at the time, and retro-fitting tables into
-// them would destroy the record. The errors have all been in the entry being written,
-// which is also the only place a fix is cheap.
+// SCOPE, RE-AIMED BY THE status/ SPLIT (round J1). It used to be "the top ## entry of
+// STATUS.md", which no longer exists: STATUS.md became status/rounds/*.md, and those files
+// are history moved verbatim.
+//
+// The rule the new scope follows is: TABLE-BACKING APPLIES ONLY TO FILES THAT ARE ALLOWED
+// TO CHANGE WHEN A CLAIM IS WRONG. That is status/CURRENT.md and status/VALIDATED.md — the
+// live surfaces, the ones a reader is told to load, and the ones where a fix is cheap.
+// Round files are excluded on the same reasoning as before, now made structural rather than
+// positional: fixing an old orphan figure would be a rewrite, and a scanner over immutable
+// files either freezes the suite on frozen sins or forces the rewrites immutability
+// forbids.
+//
+// THE COST, STATED. Old rounds keep whatever prose/table disagreements they had; they are a
+// transcript, not an encyclopedia. What protects a reader there is the pointer block at the
+// top of every round file and status/WITHDRAWN.md, not this test. And a figure asserted in
+// a round file and never promoted to CURRENT or VALIDATED is checked by nothing — which is
+// the argument for CURRENT carrying the round's live claims, not merely summarising it.
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
@@ -20,12 +32,11 @@ import { describe, expect, it } from 'vitest';
 const read = (rel: string): string =>
   readFileSync(new URL(`../../../${rel}`, import.meta.url), 'utf8');
 
-/** The top STATUS entry: from the first `## ` heading to the next one. */
-function topStatusEntry(): string {
-  const src = read('STATUS.md');
-  const first = src.indexOf('\n## ');
-  const second = src.indexOf('\n## ', first + 1);
-  return src.slice(first, second === -1 ? undefined : second);
+/** The mutable live surfaces, concatenated. Both are allowed to change when a claim is
+ *  wrong, which is exactly the property that makes table-backing enforceable on them. */
+const SCANNED = ['status/CURRENT.md', 'status/VALIDATED.md'];
+function liveSurfaces(): string {
+  return SCANNED.map((f) => read(f)).join('\n');
 }
 
 /** Lines that are table rows (markdown pipe rows) versus prose. */
@@ -52,35 +63,28 @@ const FIGURE = /(\d+(?:\.\d+)?)\s*(px|%)/g;
  *  the same shape the axis registry uses, and a new orphan has to be triaged rather than
  *  absorbed. Five on the first entry is the expected friction. */
 const ALLOWED: Record<string, string> = {
-  '69.5px': 'the joker SVG height — a component measurement, not a row of any decision table',
-  '0.1px': "C1's off-lattice distance, quoted from the held-out test's own criteria",
-  '69%': 'P(a hand contains a joker), a probability of the shoe and not a layout figure',
-  '9.20px': 'quoted precisely BECAUSE it is the withdrawn value; the sentence is the retraction',
-  '415px': 'the width at which the vw term stops binding — derived in the text, not a swept row',
-  '100%': 'a rate of 1, used rhetorically',
+  '0.1px': "the kMinusCard decomposition residual — a property OF the table, not a row in it",
   '0%': 'a rate of 0, used rhetorically',
-  '14.20px': 'the CORRECTED value, quoted in the sentence that records the correction',
-  '137.7px': 'the mutant figure used to demonstrate this very scanner, quoted as an example',
-  '3.6%': 'a ratio BETWEEN two table rows, which no single row can carry',
-  '8.4%': 'a ratio between a candidate and today, likewise a relation and not a row',
-  '5.6%': 'a ratio between two candidate rows',
-  '0.04px': 'the stability of a derived constant across widths, reported in prose only',
-  '200%': 'a browser zoom level, not a layout measurement',
-  '390px': 'the device width the zoom path starts from, named to make the path concrete',
-  '195px': 'the CSS viewport that zoom produces — derived in the sentence, not swept',
-  '310px': 'the capacity-8 crossing, stated in prose because the table brackets it (305/310)',
+  '0.04px': "rowChrome's calibration residual across four widths, reported in prose only",
 };
 
-// FRICTION, MEASURED AND REPORTED RATHER THAN HIDDEN. The rule as specified ("every
-// px/% in prose must be in a table here") produced ELEVEN exemptions across two entries.
-// Most are relations between rows (a ratio, a difference) or quantities that are not
-// decision figures at all (a zoom level, an SVG height). That is the honest cost of a
-// deliberately over-broad rule, and it is preferable to a clever narrower one that would
-// fail silently — but if it proves unworkable the narrower rule to try is "figures that
-// name a unit a table column also uses", not a smaller allowlist.
+// FRICTION, MEASURED AND REPORTED RATHER THAN HIDDEN — AND IT COLLAPSED WHEN THE SCOPE
+// MOVED. Under the old scope (the top STATUS entry) this list held SEVENTEEN exemptions,
+// most of them relations BETWEEN table rows — a ratio, a difference — or quantities that
+// were not decision figures at all: a zoom level, an SVG height, a device width. That was
+// the honest cost of a deliberately over-broad rule.
+//
+// Re-aiming the scanner at status/CURRENT.md and status/VALIDATED.md dropped fourteen of
+// the seventeen, because those two files are structurally tabular: CURRENT states decisions
+// with their numbers in tables, and VALIDATED is one row per quantity by construction. The
+// three that remain are all the same shape — a property OF a table rather than a row IN one.
+//
+// That is worth recording as evidence about the rule, not just about the list. The friction
+// was never the rule being too broad; it was the rule being pointed at a document whose
+// FORM was narrative. The ceiling is now 3.
 
 describe('a figure in prose is backed by a table in the same section', () => {
-  const section = topStatusEntry();
+  const section = liveSurfaces();
   const { prose, tables } = split(section);
 
   // G4a: A RATCHET, because a justification string is what the axis registry's
@@ -88,13 +92,28 @@ describe('a figure in prose is backed by a table in the same section', () => {
   // not rise: a new exemption has to displace an old one, or the ceiling has to be moved
   // deliberately in a commit that says why.
   it('the allowlist does not grow', () => {
-    const CEILING = 17;
+    const CEILING = 3;
     expect(
       Object.keys(ALLOWED).length,
       `the prose-figure allowlist has ${Object.keys(ALLOWED).length} entries against a ` +
         `ceiling of ${CEILING}. Raising the ceiling is a deliberate act — say why in the ` +
         `commit. Otherwise put the figure in a table, which is what the rule is for.`,
     ).toBeLessThanOrEqual(CEILING);
+  });
+
+  // THE RATCHET'S OTHER HALF: an exemption that no longer exempts anything is dead weight
+  // that keeps the ceiling high and lets a real orphan slip in under it later. The scope
+  // moved this round from "the top STATUS entry" to the live status files, which made
+  // several exemptions stale — and a stale exemption is invisible, because nothing it
+  // covers exists to fail. So the list must be USED, not merely justified.
+  it('every allowlist entry is still needed', () => {
+    const unused = Object.keys(ALLOWED).filter((fig) => !section.includes(fig));
+    expect(
+      unused,
+      `these exemptions no longer cover any figure in scope: ${unused.join(', ')}.\n` +
+        `Delete them — an unused exemption holds the ceiling up for nothing, and re-adding ` +
+        `one when it is needed again is a one-line commit that says why.`,
+    ).toEqual([]);
   });
 
   it('every allowlist entry states a reason', () => {
@@ -104,7 +123,7 @@ describe('a figure in prose is backed by a table in the same section', () => {
   });
 
   it('finds a section with both prose and tables (not vacuous)', () => {
-    expect(section.length, 'the top STATUS entry is findable').toBeGreaterThan(400);
+    expect(section.length, 'the live status surfaces are findable').toBeGreaterThan(400);
     expect(tables.length, 'it contains at least one table to check against').toBeGreaterThan(40);
   });
 

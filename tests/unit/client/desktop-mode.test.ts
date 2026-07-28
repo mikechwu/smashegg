@@ -164,8 +164,14 @@ describe('PHONE IDENTITY — rung 0 cannot reach a viewport below 720px', () => 
     // the 906.1px an n=12 sweep happened to produce — that sample understated
     // the true bound by 237.5px, which is exactly practice 14's failure mode.
     const REM = 16;
+    // J0: the DESKTOP card width now lives in one --gd-handcardw declaration inside
+    // app.css's min-width:720px block; this is a desktop bound, so it reads that one.
     const cardPx =
-      Number(TABLE.match(/\.gd-card--hand\s*\{[^}]*clamp\([\d.]+rem,\s*[\d.]+vw,\s*([\d.]+)rem\)/)?.[1] ?? NaN) * REM;
+      Number(
+        APP_DESKTOP.map((b) => b.body)
+          .join('\n')
+          .match(/--gd-handcardw:\s*clamp\([\d.]+rem,\s*[\d.]+vw,\s*([\d.]+)rem\)/)?.[1] ?? NaN,
+      ) * REM;
     const pitchFactor = Number(
       (TABLE.match(/\.gd-fan__stack\s*\{[^}]*\}/)?.[0] ?? '').match(
         /margin-left:\s*calc\([^)]*\)\s*\*\s*-([\d.]+)\)/,
@@ -313,11 +319,15 @@ describe('RUNG 0 is present and is what it claims to be', () => {
     // wrapped to two lines at EVERY width, 2478px included, for the project's
     // whole life.
     const REM = 16;
-    const handBlock = TABLE.match(/\.gd-card--hand\s*\{[^}]*\}/)?.[0] ?? '';
+    // J0: the desktop card expression moved from nine literals to ONE --gd-handcardw
+    // declaration inside app.css's `min-width: 720px` block. This arithmetic is about the
+    // DESKTOP hand, so it reads the desktop declaration — which is deliberately the same
+    // expression, ceiling included, as it was before that round.
+    const desktopRoot = APP_DESKTOP.map((b) => b.body).join('\n');
     const ceilingRem = Number(
-      handBlock.match(/clamp\([\d.]+rem,\s*[\d.]+vw,\s*([\d.]+)rem\)/)?.[1] ?? NaN,
+      desktopRoot.match(/--gd-handcardw:\s*clamp\([\d.]+rem,\s*[\d.]+vw,\s*([\d.]+)rem\)/)?.[1] ?? NaN,
     );
-    expect(ceilingRem, 'card clamp ceiling is parseable').toBeGreaterThan(0);
+    expect(ceilingRem, 'desktop card clamp ceiling is parseable').toBeGreaterThan(0);
 
     const pitchBlock = TABLE.match(/\.gd-fan__stack\s*\{[^}]*\}/)?.[0] ?? '';
     const pitchFactor = Number(
@@ -356,11 +366,27 @@ describe('RUNG 0 is present and is what it claims to be', () => {
     // table.css:805-813 records that a wrong one silently yields margin 0 and
     // renders 27 full-height cards with no overlap at all.
     const desktop = [...TABLE_DESKTOP, ...APP_DESKTOP].map((b) => b.body).join('\n');
-    expect(desktop, 'no desktop card-width override').not.toContain('--gd-cardw');
     expect(desktop, 'no desktop column-pitch override').not.toContain('.gd-fan__stack');
     expect(desktop, 'no desktop index-ratio override').not.toContain('.gd-card__rank');
-    const clampCopies = (TABLE.match(/clamp\(2\.75rem, 13vw, 4\.25rem\)/g) ?? []).length;
-    expect(clampCopies, 'the nine clamp sites are untouched by this round').toBe(9);
+
+    // WHAT THIS PIN IS FOR, RE-EXPRESSED AFTER J0. It used to assert that no desktop
+    // block mentions --gd-cardw at all, and that nine copies of the clamp literal exist.
+    // Both were proxies for one property: THE DESKTOP CARD METRIC IS EXACTLY WHAT IT WAS.
+    // Round J0 had to state the desktop expression explicitly, because the phone value
+    // below the breakpoint is now a constant and something must say what happens above it.
+    // So the proxy is replaced by the property itself — the desktop declaration is the
+    // same expression, verbatim, and there is exactly ONE of it.
+    const desktopDecls = desktop.match(/--gd-handcardw:\s*clamp\(2\.75rem, 13vw, 4\.25rem\)/g) ?? [];
+    expect(desktopDecls, 'the desktop card expression is unchanged, and declared once').toHaveLength(1);
+    // …and there is no OTHER card-width declaration hiding in a desktop block.
+    const strayCardw = desktop.match(/--gd-cardw:/g) ?? [];
+    expect(strayCardw, 'no desktop --gd-cardw override').toHaveLength(0);
+    // The nine sites that must agree now READ the token rather than repeating a literal,
+    // which is why they can no longer diverge. Zero literals is the point.
+    const literalCopies = (TABLE.match(/clamp\(2\.75rem, 13vw, 4\.25rem\)/g) ?? []).length;
+    expect(literalCopies, 'no rule repeats the card literal any more — they read the token').toBe(0);
+    const tokenUses = (TABLE.match(/var\(--gd-handcardw\)/g) ?? []).length;
+    expect(tokenUses, 'the nine lockstep sites all read the shared token').toBe(9);
   });
 });
 
@@ -375,29 +401,49 @@ describe('RUNG 0 is present and is what it claims to be', () => {
 // it — but that nine copies DRIFT. That is checkable without touching any of
 // them, which is most of the benefit at none of the silent-breakage risk.
 // ---------------------------------------------------------------------------
-describe('the card clamp is duplicated on purpose — but the copies must agree', () => {
-  it('every clamp() spelling of the hand card is character-identical', () => {
-    const clamps = [...TABLE.matchAll(/clamp\(\s*[\d.]+rem\s*,\s*[\d.]+vw\s*,\s*[\d.]+rem\s*\)/g)].map(
-      (m) => m[0].replace(/\s+/g, ' '),
-    );
-    // Non-vacuity: if the spelling changes so this finds nothing, the test must
-    // fail rather than pass on an empty set.
-    expect(clamps.length, 'the clamp copies are findable').toBeGreaterThanOrEqual(9);
-    const distinct = [...new Set(clamps)];
+// THE DUPLICATION THIS BLOCK GUARDED IS GONE (round J0).
+//
+// The hand card's size used to be `clamp(2.75rem, 13vw, 4.25rem)` written out at NINE
+// sites — the card, the seat stack, the cut ribbon's sliver, the fan overlap, the column
+// pitch, the shelf — with these two tests standing guard over the copies: all nine had to
+// be character-identical, and adding a tenth had to be deliberate. That was the right
+// guard for the design, and the design was the problem. Changing the card size in J0
+// changed one copy and left eight, which renders columns whose overlap is computed from
+// one width while the boxes are another width; the pins caught it before it shipped.
+//
+// So the copies were replaced by one --gd-handcardw declaration in app.css :root, and
+// these tests now assert the property the string-matching was a proxy for: there is
+// exactly ONE place the card's size is decided per breakpoint, and every site reads it.
+// A future rule that writes a literal instead of the token fails the first test here.
+describe('the hand card size is declared once and read everywhere', () => {
+  it('no rule writes a card-width literal — they all read the token', () => {
+    const literals = TABLE.match(/clamp\(\s*[\d.]+rem\s*,\s*[\d.]+vw\s*,\s*[\d.]+rem\s*\)/g) ?? [];
     expect(
-      distinct,
-      `the hand card's clamp is written ${clamps.length} times and they must all ` +
-        `be the same string; found ${distinct.length} distinct: ${distinct.join(' | ')}`,
-    ).toHaveLength(1);
+      literals,
+      `these card-width literals are back in table.css: ${literals.join(' | ')}. ` +
+        'Use var(--gd-handcardw) — the reason the token exists is that nine copies of a ' +
+        'literal cannot be kept in agreement by anything except a test.',
+    ).toHaveLength(0);
   });
 
-  it('the count is pinned, so ADDING a tenth copy is a deliberate act', () => {
-    // Not a style rule — a change-detector on purpose. A new copy is a new place
-    // to drift, and the person adding it should have to say so here.
-    const clamps = TABLE.match(/clamp\(\s*[\d.]+rem\s*,\s*[\d.]+vw\s*,\s*[\d.]+rem\s*\)/g) ?? [];
-    expect(clamps).toHaveLength(9);
+  it('the token is used at every site that must agree, and the count is pinned', () => {
+    // Still a change-detector on purpose: a new site is a new thing that must track the
+    // card, and the person adding one should have to say so here. What is no longer
+    // possible is for a new site to track a DIFFERENT card.
+    const uses = TABLE.match(/var\(--gd-handcardw\)/g) ?? [];
+    expect(uses, 'the nine lockstep sites read the shared token').toHaveLength(9);
+  });
+
+  it('the card size is decided in exactly two places: phone and desktop', () => {
+    const app = readFileSync(new URL('../../../src/client/app.css', import.meta.url), 'utf8');
+    const decls = app.match(/--gd-handcardw:\s*[^;]+;/g) ?? [];
+    expect(
+      decls.map((d) => d.replace(/\s+/g, ' ')),
+      'one phone declaration and one desktop declaration, and nothing else',
+    ).toEqual(['--gd-handcardw: 48.15px;', '--gd-handcardw: clamp(2.75rem, 13vw, 4.25rem);']);
   });
 });
+
 
 // ---------------------------------------------------------------------------
 // EVERY SELECTABLE THEME MUST HAVE A FOLD BASELINE.

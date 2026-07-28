@@ -96,16 +96,22 @@ describe('ceremony/cut/deal cards match the playing cards (owner item 5)', () =>
       /\/\*[\s\S]*?\*\//g,
       '',
     );
-    const clampOf = (re: RegExp, what: string): string => {
+    // ROUND J0 MADE THIS STRUCTURAL. The card width used to be nine copies of one
+    // clamp literal, and this pin compared two of the copies as strings. There is now a
+    // single --gd-handcardw declaration, so the assertion is that both sites REFERENCE
+    // it — which is the property the string match was standing in for, and which no
+    // longer has a way to be false.
+    const widthOf = (re: RegExp, what: string): string => {
       const block = css.match(re)?.[0] ?? '';
       expect(block, `rule not found: ${what}`).not.toBe('');
-      const m = block.match(/(?:--gd-cardw|--sliver-w):\s*(clamp\([^)]+\))/);
-      expect(m, `clamp not found: ${what}`).not.toBeNull();
+      const m = block.match(/(?:--gd-cardw|--sliver-w):\s*([^;]+);/);
+      expect(m, `no width declaration: ${what}`).not.toBeNull();
       return m![1]!.replace(/\s+/g, ' ').trim();
     };
-    const handClamp = clampOf(/\.gd-card--hand\s*\{[^}]*\}/, '.gd-card--hand');
-    const ribbonClamp = clampOf(/\.gd-cut__ribbon\s*\{[^}]*\}/, '.gd-cut__ribbon');
-    expect(ribbonClamp).toBe(handClamp);
+    const handWidth = widthOf(/\.gd-card--hand\s*\{[^}]*\}/, '.gd-card--hand');
+    const ribbonWidth = widthOf(/\.gd-cut__ribbon\s*\{[^}]*\}/, '.gd-cut__ribbon');
+    expect(handWidth).toBe('var(--gd-handcardw)');
+    expect(ribbonWidth).toBe(handWidth);
   });
 
   it('the rendered ribbon slivers are real hand-size framework backs', () => {

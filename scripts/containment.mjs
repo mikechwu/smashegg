@@ -196,8 +196,45 @@ export const CONTAINMENT_PROBE = `(opt) => {
     }
   }
 
+  // D5 — THE DESK TITLE MUST NOT BE TRUNCATED, IN ANY LOCALE.
+  //
+  // Round C4 shipped white-space:nowrap + overflow:hidden + text-overflow:ellipsis on
+  // .gd-desk__title, so the title can no longer WRAP — a wrapped title added a line to the
+  // desk and moved every span figure. But nowrap converts one failure into another: a title
+  // too long for its row is now silently ELLIPSISED, and the desk's title is the sentence
+  // that tells the player what the game is waiting for.
+  //
+  // A CSS pin cannot see this, which is the F2 lesson applied one round later: the rule is
+  // present and correct in the stylesheet and the string can still not fit. So it is a
+  // RENDERED assertion — scrollWidth against clientWidth on the real element, with the real
+  // string, at the real width. The gate must be run at each shipped locale for it to mean
+  // anything; check-containment.mjs takes CONTAIN_LOCALE and reports which one ran.
+  //
+  // The overflow is reported in PIXELS and never as the string itself: the title is
+  // localised, and echoing it would put non-English text into a script's output and, from
+  // there, into a status document.
+  let deskTitles = 0;
+  for (const el of document.querySelectorAll('.gd-desk__title')) {
+    const cs = getComputedStyle(el);
+    if (cs.textOverflow !== 'ellipsis' && cs.overflow !== 'hidden') continue;
+    checked += 1;
+    deskTitles += 1;
+    const over = el.scrollWidth - el.clientWidth;
+    if (over > 1) {
+      violations.push({
+        kind: 'desk title truncated',
+        selector: '.gd-desk__title',
+        overflowPx: r(over),
+        clientW: r(el.clientWidth),
+        scrollW: r(el.scrollWidth),
+        innerWidth: window.innerWidth,
+      });
+    }
+  }
+
   return {
     checked,
+    deskTitles,
     violations,
     innerW: window.innerWidth,
     innerH: window.innerHeight,
@@ -223,6 +260,7 @@ export function checkContainment(result, label, tally) {
     );
   }
   tally.checked += result.checked;
+  tally.deskTitles += result.deskTitles ?? 0;
   tally.runs += 1;
   for (const v of result.violations) tally.violations.push({ at: label, ...v });
   return result.violations.length === 0;
@@ -247,6 +285,13 @@ export function reportContainment(tally) {
           `${v.overflowRightPx ? v.overflowRightPx + 'px RIGHT' : ''} ` +
           `(box ${v.box.left}..${v.box.right}, container ${v.container.left}..${v.container.right}) ` +
           `— container overflow-x is "${v.containerOverflowX}", which is what HIDES this.`,
+      );
+    } else if (v.kind === 'desk title truncated') {
+      console.log(
+        `  ${v.at}: the desk title is ellipsised by ${v.overflowPx}px (${v.scrollW} of text in ` +
+          `a ${v.clientW}px row at innerWidth ${v.innerWidth}). The title says what the game is ` +
+          `waiting for; nowrap means it is cut, not wrapped, so nothing in the layout moves and ` +
+          `nothing else reports it. Shorten the string for this locale or widen the row.`,
       );
     } else if (v.kind === 'fan capacity below the two-line floor') {
       console.log(
@@ -275,4 +320,4 @@ export function reportContainment(tally) {
   return false;
 }
 
-export const newTally = () => ({ checked: 0, runs: 0, violations: [] });
+export const newTally = () => ({ checked: 0, deskTitles: 0, runs: 0, violations: [] });
