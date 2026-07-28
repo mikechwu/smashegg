@@ -488,6 +488,23 @@ button.gd-plate {
   display: inline-flex;
   line-height: 0;
   flex: none;
+  /* A CARD IS A BOX, NOT A GLYPH ON A BASELINE.
+     `inline-flex` + the default `vertical-align: baseline` puts this frame on its
+     parent's text baseline, so the parent's line box reserves the font's DESCENDER
+     below it. When the card has no in-flow text — a joker, whose art is
+     position:absolute — an inline-flex box's baseline is its bottom margin edge, so
+     that descender lands entirely below the card and inflates the parent by ~5px.
+     With in-flow rank text the baseline sits above the bottom and the descender fits
+     inside the existing height, which is why it showed on jokers only.
+     Measured: `.gd-desk__stagedCard` was 78.5px around a 73.5px card on a staged
+     joker, and 73.5px on every other card — 69% of hands contain a joker, so this was
+     a real 5px of desk on most deals, and it was briefly mis-diagnosed as the joker
+     FACE having a different aspect. It does not: `.gd-card` is
+     `calc(var(--gd-cardw) * 1.45)` and measures 73.5 in the fan, the well and the
+     stage alike.
+     `line-height: 0` above does not fix it — that governs line boxes INSIDE this
+     element, not the strut of the parent that contains it. */
+  vertical-align: top;
   /* Isolated stacking context (panel hardening): the framework's state
      overlays below always paint ABOVE anything a theme face renders,
      whatever z-index games the theme plays inside its own subtree. */

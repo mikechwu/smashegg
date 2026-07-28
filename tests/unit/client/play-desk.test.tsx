@@ -657,3 +657,46 @@ describe('the desk title is single-line in every locale', () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// A CARD FRAME MUST NOT SIT ON A TEXT BASELINE.
+//
+// `.gd-cardframe` is `inline-flex`, and with the default `vertical-align: baseline`
+// its parent's line box reserves the font's descender below it. For a card with no
+// in-flow text — a joker, whose art is absolutely positioned — an inline-flex box's
+// baseline IS its bottom margin edge, so that descender lands entirely below the card.
+// Measured: the staged-card button was 78.5px around a 73.5px card on a joker, 73.5px
+// otherwise, and 69% of hands contain a joker. It inflated deskH, which is a term in
+// the G-SIM span, on most deals.
+//
+// `line-height: 0` does not prevent it (that governs line boxes INSIDE the frame), so
+// the pin is on vertical-align specifically.
+// ---------------------------------------------------------------------------
+describe('a card frame is a box, not a glyph on a baseline', () => {
+  const css = readFileSync(
+    new URL('../../../src/client/table/table.css', import.meta.url),
+    'utf8',
+  ).replace(/\/\*[\s\S]*?\*\//g, '');
+  // There is more than one `.gd-cardframe` block; pick the BASE one by the property
+  // that identifies it. Matching the first block found selected a later rule that only
+  // sets a negative margin, and the test failed while the fix was present — a
+  // false negative that would have been read as the fix not landing.
+  const rule =
+    (css.match(/\.gd-cardframe \{[^}]*\}/g) ?? []).find((r) => /display:\s*inline-flex/.test(r)) ??
+    '';
+
+  it('the rule is findable (not vacuous)', () => {
+    expect(rule, 'the base .gd-cardframe rule is findable').not.toBe('');
+    expect(rule, 'it really is the inline-flex frame this is about').toMatch(
+      /display:\s*inline-flex/,
+    );
+  });
+
+  it('it is taken off the baseline, so no descender is reserved below it', () => {
+    expect(
+      rule,
+      'without this the parent reserves ~5px below any card that has no in-flow text ' +
+        '(i.e. every joker), which lands in deskH and therefore in the G-SIM span',
+    ).toMatch(/vertical-align:\s*top/);
+  });
+});

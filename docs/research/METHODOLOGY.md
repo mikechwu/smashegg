@@ -172,6 +172,14 @@ Conventions for platform-docs and game-rules research in this repo. Adapted from
 
     **Corollary — when you do run it, check the failure is YOURS.** A gate that dies on `Cannot find package 'playwright'` also exits non-zero, which would make a refusal test pass for entirely the wrong reason: practice 11's compensated failure, inside the check written to close a compensated failure. So the gates' playwright imports are now **dynamic and below their guards**, and a paired test asserts the output contains no `ERR_MODULE_NOT_FOUND`.
 
+30. **When the quantity under investigation is a geometric SUM of child elements, decompose before correlating — ask which TERM changed, not which attribute co-varies.** A correlation needs a large sample, can be fooled by a confounded attribute, and tells you what a difference travels with rather than what it is made of. A decomposition needs two renders and cannot be fooled, because the terms sum to the whole by construction.
+    - **The instance.** `deskH` had two values, 156.5 and 161.5. The proposed method was to correlate it against every logged per-deal attribute — staged card class, wildness, rank string length, trick composition, seat, turn index, title, timer digits. Decomposing the desk into its four child rows localised it in **two measurements with no statistics at all**: titleRow, bar and status were identical and the stage row was 73.5 vs 78.5.
+    - **And decomposition keeps going where correlation stops.** The next question — *which layer of the stage row?* — is the same move again: row 78.5, button 78.5, frame 73.5, card 73.5. The 5px is on the BUTTON, and no descendant extends past the card. A correlation against attributes would have found "jokers" and stopped, which is exactly what happened: the first pass concluded "a joker card face is 5px taller, aspect 1.548" and that was **wrong**. The card is `calc(var(--gd-cardw) * 1.45)` and measures 73.5 in the fan, the well and the stage alike.
+
+    **Operational rule: for any geometric quantity, write it as a sum of measured parts and measure the parts.** Attribute correlation is the fallback for when a quantity has no decomposition, not the first move for when it does.
+
+    **Corollary — a decomposition also tells you when to STOP believing an attribution.** "Jokers are 5px taller" and "the card obeys a 1.45 aspect" cannot both be true on one render path, and the contradiction was visible the moment both were written down. Two facts that cannot both hold are a finding, not a coincidence to be filed under "unplanned".
+
 ## Tool & model ladders (current)
 
 Web research runs on the built-in WebSearch/WebFetch tools, `curl` via shell for direct page/PDF fetches, and `gh api` for GitHub content. **Firecrawl is disabled as of 2026-07-13 (credit limit reached — owner instruction); state this in every research-agent prompt.** Escalate to costlier tooling only on demonstrated failure of a cheaper rung, and log the failure.
