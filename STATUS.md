@@ -82,11 +82,49 @@ the live claim in section 9.4, whose heading carried no withdrawal marker despit
 listed as withdrawn in 10.1 — the correction had landed in the summary table and not in
 the section itself.
 
-### 5. Open
+### 5. [W24 panel] Grok: symmetry is achievable AND is a net improvement
 
-- **Grok's wrap-policy proposal** had not returned when this was written.
-- **W20 held-out validation** remains the gate on everything in item 1.
+`docs/research/proposals/wrap-symmetry-grok.md`. **Yes, a symmetric wrap policy
+exists**, and the crux is the one anticipated: a balanced `ceil(C/2)` split is
+direction-symmetric only for EVEN C; odd C needs a tie-break that depends on CONTENT,
+not position. Counter-example given: C=11, k=6, depths [8,1,1,1,1,7,1,1,1,1,1] gives
+asc {8,1} and desc {8,7}.
+
+**The policy — "depth-minimising sequential wrap":** over legal cuts k, pick the one
+minimising `(d1+d2, max(d1,d2), ...)` lexicographically. Because cut k maps to cut C-k
+under reverse with the same multiset, the optimised value is reverse-invariant.
+Equivalent and easier to test: **compute the cut once on ascending value order, then
+reverse only the presentation.**
+
+**And it answers the obvious objection — equalising at the WORSE value.** Simulated on
+200k deals:
+
+| policy | mean height | P(fail) | asymmetry |
+|---|---|---|---|
+| greedy ascending (today's default) | 273.2 | 7.65% | — |
+| greedy descending | 276.7 | 9.37% | ~50% of deals |
+| balanced split + content tie-break | 279.7 | **11.5%** | 0% |
+| **depth-min, L=1** | 269.5 | **6.39%** | 0% |
+| depth-min, L=4 (elder floor on line length) | 273.2 | 8.16% | 0% |
+
+**A balanced split equalises at the worse side** — worse than descending — and must be
+rejected as the symmetry fix. **Depth-min at L=1 BEATS today's default** on both mean
+and failure rate while removing the asymmetry entirely. Grok's independent descending
+figure (9.37%) corroborates our measured 9.23%.
+
+**One repo-specific implementation constraint it caught:** do NOT implement as two
+sibling `.gd-fan__stackRow` bands — `sort-areas.md` measured that as **+14px** versus
+one wrapping row. Use one row with a zero-height flex break before column k.
+
+Not implemented this round; this is a proposal, and it still inherits the
+single-ordering model's unvalidated status.
+
+### 6. Open
+
+- **W20 held-out validation** remains the gate on every figure in item 1.
 - W16-W23 not received; W16c and W17 not actioned.
+- Codex has not audited W24's split or W25's identity; both were verified in-house by
+  direct simulation against the owner's algebra rather than by an independent lineage.
 
 ## The remedy re-priced against the marginal bin; the registry was wrong on day one (2026-07-27, W9-W14)
 
