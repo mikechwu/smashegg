@@ -118,8 +118,17 @@ staged class measured 156.5 post-fix.
 
 ### 9. Open
 
-- **F5b: G-SIM was NOT re-run** for every recorded `viewport@theme` after the base-rule
-  change. Containment at three viewports and 1292 tests are the evidence so far.
+- **F5b DONE for the primary cell, not for all.** G-SIM re-run at 390x664, timed, staged,
+  n=24 after the base-rule change, against the figure previously recorded for that cell:
+
+  | 390x664 panel, timed+staged | infeasible | worst slack |
+  |---|---|---|
+  | before the fix (recorded) | 1/24 | -7px |
+  | after the fix (this run) | **0/24** | **+14.3px** |
+
+  Containment PASS, gate PASS. **The fix improved it rather than regressing** — the 5px it
+  removes is desk height on joker-staged deals, which is most of them. `1366x681` and
+  `390x748` are not re-run.
 - **E5** the elder session — three questions, now with the F3 candidate table.
 - **F4's design question** (what happens past the ~310px crossing) — not taken to a lineage.
 - **D5**, **D7**, **430's own plateau**, **C2 parked**.
