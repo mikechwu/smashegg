@@ -5,14 +5,34 @@
 > configuration:** `VALIDATED.md`. **What was retracted:** `WITHDRAWN.md`. **Why a past
 > decision went the way it did:** `rounds/INDEX.md`, then the round it names.
 
-Last updated: 2026-07-28, round P0-P2 (deployed). **Every rate on this page is a `lacquer` figure
+Last updated: 2026-07-28, round 127. **Every rate on this page is a `lacquer` figure
 unless it says otherwise** — see the second-theme section, which is why that sentence is
 now written down.
+
+## How to deploy
+
+**Push to `main`. That is the deploy.** `.github/workflows/deploy.yml` runs the checks and
+then `wrangler deploy`, so what is live is always a commit that exists on the remote.
+
+**Do not use `npm run deploy` as the normal path.** It publishes the working tree straight
+to Cloudflare without touching GitHub, which lets the live build drift from `origin/main` —
+it did, for two days in July 2026, during which production ran a commit that existed on no
+remote. It also skips the containment gate, which only CI runs. Keep it for an emergency
+where CI itself is the broken thing, and push immediately afterwards.
+
+**Correction, round 127.** The deploy-record entries and their commit messages say
+`health build == pushed HEAD`. The check behind that phrase compared `/api/health` against
+**local** `HEAD`, not against `origin/main`. The comparison was real and passed; the noun
+was wrong, and on 2026-07-28 it was materially wrong — nothing had been pushed for 48
+commits. When recording a deploy, name three values separately: `/api/health` build,
+`git rev-parse origin/main`, `git rev-parse HEAD`. Under the rule above they are identical
+by construction, so any divergence is itself a finding.
 
 ## Decided, and shipped
 
 | decision | what shipped | round |
 |---|---|---|
+| **Deploys go through CI**, never the working tree | push to `main`; `npm run deploy` is the emergency path only | 127 |
 | The hand card box is a **constant**, not a clamp | `--gd-handcardw`, one declaration per regime | J0 |
 | The card **box** and the card **ink** are separate quantities | `--gd-handglyphw` — the box cannot be scaled by the user, the ink still can, up to a measured cap | J0b |
 | A **floor** below the crossover | `@media (max-width: 332px) { --gd-handcardw: 44px }` — exactly what shipped at 320 before this arc | K2 |

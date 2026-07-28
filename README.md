@@ -24,8 +24,25 @@ npm run cf:dev       # runs the Worker + assets + Durable Object locally
 ```
 
 Other scripts: `npm run dev:client` (Vite dev server, client-only),
-`npm run typecheck`, `npm run test` (Vitest unit tests), `npm run deploy`
-(`wrangler deploy`).
+`npm run typecheck`, `npm run test` (Vitest unit tests).
+
+### Deploying
+
+**Push to `main`. That is the deploy.** `.github/workflows/deploy.yml` runs the
+checks and then `wrangler deploy`, so what is live is always a commit that
+exists on the remote.
+
+`npm run deploy` publishes from your working tree straight to Cloudflare without
+going near GitHub, which lets the live build drift from `origin/main` — for two
+days in July 2026 production ran a commit that existed on no remote and would
+have been unrecoverable if the laptop had been. It also skips the containment
+gate, which only CI runs. Keep it for an emergency where CI itself is the thing
+that is broken, and push as soon as you can afterwards.
+
+(It is at least version-safe: it pairs one SHA across the client build and the
+Worker var, which is the `BUILD_VERSION` pairing the M4 audit required. A build
+and a deploy run separately by hand is the case that audit called the highest
+practical risk — it silences the update banner for those clients permanently.)
 
 ## Status: M0 (toolchain skeleton)
 
