@@ -59,9 +59,27 @@ jobs:
       # Its limit is printed by the script itself rather than left implicit: at
       # this sample it catches STRUCTURAL violations, not ones needing a rare
       # hand. The manual sweep still covers those.
-      - name: Install chromium for the containment gate
-        run: npx --yes playwright@1 install --with-deps chromium
+      # WHY TWO COMMANDS AND NOT ONE. `playwright install` fetches BROWSER BINARIES
+      # only — it does not put the `playwright` PACKAGE anywhere Node can resolve, and
+      # NODE_PATH is ignored for ESM imports. So the single-command form downloaded
+      # chromium, reported success, and left the gate below to die on
+      # ERR_MODULE_NOT_FOUND. It did exactly that on every run from the day this step
+      # was added; it went unseen because a red unit test was failing earlier in the
+      # job and skipping this one.
+      #
+      # `--no-save` is load-bearing: playwright is deliberately NOT a repo dependency
+      # (the manual gates import it and package.json stays clean, per their headers),
+      # so CI installs it for the length of the job without writing to the manifest.
+      - name: Install playwright and chromium for the containment gate
+        run: |
+          npm install --no-save playwright@1
+          npx playwright install --with-deps chromium
         timeout-minutes: 10
+
+      # An install that "succeeds" while leaving the import unresolvable is the exact
+      # failure above, so resolution is asserted rather than assumed.
+      - name: Assert playwright actually resolves as an ESM import
+        run: node -e "import('playwright').then(m => { if (!m.chromium) { throw new Error('playwright resolved but exports no chromium'); } console.log('playwright resolves, chromium present'); })"
 
       - name: Containment gate (browser, all mode boundaries)
         run: |
