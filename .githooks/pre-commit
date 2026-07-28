@@ -1,0 +1,19 @@
+#!/bin/sh
+# BLOCK A COMMIT ON A RED SUITE.
+#
+# Commit f29e389 went in with tests failing. The correction is not "remember to run
+# the suite" — this project's own doctrine (METHODOLOGY practice 26) is that recording
+# a lapse without a mechanism IS the lapse. So the mechanism.
+#
+# Versioned under .githooks/ and activated by `core.hooksPath`, because .git/hooks is
+# not tracked and a hook nobody else gets is not a gate. `npm run hooks` sets it; the
+# setup is asserted by tests/unit/client/commit-gate.test.ts so a clone with the hook
+# path unset is a visible failure rather than a silent one.
+#
+# Escape hatch is deliberately only `git commit --no-verify` — an explicit, visible act
+# with no in-repo flag to normalise it.
+set -e
+
+echo "pre-commit: typecheck + unit suite (use --no-verify to bypass, deliberately)"
+npm run typecheck
+npx vitest run

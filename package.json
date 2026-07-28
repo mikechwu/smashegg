@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "deploy": "SHA=$(git rev-parse HEAD) && BUILD_VERSION=$SHA vite build && wrangler deploy --var BUILD_VERSION:$SHA",
-    "lint:hooks": "eslint src/client"
+    "lint:hooks": "eslint src/client",
+    "hooks": "git config core.hooksPath .githooks"
   },
   "dependencies": {
     "partysocket": "^1.3.0",
