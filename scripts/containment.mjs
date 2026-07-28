@@ -147,32 +147,51 @@ export const CONTAINMENT_PROBE = `(opt) => {
     }
   }
 
-  // THE FAN MUST NOT RENDER MORE THAN TWO LINES (G3).
+  // CAPACITY MUST STAY AT OR ABOVE 8 (H2, replacing the two-line count).
   //
-  // Every derivation in this arc assumes exactly two: the span decomposition, the
-  // fanHeight bound, the lattice, the cardW sweep. Below roughly 310 CSS px of width a
-  // 44px card cannot hold 15 value classes in two lines, and 200% page zoom on a 390px
-  // phone produces a 195px CSS viewport — so the degradation is reachable, and today it
-  // is SILENT. Nothing else in the gate set notices it.
+  // Every derivation in this arc assumes the fan renders in exactly two lines, which for
+  // 15 value classes needs a per-line capacity of at least 8. Below roughly 310 CSS px a
+  // 44px card cannot manage that, and 200% page zoom on a 390px phone gives a 195px CSS
+  // viewport — so the degradation is reachable and, until now, silent.
   //
-  // Counted by distinct stack BOTTOMS, because align-items: flex-end bottom-aligns a
-  // line; distinct TOPS would count pile depths instead. The settled fan is ONE
-  // .gd-fan__stackRow element that wraps internally, so counting elements reads 1 always
-  // — that mistake stood in this project for several rounds.
+  // WHY CAPACITY AND NOT THE LINE COUNT. The line count is a TRAILING indicator: it only
+  // says something once the degradation has already happened, and it can only fire on a
+  // hand that actually holds enough columns. Capacity is LEADING — it says how many
+  // columns of headroom remain, on every hand, at every viewport. The previous version
+  // counted lines and was permanently green across the whole covered set (390x664,
+  // 320x664, 390x748, 720x900, 1366x681), where two lines always hold; only a mutant at
+  // 240 ever exercised it. A check that cannot fire where it runs is not a check.
+  //
+  // Capacity is derived the same way the sweep derives it: floor(contentWidth / pitch),
+  // both measured from the live row rather than assumed.
   const stackRow = document.querySelector('.gd-fan__stackRow');
   if (stackRow !== null) {
     const stacks = [...stackRow.querySelectorAll('.gd-fan__stack')];
-    if (stacks.length > 0) {
-      const lines = new Set(stacks.map((el) => Math.round(el.getBoundingClientRect().bottom)));
-      checked += 1;
-      if (lines.size > 2) {
-        violations.push({
-          kind: 'fan renders more than two lines',
-          selector: '.gd-fan__stackRow',
-          lines: lines.size,
-          columns: stacks.length,
-          innerWidth: window.innerWidth,
-        });
+    if (stacks.length >= 2) {
+      const rcs = getComputedStyle(stackRow);
+      const rr = stackRow.getBoundingClientRect();
+      const contentW = rr.width - parseFloat(rcs.paddingLeft) - parseFloat(rcs.paddingRight);
+      const bottoms = stacks.map((el) => Math.round(el.getBoundingClientRect().bottom));
+      const firstLine = stacks.filter((el, i) => bottoms[i] === Math.min(...bottoms));
+      const pitch =
+        firstLine.length >= 2
+          ? firstLine[1].getBoundingClientRect().left - firstLine[0].getBoundingClientRect().left
+          : null;
+      if (pitch !== null && pitch > 0) {
+        const capacity = Math.floor(contentW / pitch);
+        const lines = new Set(bottoms).size;
+        checked += 1;
+        if (capacity < 8) {
+          violations.push({
+            kind: 'fan capacity below the two-line floor',
+            selector: '.gd-fan__stackRow',
+            capacity,
+            lines,
+            contentW: r(contentW),
+            pitch: r(pitch),
+            innerWidth: window.innerWidth,
+          });
+        }
       }
     }
   }
@@ -229,12 +248,13 @@ export function reportContainment(tally) {
           `(box ${v.box.left}..${v.box.right}, container ${v.container.left}..${v.container.right}) ` +
           `— container overflow-x is "${v.containerOverflowX}", which is what HIDES this.`,
       );
-    } else if (v.kind === 'fan renders more than two lines') {
+    } else if (v.kind === 'fan capacity below the two-line floor') {
       console.log(
-        `  ${v.at}: the fan rendered ${v.lines} LINES (${v.columns} columns at innerWidth ` +
-          `${v.innerWidth}). Every derivation in this arc assumes exactly two — the span ` +
-          `decomposition, the fanHeight bound, the lattice and the cardW sweep are all void ` +
-          `here. Two lines need capacity >= 8, i.e. roughly 310 CSS px at a 44px card.`,
+        `  ${v.at}: per-line capacity is ${v.capacity}, below the floor of 8 (contentW ` +
+          `${v.contentW}, pitch ${v.pitch}, innerWidth ${v.innerWidth}; the fan is currently ` +
+          `rendering ${v.lines} line(s)). 15 value classes need capacity >= 8 to fit in TWO ` +
+          `lines, and every derivation in this arc assumes two — the span decomposition, the ` +
+          `fanHeight bound, the lattice and the cardW gate are all void below it.`,
       );
     } else if (v.kind === 'card frame inflates its parent') {
       console.log(
