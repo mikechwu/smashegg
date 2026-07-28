@@ -558,27 +558,36 @@ describe('the fold gate covers every SELECTABLE deck theme', () => {
 // that putting one back turns something red.
 // ---------------------------------------------------------------------------
 describe('gate scripts name their viewport', () => {
-  // EVERY BROWSER GATE, and keeping this list complete is itself the guard. Three scripts
-  // added during the card arc — the two interventions and the glyph ramp — were not on it
-  // for several rounds, so the rule "no gate hardcodes a viewport" was enforced over six of
-  // nine gates while reading as absolute. They all did refuse correctly; that was luck, not
-  // coverage. A gate that takes a viewport belongs here the round it is written.
-  const GATES = [
-    'measure-fold.mjs',
-    'measure-simultaneity.mjs',
-    'measure-fan-tap-targets.mjs',
-    'measure-setaside.mjs',
-    'check-containment.mjs',
-    'derive-span.mjs',
-    'intervene-cardw.mjs',
-    'intervene-theme.mjs',
-    'measure-glyph-scale.mjs',
-  ];
+  // ENUMERATED FROM THE FILESYSTEM, NOT LISTED — and the reason is in this file's own
+  // history. This was a hardcoded array. Round M2 found three gates missing from it, added
+  // them, and wrote "the list is now nine"; round N3 then found FIVE more. It was behind by
+  // five at the moment it was declared fixed, because gates are written faster than anyone
+  // remembers to enumerate them. The sibling check `strip-ceiling.test.ts` drew the right
+  // lesson from the same round — pin over the registry, "because a list someone must
+  // remember to update is exactly what failed here" — and this one took the list patch.
+  //
+  // The membership rule is behavioural: a script that LAUNCHES A BROWSER is a gate that
+  // renders something, and anything that renders has a viewport whether or not it says so.
+  // A new gate therefore joins the moment it is written.
+  const GATES = readdirSync(fileURLToPath(new URL('../../../scripts/', import.meta.url)))
+    .filter((f) => f.endsWith('.mjs'))
+    .filter((f) =>
+      readFileSync(new URL(`../../../scripts/${f}`, import.meta.url), 'utf8').includes('chromium.launch'),
+    )
+    .sort();
+
   const readGate = (name: string): string =>
     readFileSync(new URL(`../../../scripts/${name}`, import.meta.url), 'utf8');
 
   it('finds the gate scripts it is going to check (not vacuous)', () => {
+    // A filesystem enumeration that matches nothing is green and worthless, and it is the
+    // failure mode an enumeration has that a list does not.
+    expect(GATES.length, 'the enumeration found the browser gates').toBeGreaterThanOrEqual(12);
     for (const g of GATES) expect(readGate(g).length, `${g} is readable`).toBeGreaterThan(500);
+    // …and it must find the ones that were missing from the hardcoded list, both times.
+    for (const g of ['intervene-theme.mjs', 'measure-glyph-scale.mjs', 'diagnose-desk.mjs', 'validate-fan-model.mjs']) {
+      expect(GATES, `${g} is a browser gate and must be enumerated`).toContain(g);
+    }
   });
 
   // RUN THE GATE, DO NOT GREP IT.
@@ -625,7 +634,7 @@ describe('gate scripts name their viewport', () => {
     }
     // Nine process spawns at roughly 0.7s each; the 5s default was already marginal at six
     // and a timeout here reads as a gate that failed to refuse.
-  }, 60_000);
+  }, 120_000);
 
   it('the refusal is the guard, not a missing dependency', () => {
     // A gate that dies on `Cannot find package 'playwright'` also exits non-zero,
@@ -647,7 +656,7 @@ describe('gate scripts name their viewport', () => {
           `import below the guard and make it dynamic.`,
       ).not.toMatch(/ERR_MODULE_NOT_FOUND|Cannot find package/);
     }
-  }, 60_000);
+  }, 120_000);
 
   it('every gate script states that its dimensions are INNER and exclude chrome', () => {
     for (const g of GATES) {

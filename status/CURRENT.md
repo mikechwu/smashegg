@@ -5,7 +5,7 @@
 > configuration:** `VALIDATED.md`. **What was retracted:** `WITHDRAWN.md`. **Why a past
 > decision went the way it did:** `rounds/INDEX.md`, then the round it names.
 
-Last updated: 2026-07-28, round M0-M2. **Every rate on this page is a `lacquer` figure
+Last updated: 2026-07-28, round N0-N3. **Every rate on this page is a `lacquer` figure
 unless it says otherwise** — see the second-theme section, which is why that sentence is
 now written down.
 
@@ -97,7 +97,7 @@ shipped card — and this is where the strong evidence is:
 | | |
 |---|---|
 | per-deal point prediction, worst error over 16 deals | **0.10px** |
-| the same under the model as it stood before this round | 19.20px |
+| the same under the model as it stood before round M0 | 19.20px |
 | deals going feasible -> infeasible | 5 of 16 |
 
 The flip count is *consistent with* the modelled rate at this n and settles nothing on its
@@ -147,6 +147,5 @@ Nothing here is a measurement; where one is referenced its row is in `VALIDATED.
 
 ## Blocking
 
-Nothing blocks. The card decision is closed. The second theme is broken for anyone who
-picks it and has been since it shipped; that is a live product defect awaiting a ruling, not
-a regression this arc introduced.
+Nothing. The card decision is closed and the second theme is withdrawn; both appear under
+Decided above and neither is open.

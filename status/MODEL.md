@@ -26,6 +26,7 @@ Inner **390 x 664**. The cell every span figure in this model is stated at: inne
 | `kLead` | 66 px | K when the viewer LEADS and the trick well is empty. Carries no card term — the card in K_well is inside the well. | `scripts/fan-height-distribution.mjs` — `K_LEAD = 66.0` |
 | `revealBudget` | 2.95 card widths | Total reveal a stacked column may spend: stackOffsetW(n, strip) = min(strip, 2.95/(n-1)), so a column of n reveals min(strip*(n-1), 2.95). It binds at n >= 5 for a 0.841 strip and NEVER for 0.42, since a value class holds at most 8 copies and 0.42*7 = 2.94. | `src/client/table/HandFan.tsx` — `Math.min(stripW, 2.95 / Math.max(n - 1, 1))` |
 | `maxValueClasses` | 15 count | 12 non-level natural ranks + the level class + small joker + big joker. A class present in the hand is exactly one fan column. | `scripts/cardw-gate.mjs` — `MAX_CLASSES = 15` |
+| `maxColumnDepth` | 8 cards | The deepest a single fan column can ever be. A column is one value class, and a class holds 8 copies: two decks x four suits. Structural — a counting argument, not a measurement. | `scripts/theme-bands.mjs` — `CLASS_SIZES = [...Array(12).fill(8), 8, 2, 2]` |
 | `capacityFloor` | 8 columns | Per-line capacity needed to fit 15 value classes in TWO lines. | `scripts/containment.mjs` — `capacity < 8` |
 | `layoutBreakpoint` | 720 px | The phone/desktop layout seam. The card constant governs below it; above it the card is in rem again. | `src/client/table/table.css` — `@media (min-width: 720px)` |
 | `floorCardW` | 44 px | The hand card box below the crossover, where the constant cannot fit 8 columns a line. Exactly what today's clamp yields at 320 through its rem floor. | `src/client/app.css` — `--gd-handcardw: 44px` |
@@ -83,7 +84,7 @@ Height of one fan line whose deepest column holds d cards.
 fanH(d1, d2, w) = fanChrome + fanRowGap + 2*aspect*w + w*(reveal(d1) + reveal(d2)),  reveal(n) = min(stripW*(n - 1), revealBudget)
 ```
 
-Two-line fan height. It collapses to the simpler `fanChrome + fanRowGap + 2*aspect*w + stripW*w*(s-2)` — a function of s = d1 + d2 alone — EXACTLY WHEN THE REVEAL BUDGET DOES NOT BIND, which for stripW 0.42 is always, since the deepest possible column is 8 copies and 0.42*7 = 2.94 < 2.95. That is why the gate script carries the collapsed form and why every lacquer figure in this project is unaffected. For a theme whose strip reaches the budget the collapsed form OVERSTATES the height, and feasibility stops being a function of s alone: (5,1) and (4,2) are both s=6 and can land on opposite sides of the threshold. Found by a per-deal point-prediction test against 16 measured span deltas — the collapsed form was off by a full lattice step on every deal holding a depth-5 column, the full form fits all 16 within 0.10px.
+Two-line fan height. It collapses to the simpler `fanChrome + fanRowGap + 2*aspect*w + stripW*w*(s-2)` — a function of s = d1 + d2 alone — EXACTLY WHEN THE REVEAL BUDGET DOES NOT BIND, which for stripW 0.42 is always, since the deepest possible column is 8 copies and 0.42*7 = 2.94 < 2.95. That is why the gate script carries the collapsed form and why every lacquer figure in this project is unaffected. For a theme whose strip reaches the budget the collapsed form OVERSTATES the height, so a RATE computed from it is wrong: feasibility stops being a function of s alone, and (5,1) and (4,2) are both s=6 and can land on opposite sides. THE GATE IS UNAFFECTED, AND THAT IS NOT LUCK. reveal() is concave in depth, so at fixed s the sum is maximised by the BALANCED split, and at the balanced split it equals the collapsed form whenever that split does not itself reach the budget — which makes the collapsed form the exact MAXIMUM over splits, which is what a bound needs. Verified by brute force over every achievable (d1, d2) at every s: the balanced split was the maximiser in all 45 cases. So the marginal-bin framing holds wherever the balanced split at the depth floor stays under the budget, including lacquer at every depth the shoe allows, the shipped strip ceiling, and even cinnabar-court at its own marginal bin. What genuinely needed the capped form was the RATE, which is what the 51.3% -> 50.3% and 66.9% -> 66.6% corrections were. Found by a per-deal point-prediction test against 16 measured span deltas — the collapsed form was off by a full lattice step on every deal holding a depth-5 column, the full form fits all 16 within 0.10px.
 
 ### `threshold`
 
@@ -115,7 +116,15 @@ The marginal bin is a step function of the CARD ALONE — the viewport width doe
 stripW_max(w, K) = (spanBudget/w - 4*aspect) / (K - 2)
 ```
 
-The largest covered-card reveal a theme may request and still fit hands of depth K at card width w. At w = 46.51 and K = 10 this is 0.447. A theme REQUESTS a strip; the framework OWNS this ceiling. It is derived rather than stored so it cannot go stale when the card size or the depth floor moves.
+The largest covered-card reveal a theme may request and still fit hands of depth K at card width w. At w = 46.51 and K = 10 this is 0.447. A theme REQUESTS a strip; the framework OWNS this ceiling. Derived rather than stored so it cannot go stale when the card size or the depth floor moves. AND IT IS EXACT, NOT MERELY CONSERVATIVE, which is worth proving here because it is derived from the collapsed fan-height form and that form can fail: at fixed total depth the reveal sum is maximised by the BALANCED split, and at the balanced split the sum equals the collapsed form as long as it does not reach revealBudget. Substituting the ceiling into that check gives a load of (spanBudget/w - 4*aspect)/2 for even K — independent of K entirely — which is 1.79 at the shipped card against a budget of 2.95. It holds for every depth floor K >= 4 at any card wider than 37.27px; it fails only at K = 3, which is not a depth floor anyone would set. Both shipped cards clear it.
+
+### `collapsedExactCeiling`
+
+```
+collapsedExact_max(maxColumnDepth) = revealBudget / (maxColumnDepth - 1)
+```
+
+The SECOND strip threshold, and the one the shipped gate does not enforce: 2.95/7 = 0.4214 at maxColumnDepth 8. Above it a theme's deepest columns reach the reveal budget, so every RATE computed for that theme from the collapsed form is wrong even though the depth-floor ceiling (0.447) is still satisfied. A theme at 0.43 passes the gate and breaks its own rates. Exceeding this is LEGAL and must be DETECTED, not refused: it only means that theme's rates need the capped form. Note how tight the exactness is that lacquer relies on: 0.42 sits 0.00143 below this line, 0.34% of its own value.
 
 ### `toothBoundary`
 

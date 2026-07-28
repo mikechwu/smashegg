@@ -112,6 +112,35 @@ export function stripCeilingFor(cardW: number, depthFloor: number, spanBudget = 
   return (spanBudget / cardW - 4 * aspect) / (depthFloor - 2);
 }
 
+/** The largest reveal for which the COLLAPSED fan-height form stays exact at every depth the
+ *  shoe can produce — `revealBudget / (maxColumnDepth - 1)`, i.e. 2.95/7 = 0.4214.
+ *
+ *  THIS IS A DIFFERENT THRESHOLD FROM `stripCeilingFor`, AND IT IS THE LOOSER-LOOKING ONE
+ *  THAT BITES. The ceiling above asks "do hands of depth K still fit?" — a gate on
+ *  FEASIBILITY. This asks "is the simple height formula still exact for this theme?" — a
+ *  condition on whether that theme's RATES can be computed the cheap way. At the shipped
+ *  card the two are 0.447 and 0.4214, so a theme requesting 0.43 passes the gate and yet its
+ *  depth-8 columns hit the reveal budget, which makes every rate computed for it from the
+ *  collapsed form wrong while the gate stays green. That is a smaller version of the defect
+ *  found in round M0.
+ *
+ *  Exceeding this is LEGAL. It is not a defect, it is a fact about which formula that
+ *  theme's rates need — so it is detected and reported, never refused. Lacquer's 0.42 sits
+ *  0.00143 below the line, which is the whole margin on which "every lacquer figure stands"
+ *  rests. */
+export function collapsedExactCeilingFor(maxColumnDepth = 8, revealBudget = 2.95): number {
+  return revealBudget / (maxColumnDepth - 1);
+}
+
+/** Themes whose rates must be computed with the CAPPED height form rather than the collapsed
+ *  one. Not an error state — a routing fact about those themes' arithmetic. */
+export function themesNeedingCappedRates(maxColumnDepth = 8): { id: string; requested: number; ceiling: number }[] {
+  const ceiling = collapsedExactCeilingFor(maxColumnDepth);
+  return deckThemes()
+    .filter((t) => t.metrics.stackStripW > ceiling)
+    .map((t) => ({ id: t.id, requested: t.metrics.stackStripW, ceiling }));
+}
+
 /** Themes whose requested strip exceeds the ceiling at the shipped card. Empty is the
  *  healthy state; a non-empty result is a layout defect with a name attached. */
 export function themesOverStripCeiling(cardW: number, depthFloor: number): { id: string; requested: number; ceiling: number }[] {

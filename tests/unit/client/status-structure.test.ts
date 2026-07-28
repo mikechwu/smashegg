@@ -180,6 +180,66 @@ describe('the round record is append-only', () => {
     ).toEqual([]);
   });
 
+  // N3b: A DECIDED ITEM MUST NOT ALSO BE OPEN, and no existing scanner could see this.
+  //
+  // CURRENT.md's Blocking section still read "the second theme is broken for anyone who
+  // picks it... a live product defect awaiting a ruling" one round after the theme was
+  // withdrawn AND after that exact wording had been corrected elsewhere on the same page.
+  // Both halves were stale in a file whose header says "always true", and the prose-figure
+  // and withdrawn-number scanners were both blind to it because the sentence contains no
+  // figure at all.
+  //
+  // The rule is structural and cheap: an identifier that appears in the Decided table may
+  // not also appear in Blocking. Identifiers are used rather than prose because they are the
+  // one part of a sentence that survives rewording.
+  const sectionOf = (src: string, heading: RegExp): string => {
+    const lines = src.split('\n');
+    const start = lines.findIndex((l) => heading.test(l));
+    if (start === -1) return '';
+    const rest = lines.slice(start + 1).findIndex((l) => l.startsWith('## '));
+    return lines.slice(start, rest === -1 ? undefined : start + 1 + rest).join('\n');
+  };
+  const identifiersIn = (text: string): string[] =>
+    [...text.matchAll(/`([^`\s]{4,})`/g)].map((m) => m[1]!).filter((t) => /[a-z]/i.test(t));
+
+  /** The check, factored out so the mutant below runs the SAME code, not a copy of it. */
+  const decidedAlsoBlocking = (src: string): string[] => {
+    const decided = new Set(identifiersIn(sectionOf(src, /^## Decided/)));
+    return identifiersIn(sectionOf(src, /^## Blocking/)).filter((t) => decided.has(t));
+  };
+
+  it('nothing under Decided is also under Blocking', () => {
+    const src = readFileSync(`${ROOT}status/CURRENT.md`, 'utf8');
+    expect(sectionOf(src, /^## Decided/).length, 'CURRENT.md has a Decided section').toBeGreaterThan(100);
+    expect(sectionOf(src, /^## Blocking/).length, 'CURRENT.md has a Blocking section').toBeGreaterThan(20);
+    const both = decidedAlsoBlocking(src);
+    expect(
+      both,
+      `these are recorded as DECIDED and also appear under Blocking: ${both.join(', ')}.\n` +
+        'A page whose header says "always true" cannot carry a decision in both states. ' +
+        'Blocking is for what is actually blocked.',
+    ).toEqual([]);
+  });
+
+  it('that check would catch the staleness it was written for', () => {
+    // MUTANT, run through the same function. The real stale text: the theme was withdrawn
+    // and Blocking still called it a live defect awaiting a ruling.
+    const mutant = [
+      '## Decided, and shipped',
+      '| decision | what shipped |',
+      '|---|---|',
+      '| the second theme is withdrawn | `cinnabar-court` unregistered |',
+      '',
+      '## Blocking',
+      'The second theme is broken for anyone who picks it — `cinnabar-court` is a live',
+      'product defect awaiting a ruling.',
+    ].join('\n');
+    expect(
+      decidedAlsoBlocking(mutant),
+      'the check must flag an item that is both decided and blocking, or it is decoration',
+    ).toContain('cinnabar-court');
+  });
+
   it('the root STATUS.md is a stub that points into the folder', () => {
     const stub = readFileSync(`${ROOT}STATUS.md`, 'utf8');
     expect(stub.length, 'the stub is short').toBeLessThan(1500);

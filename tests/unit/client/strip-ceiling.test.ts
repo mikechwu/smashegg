@@ -20,7 +20,13 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { deckThemes, stripCeilingFor, themesOverStripCeiling } from '../../../src/client/table/theme';
+import {
+  collapsedExactCeilingFor,
+  deckThemes,
+  stripCeilingFor,
+  themesNeedingCappedRates,
+  themesOverStripCeiling,
+} from '../../../src/client/table/theme';
 import '../../../src/client/table/themes/lacquer';
 
 const ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -77,6 +83,51 @@ describe('the covered-card reveal is a framework budget, not art freedom', () =>
       cinnabar,
       'the ceiling must reject the value that caused this whole finding',
     ).toBeGreaterThan(stripCeilingFor(cardW, depthFloor));
+  });
+
+  // N1: THERE ARE TWO STRIP THRESHOLDS AND THE GATE ONLY ENFORCES ONE.
+  //
+  //   stripCeilingFor(46.51, 10)   = 0.447   — do depth-10 hands still fit?  (gated)
+  //   collapsedExactCeilingFor(8)  = 0.4214  — is the simple height formula still exact?
+  //
+  // The second is LOWER, so a theme can pass the gate and still break its own rates: at
+  // 0.43 the depth-8 columns reach the reveal budget and every rate computed from the
+  // collapsed form is wrong, with the gate green throughout. Exceeding it is legal — it only
+  // says which formula that theme's rates need — so it is detected, never refused.
+  it('the two strip thresholds are distinct, and the looser-looking one is lower', () => {
+    const gate = stripCeilingFor(cardW, depthFloor);
+    const exact = collapsedExactCeilingFor(8);
+    expect(exact).toBeCloseTo(2.95 / 7, 6);
+    expect(exact, 'the collapsed-exact line sits BELOW the feasibility gate').toBeLessThan(gate);
+    // The gap is the hole: a strip in it passes the gate and needs the capped form anyway.
+    const inTheGap = (gate + exact) / 2;
+    expect(inTheGap).toBeLessThan(gate);
+    expect(inTheGap).toBeGreaterThan(exact);
+  });
+
+  it('lacquer is exact, and says how little margin that rests on', () => {
+    const lacquer = deckThemes().find((t) => t.id === 'lacquer');
+    expect(lacquer, 'lacquer is registered').toBeTruthy();
+    const exact = collapsedExactCeilingFor(8);
+    expect(
+      lacquer!.metrics.stackStripW,
+      'lacquer must stay below the collapsed-exact line — every lacquer figure in this ' +
+        'project depends on it, and the whole margin is 0.00143',
+    ).toBeLessThan(exact);
+    expect(exact - lacquer!.metrics.stackStripW).toBeLessThan(0.002);
+  });
+
+  it('no registered theme silently needs the capped rate form', () => {
+    // Not a defect if it fires — a routing fact. But it must never be a SURPRISE, which is
+    // what it was for cinnabar-court for the whole time that theme shipped.
+    const needsCapped = themesNeedingCappedRates(8);
+    expect(
+      needsCapped,
+      `these registered themes exceed the collapsed-exact line, so their RATES must be ` +
+        `computed with the capped height form:\n` +
+        needsCapped.map((t) => `  ${t.id}: ${t.requested} > ${t.ceiling.toFixed(4)}`).join('\n') +
+        `\nThat is legal. It is not legal to then quote a rate computed the cheap way.`,
+    ).toEqual([]);
   });
 
   it('every theme the picker offers is registered, and the withdrawn one is not', () => {

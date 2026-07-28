@@ -37,7 +37,7 @@ no range is not a validated quantity**; it is a reading.
 | the depth floor as a percentile | `modelled` | 200,000 deals | inner 664, `lacquer`, following | per-line capacities 8-10 | K=9 covers 98.2-99.3% of hands, K=10 covers 99.8-99.9%. The spread is over capacity. |
 | span growth tolerated | `modelled` | — | `lacquer`, the reference cell | derived from the band edges | 10.0px at the shipped card. Algebraically `margin(s*, w)`; a robustness measure, never a rate. |
 | `revealBudget` | `definitional` | — | all themes | all | 2.95 card widths, from `stackOffsetW`. It binds at column depth 5 for a 0.841 strip and **never for 0.42**, since a value class holds at most 8 copies and 0.42*7 = 2.94. |
-| the fan-height model's collapsed form | `structural` | — | **`lacquer` only** | every depth the shoe can produce | `stripW*(s-2)` is EXACT at lacquer because the budget never binds there, so every lacquer figure in this file is unaffected by the M0 correction. At a theme that reaches the budget it overstates the height, and feasibility stops being a function of `s` alone. |
+| the fan-height model's collapsed form | `structural` | — | any theme whose BALANCED split at the depth floor stays under the reveal budget | includes `lacquer` at every depth the shoe allows, the shipped strip ceiling, and `cinnabar-court` at its own marginal bin | `stripW*(s-2)` is the exact MAXIMUM over splits in that region — reveal() is concave, so the balanced split maximises the sum, verified by brute force over all 45 achievable (d1,d2) cases. So the GATE is exact there. What the capped form is needed for is the RATE, which depends on the joint distribution of (d1,d2) rather than the marginal distribution of s. |
 | cinnabar-court rate | `modelled` | 200,000 deals | **`cinnabar-court`**, following, at the shipped card | inner 390 and inner 360 | **50.3% at inner 390, 66.6% at inner 360.** Under the collapsed form these read 51.3% and 66.9%; the capped form is the one to quote. |
 | the theme extension, per deal | `measured` | 16 deals, same-hand intervention through the picker | inner 390x664, `lacquer` -> `cinnabar-court`, timed, one card staged, sort ascending | 6 of the 16 exercised the budget | **Worst error 0.10px against the capped model, 19.20px against the collapsed one.** Depth counted from the DOM, independent of any pixel reading. This is what the extension rests on. |
 | the theme's flip rate | `measured` | 16 deals, same intervention | as above | that cell | 5 of 16 went feasible -> infeasible, **consistent with** 50.3% modelled and settling nothing on its own at this n. |
@@ -74,7 +74,7 @@ no range is not a validated quantity**; it is a reading.
 
 ## A measurement that was taken and discarded
 
-The first same-hand intervention run of this round produced these, and **they are void**:
+The first same-hand intervention run of **round J0-J3** produced these, and **they are void**:
 
 | figure, as first measured | superseded by |
 |---|---|

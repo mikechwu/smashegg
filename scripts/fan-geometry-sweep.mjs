@@ -32,14 +32,31 @@ const BASE = process.env.FGS_BASE ?? 'http://localhost:8787';
 if (process.env.FGS_WIDTHS === undefined) {
   console.log(
     '\nFGS_WIDTHS is REQUIRED — there is deliberately no default list.\n' +
-      '  INNER widths, browser chrome EXCLUDED.\n' +
-      '  e.g.  FGS_WIDTHS=320,360,375,390,768,1366,1440 node scripts/fan-geometry-sweep.mjs\n',
+      '  INNER widths, browser chrome EXCLUDED. FGS_H is required too.\n' +
+      '  Real phone inner heights at 390 wide: ~664 with toolbars, ~748 minimized.\n' +
+      '  e.g.  FGS_WIDTHS=320,360,375,390 FGS_H=664 node scripts/fan-geometry-sweep.mjs\n',
   );
   process.exit(2);
 }
 const WIDTHS = process.env.FGS_WIDTHS.split(',').map(Number);
-const HEIGHT = Number(process.env.FGS_H ?? 900);
-const THEMES = (process.env.FGS_THEMES ?? 'lacquer,cinnabar-court').split(',');
+// FGS_H WAS DEFAULTED TO 900, WHICH IS THE DEFECT THIS SCRIPT'S OWN WIDTH GUARD EXISTS TO
+// PREVENT, one field over. Found when the viewport guard stopped working from a hardcoded
+// list and started enumerating browser gates from the filesystem (round N3a): this script
+// demanded its width and quietly supplied its height, and 900 is not an inner height any
+// phone presents.
+if (process.env.FGS_H === undefined) {
+  console.log(
+    '\nFGS_H is REQUIRED — there is deliberately no default.\n' +
+      '  INNER height, browser chrome EXCLUDED.\n' +
+      '  Real phone inner heights at 390 wide: ~664 with toolbars, ~748 minimized.\n' +
+      '  e.g.  FGS_WIDTHS=390 FGS_H=664 node scripts/fan-geometry-sweep.mjs\n',
+  );
+  process.exit(2);
+}
+const HEIGHT = Number(process.env.FGS_H);
+// Default is the registered set. cinnabar-court was withdrawn in round M2 and no longer
+// registers, so naming it here would have swept a theme the app cannot render.
+const THEMES = (process.env.FGS_THEMES ?? 'lacquer').split(',');
 
 const { chromium } = await import('playwright');
 
@@ -162,8 +179,30 @@ for (const theme of THEMES) {
     await p.goto(`${BASE}/#/room/${drive.code}`, { waitUntil: 'networkidle' });
     await p.waitForFunction(() => document.querySelectorAll('.gd-fan__card').length >= 20, null, { timeout: 60000 });
     await p.waitForTimeout(500);
-    const got = await p.evaluate(() => localStorage.getItem('pref:deckTheme'));
-    if (got !== theme) throw new Error(`theme did not take at ${w}: wanted ${theme}, got ${got}`);
+    // VERIFY THE RENDERED THEME, NOT THE STORED PREFERENCE. Reading back the value this
+    // script just wrote to localStorage confirms only that localStorage works. The app maps
+    // an UNREGISTERED id to the default (activeDeckTheme checks registry membership), so
+    // after round M2 withdrew cinnabar-court, `localStorage.getItem` would still say
+    // 'cinnabar-court' while every card on the page rendered lacquer — a sweep labelling
+    // lacquer as the other theme, with its own theme assertion green. Practice 11, inside
+    // the check written to prevent it.
+    //
+    // The signature is lacquer's horizontal rank+suit index row, which no other theme draws.
+    const rendered = await p.evaluate(() => ({
+      lacquerIndex: document.querySelector('.gd-card__index--row') !== null,
+      stored: localStorage.getItem('pref:deckTheme'),
+    }));
+    const looksLacquer = rendered.lacquerIndex;
+    if (rendered.stored !== theme) {
+      throw new Error(`theme preference did not persist at ${w}: wanted ${theme}, got ${rendered.stored}`);
+    }
+    if ((theme === 'lacquer') !== looksLacquer) {
+      throw new Error(
+        `theme '${theme}' is not what RENDERED at ${w}: the page ` +
+          `${looksLacquer ? 'draws' : 'does not draw'} lacquer's index row. An unregistered ` +
+          'theme id falls back to the default, so this sweep would have measured the wrong deck.',
+      );
+    }
     const g = await p.evaluate(`(${GEOM})()`);
     if (g.error) { console.log(`  ${String(w).padStart(5)}   ${g.error}`); await c.close(); continue; }
 

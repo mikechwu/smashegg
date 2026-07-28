@@ -193,6 +193,16 @@ for (let deal = 0; deal < DEALS; deal += 1) {
   // — name the compensator; here it is named and measured rather than disabled).
   await page.waitForTimeout(900);
 
+  // The RENDERED theme, not the stored preference: an unregistered id falls back to the
+  // default while localStorage still reports what was written, so this check has to look at
+  // the page. See scripts/fan-geometry-sweep.mjs for the instance.
+  const renderedLacquer = await page.evaluate(() => document.querySelector('.gd-card__index--row') !== null);
+  if ((THEME === 'lacquer') !== renderedLacquer) {
+    throw new Error(
+      `deck theme '${THEME}' is not what rendered: the page ` +
+        `${renderedLacquer ? 'draws' : 'does not draw'} lacquer's index row.`,
+    );
+  }
   const gotTheme = await page.evaluate(() => localStorage.getItem('pref:deckTheme'));
   if (gotTheme !== THEME) {
     throw new Error(`deck theme did not take: wanted ${THEME}, page reports ${gotTheme}`);
